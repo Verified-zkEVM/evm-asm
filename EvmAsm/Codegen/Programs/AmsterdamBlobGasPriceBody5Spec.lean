@@ -1,24 +1,23 @@
 /-
-# swapDiv window for `amsterdam_blob_gas_price_u256` (#12851, body discharge)
+# exitDiv window for `amsterdam_blob_gas_price_u256` (#12851, body discharge)
 
-Window: instrs 170..200 @ `PriceK+680 .. PriceK+800` — pointer swap (acc↔prod),
-divisor formation `D·i` with high-half overflow dispatch, then the 6-limb ×
-64-bit MSB-first restoring division writing quotient limbs over the (swapped)
-acc buffer, `i++`, and the unconditional back-edge `j` to the outer loop head
-`PriceK+144`.
+Window: instrs 201..224 @ `PriceK+804 .. PriceK+896` — the exit-tail division
+`sum / D` (the same 6-limb x 64-bit MSB-first restoring-division shape as the
+exitDiv window, with the divisor `D` taken directly from `x9`; no `mulhu`, no
+overflow exit), falling through to `PriceK+900` where the tail window
+(high-limb check + BE copy + status) begins.
 
-Structure: a parametric one-round bit lemma folded 64× by `countdown_loop_triple`
-(the final round's taken-post `⌜(0 : Word) ≠ 0⌝` is absurd), a limb-round lemma
-folded 6×, then the straight-line prologue merged with the ovf dispatch and the
-back-edge jump (`jal_x0_spec_gen_within`). Values stay symbolic; the division
-recurrence (`r⁺ = 2r + msb`, conditional subtract) is carried as `ite` terms in
-the postcondition pins.
+This file is a MECHANICAL MIRROR of `AmsterdamBlobGasPriceBody3Spec` shifted
+by `+104` bytes / `+26` program indices (the emitted division loops are
+instruction-identical, only their addresses move). The division helpers
+(`divst`, `lcnt`, `cnt`, the countdown fold) are duplicated here so the file
+is self-contained; theorems are renamed `exitdiv_* -> exitdiv_*`.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 
-namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody3Spec
+namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
@@ -62,7 +61,7 @@ private theorem countdown_loop_triple {N m : Nat} {cr : CodeReq} {hdr exitB : Wo
       rw [show j + 1 + n + 1 = j + (n + 1) + 1 from by omega] at hmerge
       exact hmerge
 
-/-! ## swapDiv Stage A: helpers + bit-round (B+732..B+780) -/
+/-! ## exitDiv Stage A: helpers + bit-round (B+732..B+780) -/
 
 private theorem regIs_val_congr {r : Reg} {v v' : Word} (hvv : v = v') :
     ∀ h, (r ↦ᵣ v) h → (r ↦ᵣ v') h := by
@@ -84,26 +83,26 @@ private theorem pure_drop_mid {L1 L2 : Assertion} {P : Prop} {R : Assertion} :
 
 /-- bltz fall arm: `slli t2; j B+756` (B+740→B+756), t1 keeps `rv<<<1`. -/
 private theorem bit_fall_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 740) (PriceK + 756) priceCode
+    cpsTripleWithin 2 (PriceK + 844) (PriceK + 860) priceCode
       (((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word))) ** ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       (((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) **
         (.x0 ↦ᵣ (0 : Word))) ** FR) := by
-  have hs := slli_spec_gen_same_within .x7 tv (1 : BitVec 6) (PriceK + 740) (by decide)
-  have hj := jal_x0_spec_gen_within (12 : BitVec 21) (PriceK + 744)
-  rw [show (PriceK + 744 : Word) + signExtend21 (12 : BitVec 21) = PriceK + 756 from by
+  have hs := slli_spec_gen_same_within .x7 tv (1 : BitVec 6) (PriceK + 844) (by decide)
+  have hj := jal_x0_spec_gen_within (12 : BitVec 21) (PriceK + 848)
+  rw [show (PriceK + 848 : Word) + signExtend21 (12 : BitVec 21) = PriceK + 860 from by
       rw [show signExtend21 (12 : BitVec 21) = (12 : Word) from by decide]; decide] at hj
-  have hsF : cpsTripleWithin 1 (PriceK + 740) (PriceK + 744) priceCode
+  have hsF : cpsTripleWithin 1 (PriceK + 844) (PriceK + 848) priceCode
       ((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR)) := by
     refine cpsTripleWithin_extend_code ?_ (cpsTripleWithin_frameR _
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR)) hs)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[185]'(by decide) = .SLLI .x7 .x7 1 := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 740)
-      amsterdamBlobGasPriceU256_prog 185 (.SLLI .x7 .x7 1) (by decide) (by decide) hins
+    have hins : amsterdamBlobGasPriceU256_prog[211]'(by decide) = .SLLI .x7 .x7 1 := by decide
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 844)
+      amsterdamBlobGasPriceU256_prog 211  (.SLLI .x7 .x7 1) (by decide) (by decide) hins
       (by decide) a i hi
-  have hjF : cpsTripleWithin 1 (PriceK + 744) (PriceK + 756) priceCode
+  have hjF : cpsTripleWithin 1 (PriceK + 848) (PriceK + 860) priceCode
       (empAssertion ** ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR)))
       (empAssertion ** ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -112,10 +111,10 @@ private theorem bit_fall_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
         (pcFree_sepConj pcFree_regIs hFR))) hj)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[186]'(by decide) = .JAL .x0 (12 : BitVec 21) := by
+    have hins : amsterdamBlobGasPriceU256_prog[212]'(by decide) = .JAL .x0 (12 : BitVec 21) := by
       decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 744)
-      amsterdamBlobGasPriceU256_prog 186 (.JAL .x0 (12 : BitVec 21)) (by decide) (by decide)
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 848)
+      amsterdamBlobGasPriceU256_prog 212  (.JAL .x0 (12 : BitVec 21)) (by decide) (by decide)
       hins (by decide) a i hi
   have hjF' := cpsTripleWithin_weaken
     (by intro h hx; rw [sepConj_emp_left']; exact hx) (fun _ hx => hx) hjF
@@ -125,25 +124,25 @@ private theorem bit_fall_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
 
 /-- bltz taken arm: `slli t2; addi t1,1` (B+748→B+756), t1 becomes `rv<<<1 + 1`. -/
 private theorem bit_taken_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 748) (PriceK + 756) priceCode
+    cpsTripleWithin 2 (PriceK + 852) (PriceK + 860) priceCode
       (((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word))) ** ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + signExtend12 (1 : BitVec 12))) **
         (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word))) ** FR) := by
-  have hs := slli_spec_gen_same_within .x7 tv (1 : BitVec 6) (PriceK + 748) (by decide)
+  have hs := slli_spec_gen_same_within .x7 tv (1 : BitVec 6) (PriceK + 852) (by decide)
   have ha := addi_spec_gen_same_within .x6 (rv <<< (1 : BitVec 6).toNat) (1 : BitVec 12)
-    (PriceK + 752) (by decide)
-  have hsF : cpsTripleWithin 1 (PriceK + 748) (PriceK + 752) priceCode
+    (PriceK + 856) (by decide)
+  have hsF : cpsTripleWithin 1 (PriceK + 852) (PriceK + 856) priceCode
       ((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR)) := by
     refine cpsTripleWithin_extend_code ?_ (cpsTripleWithin_frameR _
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR)) hs)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[187]'(by decide) = .SLLI .x7 .x7 1 := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 748)
-      amsterdamBlobGasPriceU256_prog 187 (.SLLI .x7 .x7 1) (by decide) (by decide) hins
+    have hins : amsterdamBlobGasPriceU256_prog[213]'(by decide) = .SLLI .x7 .x7 1 := by decide
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 852)
+      amsterdamBlobGasPriceU256_prog 213  (.SLLI .x7 .x7 1) (by decide) (by decide) hins
       (by decide) a i hi
-  have haF : cpsTripleWithin 1 (PriceK + 752) (PriceK + 756) priceCode
+  have haF : cpsTripleWithin 1 (PriceK + 856) (PriceK + 860) priceCode
       ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** FR))
       ((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + signExtend12 (1 : BitVec 12))) **
@@ -151,11 +150,11 @@ private theorem bit_taken_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) 
     refine cpsTripleWithin_extend_code ?_ (cpsTripleWithin_frameR _
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR)) ha)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[188]'(by decide) = .ADDI .x6 .x6 1 := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 752)
-      amsterdamBlobGasPriceU256_prog 188 (.ADDI .x6 .x6 1) (by decide) (by decide) hins
+    have hins : amsterdamBlobGasPriceU256_prog[214]'(by decide) = .ADDI .x6 .x6 1 := by decide
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 856)
+      amsterdamBlobGasPriceU256_prog 214  (.ADDI .x6 .x6 1) (by decide) (by decide) hins
       (by decide) a i hi
-  have haF' : cpsTripleWithin 1 (PriceK + 752) (PriceK + 756) priceCode
+  have haF' : cpsTripleWithin 1 (PriceK + 856) (PriceK + 860) priceCode
       ((.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       ((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + signExtend12 (1 : BitVec 12))) **
@@ -169,7 +168,7 @@ private theorem bit_taken_arm (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) 
 (`bit_taken_arm` invoked with `FR := ⌜slt⌝ ** FR`) so the post can be stated in
 if-form — consumed at the diamond merge. -/
 private theorem bit_taken_arm_p (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 748) (PriceK + 756) priceCode
+    cpsTripleWithin 2 (PriceK + 852) (PriceK + 860) priceCode
       (((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜BitVec.slt tv (0 : Word)⌝) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) +
@@ -192,7 +191,7 @@ private theorem bit_taken_arm_p (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree
 
 /-- bltz fall arm, pure-carrying (mirror of `bit_taken_arm_p`). -/
 private theorem bit_fall_arm_p (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 740) (PriceK + 756) priceCode
+    cpsTripleWithin 2 (PriceK + 844) (PriceK + 860) priceCode
       (((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜¬BitVec.slt tv (0 : Word)⌝) **
         ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
       (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) +
@@ -215,33 +214,33 @@ private theorem bit_fall_arm_p (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree)
 
 /-- bltu fall arm (subtract path): `sub t1,t1,t0; addi t3,t3,1`. -/
 private theorem bltu_fall_arm (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 764) (PriceK + 772) priceCode
+    cpsTripleWithin 2 (PriceK + 868) (PriceK + 876) priceCode
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv)) ** ((.x28 ↦ᵣ qs) ** FR))
       (((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv) ** (.x28 ↦ᵣ (qs + signExtend12 (1 : BitVec 12)))) **
         FR) := by
-  have hsub := sub_spec_gen_rd_eq_rs1_within .x6 .x5 rp dv (PriceK + 764) (by decide)
-  have hadd := addi_spec_gen_same_within .x28 qs (1 : BitVec 12) (PriceK + 768) (by decide)
-  have hsubF : cpsTripleWithin 1 (PriceK + 764) (PriceK + 768) priceCode
+  have hsub := sub_spec_gen_rd_eq_rs1_within .x6 .x5 rp dv (PriceK + 868) (by decide)
+  have hadd := addi_spec_gen_same_within .x28 qs (1 : BitVec 12) (PriceK + 872) (by decide)
+  have hsubF : cpsTripleWithin 1 (PriceK + 868) (PriceK + 872) priceCode
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv)) ** ((.x28 ↦ᵣ qs) ** FR))
       (((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv)) ** ((.x28 ↦ᵣ qs) ** FR)) := by
     refine cpsTripleWithin_extend_code ?_ (cpsTripleWithin_frameR _
       (pcFree_sepConj pcFree_regIs hFR) hsub)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[191]'(by decide) = .SUB .x6 .x6 .x5 := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 764)
-      amsterdamBlobGasPriceU256_prog 191 (.SUB .x6 .x6 .x5) (by decide) (by decide) hins
+    have hins : amsterdamBlobGasPriceU256_prog[217]'(by decide) = .SUB .x6 .x6 .x5 := by decide
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 868)
+      amsterdamBlobGasPriceU256_prog 217  (.SUB .x6 .x6 .x5) (by decide) (by decide) hins
       (by decide) a i hi
-  have haddF : cpsTripleWithin 1 (PriceK + 768) (PriceK + 772) priceCode
+  have haddF : cpsTripleWithin 1 (PriceK + 872) (PriceK + 876) priceCode
       ((.x28 ↦ᵣ qs) ** ((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv) ** FR))
       ((.x28 ↦ᵣ (qs + signExtend12 (1 : BitVec 12))) ** ((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv) ** FR)) := by
     refine cpsTripleWithin_extend_code ?_ (cpsTripleWithin_frameR _
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR)) hadd)
     intro a i hi
-    have hins : amsterdamBlobGasPriceU256_prog[192]'(by decide) = .ADDI .x28 .x28 1 := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 768)
-      amsterdamBlobGasPriceU256_prog 192 (.ADDI .x28 .x28 1) (by decide) (by decide) hins
+    have hins : amsterdamBlobGasPriceU256_prog[218]'(by decide) = .ADDI .x28 .x28 1 := by decide
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 872)
+      amsterdamBlobGasPriceU256_prog 218  (.ADDI .x28 .x28 1) (by decide) (by decide) hins
       (by decide) a i hi
-  have haddF' : cpsTripleWithin 1 (PriceK + 768) (PriceK + 772) priceCode
+  have haddF' : cpsTripleWithin 1 (PriceK + 872) (PriceK + 876) priceCode
       (((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv)) ** ((.x28 ↦ᵣ qs) ** FR))
       ((.x28 ↦ᵣ (qs + signExtend12 (1 : BitVec 12))) ** ((.x6 ↦ᵣ (rp - dv)) ** (.x5 ↦ᵣ dv) ** FR)) :=
     cpsTripleWithin_weaken (by intro h hx; xperm_hyp hx) (fun _ hx => hx) haddF
@@ -251,7 +250,7 @@ private theorem bltu_fall_arm (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcFre
 
 /-- bltu fall arm, pure-carrying (⌜¬ult⌝ rides the frame; if-form post). -/
 private theorem bltu_fall_arm_p (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 764) (PriceK + 772) priceCode
+    cpsTripleWithin 2 (PriceK + 868) (PriceK + 876) priceCode
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv) ** ⌜¬BitVec.ult rp dv⌝) ** ((.x28 ↦ᵣ qs) ** FR))
       (((.x6 ↦ᵣ (if BitVec.ult rp dv then rp else rp - dv)) ** (.x5 ↦ᵣ dv) **
           (.x28 ↦ᵣ (qs + (if BitVec.ult rp dv then 0 else 1)))) ** FR) := by
@@ -273,11 +272,11 @@ private theorem bltu_fall_arm_p (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcF
 /-- bltu skip arm (taken side, 0 instructions): values unchanged, pure consumed
 into the if-forms. -/
 private theorem bltu_skip_arm (rp dv qs : Word) (FR : Assertion) (_hFR : FR.pcFree) :
-    cpsTripleWithin 2 (PriceK + 772) (PriceK + 772) priceCode
+    cpsTripleWithin 2 (PriceK + 876) (PriceK + 876) priceCode
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv) ** (.x28 ↦ᵣ qs) ** ⌜BitVec.ult rp dv⌝) ** FR)
       (((.x6 ↦ᵣ (if BitVec.ult rp dv then rp else rp - dv)) ** (.x5 ↦ᵣ dv) **
           (.x28 ↦ᵣ (qs + (if BitVec.ult rp dv then 0 else 1)))) ** FR) := by
-  have hrefl : cpsTripleWithin 0 (PriceK + 772) (PriceK + 772) CodeReq.empty
+  have hrefl : cpsTripleWithin 0 (PriceK + 876) (PriceK + 876) CodeReq.empty
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv) ** (.x28 ↦ᵣ qs) ** ⌜BitVec.ult rp dv⌝) ** FR)
       (((.x6 ↦ᵣ (if BitVec.ult rp dv then rp else rp - dv)) ** (.x5 ↦ᵣ dv) **
           (.x28 ↦ᵣ (qs + (if BitVec.ult rp dv then 0 else 1)))) ** FR) :=
@@ -309,24 +308,24 @@ private theorem bltu_skip_arm (rp dv qs : Word) (FR : Assertion) (_hFR : FR.pcFr
 /-- The bltz diamond at `PriceK+736`: branch, then both arms converge at `PriceK+756`
 with the common if-form remainder value. -/
 private theorem merged_bltz (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 3 (PriceK + 736) (PriceK + 756) priceCode
+    cpsTripleWithin 3 (PriceK + 840) (PriceK + 860) priceCode
     (((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word))) ** ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR))
     (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0))) **
       (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word))) ** FR) := by
-  have hleaf := blt_spec_gen_within .x7 .x0 (12 : BitVec 13) tv (0 : Word) (PriceK + 736)
-  rw [show (PriceK + 736 : Word) + signExtend13 (12 : BitVec 13) = PriceK + 748 from by
+  have hleaf := blt_spec_gen_within .x7 .x0 (12 : BitVec 13) tv (0 : Word) (PriceK + 840)
+  rw [show (PriceK + 840 : Word) + signExtend13 (12 : BitVec 13) = PriceK + 852 from by
       rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide]; decide,
-    show (PriceK + 736 : Word) + 4 = PriceK + 740 from by decide] at hleaf
+    show (PriceK + 840 : Word) + 4 = PriceK + 844 from by decide] at hleaf
   have hleafF := cpsBranchWithin_frameR ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) ** FR)
     (pcFree_sepConj pcFree_regIs hFR) hleaf
   have hmono : ∀ a i,
-      (CodeReq.singleton (PriceK + 736) (.BLT .x7 .x0 (12 : BitVec 13))) a = some i →
+      (CodeReq.singleton (PriceK + 840) (.BLT .x7 .x0 (12 : BitVec 13))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    have hins : amsterdamBlobGasPriceU256_prog[184]'(by decide) =
+    have hins : amsterdamBlobGasPriceU256_prog[210]'(by decide) =
         .BLT .x7 .x0 (12 : BitVec 13) := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 736) amsterdamBlobGasPriceU256_prog 184
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 840) amsterdamBlobGasPriceU256_prog 210 
       (.BLT .x7 .x0 (12 : BitVec 13)) (by decide) (by decide) hins (by decide) a i hi
   have hleafE := cpsBranchWithin_extend_code hmono hleafF
   exact cpsBranchWithin_merge_same_cr hleafE (bit_taken_arm_p rv tv FR hFR)
@@ -335,27 +334,27 @@ private theorem merged_bltz (rv tv : Word) (FR : Assertion) (hFR : FR.pcFree) :
 /-- The bltu diamond at `PriceK+760`: taken (no underflow) skips to `PriceK+772`,
 fall subtracts; both converge with the common if-form remainder/quotient values. -/
 private theorem merged_bltu (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 3 (PriceK + 760) (PriceK + 772) priceCode
+    cpsTripleWithin 3 (PriceK + 864) (PriceK + 876) priceCode
     (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv)) ** ((.x28 ↦ᵣ qs) ** FR))
     (((.x6 ↦ᵣ (if BitVec.ult rp dv then rp else rp - dv)) ** (.x5 ↦ᵣ dv) **
         (.x28 ↦ᵣ (qs + (if BitVec.ult rp dv then 0 else 1)))) ** FR) := by
-  have hleaf := bltu_spec_gen_within .x6 .x5 (12 : BitVec 13) rp dv (PriceK + 760)
-  rw [show (PriceK + 760 : Word) + signExtend13 (12 : BitVec 13) = PriceK + 772 from by
+  have hleaf := bltu_spec_gen_within .x6 .x5 (12 : BitVec 13) rp dv (PriceK + 864)
+  rw [show (PriceK + 864 : Word) + signExtend13 (12 : BitVec 13) = PriceK + 876 from by
       rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide]; decide,
-    show (PriceK + 760 : Word) + 4 = PriceK + 764 from by decide] at hleaf
+    show (PriceK + 864 : Word) + 4 = PriceK + 868 from by decide] at hleaf
   have hleafF := cpsBranchWithin_frameR ((.x28 ↦ᵣ qs) ** FR)
     (pcFree_sepConj pcFree_regIs hFR) hleaf
   have hmono : ∀ a i,
-      (CodeReq.singleton (PriceK + 760) (.BLTU .x6 .x5 (12 : BitVec 13))) a = some i →
+      (CodeReq.singleton (PriceK + 864) (.BLTU .x6 .x5 (12 : BitVec 13))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    have hins : amsterdamBlobGasPriceU256_prog[190]'(by decide) =
+    have hins : amsterdamBlobGasPriceU256_prog[216]'(by decide) =
         .BLTU .x6 .x5 (12 : BitVec 13) := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 760) amsterdamBlobGasPriceU256_prog 190
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 864) amsterdamBlobGasPriceU256_prog 216 
       (.BLTU .x6 .x5 (12 : BitVec 13)) (by decide) (by decide) hins (by decide) a i hi
   have hleafE := cpsBranchWithin_extend_code hmono hleafF
-  have h_t : cpsTripleWithin 2 (PriceK + 772) (PriceK + 772) priceCode
+  have h_t : cpsTripleWithin 2 (PriceK + 876) (PriceK + 876) priceCode
       (((.x6 ↦ᵣ rp) ** (.x5 ↦ᵣ dv) ** ⌜BitVec.ult rp dv⌝) ** ((.x28 ↦ᵣ qs) ** FR))
       (((.x6 ↦ᵣ (if BitVec.ult rp dv then rp else rp - dv)) ** (.x5 ↦ᵣ dv) **
           (.x28 ↦ᵣ (qs + (if BitVec.ult rp dv then 0 else 1)))) ** FR) :=
@@ -365,28 +364,28 @@ private theorem merged_bltu (rp dv qs : Word) (FR : Assertion) (hFR : FR.pcFree)
 
 /-- Bit-round part 1 (`PriceK+732 → PriceK+756`): `slli t1,t1,1` then the bltz diamond. -/
 private theorem bitround_part1 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 4 (PriceK + 732) (PriceK + 756) priceCode
+    cpsTripleWithin 4 (PriceK + 836) (PriceK + 860) priceCode
     (((.x6 ↦ᵣ rv) ** (.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ qv) ** (.x29 ↦ᵣ cv) **
       (.x5 ↦ᵣ dv)) ** FR)
     (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0))) **
       (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word))) **
       ((.x28 ↦ᵣ qv) ** (.x29 ↦ᵣ cv) ** (.x5 ↦ᵣ dv) ** FR)) := by
-  have hs := slli_spec_gen_same_within .x6 rv (1 : BitVec 6) (PriceK + 732) (by decide)
+  have hs := slli_spec_gen_same_within .x6 rv (1 : BitVec 6) (PriceK + 836) (by decide)
   have hsF := cpsTripleWithin_frameR
     ((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ qv) ** (.x29 ↦ᵣ cv) ** (.x5 ↦ᵣ dv) ** FR)
     (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))) hs
   have hmono : ∀ a i,
-      (CodeReq.singleton (PriceK + 732) (.SLLI .x6 .x6 (1 : BitVec 6))) a = some i →
+      (CodeReq.singleton (PriceK + 836) (.SLLI .x6 .x6 (1 : BitVec 6))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    have hins : amsterdamBlobGasPriceU256_prog[183]'(by decide) =
+    have hins : amsterdamBlobGasPriceU256_prog[209]'(by decide) =
         .SLLI .x6 .x6 (1 : BitVec 6) := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 732) amsterdamBlobGasPriceU256_prog 183
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 836) amsterdamBlobGasPriceU256_prog 209 
       (.SLLI .x6 .x6 (1 : BitVec 6)) (by decide) (by decide) hins (by decide) a i hi
   have hsE := cpsTripleWithin_extend_code hmono hsF
-  have hmz' : cpsTripleWithin 3 (PriceK + 736) (PriceK + 756) priceCode
+  have hmz' : cpsTripleWithin 3 (PriceK + 840) (PriceK + 860) priceCode
       ((.x6 ↦ᵣ (rv <<< (1 : BitVec 6).toNat)) **
         ((.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ qv) ** (.x29 ↦ᵣ cv) ** (.x5 ↦ᵣ dv) **
           FR))
@@ -403,7 +402,7 @@ private theorem bitround_part1 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
 /-- Bit-round part 2 (`PriceK+756 → PriceK+776`): `slli t3` then the bltu diamond then
 `addi t4,t4,-1`. -/
 private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 5 (PriceK + 756) (PriceK + 776) priceCode
+    cpsTripleWithin 5 (PriceK + 860) (PriceK + 880) priceCode
     (((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0))) **
       (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word))) **
       ((.x28 ↦ᵣ qv) ** (.x29 ↦ᵣ cv) ** (.x5 ↦ᵣ dv) ** FR))
@@ -417,7 +416,7 @@ private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
           (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) +
             (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) **
         (.x5 ↦ᵣ dv) ** FR)) := by
-  have hs2 := slli_spec_gen_same_within .x28 qv (1 : BitVec 6) (PriceK + 756) (by decide)
+  have hs2 := slli_spec_gen_same_within .x28 qv (1 : BitVec 6) (PriceK + 860) (by decide)
   have hs2F := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0))) **
       (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ cv) **
@@ -425,16 +424,16 @@ private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
     (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))) hs2
   have hmono2 : ∀ a i,
-      (CodeReq.singleton (PriceK + 756) (.SLLI .x28 .x28 (1 : BitVec 6))) a = some i →
+      (CodeReq.singleton (PriceK + 860) (.SLLI .x28 .x28 (1 : BitVec 6))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    have hins : amsterdamBlobGasPriceU256_prog[189]'(by decide) =
+    have hins : amsterdamBlobGasPriceU256_prog[215]'(by decide) =
         .SLLI .x28 .x28 (1 : BitVec 6) := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 756) amsterdamBlobGasPriceU256_prog 189
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 860) amsterdamBlobGasPriceU256_prog 215 
       (.SLLI .x28 .x28 (1 : BitVec 6)) (by decide) (by decide) hins (by decide) a i hi
   have hs2E := cpsTripleWithin_extend_code hmono2 hs2F
-  have hmu' : cpsTripleWithin 3 (PriceK + 760) (PriceK + 772) priceCode
+  have hmu' : cpsTripleWithin 3 (PriceK + 864) (PriceK + 876) priceCode
       ((.x28 ↦ᵣ (qv <<< (1 : BitVec 6).toNat)) **
         ((.x6 ↦ᵣ ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0))) **
           (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ cv) **
@@ -455,7 +454,7 @@ private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
           (pcFree_sepConj pcFree_regIs hFR))))
   have hseq5 := cpsTripleWithin_seq_same_cr hs2E hmu'
-  have ha := addi_spec_gen_same_within .x29 cv (-1 : BitVec 12) (PriceK + 772) (by decide)
+  have ha := addi_spec_gen_same_within .x29 cv (-1 : BitVec 12) (PriceK + 876) (by decide)
   have haF := cpsTripleWithin_frameR
     ((.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) +
           (if BitVec.slt tv (0 : Word) then 1 else 0)) dv
@@ -469,16 +468,16 @@ private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
     (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))) ha
   have hmono3 : ∀ a i,
-      (CodeReq.singleton (PriceK + 772) (.ADDI .x29 .x29 (-1 : BitVec 12))) a = some i →
+      (CodeReq.singleton (PriceK + 876) (.ADDI .x29 .x29 (-1 : BitVec 12))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    have hins : amsterdamBlobGasPriceU256_prog[193]'(by decide) =
+    have hins : amsterdamBlobGasPriceU256_prog[219]'(by decide) =
         .ADDI .x29 .x29 (-1 : BitVec 12) := by decide
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 772) amsterdamBlobGasPriceU256_prog 193
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 876) amsterdamBlobGasPriceU256_prog 219 
       (.ADDI .x29 .x29 (-1 : BitVec 12)) (by decide) (by decide) hins (by decide) a i hi
   have haFE := cpsTripleWithin_extend_code hmono3 haF
-  have haF' : cpsTripleWithin 1 (PriceK + 772) (PriceK + 776) priceCode
+  have haF' : cpsTripleWithin 1 (PriceK + 876) (PriceK + 880) priceCode
       (((.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) +
             (if BitVec.slt tv (0 : Word) then 1 else 0)) dv
             then (rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)
@@ -503,44 +502,44 @@ private theorem bitround_part2 (rv tv qv cv dv : Word) (FR : Assertion) (hFR : F
     (by intro h hx; xperm_hyp hx) (cpsTripleWithin_seq_same_cr hseq5 haF')
 /-- One full bit round: `slli t1; bltz-diamond; slli t3; bltu-diamond; addi t4,-1;
 bnez t4` — back-edge to `PriceK+732` while the bit counter is nonzero. -/
-theorem swapdiv_bitround (rv tv qv cv dv : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsBranchWithin 10 (PriceK + 732) priceCode
+theorem exitdiv_bitround (rv tv qv cv dv : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsBranchWithin 10 (PriceK + 836) priceCode
       (((.x6 ↦ᵣ rv) ** (.x7 ↦ᵣ tv) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ qv) **
         (.x29 ↦ᵣ cv) ** (.x5 ↦ᵣ dv)) ** FR)
-      (PriceK + 732)
+      (PriceK + 836)
       (((.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x29 ↦ᵣ (cv + signExtend12 (-1 : BitVec 12))) ** (.x5 ↦ᵣ dv) ** ⌜(cv + signExtend12 (-1 : BitVec 12)) ≠ (0 : Word)⌝) ** FR)
-      (PriceK + 780)
+      (PriceK + 884)
       (((.x29 ↦ᵣ (cv + signExtend12 (-1 : BitVec 12))) ** (.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x5 ↦ᵣ dv) ** ⌜(cv + signExtend12 (-1 : BitVec 12)) = (0 : Word)⌝) ** FR) := by
   have hb := bne_spec_gen_within .x29 .x0 (-44 : BitVec 13)
-    (cv + signExtend12 (-1 : BitVec 12)) (0 : Word) (PriceK + 776)
-  rw [show (PriceK + 776 : Word) + signExtend13 (-44 : BitVec 13) = PriceK + 732 from by
+    (cv + signExtend12 (-1 : BitVec 12)) (0 : Word) (PriceK + 880)
+  rw [show (PriceK + 880 : Word) + signExtend13 (-44 : BitVec 13) = PriceK + 836 from by
       rw [show signExtend13 (-44 : BitVec 13) = (-44 : Word) from by decide]; decide,
-    show (PriceK + 776 : Word) + 4 = PriceK + 780 from by decide] at hb
+    show (PriceK + 880 : Word) + 4 = PriceK + 884 from by decide] at hb
   have hbF := cpsBranchWithin_frameR
     ((.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x5 ↦ᵣ dv) ** FR)
     (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))
     hb
-  have hins : amsterdamBlobGasPriceU256_prog[194]'(by decide) =
+  have hins : amsterdamBlobGasPriceU256_prog[220]'(by decide) =
       .BNE .x29 .x0 (-44 : BitVec 13) := by decide
   have hmono : ∀ a i,
-      (CodeReq.singleton (PriceK + 776) (.BNE .x29 .x0 (-44 : BitVec 13))) a = some i →
+      (CodeReq.singleton (PriceK + 880) (.BNE .x29 .x0 (-44 : BitVec 13))) a = some i →
       priceCode a = some i := by
     intro a i hi
     show priceCode a = some i
-    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 776)
-      amsterdamBlobGasPriceU256_prog 194 (.BNE .x29 .x0 (-44 : BitVec 13))
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 880)
+      amsterdamBlobGasPriceU256_prog 220  (.BNE .x29 .x0 (-44 : BitVec 13))
       (by decide) (by decide) hins (by decide) a i hi
   have hbE := cpsBranchWithin_extend_code hmono hbF
-  have hb' : cpsBranchWithin 1 (PriceK + 776) priceCode
+  have hb' : cpsBranchWithin 1 (PriceK + 880) priceCode
       (((.x29 ↦ᵣ (cv + signExtend12 (-1 : BitVec 12))) ** (.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x5 ↦ᵣ dv) ** FR))
-      (PriceK + 732)
+      (PriceK + 836)
       (((.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x29 ↦ᵣ (cv + signExtend12 (-1 : BitVec 12))) ** (.x5 ↦ᵣ dv) ** ⌜(cv + signExtend12 (-1 : BitVec 12)) ≠ (0 : Word)⌝) ** FR)
-      (PriceK + 780)
+      (PriceK + 884)
       (((.x29 ↦ᵣ (cv + signExtend12 (-1 : BitVec 12))) ** (.x6 ↦ᵣ (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) else ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) - dv)) ** (.x7 ↦ᵣ (tv <<< (1 : BitVec 6).toNat)) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ ((qv <<< (1 : BitVec 6).toNat) + (if BitVec.ult ((rv <<< (1 : BitVec 6).toNat) + (if BitVec.slt tv (0 : Word) then 1 else 0)) dv then 0 else 1))) ** (.x5 ↦ᵣ dv) ** ⌜(cv + signExtend12 (-1 : BitVec 12)) = (0 : Word)⌝) ** FR) :=
     cpsBranchWithin_weaken (by intro h hx; xperm_hyp hx) (by intro h hx; xperm_hyp hx)
       (by intro h hx; xperm_hyp hx) hbE
@@ -548,7 +547,7 @@ theorem swapdiv_bitround (rv tv qv cv dv : Word) (FR : Assertion) (hFR : FR.pcFr
     (bitround_part2 rv tv qv cv dv FR hFR)
   exact cpsTripleWithin_seq_cpsBranchWithin_same_cr h12 hb'
 
-/-! ## swapDiv: the 64-fold bit loop (B+732..B+780 folded 63+1 times) -/
+/-! ## exitDiv: the 64-fold bit loop (B+732..B+780 folded 63+1 times) -/
 
 /-- The bit-loop countdown register value after `j` rounds (starts at 64). -/
 private def cnt : Nat → Word
@@ -672,9 +671,9 @@ private def sdqc (dv r0 t0 q0 : Word) (FR : Assertion) : Assertion :=
     (.x7 ↦ᵣ (divst dv r0 t0 q0 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) **
     (.x28 ↦ᵣ (divst dv r0 t0 q0 64).2.2) ** (.x5 ↦ᵣ dv)) ** FR) h
 
-private theorem swapdiv_hiter_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    ∀ j < 63, cpsBranchWithin 10 (PriceK + 732) priceCode (sdinv dv r0 t0 q0 FR j)
-      (PriceK + 732) (sdinv dv r0 t0 q0 FR (j + 1)) (PriceK + 780) (sdqc dv r0 t0 q0 FR) := by
+private theorem exitdiv_hiter_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    ∀ j < 63, cpsBranchWithin 10 (PriceK + 836) priceCode (sdinv dv r0 t0 q0 FR j)
+      (PriceK + 836) (sdinv dv r0 t0 q0 FR (j + 1)) (PriceK + 884) (sdqc dv r0 t0 q0 FR) := by
   intro j _
   exact cpsBranchWithin_weaken (fun _ hx => hx)
     (by intro h hx; exact pure_drop_6 _ hx)
@@ -688,16 +687,16 @@ private theorem swapdiv_hiter_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.
         obtain ⟨_, _, _, _, _, hP⟩ := h6h
         obtain ⟨_, hPp⟩ := hP
         exact absurd hPp (cnt_ne_zero (j + 1) (by omega)))
-    (swapdiv_bitround (divst dv r0 t0 q0 j).1 (divst dv r0 t0 q0 j).2.1
+    (exitdiv_bitround (divst dv r0 t0 q0 j).1 (divst dv r0 t0 q0 j).2.1
       (divst dv r0 t0 q0 j).2.2 (cnt j) dv FR hFR)
 
-private theorem swapdiv_hiter (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+private theorem exitdiv_hiter (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
     ∀ j, j < 63 →
-      cpsBranchWithin 10 (PriceK + 732) priceCode
-        (sdinv dv r0 t0 q0 FR j) (PriceK + 732) (sdinv dv r0 t0 q0 FR (j + 1))
-        (PriceK + 780) (sdqb dv FR) := by
+      cpsBranchWithin 10 (PriceK + 836) priceCode
+        (sdinv dv r0 t0 q0 FR j) (PriceK + 836) (sdinv dv r0 t0 q0 FR (j + 1))
+        (PriceK + 884) (sdqb dv FR) := by
   intro j _
-  have hr := swapdiv_bitround (divst dv r0 t0 q0 j).1 (divst dv r0 t0 q0 j).2.1
+  have hr := exitdiv_bitround (divst dv r0 t0 q0 j).1 (divst dv r0 t0 q0 j).2.1
     (divst dv r0 t0 q0 j).2.2 (cnt j) dv FR hFR
   refine cpsBranchWithin_weaken (fun _ hx => hx) ?_ ?_ hr
   · intro h hx
@@ -705,11 +704,11 @@ private theorem swapdiv_hiter (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pc
   · intro h hx
     exact ⟨_, _, _, _, hx⟩
 
-private theorem swapdiv_hlast (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsBranchWithin 10 (PriceK + 732) priceCode (sdinv dv r0 t0 q0 FR 63)
-      (PriceK + 732) (fun h => (sdinv dv r0 t0 q0 FR 64 ** ⌜(0 : Word) ≠ (0 : Word)⌝) h)
-      (PriceK + 780) (sdqb dv FR) := by
-  have hr := swapdiv_bitround (divst dv r0 t0 q0 63).1 (divst dv r0 t0 q0 63).2.1
+private theorem exitdiv_hlast (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsBranchWithin 10 (PriceK + 836) priceCode (sdinv dv r0 t0 q0 FR 63)
+      (PriceK + 836) (fun h => (sdinv dv r0 t0 q0 FR 64 ** ⌜(0 : Word) ≠ (0 : Word)⌝) h)
+      (PriceK + 884) (sdqb dv FR) := by
+  have hr := exitdiv_bitround (divst dv r0 t0 q0 63).1 (divst dv r0 t0 q0 63).2.1
     (divst dv r0 t0 q0 63).2.2 (cnt 63) dv FR hFR
   refine cpsBranchWithin_weaken (fun _ hx => hx) ?_ ?_ hr
   · intro h hx
@@ -727,19 +726,19 @@ private theorem swapdiv_hlast (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pc
 
 /-- The 64-round bit loop as one triple: 63 iterating rounds plus the final
 round whose taken (back-edge) branch is refuted by `cnt_zero`. -/
-theorem swapdiv_bitfold (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 640 (PriceK + 732) (PriceK + 780) priceCode
+theorem exitdiv_bitfold (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 640 (PriceK + 836) (PriceK + 884) priceCode
       (sdinv dv r0 t0 q0 FR 0) (sdqb dv FR) :=
   countdown_loop_triple (N := 63) (m := 10) (sdinv dv r0 t0 q0 FR) (sdqb dv FR)
-    (swapdiv_hiter dv r0 t0 q0 FR hFR) (swapdiv_hlast dv r0 t0 q0 FR hFR)
+    (exitdiv_hiter dv r0 t0 q0 FR hFR) (exitdiv_hlast dv r0 t0 q0 FR hFR)
 
-#print axioms swapdiv_bitfold
+#print axioms exitdiv_bitfold
 
-private theorem swapdiv_hlast_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsBranchWithin 10 (PriceK + 732) priceCode (sdinv dv r0 t0 q0 FR 63)
-      (PriceK + 732) (fun h => (sdinv dv r0 t0 q0 FR 64 ** ⌜(0 : Word) ≠ (0 : Word)⌝) h)
-      (PriceK + 780) (sdqc dv r0 t0 q0 FR) := by
-  have hr := swapdiv_bitround (divst dv r0 t0 q0 63).1 (divst dv r0 t0 q0 63).2.1
+private theorem exitdiv_hlast_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsBranchWithin 10 (PriceK + 836) priceCode (sdinv dv r0 t0 q0 FR 63)
+      (PriceK + 836) (fun h => (sdinv dv r0 t0 q0 FR 64 ** ⌜(0 : Word) ≠ (0 : Word)⌝) h)
+      (PriceK + 884) (sdqc dv r0 t0 q0 FR) := by
+  have hr := exitdiv_bitround (divst dv r0 t0 q0 63).1 (divst dv r0 t0 q0 63).2.1
     (divst dv r0 t0 q0 63).2.2 (cnt 63) dv FR hFR
   refine cpsBranchWithin_weaken (fun _ hx => hx) ?_ ?_ hr
   · intro h hx
@@ -779,41 +778,41 @@ private theorem swapdiv_hlast_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.
 
 /-- The 64-round bit loop with a CONCRETE fall exit: pins the final remainder,
 shifted limb, quotient, and zero counter for the limb-level consumer. -/
-theorem swapdiv_bitfold_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 640 (PriceK + 732) (PriceK + 780) priceCode
+theorem exitdiv_bitfold_q (dv r0 t0 q0 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 640 (PriceK + 836) (PriceK + 884) priceCode
       (sdinv dv r0 t0 q0 FR 0) (sdqc dv r0 t0 q0 FR) :=
   countdown_loop_triple (N := 63) (m := 10) (sdinv dv r0 t0 q0 FR) (sdqc dv r0 t0 q0 FR)
-    (swapdiv_hiter_q dv r0 t0 q0 FR hFR) (swapdiv_hlast_q dv r0 t0 q0 FR hFR)
+    (exitdiv_hiter_q dv r0 t0 q0 FR hFR) (exitdiv_hlast_q dv r0 t0 q0 FR hFR)
 
-#print axioms swapdiv_bitfold_q
+#print axioms exitdiv_bitfold_q
 
 /-- One limb round of the restoring division: load limb, zero quotient temp,
 set bit counter to 64, run the 64-bit loop (concrete exit), store the quotient
 limb, advance the limb pointer, decrement the limb counter, and take the
 back-edge branch.  The remainder register `t1` carries the division state
 across limbs. -/
-theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
+theorem exitdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsBranchWithin 647 (PriceK + 720) priceCode
+    cpsBranchWithin 647 (PriceK + 824) priceCode
       (((.x6 ↦ᵣ rk) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) **
         (.x29 ↦ᵣ v29) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR)
-      (PriceK + 720)
+      (PriceK + 824)
       (((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) ≠ (0 : Word)⌝) **
         ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR))
-      (PriceK + 796)
+      (PriceK + 900)
       (((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) = (0 : Word)⌝) **
         ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR)) := by
-  have hld := ld_spec_gen_within .x7 .x30 ptrk v7 pk (0 : BitVec 12) (PriceK + 720)
+  have hld := ld_spec_gen_within .x7 .x30 ptrk v7 pk (0 : BitVec 12) (PriceK + 824)
     (by decide)
-  have hli28 := li_spec_gen_within .x28 v28 (0 : Word) (PriceK + 724) (by decide)
-  have hli29 := li_spec_gen_within .x29 v29 (64 : Word) (PriceK + 728) (by decide)
-  have hpream : cpsTripleWithin 3 (PriceK + 720) (PriceK + 732) priceCode
+  have hli28 := li_spec_gen_within .x28 v28 (0 : Word) (PriceK + 828) (by decide)
+  have hli29 := li_spec_gen_within .x29 v29 (64 : Word) (PriceK + 832) (by decide)
+  have hpream : cpsTripleWithin 3 (PriceK + 824) (PriceK + 836) priceCode
       (((.x6 ↦ᵣ rk) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) **
         (.x29 ↦ᵣ v29) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) (((.x6 ↦ᵣ rk) ** (.x7 ↦ᵣ pk) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (0 : Word)) **
         (.x29 ↦ᵣ (64 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) := by
-    have hldF : cpsTripleWithin 1 (PriceK + 720) (PriceK + 724) priceCode
+    have hldF : cpsTripleWithin 1 (PriceK + 824) (PriceK + 828) priceCode
         (((.x30 ↦ᵣ ptrk) ** (.x7 ↦ᵣ v7) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk)) **
           ((.x6 ↦ᵣ rk) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
             (.x5 ↦ᵣ dv) ** (.x31 ↦ᵣ t6v) ** FR))
@@ -822,11 +821,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
             (.x5 ↦ᵣ dv) ** (.x31 ↦ᵣ t6v) ** FR)) :=
       cpsTripleWithin_extend_code
         (by intro a i hi
-            have hins : amsterdamBlobGasPriceU256_prog[180]'(by decide) =
+            have hins : amsterdamBlobGasPriceU256_prog[206]'(by decide) =
                 .LD .x7 .x30 (0 : BitVec 12) := by decide
             show priceCode a = some i
-            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 720)
-              amsterdamBlobGasPriceU256_prog 180 (.LD .x7 .x30 (0 : BitVec 12))
+            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 824)
+              amsterdamBlobGasPriceU256_prog 206  (.LD .x7 .x30 (0 : BitVec 12))
               (by decide) (by decide) hins (by decide) a i hi)
         (cpsTripleWithin_frameR _
           (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -834,7 +833,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
               (pcFree_sepConj pcFree_regIs
                 (pcFree_sepConj pcFree_regIs hFR))))))
           hld)
-    have hli28F : cpsTripleWithin 1 (PriceK + 724) (PriceK + 728) priceCode
+    have hli28F : cpsTripleWithin 1 (PriceK + 828) (PriceK + 832) priceCode
         ((.x28 ↦ᵣ v28) ** ((.x30 ↦ᵣ ptrk) ** (.x7 ↦ᵣ pk) **
           ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) **
           (.x6 ↦ᵣ rk) ** (.x0 ↦ᵣ (0 : Word)) ** (.x29 ↦ᵣ v29) **
@@ -845,11 +844,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
             (.x5 ↦ᵣ dv) ** (.x31 ↦ᵣ t6v) ** FR)) :=
       cpsTripleWithin_extend_code
         (by intro a i hi
-            have hins : amsterdamBlobGasPriceU256_prog[181]'(by decide) =
+            have hins : amsterdamBlobGasPriceU256_prog[207]'(by decide) =
                 .LI .x28 (0 : Word) := by decide
             show priceCode a = some i
-            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 724)
-              amsterdamBlobGasPriceU256_prog 181 (.LI .x28 (0 : Word))
+            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 828)
+              amsterdamBlobGasPriceU256_prog 207  (.LI .x28 (0 : Word))
               (by decide) (by decide) hins (by decide) a i hi)
         (cpsTripleWithin_frameR _
           (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -858,7 +857,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
                 (pcFree_sepConj pcFree_regIs
                   (pcFree_sepConj pcFree_regIs hFR))))))))
           hli28)
-    have hli29F : cpsTripleWithin 1 (PriceK + 728) (PriceK + 732) priceCode
+    have hli29F : cpsTripleWithin 1 (PriceK + 832) (PriceK + 836) priceCode
         ((.x29 ↦ᵣ v29) ** ((.x28 ↦ᵣ (0 : Word)) ** (.x30 ↦ᵣ ptrk) ** (.x7 ↦ᵣ pk) **
           ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) **
           (.x6 ↦ᵣ rk) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x31 ↦ᵣ t6v) ** FR))
@@ -867,11 +866,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x6 ↦ᵣ rk) ** (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x31 ↦ᵣ t6v) ** FR)) :=
       cpsTripleWithin_extend_code
         (by intro a i hi
-            have hins : amsterdamBlobGasPriceU256_prog[182]'(by decide) =
+            have hins : amsterdamBlobGasPriceU256_prog[208]'(by decide) =
                 .LI .x29 (64 : Word) := by decide
             show priceCode a = some i
-            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 728)
-              amsterdamBlobGasPriceU256_prog 182 (.LI .x29 (64 : Word))
+            exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 832)
+              amsterdamBlobGasPriceU256_prog 208  (.LI .x29 (64 : Word))
               (by decide) (by decide) hins (by decide) a i hi)
         (cpsTripleWithin_frameR _
           (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -886,22 +885,22 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
       (by intro h hx; xperm_hyp hx) (fun _ hx => hx) hli29F)
     exact cpsTripleWithin_weaken (by intro h hx; xperm_hyp hx)
       (by intro h hx; xperm_hyp hx) hseq2
-  have hpream' : cpsTripleWithin 3 (PriceK + 720) (PriceK + 732) priceCode
+  have hpream' : cpsTripleWithin 3 (PriceK + 824) (PriceK + 836) priceCode
       (((.x6 ↦ᵣ rk) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) **
         (.x29 ↦ᵣ v29) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) (sdinv dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) 0) :=
     cpsTripleWithin_weaken (fun _ hx => hx) (fun _ hx => hx) hpream
   have hfr' : (((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR)).pcFree :=
     pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_memIs hFR))
-  have hfold : cpsTripleWithin 640 (PriceK + 732) (PriceK + 780) priceCode
+  have hfold : cpsTripleWithin 640 (PriceK + 836) (PriceK + 884) priceCode
       (sdinv dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) 0) (sdqc dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR)) :=
-    swapdiv_bitfold_q dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) hfr'
-  have hfold' : cpsTripleWithin 640 (PriceK + 732) (PriceK + 780) priceCode
+    exitdiv_bitfold_q dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) hfr'
+  have hfold' : cpsTripleWithin 640 (PriceK + 836) (PriceK + 884) priceCode
       (sdinv dv rk pk (0 : Word) ((.x30 ↦ᵣ ptrk) ** (.x31 ↦ᵣ t6v) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk) ** FR) 0) (((.x30 ↦ᵣ ptrk) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk)) ** ((.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_weaken (fun _ hx => hx) (by intro h hx; simp only [sdqc] at hx; xperm_hyp hx) hfold
-  have hsd := sd_spec_gen_within .x30 .x28 ptrk (divst dv rk pk (0 : Word) 64).2.2 pk (0 : BitVec 12) (PriceK + 780)
-  have hsdF : cpsTripleWithin 1 (PriceK + 780) (PriceK + 784) priceCode (((.x30 ↦ᵣ ptrk) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk)) ** ((.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
+  have hsd := sd_spec_gen_within .x30 .x28 ptrk (divst dv rk pk (0 : Word) 64).2.2 pk (0 : BitVec 12) (PriceK + 884)
+  have hsdF : cpsTripleWithin 1 (PriceK + 884) (PriceK + 888) priceCode (((.x30 ↦ᵣ ptrk) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk)) ** ((.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR))
       (((.x30 ↦ᵣ ptrk) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2)) **
@@ -910,11 +909,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_extend_code
       (by intro a i hi
-          have hins : amsterdamBlobGasPriceU256_prog[195]'(by decide) =
+          have hins : amsterdamBlobGasPriceU256_prog[221]'(by decide) =
               .SD .x30 .x28 (0 : BitVec 12) := by decide
           show priceCode a = some i
-          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 780)
-            amsterdamBlobGasPriceU256_prog 195 (.SD .x30 .x28 (0 : BitVec 12))
+          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 884)
+            amsterdamBlobGasPriceU256_prog 221  (.SD .x30 .x28 (0 : BitVec 12))
             (by decide) (by decide) hins (by decide) a i hi)
       (cpsTripleWithin_frameR _
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -922,7 +921,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
             (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))))
         hsd)
   have hmid := cpsTripleWithin_seq_same_cr hpream' hfold'
-  have hsdF2 : cpsTripleWithin 1 (PriceK + 780) (PriceK + 784) priceCode
+  have hsdF2 : cpsTripleWithin 1 (PriceK + 884) (PriceK + 888) priceCode
       (((.x30 ↦ᵣ ptrk) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ pk)) **
         ((.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) **
@@ -935,9 +934,9 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_weaken (fun _ hx => hx) (by intro h hx; xperm_hyp hx) hsdF
   have hbody1 := cpsTripleWithin_seq_same_cr hmid hsdF2
-  have ha30 := addi_spec_gen_same_within .x30 ptrk (-8 : BitVec 12) (PriceK + 784)
+  have ha30 := addi_spec_gen_same_within .x30 ptrk (-8 : BitVec 12) (PriceK + 888)
     (by decide)
-  have ha30F : cpsTripleWithin 1 (PriceK + 784) (PriceK + 788) priceCode ((.x30 ↦ᵣ ptrk) ** ((.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
+  have ha30F : cpsTripleWithin 1 (PriceK + 888) (PriceK + 892) priceCode ((.x30 ↦ᵣ ptrk) ** ((.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR))
       ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** ((.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) **
@@ -946,11 +945,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_extend_code
       (by intro a i hi
-          have hins : amsterdamBlobGasPriceU256_prog[196]'(by decide) =
+          have hins : amsterdamBlobGasPriceU256_prog[222]'(by decide) =
               .ADDI .x30 .x30 (-8 : BitVec 12) := by decide
           show priceCode a = some i
-          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 784)
-            amsterdamBlobGasPriceU256_prog 196 (.ADDI .x30 .x30 (-8 : BitVec 12))
+          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 888)
+            amsterdamBlobGasPriceU256_prog 222  (.ADDI .x30 .x30 (-8 : BitVec 12))
             (by decide) (by decide) hins (by decide) a i hi)
       (cpsTripleWithin_frameR _
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_memIs
@@ -958,7 +957,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
             (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
               (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs hFR))))))))
         ha30)
-  have ha30F2 : cpsTripleWithin 1 (PriceK + 784) (PriceK + 788) priceCode
+  have ha30F2 : cpsTripleWithin 1 (PriceK + 888) (PriceK + 892) priceCode
       ((.x30 ↦ᵣ ptrk) ** ((.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
         ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) **
         (.x31 ↦ᵣ t6v) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) **
@@ -972,9 +971,9 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_weaken (fun _ hx => hx) (by intro h hx; xperm_hyp hx) ha30F
   have hbody2 := cpsTripleWithin_seq_same_cr hbody1 ha30F2
-  have ha31 := addi_spec_gen_same_within .x31 t6v (-1 : BitVec 12) (PriceK + 788)
+  have ha31 := addi_spec_gen_same_within .x31 t6v (-1 : BitVec 12) (PriceK + 892)
     (by decide)
-  have ha31F : cpsTripleWithin 1 (PriceK + 788) (PriceK + 792) priceCode ((.x31 ↦ᵣ t6v) ** ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
+  have ha31F : cpsTripleWithin 1 (PriceK + 892) (PriceK + 896) priceCode ((.x31 ↦ᵣ t6v) ** ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR))
       ((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) **
         (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) **
@@ -984,11 +983,11 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR)) :=
     cpsTripleWithin_extend_code
       (by intro a i hi
-          have hins : amsterdamBlobGasPriceU256_prog[197]'(by decide) =
+          have hins : amsterdamBlobGasPriceU256_prog[223]'(by decide) =
               .ADDI .x31 .x31 (-1 : BitVec 12) := by decide
           show priceCode a = some i
-          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 788)
-            amsterdamBlobGasPriceU256_prog 197 (.ADDI .x31 .x31 (-1 : BitVec 12))
+          exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 892)
+            amsterdamBlobGasPriceU256_prog 223  (.ADDI .x31 .x31 (-1 : BitVec 12))
             (by decide) (by decide) hins (by decide) a i hi)
       (cpsTripleWithin_frameR _
         (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -999,10 +998,10 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
         ha31)
   have hbody3 := cpsTripleWithin_seq_same_cr hbody2 ha31F
   have hb := bne_spec_gen_within .x31 .x0 (-72 : BitVec 13) (t6v + signExtend12 (-1 : BitVec 12))
-    (0 : Word) (PriceK + 792)
-  rw [show (PriceK + 792 : Word) + signExtend13 (-72 : BitVec 13) = PriceK + 720 from by
+    (0 : Word) (PriceK + 896)
+  rw [show (PriceK + 896 : Word) + signExtend13 (-72 : BitVec 13) = PriceK + 824 from by
       rw [show signExtend13 (-72 : BitVec 13) = (-72 : Word) from by decide]; decide,
-    show (PriceK + 792 : Word) + 4 = PriceK + 796 from by decide] at hb
+    show (PriceK + 896 : Word) + 4 = PriceK + 900 from by decide] at hb
   have hbF := cpsBranchWithin_frameR ((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR)
     (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
       (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -1011,17 +1010,17 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
     hb
   have hbE := cpsBranchWithin_extend_code
     (by intro a i hi
-        have hins : amsterdamBlobGasPriceU256_prog[198]'(by decide) =
+        have hins : amsterdamBlobGasPriceU256_prog[224]'(by decide) =
             .BNE .x31 .x0 (-72 : BitVec 13) := by decide
         show priceCode a = some i
-        exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 792)
-          amsterdamBlobGasPriceU256_prog 198 (.BNE .x31 .x0 (-72 : BitVec 13))
+        exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 896)
+          amsterdamBlobGasPriceU256_prog 224  (.BNE .x31 .x0 (-72 : BitVec 13))
           (by decide) (by decide) hins (by decide) a i hi)
     hbF
-  have hb' : cpsBranchWithin 1 (PriceK + 792) priceCode ((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
+  have hb' : cpsBranchWithin 1 (PriceK + 896) priceCode ((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** ((.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** (.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) **
           (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x29 ↦ᵣ (0 : Word)) ** FR))
-      (PriceK + 720) (((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) ≠ (0 : Word)⌝) **
-        ((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR)) (PriceK + 796) (((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) = (0 : Word)⌝) **
+      (PriceK + 824) (((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) ≠ (0 : Word)⌝) **
+        ((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR)) (PriceK + 900) (((.x31 ↦ᵣ (t6v + signExtend12 (-1 : BitVec 12))) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜(t6v + signExtend12 (-1 : BitVec 12)) = (0 : Word)⌝) **
         ((.x6 ↦ᵣ (divst dv rk pk (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.1) ** (.x28 ↦ᵣ (divst dv rk pk (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv) ** (.x30 ↦ᵣ (ptrk + signExtend12 (-8 : BitVec 12))) ** ((ptrk + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv rk pk (0 : Word) 64).2.2) ** FR)) :=
     cpsBranchWithin_weaken (by intro h hx; xperm_hyp hx)
       (by intro h hx; xperm_hyp hx) (by intro h hx; xperm_hyp hx) hbE
@@ -1029,7 +1028,7 @@ theorem swapdiv_limbround (dv rk pk v7 v28 v29 ptrk t6v : Word) (FR : Assertion)
   exact cpsBranchWithin_weaken (by intro h hx; xperm_hyp hx)
     (by intro h hx; xperm_hyp hx) (by intro h hx; xperm_hyp hx) hfin
 
-#print axioms swapdiv_limbround
+#print axioms exitdiv_limbround
 
 
 /-! ## Limb-counter lemmas and the 6-limb chain fold -/
@@ -1074,12 +1073,12 @@ theorem lcnt_ne_zero : ∀ j < 6, lcnt j ≠ (0 : Word) := by
 
 
 
-private theorem swapdiv_limbstep_0 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (v7 v28 v29 : Word) (FR : Assertion)
+private theorem exitdiv_limbstep_0 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (v7 v28 v29 : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 720) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 824) priceCode
       (((.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (40 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 0) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ p5) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ p4) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (32 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 1) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ p4) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) := by
-  have hL := swapdiv_limbround dv (0 : Word) p5 v7 v28 v29
+  have hL := exitdiv_limbround dv (0 : Word) p5 v7 v28 v29
       (base + signExtend12 (40 : BitVec 12)) (lcnt 0) (((base + signExtend12 (32 : BitVec 12)) ↦ₘ p4) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_takenPath hL (by
     intro hp hx
@@ -1108,12 +1107,12 @@ private theorem swapdiv_limbstep_0 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (
       rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; simp] at hx2
     xperm_hyp hx2
 
-private theorem swapdiv_limbstep_1 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
+private theorem exitdiv_limbstep_1 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 720) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 824) priceCode
       (((.x6 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (32 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 1) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ p4) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (24 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 2) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) := by
-  have hL := swapdiv_limbround dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (divst dv (0 : Word) p5 (0 : Word) 64).2.1 (divst dv (0 : Word) p5 (0 : Word) 64).2.2 (0 : Word)
+  have hL := exitdiv_limbround dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (divst dv (0 : Word) p5 (0 : Word) 64).2.1 (divst dv (0 : Word) p5 (0 : Word) 64).2.2 (0 : Word)
       (base + signExtend12 (32 : BitVec 12)) (lcnt 1) (((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_takenPath hL (by
     intro hp hx
@@ -1142,12 +1141,12 @@ private theorem swapdiv_limbstep_1 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (
       rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; simp] at hx2
     xperm_hyp hx2
 
-private theorem swapdiv_limbstep_2 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
+private theorem exitdiv_limbstep_2 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 720) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 824) priceCode
       (((.x6 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (24 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 2) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (16 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 3) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) := by
-  have hL := swapdiv_limbround dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.1 (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2 (0 : Word)
+  have hL := exitdiv_limbround dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.1 (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2 (0 : Word)
       (base + signExtend12 (24 : BitVec 12)) (lcnt 2) (((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_takenPath hL (by
     intro hp hx
@@ -1176,12 +1175,12 @@ private theorem swapdiv_limbstep_2 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (
       rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; simp] at hx2
     xperm_hyp hx2
 
-private theorem swapdiv_limbstep_3 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
+private theorem exitdiv_limbstep_3 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 720) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 824) priceCode
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (16 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 3) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (8 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 4) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) := by
-  have hL := swapdiv_limbround dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2 (0 : Word)
+  have hL := exitdiv_limbround dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2 (0 : Word)
       (base + signExtend12 (16 : BitVec 12)) (lcnt 3) (((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_takenPath hL (by
     intro hp hx
@@ -1210,12 +1209,12 @@ private theorem swapdiv_limbstep_3 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (
       rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; simp] at hx2
     xperm_hyp hx2
 
-private theorem swapdiv_limbstep_4 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
+private theorem exitdiv_limbstep_4 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (FR : Assertion)
     (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 720) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 824) priceCode
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (8 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 4) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (0 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 5) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) := by
-  have hL := swapdiv_limbround dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2 (0 : Word)
+  have hL := exitdiv_limbround dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2 (0 : Word)
       (base + signExtend12 (8 : BitVec 12)) (lcnt 4) (((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_takenPath hL (by
     intro hp hx
@@ -1244,12 +1243,12 @@ private theorem swapdiv_limbstep_4 (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word) (
       rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; simp] at hx2
     xperm_hyp hx2
 
-private theorem swapdiv_limbexit (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word)
+private theorem exitdiv_limbexit (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word)
     (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 647 (PriceK + 720) (PriceK + 796) priceCode
+    cpsTripleWithin 647 (PriceK + 824) (PriceK + 900) priceCode
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (0 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 5) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ((base + signExtend12 (0 : BitVec 12)) + signExtend12 (-8 : BitVec 12))) ** (.x31 ↦ᵣ (lcnt 5 + signExtend12 (-1 : BitVec 12))) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.2) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** FR) := by
-  have hL := swapdiv_limbround dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2 (0 : Word)
+  have hL := exitdiv_limbround dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.1 (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2 (0 : Word)
       (base + signExtend12 (0 : BitVec 12)) (lcnt 5) (((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** FR) (by pcFree; exact hFR)
   have htp := cpsBranchWithin_ntakenPath hL (by
     intro hp hx
@@ -1275,21 +1274,21 @@ private theorem swapdiv_limbexit (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word)
     exact hx2
 
 /-- The 6-limb division loop as one triple: 3882 = 6 × 647. -/
-theorem swapdiv_limbfold (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word)
+theorem exitdiv_limbfold (dv base : Word) (p5 p4 p3 p2 p1 p0 : Word)
     (v7 v28 v29 : Word) (FR : Assertion) (hFR : FR.pcFree) :
-    cpsTripleWithin 3882 (PriceK + 720) (PriceK + 796) priceCode
+    cpsTripleWithin 3882 (PriceK + 824) (PriceK + 900) priceCode
       (((.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ v7) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ (base + signExtend12 (40 : BitVec 12))) ** (.x31 ↦ᵣ lcnt 0) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ p5) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ p4) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ p3) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ p2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ p1) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ p0) ** FR)
       (((.x6 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).1) ** (.x7 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.1) ** (.x0 ↦ᵣ (0 : Word)) ** (.x28 ↦ᵣ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.2) ** (.x29 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ dv)) ** (.x30 ↦ᵣ ((base + signExtend12 (0 : BitVec 12)) + signExtend12 (-8 : BitVec 12))) ** (.x31 ↦ᵣ (lcnt 5 + signExtend12 (-1 : BitVec 12))) ** ((base + signExtend12 (0 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).1 p0 (0 : Word) 64).2.2) ** ((base + signExtend12 (40 : BitVec 12)) ↦ₘ (divst dv (0 : Word) p5 (0 : Word) 64).2.2) ** ((base + signExtend12 (32 : BitVec 12)) ↦ₘ (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).2.2) ** ((base + signExtend12 (24 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).2.2) ** ((base + signExtend12 (16 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).2.2) ** ((base + signExtend12 (8 : BitVec 12)) ↦ₘ (divst dv (divst dv (divst dv (divst dv (divst dv (0 : Word) p5 (0 : Word) 64).1 p4 (0 : Word) 64).1 p3 (0 : Word) 64).1 p2 (0 : Word) 64).1 p1 (0 : Word) 64).2.2) ** FR) := by
   have h1 := cpsTripleWithin_seq_same_cr
-      (swapdiv_limbstep_0 dv base p5 p4 p3 p2 p1 p0 v7 v28 v29 FR hFR)
-      (swapdiv_limbstep_1 dv base p5 p4 p3 p2 p1 p0 FR hFR)
+      (exitdiv_limbstep_0 dv base p5 p4 p3 p2 p1 p0 v7 v28 v29 FR hFR)
+      (exitdiv_limbstep_1 dv base p5 p4 p3 p2 p1 p0 FR hFR)
   have h2 := cpsTripleWithin_seq_same_cr h1
-      (swapdiv_limbstep_2 dv base p5 p4 p3 p2 p1 p0 FR hFR)
+      (exitdiv_limbstep_2 dv base p5 p4 p3 p2 p1 p0 FR hFR)
   have h3 := cpsTripleWithin_seq_same_cr h2
-      (swapdiv_limbstep_3 dv base p5 p4 p3 p2 p1 p0 FR hFR)
+      (exitdiv_limbstep_3 dv base p5 p4 p3 p2 p1 p0 FR hFR)
   have h4 := cpsTripleWithin_seq_same_cr h3
-      (swapdiv_limbstep_4 dv base p5 p4 p3 p2 p1 p0 FR hFR)
+      (exitdiv_limbstep_4 dv base p5 p4 p3 p2 p1 p0 FR hFR)
   exact cpsTripleWithin_seq_same_cr h4
-      (swapdiv_limbexit dv base p5 p4 p3 p2 p1 p0 FR hFR)
+      (exitdiv_limbexit dv base p5 p4 p3 p2 p1 p0 FR hFR)
 
-#print axioms swapdiv_limbfold
+#print axioms exitdiv_limbfold

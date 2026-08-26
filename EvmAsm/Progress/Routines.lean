@@ -363,6 +363,8 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 
 namespace EvmAsm.Progress
 
@@ -1702,9 +1704,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "outer loop head PriceK+144 — composed from the proven "
         ++ "bitround / 64-round bitfold / limbround / 6-limb limbfold "
         ++ "machinery (Body3Spec), with the MSB-first restoring-division "
-        ++ "recurrence made explicit (`divst`). "
-        ++ "Remaining open: exitDiv / "
-        ++ "tail windows and the TwoExitLoop assembly. The functional body "
+        ++ "recurrence made explicit (`divst`). `#12851` exitDiv update: "
+        ++ "`exitdiv_core` (Body6Spec) proves the exit-tail division window "
+        ++ "(PriceK+804..900) as a `cpsTripleWithin 3887` — prologue + the "
+        ++ "6-limb restoring division of the sum buffer by D, a mechanical "
+        ++ "mirror of the swapDiv division machinery at +104 bytes (Body5Spec) "
+        ++ "— with `x19`/`x20` left symbolic (parity-dependent at the exit "
+        ++ "tail, since swapDiv exchanges them every outer iteration). "
+        ++ "Remaining open: "
         ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
         ++ "invariant). The 2,073,394,370 success side "
         ++ "is #guard-only (compiled evaluation); a kernel proof needs a "
@@ -4390,6 +4397,9 @@ private noncomputable abbrev _amsterdam_blob_gas_price_mul6_witness :=
 -- #12851 body: the swapDiv window — 2-exit cpsNBranchWithin (ovf + outer-loop back-edge).
 private noncomputable abbrev _amsterdam_blob_gas_price_swapdiv_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec.swapdiv_core
+-- #12851 body: the exitDiv window — single-exit cpsTripleWithin (sum ÷ D restoring division).
+private noncomputable abbrev _amsterdam_blob_gas_price_exitdiv_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec.exitdiv_core
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
