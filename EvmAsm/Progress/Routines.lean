@@ -365,6 +365,9 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
 
 namespace EvmAsm.Progress
 
@@ -1711,9 +1714,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "mirror of the swapDiv division machinery at +104 bytes (Body5Spec) "
         ++ "— with `x19`/`x20` left symbolic (parity-dependent at the exit "
         ++ "tail, since swapDiv exchanges them every outer iteration). "
-        ++ "Remaining open: "
-        ++ "triple itself (6-limb bignum mul, restoring division, recurrence "
-        ++ "invariant). The 2,073,394,370 success side "
+        ++ "`#12851` tail update: `tail_core` (Body7Spec/Body8Spec/Body9Spec) "
+        ++ "proves the tail window (PriceK+900..968) as a "
+        ++ "`cpsNBranchWithin 296` with both exits at the epilogue entry "
+        ++ "PriceK+968 — status 1 on the overflow arm (high quotient limbs "
+        ++ "nonzero) and status 0 after the 32-round big-endian byte copy "
+        ++ "(pfill-packed output dwords, ofNat-addressed loop cells, "
+        ++ "alignment/validity as static preconditions; the copy arm is "
+        ++ "`tail_copyarm`, extracted for the file-size cap). Remaining "
+        ++ "open: the TwoExitLoop outer-loop assembly, envelope "
+        ++ "preconditions, and the priceBodyContract discharge. "
+        ++ "The 2,073,394,370 success side "
         ++ "is #guard-only (compiled evaluation); a kernel proof needs a "
         ++ "generated ~495-state trace"),
   -- #12461 arm 4: a concrete full-premise inhabitant of the K73 increasing
@@ -4400,6 +4411,11 @@ private noncomputable abbrev _amsterdam_blob_gas_price_swapdiv_witness :=
 -- #12851 body: the exitDiv window — single-exit cpsTripleWithin (sum ÷ D restoring division).
 private noncomputable abbrev _amsterdam_blob_gas_price_exitdiv_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec.exitdiv_core
+-- #12851 body: the tail window — high-limb check + BE copy loop, both exits at the epilogue.
+private noncomputable abbrev _amsterdam_blob_gas_price_tail_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_core
+private noncomputable abbrev _amsterdam_blob_gas_price_tail_copyarm_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
