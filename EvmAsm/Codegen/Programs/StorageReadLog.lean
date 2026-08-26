@@ -70,6 +70,13 @@ import EvmAsm.Codegen.GuestAddrs
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+open ExecLogAddrToBalCanonicalSAsm
+
+/-! Plain bridge alias for the proof-first address canonicalizer.  The alias is
+    only a naming surface for the generated image ledger; the SAsm Program
+    remains the single implementation. -/
+abbrev execLogAddrToBalCanonical_prog : Program :=
+  ExecLogAddrToBalCanonicalSAsm.execLogAddrToBalCanonical_prog
 
 /-! ## `exec_log_addr_to_bal_canonical`
 
@@ -92,8 +99,7 @@ open EvmAsm.Rv64
     Leaf; clobbers `t0`-`t4`. -/
 def execLogAddrToBalCanonicalFunction : String :=
   "exec_log_addr_to_bal_canonical:\n" ++
-  emitProgram
-    ExecLogAddrToBalCanonicalSAsm.execLogAddrToBalCanonical_prog
+  emitProgram execLogAddrToBalCanonical_prog
 
 /-- Drift guard: the emitted routine IS the render of the verified,
     proof-first-generated program (`elatbcFn_spec` in
@@ -102,12 +108,12 @@ def execLogAddrToBalCanonicalFunction : String :=
 theorem execLogAddrToBalCanonicalFunction_eq_prog :
     execLogAddrToBalCanonicalFunction
       = "exec_log_addr_to_bal_canonical:\n" ++
-        emitProgram
-          ExecLogAddrToBalCanonicalSAsm.execLogAddrToBalCanonical_prog :=
+        emitProgram execLogAddrToBalCanonical_prog :=
   rfl
 
 #guard execLogAddrToBalCanonicalFunction.startsWith
   "exec_log_addr_to_bal_canonical:\n"
+#guard execLogAddrToBalCanonical_prog.length = 12
 
 /-! ## `storage_read_record`
 

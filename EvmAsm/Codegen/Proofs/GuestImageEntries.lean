@@ -81,6 +81,7 @@ import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.EIP7708Logs
@@ -123,6 +124,7 @@ import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictProgram
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
@@ -331,6 +333,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bloom_eq, bloomEq_prog),
   (GuestAddrs.simple_transfer_intrinsic_gas, simpleTransferIntrinsicGas_prog),
   (GuestAddrs.rlp_list_count_items, rlpListCountItems_prog),
+  (GuestAddrs.rlp_field_to_u64_strict, rlpFieldToU64Strict_prog),
   (GuestAddrs.tx_type_dispatch, txTypeDispatch_prog),
   (GuestAddrs.tx_eip4844_decode, txEip4844Decode_prog),
   (GuestAddrs.tx_eip4844_validate_blob_hashes, txEip4844ValidateBlobHashes_prog),
@@ -385,6 +388,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.bal_storage_change_values, balStorageChangeValues_prog),
+  (GuestAddrs.storage_writes_block_latest_value, storageWritesBlockLatestValue_prog),
+  (GuestAddrs.exec_log_addr_to_bal_canonical, execLogAddrToBalCanonical_prog),
   (GuestAddrs.storage_read_record, storageReadRecord_prog),
   (GuestAddrs.storage_read_record_block, storageReadRecordBlock_prog),
   (GuestAddrs.storage_write_record, storageWriteRecord_prog),
@@ -639,6 +644,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.frame_load_regs, frameLoadRegs_prog),
   (GuestAddrs.call_frame_enter, callFrameEnter_prog),
   (GuestAddrs.call_frame_set_calldata, callFrameSetCalldata_prog),
+  (GuestAddrs.call_frame_forward_gas, callFrameForwardGas_prog),
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.nonstorage_effect_latest_nonce, nonstorageEffectLatestNonce_prog),
   (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
@@ -652,6 +658,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 471
+#guard guestImageEntries.length = 475
 
 end EvmAsm.Codegen
