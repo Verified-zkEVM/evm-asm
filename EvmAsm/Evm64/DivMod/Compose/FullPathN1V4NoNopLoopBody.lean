@@ -4,7 +4,11 @@
   Loop-body wrappers for the n=1 v4/no-NOP full DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopPreloop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopPreloop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

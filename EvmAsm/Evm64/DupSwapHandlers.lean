@@ -4,7 +4,11 @@
   Generic pure handler-table entries for DUP1-16 and SWAP1-16 (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
+module
+
+public import EvmAsm.Evm64.HandlerTable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace DupSwapHandlers

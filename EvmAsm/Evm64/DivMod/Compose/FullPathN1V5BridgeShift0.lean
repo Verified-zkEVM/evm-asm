@@ -8,9 +8,16 @@
   `loopN1UnifiedPostV5_to_denormPreV5`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FrameShift0
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

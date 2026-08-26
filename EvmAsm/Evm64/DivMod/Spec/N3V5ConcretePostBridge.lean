@@ -9,10 +9,14 @@
   trial scratch helpers (`divKTrialCallV5DLo`/`Un0`).  Bead `evm-asm-wbc4i.9.3.3.7`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
-import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

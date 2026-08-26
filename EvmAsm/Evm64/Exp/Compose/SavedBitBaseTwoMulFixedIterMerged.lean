@@ -4,7 +4,11 @@
   Merged-exit views for the fixed x19 two-MUL saved-bit EXP iteration.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterLoop
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterLoop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

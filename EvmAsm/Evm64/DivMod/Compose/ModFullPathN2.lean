@@ -5,12 +5,16 @@
   MOD mirrors of FullPathN2.lean with modCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Epilogue
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseBn21
-import EvmAsm.Evm64.DivMod.Compose.ModCLZ
-import EvmAsm.Evm64.DivMod.Compose.ModNorm
-import EvmAsm.Evm64.DivMod.Compose.ModNormA
-import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Epilogue
+public import EvmAsm.Evm64.DivMod.Compose.ModPhaseBn21
+public import EvmAsm.Evm64.DivMod.Compose.ModCLZ
+public import EvmAsm.Evm64.DivMod.Compose.ModNorm
+public import EvmAsm.Evm64.DivMod.Compose.ModNormA
+public import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

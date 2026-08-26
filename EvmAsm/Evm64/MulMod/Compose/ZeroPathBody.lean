@@ -9,7 +9,11 @@
   which it does not touch, so its precondition matches the zero-path output.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Base
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

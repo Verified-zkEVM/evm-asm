@@ -10,9 +10,13 @@
   result-sign-fix block via `cpsTripleWithin_frameR`.
 -/
 
-import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
-import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
+module
+
+public import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
+public import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

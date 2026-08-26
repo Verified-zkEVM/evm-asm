@@ -1,11 +1,15 @@
 /- Shared declaration home for the n=3 V5 MOD remainder arithmetic. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
-import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Spec.N3V5DigitStepIter
+public import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

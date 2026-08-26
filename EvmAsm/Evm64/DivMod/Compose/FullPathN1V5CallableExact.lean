@@ -11,10 +11,18 @@
   `evm_div_callable_v5` correctness (SDIV `.proven` track).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+meta import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainV5
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+meta import EvmAsm.Evm64.DivMod.Spec.CallablePost
+meta import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

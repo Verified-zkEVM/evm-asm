@@ -12,11 +12,15 @@
   Brick of the v6 n=1 fast-path body. Bead `evm-asm-7wbf8.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
-import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
-import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
+public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+public import EvmAsm.Evm64.DivMod.AddrNorm
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

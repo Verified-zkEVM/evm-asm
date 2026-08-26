@@ -19,7 +19,11 @@
   epilogue.  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

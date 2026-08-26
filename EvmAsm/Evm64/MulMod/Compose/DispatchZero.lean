@@ -21,11 +21,15 @@
   exit.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Dispatch
-import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
-import EvmAsm.Evm64.MulMod.MulModResultWord
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.DropPure
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Dispatch
+public import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
+public import EvmAsm.Evm64.MulMod.MulModResultWord
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.DropPure
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

@@ -9,14 +9,18 @@
   surface (`divCode_noNop_v4` → `_v5`) change.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopPreloop
-import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
-import EvmAsm.Evm64.DivMod.Compose.CLZV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
-import EvmAsm.Evm64.DivMod.Compose.NormBV5
-import EvmAsm.Evm64.DivMod.Compose.NormAV5
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopPreloop
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
+public import EvmAsm.Evm64.DivMod.Compose.CLZV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+public import EvmAsm.Evm64.DivMod.Compose.NormBV5
+public import EvmAsm.Evm64.DivMod.Compose.NormAV5
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

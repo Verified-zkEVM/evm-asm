@@ -21,7 +21,11 @@
   `iterWithDoubleAddback` conservation.  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

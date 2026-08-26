@@ -11,9 +11,11 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.ValidateHeaderCompose
 open EvmAsm.Codegen.ValidateHeaderInlineArms
-open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm rlpBytes?
-  getNChecked getBChecked from
-  EvmAsm.Stateless.SpecRef.Stateless
+open EvmAsm.Stateless.SpecRef (decodeHeaderArm rlpBytes? getNChecked)
+open EvmAsm.Stateless.SpecRef (checkNumericFields)
+open EvmAsm.Stateless.SpecRef (bytesFieldsOk)
+open EvmAsm.Stateless.SpecRef (numericFieldsOk)
+open EvmAsm.Stateless.SpecRef (getBChecked)
 -- `scalarItem` is no longer `private`: the exposed public body of
 -- `headerToRlpItem` references it, and a public body may not mention a
 -- private declaration. Plain `open` reaches it now.

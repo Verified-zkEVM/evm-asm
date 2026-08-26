@@ -16,8 +16,12 @@
   See beads `evm-asm-e7pq`, parent `evm-asm-kxrl` (#61 slice 2c).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2ModBridge
-import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2ModBridge
+public import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

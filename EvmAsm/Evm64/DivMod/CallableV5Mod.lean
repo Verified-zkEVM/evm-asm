@@ -11,8 +11,12 @@
   (SMOD `.proven` track).
 -/
 
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

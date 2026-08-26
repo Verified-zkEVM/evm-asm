@@ -13,8 +13,12 @@
   the borrow branch, where it is now derived from shape.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromBorrow
-import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryFromBorrow
+public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

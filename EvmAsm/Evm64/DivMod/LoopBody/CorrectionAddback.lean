@@ -6,7 +6,11 @@
   addback spec with 0 statement lets via `addbackFullPost`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

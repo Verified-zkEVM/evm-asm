@@ -13,12 +13,16 @@
   (`n4_denormModPost_frame_to_modStackDispatchPost_v5`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallAddbackMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

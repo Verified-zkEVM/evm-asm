@@ -2,14 +2,18 @@
   Shared declaration home for the n=1 v5 loop iteration/call chain.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
-import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
-import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
-import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
+public import EvmAsm.Evm64.DivMod.LoopIterN1.MaxSkipV5
+public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
+public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,7 +4,11 @@
   Composition helpers for pure opcode handler tables (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
+module
+
+public import EvmAsm.Evm64.HandlerTable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

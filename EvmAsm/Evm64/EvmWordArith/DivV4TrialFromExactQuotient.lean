@@ -13,7 +13,11 @@
   + call regime is the substantive bead `7.1.4.1` work.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

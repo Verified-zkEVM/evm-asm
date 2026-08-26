@@ -5,7 +5,12 @@
   `Compose.Base` so the base infrastructure stays below the file-size cap.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Base
+meta import EvmAsm.Evm64.MulMod.Compose.Base
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

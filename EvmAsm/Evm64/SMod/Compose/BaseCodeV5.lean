@@ -8,8 +8,12 @@
   `.proven` flip over `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCode
-import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+public import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

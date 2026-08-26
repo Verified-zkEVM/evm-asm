@@ -11,11 +11,20 @@
   `evm_div_callable_v5` correctness (SDIV `.proven` track).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainShift0V5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
-import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainShift0V5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
+public import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
+meta import EvmAsm.Evm64.DivMod.LoopIterN1.NoX1ChainShift0V5
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
+meta import EvmAsm.Evm64.DivMod.Spec.N1V5QuotientWordLane
+meta import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

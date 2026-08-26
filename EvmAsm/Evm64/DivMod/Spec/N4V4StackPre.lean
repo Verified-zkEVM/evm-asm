@@ -4,10 +4,14 @@
   Stack-level wrappers for n=4 DIV v4 preloop paths.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Base
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Base
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

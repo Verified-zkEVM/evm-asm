@@ -13,9 +13,13 @@
   `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkip
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Loop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

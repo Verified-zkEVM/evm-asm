@@ -12,11 +12,15 @@
   exact-jN / combo path.  Bead `evm-asm-wbc4i.9.3.3.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
-import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
+public import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

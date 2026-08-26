@@ -10,13 +10,17 @@
   `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
-import EvmAsm.Evm64.SMod.Compose.SavedRaRet
-import EvmAsm.Evm64.SMod.Compose.ModCall
-import EvmAsm.Evm64.SMod.Compose.SaveRa
-import EvmAsm.Evm64.SMod.Compose.SignBlockSpecs
-import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
-import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
+public import EvmAsm.Evm64.SMod.Compose.SavedRaRet
+public import EvmAsm.Evm64.SMod.Compose.ModCall
+public import EvmAsm.Evm64.SMod.Compose.SaveRa
+public import EvmAsm.Evm64.SMod.Compose.SignBlockSpecs
+public import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
+public import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

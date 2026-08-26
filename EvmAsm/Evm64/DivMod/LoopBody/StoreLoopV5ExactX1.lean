@@ -8,7 +8,11 @@
   address through the store-loop exit / loop-back.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

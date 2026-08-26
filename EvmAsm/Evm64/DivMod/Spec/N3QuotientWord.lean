@@ -16,9 +16,13 @@
   See beads `evm-asm-pwvj`, parent `evm-asm-pb40` (#61).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -12,8 +12,12 @@
   GH #92, bead evm-asm-w5mk.
 -/
 
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

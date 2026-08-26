@@ -8,7 +8,11 @@
   (`HeadersParentHashSpec.lean`).
 -/
 
-import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
+module
+
+public import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

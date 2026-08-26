@@ -35,19 +35,23 @@
 
 -/
 
-import EvmAsm.EL.Bn254G1AddEcallBridge
-import EvmAsm.EL.Bn254G1MulEcallBridge
-import EvmAsm.EL.Bn254PairingEcallBridge
-import EvmAsm.EL.Bls12G1MsmEcallBridge
-import EvmAsm.EL.Bls12G2MsmEcallBridge
-import EvmAsm.EL.Bls12PairingEcallBridge
-import EvmAsm.EL.Bls12MapFpToG1EcallBridge
-import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
-import EvmAsm.EL.Bls12G1AddEcallBridge
-import EvmAsm.EL.Bls12G2AddEcallBridge
-import EvmAsm.EL.KzgPointEvalEcallBridge
-import EvmAsm.EL.ModexpEcallBridge
-import EvmAsm.EL.Secp256r1VerifyEcallBridge
+module
+
+public import EvmAsm.EL.Bn254G1AddEcallBridge
+public import EvmAsm.EL.Bn254G1MulEcallBridge
+public import EvmAsm.EL.Bn254PairingEcallBridge
+public import EvmAsm.EL.Bls12G1MsmEcallBridge
+public import EvmAsm.EL.Bls12G2MsmEcallBridge
+public import EvmAsm.EL.Bls12PairingEcallBridge
+public import EvmAsm.EL.Bls12MapFpToG1EcallBridge
+public import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
+public import EvmAsm.EL.Bls12G1AddEcallBridge
+public import EvmAsm.EL.Bls12G2AddEcallBridge
+public import EvmAsm.EL.KzgPointEvalEcallBridge
+public import EvmAsm.EL.ModexpEcallBridge
+public import EvmAsm.EL.Secp256r1VerifyEcallBridge
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.VM.Precompiles
 

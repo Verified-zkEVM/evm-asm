@@ -4,9 +4,13 @@
   Mechanical branch-boolean witnesses for the n=1 DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
-import EvmAsm.Evm64.DivMod.Spec.N1Harith
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.N1Harith
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

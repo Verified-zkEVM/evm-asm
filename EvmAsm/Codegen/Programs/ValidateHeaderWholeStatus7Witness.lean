@@ -26,9 +26,11 @@ open private hcoreParentRlp_length hcoreHeaderItems_length
 -- `headerToRlpItem` references it, and a public body may not mention a
 -- private declaration. Plain `open` reaches it now.
 open EvmAsm.Stateless.SpecRef (scalarItem)
-open private numericFieldsOk bytesFieldsOk checkNumericFields decodeHeaderArm
-  rlpBytes? getNChecked getBChecked from EvmAsm.Stateless.SpecRef.Stateless
-
+open EvmAsm.Stateless.SpecRef (decodeHeaderArm rlpBytes? getNChecked)
+open EvmAsm.Stateless.SpecRef (checkNumericFields)
+open EvmAsm.Stateless.SpecRef (bytesFieldsOk)
+open EvmAsm.Stateless.SpecRef (numericFieldsOk)
+open EvmAsm.Stateless.SpecRef (getBChecked)
 def status7WitnessHeader : Header :=
   { hcoreWitnessHeaderSpec with extraData := List.replicate 33 0 }
 

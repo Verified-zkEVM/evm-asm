@@ -5,21 +5,25 @@
   families (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTableCompose
-import EvmAsm.Evm64.TerminatingHandlers
-import EvmAsm.Evm64.StackHandlers
-import EvmAsm.Evm64.PushHandlers
-import EvmAsm.Evm64.ControlHandlers
-import EvmAsm.Evm64.EnvHandlers
-import EvmAsm.Evm64.ReturnDataHandlers
-import EvmAsm.Evm64.CodeHandlers
-import EvmAsm.Evm64.MemoryHandlers
-import EvmAsm.Evm64.ArithmeticHandlers
-import EvmAsm.Evm64.BitwiseHandlers
-import EvmAsm.Evm64.ComparisonHandlers
-import EvmAsm.Evm64.ShiftHandlers
-import EvmAsm.Evm64.CalldataHandlers
-import EvmAsm.Evm64.DupSwapHandlers
+module
+
+public import EvmAsm.Evm64.HandlerTableCompose
+public import EvmAsm.Evm64.TerminatingHandlers
+public import EvmAsm.Evm64.StackHandlers
+public import EvmAsm.Evm64.PushHandlers
+public import EvmAsm.Evm64.ControlHandlers
+public import EvmAsm.Evm64.EnvHandlers
+public import EvmAsm.Evm64.ReturnDataHandlers
+public import EvmAsm.Evm64.CodeHandlers
+public import EvmAsm.Evm64.MemoryHandlers
+public import EvmAsm.Evm64.ArithmeticHandlers
+public import EvmAsm.Evm64.BitwiseHandlers
+public import EvmAsm.Evm64.ComparisonHandlers
+public import EvmAsm.Evm64.ShiftHandlers
+public import EvmAsm.Evm64.CalldataHandlers
+public import EvmAsm.Evm64.DupSwapHandlers
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

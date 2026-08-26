@@ -27,9 +27,13 @@
   See beads `evm-asm-0j4w`, parent `evm-asm-kxrl` (#61 slice 2c).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
-import EvmAsm.Evm64.EvmWordArith.Div
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+public import EvmAsm.Evm64.EvmWordArith.Div
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

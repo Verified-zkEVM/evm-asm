@@ -4,7 +4,11 @@
   Branch-certificate-free v4 exact-frame zero-divisor DIV wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

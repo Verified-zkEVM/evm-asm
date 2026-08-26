@@ -4,9 +4,13 @@
   Caller-facing full-v4 wrappers for exact N1 DIV stack specs.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4PreloopCallMax
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactNoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4PreloopCallMax
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

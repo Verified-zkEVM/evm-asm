@@ -56,9 +56,13 @@
     `PRE_COMPILED_CONTRACTS`.
 -/
 
-import EvmAsm.Stateless.SpecRef.InstructionsEnv
-import EvmAsm.Stateless.SpecRef.SeamShell
-import EvmAsm.Stateless.SpecRef.Runtime
+module
+
+public import EvmAsm.Stateless.SpecRef.InstructionsEnv
+public import EvmAsm.Stateless.SpecRef.SeamShell
+public import EvmAsm.Stateless.SpecRef.Runtime
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

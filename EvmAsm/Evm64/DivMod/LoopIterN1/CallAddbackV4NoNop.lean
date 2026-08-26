@@ -1,5 +1,9 @@
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

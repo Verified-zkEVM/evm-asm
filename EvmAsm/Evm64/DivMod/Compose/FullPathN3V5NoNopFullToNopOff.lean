@@ -12,9 +12,13 @@
   (9.3.3.4).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFromShape
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenorm
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFromShape
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenorm
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

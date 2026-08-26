@@ -44,36 +44,40 @@
     `Spec.ModMaxSkipV4` exposes `evm_mod_n4_max_skip_stack_spec_within_v4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Div128
-import EvmAsm.Evm64.DivMod.Compose.Div128V4
-import EvmAsm.Evm64.DivMod.Compose.Div128V5
-import EvmAsm.Evm64.DivMod.Compose.Div128V5CodeBridge
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.ModFullPath
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V4Code
-import EvmAsm.Evm64.DivMod.Compose.V5Code
-import EvmAsm.Evm64.DivMod.Compose.V5Code2
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Div128
+public import EvmAsm.Evm64.DivMod.Compose.Div128V4
+public import EvmAsm.Evm64.DivMod.Compose.Div128V5
+public import EvmAsm.Evm64.DivMod.Compose.Div128V5CodeBridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPath
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN1
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+public import EvmAsm.Evm64.DivMod.Compose.V5Code2
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
 -- `DivLimbBridge` reached transitively via `DivN4DoubleAddback →
 -- DivN4Overestimate → DivAccumulate → DivRemainderBound →
 -- DivAddbackLimb → DivMulSubLimb → DivLimbBridge`.
-import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
-import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
-import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
-import EvmAsm.Evm64.DivMod.SpecPredicates
+public import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
+public import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
+public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+public import EvmAsm.Evm64.DivMod.SpecPredicates
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

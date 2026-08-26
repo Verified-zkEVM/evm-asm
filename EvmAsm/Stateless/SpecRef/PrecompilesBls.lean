@@ -23,7 +23,11 @@
   NOT here yet and stay on the unimplemented-fallback list.
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesPairing
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesPairing
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -164,7 +168,7 @@ def castToFq12 (pt : Proj Nat) : Proj FQP :=
   (lift pt.1, lift pt.2.1, lift pt.2.2)
 
 /-- `pseudo_binary_encoding[62::-1]` (63 entries, 0/1 only). -/
-private def millerSchedule : List Nat :=
+def millerSchedule : List Nat :=
   ([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -209,7 +213,7 @@ def pairing (Q : Proj FQP) (P : Proj Nat) : FQP :=
 end Bls12
 
 /-- Lift a decode-helper result into the machine monad. -/
-private def liftE {α : Type} : Except EvmError α → EvmM α
+def liftE {α : Type} : Except EvmError α → EvmM α
   | .ok a => pure a
   | .error e => throw e
 

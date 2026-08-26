@@ -5,8 +5,12 @@
   result-sign-fix block.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixGeneric
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixGeneric
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

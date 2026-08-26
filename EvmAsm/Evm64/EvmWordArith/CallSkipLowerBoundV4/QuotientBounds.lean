@@ -7,11 +7,15 @@
   Knuth lower-bound lemmas.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
-import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
-import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+public import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
+public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

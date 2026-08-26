@@ -26,7 +26,11 @@
   the Phase-2 `q0` digit have this exact shape).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

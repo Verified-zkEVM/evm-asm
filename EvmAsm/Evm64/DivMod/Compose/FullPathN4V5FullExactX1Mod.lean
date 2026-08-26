@@ -8,9 +8,13 @@
   instead of `denormDivPost`.  Toward `evm_mod_callable_v5` / SMOD `.proven`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

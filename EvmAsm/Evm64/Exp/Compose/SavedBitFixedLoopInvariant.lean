@@ -4,8 +4,12 @@
   Symbolic loop invariant anchor for the fixed x19 two-MUL saved-bit EXP loop.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Exp
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Exp
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -168,6 +168,21 @@ this class from a genuine typo or a missing import, which the headline alone doe
 not. ⚠️ It is not universal, though — some sites give only the headline, so a
 sweep should fall back to `Unknown identifier` and rely on the guards below.
 
+⚠️ **The name in the error is not always the declaration.** Generalized field
+notation reports the *whole dotted expression*, so a `private` table `s` used as
+`s.getD j 0` surfaces as
+
+```
+error: Unknown identifier `s.getD`      -- the decl is `s`, NOT `getD`
+```
+
+which reads exactly like the qualified-constant shape `EvmAsm.Foo.bar` — where
+the declaration is the **last** component — while pointing the opposite way. A
+sweep that splits on the final dot silently finds nothing and reports "no
+private references left", which is indistinguishable from being finished. EVM
+wave 2 stalled twice on this (`s.getD`, then `sigma.getD`) inside a single file.
+Try every component and prefer the one the file actually declares.
+
 ⚠️ **Knock-on errors in the same file are not separate problems.** An
 unresolvable name leaves a hole in a term, so the elaborator then reports things
 like `failed to synthesize instance of type class Decidable __do_lift✝` at an
@@ -237,6 +252,108 @@ $ grep -rn "open private" EvmAsm
 and re-check every line that names a declaration you just widened. Five sites
 here referenced `scalarItem`; one of them also carried an unrelated name on the
 same line and reported it as a spurious second error.
+
+### `open private` that SURVIVES still needs `import all`
+
+The names you leave on the `open private` line have a second, independent
+problem, and it does not appear until the *consumer* itself becomes a module. A
+migrated module's private declarations live in a separate `.olean.private`, and
+a plain or `public import` does not carry them:
+
+```
+error: Unknown constant
+  `_private.EvmAsm.Stateless.SpecRef.BlocksRlp.0.EvmAsm.Stateless.SpecRef.rlpTestHeader`
+```
+
+⚠️ Read that mangled name carefully — it says Lean *knows* the declaration is
+private in `BlocksRlp` and still cannot see it. This is not §5a (the name is
+genuinely private, and correctly so) and not §5b's rename (there is nothing to
+move off the line). It is a missing import **form**:
+
+```lean
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+import all EvmAsm.Stateless.SpecRef.BlocksRlp   -- ← reaches the private half
+```
+
+Keep the existing `public import`; `import all` is an addition, not a
+replacement. Both `EvmAsm/Stateless/SpecRef/HeaderRoundTrip.lean` and the
+`Codegen/Programs/ValidateHeaderWhole*Witness.lean` files need this, and it is
+the honest fix: a fixture like `rlpTestHeader` should stay private, and `import
+all` is precisely the module system's way to say "I am reaching into this
+module's private half on purpose."
+
+## 5c. `private` changes the identity of COMPILER-GENERATED auxiliaries
+
+§5a and §5b are about *referencing* a private declaration. This one is different
+and much quieter: the private declaration is referenced only inside a proof, so
+there is no visibility error at all — but the **auxiliary definitions Lean
+generates for it** are private too, and therefore are *different constants* from
+the ones generated for a public declaration.
+
+A `match` inside a declaration produces a `…match_1` auxiliary; inside a
+`private` declaration it produces `_private.….match_1`. Tactics that require
+**syntactic** identity — `rw` above all — then fail to match across the boundary:
+
+```
+error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  fromLimbs fun i => match i with
+    | 0 => a.getLimbN 0
+    ...
+in the target expression
+```
+
+Observed in `Evm64/EvmWordArith/DivN4DoubleAddback.lean`, which carries a helper
+whose entire purpose is to make the match-auxiliary identities agree —
+
+> the auxiliary `match` function identity matches the one produced for our new
+> lemmas' … patterns. Needed because `rewrite` requires syntactic identity of
+> the match-auxiliary function, and Lean generates these per-file.
+
+— and which was `private`, while the lemmas it was aligning with were public. The
+two auxiliaries were the same constant before the migration and stopped being so
+after. **Dropping `private` fixed it.**
+
+⚠️ **What makes this hard to spot:** nothing reports a visibility problem. The
+error names a rewrite pattern, points into unrelated-looking arithmetic, and the
+declaration it blames is not the one that has to change. If a `rw` starts failing
+in a migrated file on a pattern containing a `match`, `fun`, or a `where`
+auxiliary, check whether either side is `private` **before** looking at the
+mathematics.
+
+⇒ **Rule of thumb: a helper that exists to align generated-definition identity
+must have the SAME visibility as the declarations it is aligning with.**
+
+## 5d. Duplicate declarations that `main` silently tolerates
+
+The module system's import merge is **stricter than the old one**, and it
+surfaces defects the migration did not create:
+
+```
+error: import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq failed,
+  environment already contains
+  'EvmAsm.Evm64.divK_mulsub_correction_addback_beq_v4_spec_within_noNop'
+  from EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
+```
+
+Two modules declared the **same full name** — same statement, two different
+tactic scripts, same namespace `EvmAsm.Evm64` — and both sit in `EvmAsm.Evm64`'s
+import closure. That was true on `main`, where it built green. The migration is
+only what made it visible.
+
+⚠️ **Do not treat this as a conversion bug and do not paper over it.** Before
+touching anything, establish which of the two the tree actually needs:
+
+1. Diff the two declarations. If the *statements* match and only the proofs
+   differ, it is an accidental duplication — the usual cause is two branches
+   proving the same lemma and merging without conflict, since the two live in
+   different files.
+2. Check for an import cycle in **both** directions before collapsing them.
+3. Keep the copy that sits with its thematic siblings, delete the other, and
+   leave the emptied module as a `public import` re-export so its importers do
+   not have to change. Say in the file why it is a shim.
+
+Grepping for a duplicate by *name* finds this class; grepping by statement finds
+the ones that have not collided yet.
 
 ## 6. Adding a new file
 
@@ -370,6 +487,15 @@ Two refinements, both learned by getting them wrong:
   is private in two files, but under `…Correspondence.Transaction` and
   `…Correspondence.Header` — different namespaces, no collision, widening is
   fine. Comparing bare names refuses safe work.
+
+  ⚠️ **And "the namespace" means the stack open at the DECLARATION's line**, not
+  the last `namespace` in the file. `millerSchedule` is private in
+  `SpecRef/PrecompilesPairing.lean` under `…SpecRef.Bn128` and in
+  `SpecRef/PrecompilesBls.lean` under `…SpecRef.Bls12` — no collision — but both
+  files close with a trailing `namespace GasCosts … end GasCosts` block, so a
+  last-line reading calls them equal and refuses a safe widening. Sibling
+  namespace blocks in one file are common here; walk the `namespace`/`end` stack
+  and stop at the declaration.
 
 When two genuinely different functions do share a name in one namespace, the fix
 is to **rename** the one that must become public, not to abandon the widening.

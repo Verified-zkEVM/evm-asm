@@ -2,17 +2,21 @@
   Shared declaration home for the n=2 v5/no-NOP preloop, selected loop, and full path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
-import EvmAsm.Evm64.DivMod.Compose.CLZV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
-import EvmAsm.Evm64.DivMod.Compose.NormBV5
-import EvmAsm.Evm64.DivMod.Compose.NormAV5
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
+public import EvmAsm.Evm64.DivMod.Compose.CLZV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+public import EvmAsm.Evm64.DivMod.Compose.NormBV5
+public import EvmAsm.Evm64.DivMod.Compose.NormAV5
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

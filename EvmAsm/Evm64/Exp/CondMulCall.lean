@@ -8,9 +8,13 @@
   Refs: GH #92, beads `evm-asm-b4asy`.
 -/
 
-import EvmAsm.Evm64.Exp.CondMulMarshalPair
-import EvmAsm.Evm64.Exp.SquaringCall
-import EvmAsm.Evm64.Multiply.Callable
+module
+
+public import EvmAsm.Evm64.Exp.CondMulMarshalPair
+public import EvmAsm.Evm64.Exp.SquaringCall
+public import EvmAsm.Evm64.Multiply.Callable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
