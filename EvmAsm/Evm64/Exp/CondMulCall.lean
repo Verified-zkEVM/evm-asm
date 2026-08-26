@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.Exp.CondMulMarshalPair
 public import EvmAsm.Evm64.Exp.SquaringCall
 public import EvmAsm.Evm64.Multiply.Callable
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

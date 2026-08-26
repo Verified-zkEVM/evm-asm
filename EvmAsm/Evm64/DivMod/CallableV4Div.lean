@@ -7,7 +7,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExact
 public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
 public import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

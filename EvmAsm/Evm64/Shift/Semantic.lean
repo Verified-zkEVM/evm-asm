@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.Stack
 public import EvmAsm.Evm64.Shift.Compose
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

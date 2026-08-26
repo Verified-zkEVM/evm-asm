@@ -17,7 +17,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

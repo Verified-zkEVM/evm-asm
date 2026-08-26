@@ -21,7 +21,7 @@ meta import EvmAsm.Evm64.Shift.ShlSpec
 meta import EvmAsm.Evm64.Shift.ComposeBase
 meta import Mathlib.Tactic.Set
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

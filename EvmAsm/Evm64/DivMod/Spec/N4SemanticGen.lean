@@ -27,7 +27,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4QOutConservationGen
 public import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
 public import EvmAsm.Evm64.DivMod.Spec.N4SemanticOfBorrow
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

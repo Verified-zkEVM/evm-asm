@@ -33,7 +33,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 public import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

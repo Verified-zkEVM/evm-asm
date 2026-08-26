@@ -24,7 +24,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

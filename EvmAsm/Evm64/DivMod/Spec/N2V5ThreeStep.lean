@@ -22,7 +22,7 @@ public import Mathlib.Algebra.Group.Nat.Defs
 public import Mathlib.Tactic.Linarith
 public import EvmAsm.Evm64.EvmWord
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3StepBase
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

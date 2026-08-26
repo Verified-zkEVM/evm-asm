@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.AddrNorm
 public import EvmAsm.Evm64.EvmWordArith.DivMulSubCarry
 public import EvmAsm.Evm64.EvmWordArith.DivAddbackCarry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

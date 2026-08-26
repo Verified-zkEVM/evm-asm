@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.NormA
 public import EvmAsm.Evm64.DivMod.Compose.Epilogue
 public import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

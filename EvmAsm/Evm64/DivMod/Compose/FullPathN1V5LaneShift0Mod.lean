@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0Mod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNzMod
 public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
 public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
 public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

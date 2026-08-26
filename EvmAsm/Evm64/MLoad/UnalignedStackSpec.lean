@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.Stack
 public import EvmAsm.Evm64.MLoad.Spec
 public import EvmAsm.Evm64.MLoad.UnalignedSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
 public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

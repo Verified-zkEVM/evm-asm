@@ -11,7 +11,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
 public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

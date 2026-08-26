@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
 public import EvmAsm.Rv64.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

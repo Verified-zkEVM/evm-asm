@@ -2,7 +2,7 @@ module
 
 public import EvmAsm.Evm64.MulMod.ProductLayoutCall05Carry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

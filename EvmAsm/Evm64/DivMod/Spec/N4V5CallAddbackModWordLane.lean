@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmWord

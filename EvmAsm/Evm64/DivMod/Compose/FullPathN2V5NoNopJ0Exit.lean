@@ -8,4 +8,4 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 
-@[expose] public section
+public section

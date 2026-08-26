@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Compose.NormBV5
 public import EvmAsm.Evm64.DivMod.Compose.NormAV5
 public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

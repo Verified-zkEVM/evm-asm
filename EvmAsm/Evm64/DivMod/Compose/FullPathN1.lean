@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.Compose.CLZ
 public import EvmAsm.Evm64.DivMod.Compose.Norm
 public import EvmAsm.Evm64.DivMod.Compose.NormA
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

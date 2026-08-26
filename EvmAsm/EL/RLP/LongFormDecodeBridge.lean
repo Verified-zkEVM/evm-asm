@@ -10,7 +10,7 @@ public import EvmAsm.EL.RLP.PrefixDecode
 public import EvmAsm.EL.RLP.ListDecodeBridge
 public import EvmAsm.EL.RLP.ReadLengthBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

@@ -35,7 +35,7 @@ public import EvmAsm.Evm64.Exp.AddrNorm
 public import EvmAsm.Evm64.Stack
 public import EvmAsm.Evm64.Exp.LimbSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

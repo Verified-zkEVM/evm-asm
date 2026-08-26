@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
 public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

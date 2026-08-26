@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.Evm64.AddMod.LimbSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -16,7 +16,7 @@ module
 public import EvmAsm.Rv64.AddrNorm
 public import EvmAsm.Evm64.AddMod.AddrNormAttr
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.AddMod.AddrNorm
 

@@ -17,7 +17,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

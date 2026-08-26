@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN1
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 public import EvmAsm.Evm64.DivMod.LoopUnifiedN1
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.SDiv.Compose.CodeHandlesV5
 public import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlockSpecs
 public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

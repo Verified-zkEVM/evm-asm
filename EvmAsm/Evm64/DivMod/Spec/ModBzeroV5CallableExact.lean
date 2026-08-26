@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

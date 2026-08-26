@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.EL.RLP.PrefixDecode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

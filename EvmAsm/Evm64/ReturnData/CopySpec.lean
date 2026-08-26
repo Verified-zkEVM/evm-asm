@@ -34,7 +34,7 @@ public import EvmAsm.Evm64.ReturnData.RevertSpec
 meta import EvmAsm.Evm64.ReturnData.CopyLoopSpec
 meta import EvmAsm.Evm64.ReturnData.RevertSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -13,7 +13,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

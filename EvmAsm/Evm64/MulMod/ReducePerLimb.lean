@@ -23,7 +23,7 @@ module
 
 public import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

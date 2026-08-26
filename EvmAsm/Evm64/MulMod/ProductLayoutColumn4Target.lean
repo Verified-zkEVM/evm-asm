@@ -3,7 +3,7 @@ module
 public import EvmAsm.Evm64.MulMod.ProductLayoutColumn4Call02Feed
 public import EvmAsm.Evm64.MulMod.ProductLayoutCall09Carry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

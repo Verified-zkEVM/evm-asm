@@ -19,7 +19,7 @@ module
 
 public import EvmAsm.Evm64.MStore.LimbSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

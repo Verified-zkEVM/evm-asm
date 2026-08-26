@@ -124,4 +124,4 @@ meta import EvmAsm.Evm64.SMod.SpecBzero
 meta import EvmAsm.Evm64.SMod.SpecAllCase
 public meta import Lean.Meta.Tactic.Simp.Attr
 
-@[expose] public section
+public section

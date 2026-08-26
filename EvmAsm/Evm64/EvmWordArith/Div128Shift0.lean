@@ -25,7 +25,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
 public import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

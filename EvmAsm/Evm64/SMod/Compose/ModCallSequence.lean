@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.DivisorAbsSequence
 public import EvmAsm.Evm64.SMod.Compose.ModCall
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

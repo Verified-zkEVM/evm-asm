@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.LoopIterN3
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)

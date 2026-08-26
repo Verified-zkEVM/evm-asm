@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.SDiv.Compose.BzeroPost
 public import EvmAsm.Evm64.DivMod.CallableBzeroV4
 public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
 
-@[expose] public section
+public section
 
 /-
   EvmAsm.Evm64.SDiv.Compose.BzeroCallable

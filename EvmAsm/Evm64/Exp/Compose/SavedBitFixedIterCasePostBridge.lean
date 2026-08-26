@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

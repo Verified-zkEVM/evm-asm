@@ -9,7 +9,7 @@ public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

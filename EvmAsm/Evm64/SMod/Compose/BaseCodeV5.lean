@@ -13,7 +13,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.BaseCode
 public import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

@@ -9,7 +9,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -33,7 +33,7 @@ module
 public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
 public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

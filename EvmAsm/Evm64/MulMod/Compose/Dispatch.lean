@@ -26,7 +26,7 @@ public import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
 public import EvmAsm.Evm64.MulMod.MulModResultWord
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

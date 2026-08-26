@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
 public import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
 public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

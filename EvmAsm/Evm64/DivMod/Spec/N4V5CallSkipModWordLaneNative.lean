@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
 public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

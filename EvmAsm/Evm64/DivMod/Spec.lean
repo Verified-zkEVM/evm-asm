@@ -85,4 +85,4 @@ public import EvmAsm.Evm64.DivMod.Spec.N3MaxBranchFromInvariant
 public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 public import EvmAsm.Evm64.DivMod.Spec.BzeroPublicPost
 
-@[expose] public section
+public section

@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.SDiv.HandlerBridge
 public import EvmAsm.Evm64.SMod.HandlerBridge
 public import EvmAsm.Evm64.SupportedHandlers
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace SupportedHandlerByte
