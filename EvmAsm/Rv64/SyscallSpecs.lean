@@ -13,11 +13,15 @@
 -- `InstructionSpecs → GenericSpecs → Basic, Instructions, SepLogic,
 -- Execution, CPSSpec`. `ByteOps`/`HalfwordOps`/`WordOps` are independent
 -- leaves and remain as direct imports.
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.HalfwordOps
-import EvmAsm.Rv64.WordOps
-import EvmAsm.Rv64.Tactics.SpecDb
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.HalfwordOps
+public import EvmAsm.Rv64.WordOps
+public import EvmAsm.Rv64.Tactics.SpecDb
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

@@ -6,7 +6,11 @@
   CFG operations that a proof-producing agent should emit.
 -/
 
-import EvmAsm.Rv64.WP.Loop
+module
+
+public import EvmAsm.Rv64.WP.Loop
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace WP

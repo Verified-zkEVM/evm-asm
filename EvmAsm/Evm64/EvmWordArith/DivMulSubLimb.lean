@@ -15,9 +15,13 @@
   - mulsub_4limb_euclidean_div: end-to-end from 4-limb chain to EvmWord.div/mod
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
-import EvmAsm.Evm64.EvmWordArith.DivBridge
-import EvmAsm.Rv64.AddrNorm
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+public import EvmAsm.Evm64.EvmWordArith.DivBridge
+public import EvmAsm.Rv64.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

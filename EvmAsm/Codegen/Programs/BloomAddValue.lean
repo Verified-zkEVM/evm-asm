@@ -16,10 +16,14 @@
   `bloomAddValue_prog`) compiles unchanged.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.Programs.BloomAddValueProg
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.Programs.BloomAddValueProg
+public import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

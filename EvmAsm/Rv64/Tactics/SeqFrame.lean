@@ -25,10 +25,18 @@
   permutation). Otherwise, the result is introduced as a hypothesis named `h1h2`.
 -/
 
-import Lean
-import EvmAsm.Rv64.Tactics.XCancel
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Rv64.Tactics.PerfTrace
+module
+
+public import Lean
+public import EvmAsm.Rv64.Tactics.XCancel
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Rv64.Tactics.PerfTrace
+meta import Lean
+meta import EvmAsm.Rv64.Tactics.XCancel
+meta import EvmAsm.Rv64.InstructionSpecs
+meta import EvmAsm.Rv64.Tactics.PerfTrace
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 
@@ -38,7 +46,7 @@ namespace EvmAsm.Rv64.Tactics
     Saves the message log before running, restores it if the tactic throws.
     This prevents speculative tactic calls (e.g., bv_omega in try/catch blocks)
     from polluting the error output when they fail as expected. -/
-def runTacticSilent (mvarId : MVarId) (stx : Syntax) : MetaM Unit := do
+meta def runTacticSilent (mvarId : MVarId) (stx : Syntax) : MetaM Unit := do
   let savedLog ← Lean.Core.getMessageLog
   Lean.Core.resetMessageLog
   try
@@ -51,7 +59,7 @@ def runTacticSilent (mvarId : MVarId) (stx : Syntax) : MetaM Unit := do
 
 /-- Parse `cpsTripleWithin nSteps entry exit_ cr P Q`, returning the six
     arguments. Does NOT whnf (which would unfold the def). -/
-def parseCpsTripleWithin? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × Expr × Expr)) := do
+meta def parseCpsTripleWithin? (e : Expr) : MetaM (Option (Expr × Expr × Expr × Expr × Expr × Expr)) := do
   let e ← instantiateMVars e
   if e.isAppOfArity ``EvmAsm.Rv64.cpsTripleWithin 6 then
     let args := e.getAppArgs
@@ -115,7 +123,7 @@ elab "intro_lets" "at" h:ident : tactic => withMainContext do
     find atoms of P2 within Q1 and return the frame (residual Q1 atoms).
     Both sides are first reassociated to right-associated form for proper flattening.
     Uses hash pre-filtering to reduce expensive `isDefEq` calls. -/
-def computeFrame (q1 p2 : Expr) : MetaM (List Expr) :=
+meta def computeFrame (q1 p2 : Expr) : MetaM (List Expr) :=
   withTraceNode `runBlock.perf.frame (fun _ => return m!"computeFrame") do
   -- Reassociate to right-associated form before flattening
   let (q1RA, _) ← reassocProof q1
@@ -155,7 +163,7 @@ def computeFrame (q1 p2 : Expr) : MetaM (List Expr) :=
   return result
 
 /-- Check if an expression is a numeric literal (OfNat.ofNat _ n _) and return n. -/
-private def getBvLitVal? (e : Expr) : Option Nat :=
+private meta def getBvLitVal? (e : Expr) : Option Nat :=
   if e.isAppOfArity ``OfNat.ofNat 3 then
     match e.getAppArgs[1]! with
     | .lit (.natVal n) => some n
@@ -166,7 +174,7 @@ private def getBvLitVal? (e : Expr) : Option Nat :=
     - `base + lit` → `some (base, some lit_expr, lit_val)`
     - bare `e` → `some (e, none, 0)`
     - unrecognized → `none` -/
-private def extractBaseAndOffset (e : Expr) : Option (Expr × Option Expr × Nat) :=
+private meta def extractBaseAndOffset (e : Expr) : Option (Expr × Option Expr × Nat) :=
   if e.isAppOfArity ``HAdd.hAdd 6 then
     let rhs := e.getAppArgs[5]!
     if let some k := getBvLitVal? rhs then
@@ -179,7 +187,7 @@ private def extractBaseAndOffset (e : Expr) : Option (Expr × Option Expr × Nat
 /-- Prove `a1 ≠ a2` using offset-based reflection when both addresses share the same base.
     Falls back to `bv_omega` when the pattern doesn't match.
     ~100x faster than bv_omega for the common case (base + k1 ≠ base + k2). -/
-private def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
+private meta def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
   let addrType := mkApp (mkConst ``BitVec) (mkNatLit 64)
   -- Try offset-based fast path
   if let some (base1, off1, k1) := extractBaseAndOffset a1 then
@@ -218,7 +226,7 @@ private def proveAddrNe (a1 a2 : Expr) : MetaM Expr := do
 
 /-- Build a `pcFree` proof directly in MetaM, avoiding tactic overhead.
     Handles all standard assertion types; falls back to the `pcFree` tactic for unknowns. -/
-partial def buildPcFreeProof (assertion : Expr) : MetaM Expr := do
+meta partial def buildPcFreeProof (assertion : Expr) : MetaM Expr := do
   let e ← normForSepConj assertion
   if e.isAppOfArity ``EvmAsm.Rv64.sepConj 2 then
     let l := Expr.appArg! (Expr.appFn! e)
@@ -262,7 +270,7 @@ partial def buildPcFreeProof (assertion : Expr) : MetaM Expr := do
 
 /-- Build a lambda `fun (h : PartialState) (hp : P h) => proof h hp`
     where proof converts `P h` to `Q h` using a permutation equality `P = Q`. -/
-def mkPermLambda (src tgt : Expr) : MetaM Expr := do
+meta def mkPermLambda (src tgt : Expr) : MetaM Expr := do
   let permProof ← buildPermProofDispatch src tgt
   let psType := mkConst ``EvmAsm.Rv64.PartialState
   withLocalDeclD `h psType fun h => do
@@ -271,7 +279,7 @@ def mkPermLambda (src tgt : Expr) : MetaM Expr := do
       mkLambdaFVars #[h, hp] proof
 
 /-- Build identity lambda: `fun (h : PartialState) (hp : P h) => hp` -/
-def mkIdLambda (p : Expr) : MetaM Expr := do
+meta def mkIdLambda (p : Expr) : MetaM Expr := do
   let psType := mkConst ``EvmAsm.Rv64.PartialState
   withLocalDeclD `h psType fun h =>
     withLocalDeclD `hp (mkApp p h) fun hp =>
@@ -281,7 +289,7 @@ def mkIdLambda (p : Expr) : MetaM Expr := do
     - `base + lit` → `some (base, lit_val)`
     - `base` → `some (base, 0)`
     Does NOT use extractBaseAndOffset to avoid coupling. -/
-private def getAddrOffset? (e : Expr) : Option (Expr × Nat) :=
+private meta def getAddrOffset? (e : Expr) : Option (Expr × Nat) :=
   if e.isAppOfArity ``HAdd.hAdd 6 then
     let base := e.getAppArgs[4]!
     let rhs := e.getAppArgs[5]!
@@ -289,7 +297,7 @@ private def getAddrOffset? (e : Expr) : Option (Expr × Nat) :=
   else some (e, 0)
 
 /-- Count the length of a concrete List expression via whnf. -/
-private partial def countListLength (list : Expr) : MetaM Nat := do
+private meta partial def countListLength (list : Expr) : MetaM Nat := do
   let w ← whnf list
   if w.isAppOfArity ``List.cons 3 then
     return 1 + (← countListLength w.getAppArgs[2]!)
@@ -298,7 +306,7 @@ private partial def countListLength (list : Expr) : MetaM Nat := do
 /-- Build a proof of `Disjoint (ofProg base1 prog1) (ofProg base2 prog2)` using
     range arithmetic: if address ranges don't overlap, apply `ofProg_disjoint_range`
     and close the address inequality with `bv_omega`. O(1) in program size. -/
-private def buildOfProgDisjointRange (cr1 cr2 : Expr) : MetaM Expr := do
+private meta def buildOfProgDisjointRange (cr1 cr2 : Expr) : MetaM Expr := do
   let base1 := cr1.getAppArgs[0]!
   let prog1 := cr1.getAppArgs[1]!
   let base2 := cr2.getAppArgs[0]!
@@ -333,7 +341,7 @@ private def buildOfProgDisjointRange (cr1 cr2 : Expr) : MetaM Expr := do
     - union vs anything (recursive)
     - ofProg vs ofProg (range-based, O(1))
     Falls back to the `decide` tactic for unknown structures. -/
-partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
+meta partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.extend (fun _ => return m!"buildDisjointProof") do
   let cr1 ← whnfR cr1
   let cr2 ← whnfR cr2
@@ -470,7 +478,7 @@ partial def buildDisjointProof (cr1 cr2 : Expr) : MetaM Expr :=
     throwError "seqFrame: cannot prove CodeReq.Disjoint for:\n  cr1 = {cr1}\n  cr2 = {cr2}"
 
 /-- Build identity monotonicity proof: `fun a i h => h` (for same-CR extension). -/
-def mkIdentityMono (cr : Expr) : MetaM Expr := do
+meta def mkIdentityMono (cr : Expr) : MetaM Expr := do
   let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
   let instrType := mkConst ``EvmAsm.Rv64.Instr
   withLocalDeclD `a bv64 fun a =>
@@ -481,7 +489,7 @@ def mkIdentityMono (cr : Expr) : MetaM Expr := do
         mkLambdaFVars #[a, i, h] h
 
 /-- Fallback: Build monotonicity proof via tactic (for edge cases). -/
-private def buildMonoProofTactic (oldCr newCr : Expr) : MetaM Expr := do
+private meta def buildMonoProofTactic (oldCr newCr : Expr) : MetaM Expr := do
   let bv64 := mkApp (mkConst ``BitVec) (mkNatLit 64)
   let instrType := mkConst ``EvmAsm.Rv64.Instr
   let propType ← withLocalDeclD `a bv64 fun a => do
@@ -520,7 +528,7 @@ partial def extractUnionChain (cr : Expr) : MetaM (Array (Expr × Expr × Expr))
     Uses `singleton_mono` with a proof that `goalCr addr = some instr`, built via
     a chain of `union_hit`/`union_skip` — avoids identity mismatch between spec
     and goal CR singletons. O(position) with ~0.1ms/step. -/
-def buildMonoProofDirect (oldCr : Expr) (chain : Array (Expr × Expr × Expr))
+meta def buildMonoProofDirect (oldCr : Expr) (chain : Array (Expr × Expr × Expr))
     (chainCr : Expr) : MetaM (Option Expr) := do
   -- oldCr must be a singleton
   let oldCrW ← whnfR oldCr
@@ -592,7 +600,7 @@ def buildMonoProofDirect (oldCr : Expr) (chain : Array (Expr × Expr × Expr))
 
 /-- Walk a concrete `List Instr` expression and find the index of a matching instruction.
     Returns `(index, listLength)` for the first match. Also verifies the address offset. -/
-private partial def findInstrInProgList (targetInstr : Expr) (targetOff : Nat)
+private meta partial def findInstrInProgList (targetInstr : Expr) (targetOff : Nat)
     (progList : Expr) (idx : Nat := 0) : MetaM (Option (Nat × Nat)) := do
   let listW ← whnf progList
   if listW.isAppOfArity ``List.cons 3 then
@@ -617,7 +625,7 @@ private partial def findInstrInProgList (targetInstr : Expr) (targetOff : Nat)
 
 /-- Build a mono proof for `singleton addr instr ⊆ ofProg base prog` using
     `ofProg_lookup` + `singleton_mono`. Finds the instruction index by matching. -/
-private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : MetaM (Option Expr) := do
+private meta def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : MetaM (Option Expr) := do
   -- oldCr must be a singleton
   unless oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 do return none
   let specAddr := oldCrW.getAppArgs[0]!
@@ -685,7 +693,7 @@ private def buildMonoProofOfProg (oldCrW : Expr) (newCrBase newCrProg : Expr) : 
 /-- Verify that `sub` is a contiguous slice of `full` starting at index `idx`.
     Walks both lists in lockstep, comparing instructions via isDefEq.
     Returns `(subLen, fullLen)` on success. -/
-private partial def verifyProgSlice (full sub : Expr) (idx : Nat)
+private meta partial def verifyProgSlice (full sub : Expr) (idx : Nat)
     : MetaM (Option (Nat × Nat)) := do
   -- Fast-forward `full` by `idx` positions
   let mut fullCur := full
@@ -724,7 +732,7 @@ private partial def verifyProgSlice (full sub : Expr) (idx : Nat)
 
 /-- Build a mono proof for `ofProg subBase sub_prog ⊆ ofProg base full_prog`
     using `ofProg_mono_sub`. Finds the sub-program as a contiguous slice. -/
-private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
+private meta def buildMonoProofOfProgToOfProg (oldCrW : Expr)
     (newCrBase newCrProg : Expr) : MetaM (Option Expr) := do
   -- oldCr must be an ofProg
   unless oldCrW.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 do return none
@@ -790,7 +798,7 @@ private def buildMonoProofOfProgToOfProg (oldCrW : Expr)
 /-- Build a proof of `∀ a i, oldCr a = some i → newCr a = some i` structurally.
     Uses direct chain lookup for singleton-vs-chain (O(N) with low constant),
     falls back to recursive walk for complex cases. -/
-partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
+meta partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.extend (fun _ => return m!"buildMonoProof") do
   -- Identity: oldCr ≡ newCr
   if oldCr == newCr then return ← mkIdentityMono oldCr
@@ -855,7 +863,7 @@ partial def buildMonoProof (oldCr newCr : Expr) : MetaM Expr :=
 /-- Core MetaM implementation of seqFrame for bounded proofs. This mirrors the
     straight-line composition path used by `runBlock`; bounds add through
     sequential composition. -/
-def seqFrameWithinCore (h1Expr h2Expr : Expr) : MetaM Expr :=
+meta def seqFrameWithinCore (h1Expr h2Expr : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.seq (fun _ => return m!"seqFrameWithinCore") do
   let h1Type ← inferType h1Expr
   let h2Type ← inferType h2Expr
@@ -952,7 +960,7 @@ def seqFrameWithinCore (h1Expr h2Expr : Expr) : MetaM Expr :=
     permutation. It also widens the step bound using
     `cpsTripleWithin_mono_nSteps` when the goal allows more steps than the
     composed result used. -/
-def assignOrPermuteWithin (goal : MVarId) (result : Expr) : MetaM Unit := do
+meta def assignOrPermuteWithin (goal : MVarId) (result : Expr) : MetaM Unit := do
   let goalType ← goal.getType
   let resultType ← inferType result
   if ← withoutModifyingState (isDefEq goalType resultType) then

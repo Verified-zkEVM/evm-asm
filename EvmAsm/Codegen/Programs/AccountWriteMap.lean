@@ -95,17 +95,32 @@
   sentinel would silently invent a state the spec does not have.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.ArenaCapacities
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.StorageWriteMap
-import EvmAsm.Codegen.Programs.AccountWriteUndo
-import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
-import EvmAsm.Stateless.MemoryLayout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.ArenaCapacities
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.StorageWriteMap
+public import EvmAsm.Codegen.Programs.AccountWriteUndo
+public import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
+public import EvmAsm.Stateless.MemoryLayout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.ArenaCapacities
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.StorageWriteMap
+meta import EvmAsm.Codegen.Programs.AccountWriteUndo
+meta import EvmAsm.Codegen.Programs.AccountWriteMapDeletes
+meta import EvmAsm.Stateless.MemoryLayout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 open EvmAsm.Rv64

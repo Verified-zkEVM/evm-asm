@@ -4,10 +4,14 @@
   Terminal settlement phase of the main block_verdict assembly string.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.BlockVerdictGasGatePrelude
-import EvmAsm.Codegen.Programs.BlockVerdictExactGas
-import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.BlockVerdictGasGatePrelude
+public import EvmAsm.Codegen.Programs.BlockVerdictExactGas
+public import EvmAsm.Codegen.Programs.BlockVerdictReceiptsTail
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -26,15 +26,28 @@
   `bv_decide`.
 -/
 
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.MemRegionWriteWide
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.MemRegionWriteWide
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Rv64.InstructionSpecs
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.ControlFlow
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.MemRegionStore
+meta import EvmAsm.Rv64.MemRegionWriteWide
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Rv64.Tactics.XSimp
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

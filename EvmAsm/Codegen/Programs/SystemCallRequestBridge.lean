@@ -23,7 +23,12 @@
   remains a separate registered obligation in `Progress.Obligations`.
 -/
 
-import EvmAsm.Stateless.SpecRef.SeamShell
+module
+
+public import EvmAsm.Stateless.SpecRef.SeamShell
+meta import EvmAsm.Stateless.SpecRef.SeamShell
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.SystemCallRequestBridge
 

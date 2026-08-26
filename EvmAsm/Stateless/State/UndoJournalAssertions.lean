@@ -76,7 +76,11 @@
   discharging it needs the push/replay walkers' triples, which do not exist.
 -/
 
-import EvmAsm.Stateless.State.WriteMapAssertions
+module
+
+public import EvmAsm.Stateless.State.WriteMapAssertions
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

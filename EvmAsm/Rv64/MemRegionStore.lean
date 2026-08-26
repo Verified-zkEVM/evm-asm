@@ -12,8 +12,12 @@
   `bs.set i b` region.
 -/
 
-import EvmAsm.Rv64.MemRegionWrite
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.Rv64.MemRegionWrite
+public import EvmAsm.Rv64.MemRegion
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

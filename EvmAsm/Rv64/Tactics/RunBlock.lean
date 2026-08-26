@@ -57,9 +57,16 @@
     can't be auto-resolved. Use manual mode: `runBlock s1 s2`.
 -/
 
-import Lean
-import EvmAsm.Rv64.Tactics.SeqFrame
-import EvmAsm.Rv64.Tactics.SpecDb
+module
+
+public import Lean
+public import EvmAsm.Rv64.Tactics.SeqFrame
+public import EvmAsm.Rv64.Tactics.SpecDb
+meta import Lean
+meta import EvmAsm.Rv64.Tactics.SeqFrame
+meta import EvmAsm.Rv64.Tactics.SpecDb
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 
@@ -70,7 +77,7 @@ namespace EvmAsm.Rv64.Tactics
 
 /-- Inline all leading `let` bindings and strip metadata wrappers.
     Handles `Expr.mdata`, `Expr.letE`, and `letFun v (fun x => body)` patterns. -/
-private partial def inlineLets : Expr → Expr
+private meta partial def inlineLets : Expr → Expr
   | .mdata _ e => inlineLets e
   | .letE _ _ val body _ => inlineLets (body.instantiate1 val)
   | e =>
@@ -88,7 +95,7 @@ private partial def inlineLets : Expr → Expr
 -- ============================================================================
 
 /-- Check if an expression is a numeric literal (OfNat.ofNat _ n _) and return n. -/
-private def getBvLitVal? (e : Expr) : Option Nat :=
+private meta def getBvLitVal? (e : Expr) : Option Nat :=
   if e.isAppOfArity ``OfNat.ofNat 3 then
     match e.getAppArgs[1]! with
     | .lit (.natVal n) => some n
@@ -98,7 +105,7 @@ private def getBvLitVal? (e : Expr) : Option Nat :=
 /-- Try to prove `old = new` using fast reflection lemmas (no tactic overhead).
     Handles: `base + 0 = base`, `(base + k1) + k2 = base + sum`, `base + k = base + k`.
     Returns `none` if the pattern doesn't match. -/
-private def proveAddrEqFast (old new_ : Expr) : MetaM (Option Expr) := do
+private meta def proveAddrEqFast (old new_ : Expr) : MetaM (Option Expr) := do
   -- Case: old = lhs + rhs
   if old.isAppOfArity ``HAdd.hAdd 6 then
     let oldArgs := old.getAppArgs
@@ -132,7 +139,7 @@ private def proveAddrEqFast (old new_ : Expr) : MetaM (Option Expr) := do
   return none
 
 /-- Prove `old = new` via fast reflection, then `bv_omega` fallback. Returns `none` on failure. -/
-private def proveBvEq (old new_ : Expr) : MetaM (Option Expr) := do
+private meta def proveBvEq (old new_ : Expr) : MetaM (Option Expr) := do
   if ← withoutModifyingState (isDefEq old new_) then
     return some (← mkEqRefl old)
   -- Fast reflection path (avoids tactic overhead)
@@ -156,7 +163,7 @@ private def proveBvEq (old new_ : Expr) : MetaM (Option Expr) := do
 
 /-- Prove `old = new` for concrete decidable propositions.
     Uses `mkDecideProof` (no tactic overhead). Falls back to `decide` via `runTactic`. -/
-private def proveByDecide (old new_ : Expr) : MetaM (Option Expr) := do
+private meta def proveByDecide (old new_ : Expr) : MetaM (Option Expr) := do
   let eqType ← mkEq old new_
   -- Try mkDecideProof (fast path, avoids runTactic overhead)
   try return some (← mkDecideProof eqType)
@@ -173,7 +180,7 @@ private def proveByDecide (old new_ : Expr) : MetaM (Option Expr) := do
     - `signExtend12 N` (concrete N) → numeric literal
     - `e + 0` → `e`
     - `(a + lit₁) + lit₂` → `a + (lit₁ + lit₂)` -/
-private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
+private meta def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
   -- signExtend12 on concrete literal: normalize small positive offsets (< 2048).
   -- Large negative offsets (>= 2048) produce huge 64-bit literals that cause
   -- recursion depth issues in mkDecideProof. Leave them as signExtend12.
@@ -234,7 +241,7 @@ private def trySimplifyTop (e : Expr) : MetaM (Expr × Option Expr) := do
     This ensures `signExtend12 0` is reduced to `0` before `sp + 0 → sp` is checked.
 
     Returns (normalized_expr, proof : original = normalized) or (original, none). -/
-partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
+meta partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
   -- Fast exit: atoms that never contain address arithmetic
   if e.isConst || e.isFVar || e.isLit || e.isBVar || e.isSort then return (e, none)
   -- Fast exit: constructor applications (register/instruction constructors, etc.)
@@ -288,7 +295,7 @@ partial def normalizeTypeAddrs (e : Expr) : MetaM (Expr × Option Expr) := do
     This preserves the structural associativity of the sepConj tree (only expanding leaves),
     so the result is definitionally equal to the input (kernel can verify by unfolding the abbrev).
     Returns the expanded expression (syntactically equal at sepConj structure level). -/
-partial def expandAbbrevsInAssertion (e : Expr) : MetaM Expr := do
+meta partial def expandAbbrevsInAssertion (e : Expr) : MetaM Expr := do
   match ← parseSepConj? e with
   | some (l, r) =>
     let l' ← expandAbbrevsInAssertion l
@@ -303,7 +310,7 @@ partial def expandAbbrevsInAssertion (e : Expr) : MetaM Expr := do
     For unrecognized forms (opaque abbreviations), applies `withReducible whnf` to unfold,
     then recurses. This ensures addresses like `(base+K)+4` become visible
     to `normalizeTypeAddrs` for flattening to `base+(K+4)`. -/
-private partial def expandAbbrevsInCodeReq (e : Expr) : MetaM Expr := do
+private meta partial def expandAbbrevsInCodeReq (e : Expr) : MetaM Expr := do
   if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then return e
   if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.empty 0 then return e
   if e.isAppOfArity ``EvmAsm.Rv64.CodeReq.ofProg 2 then return e
@@ -317,7 +324,7 @@ private partial def expandAbbrevsInCodeReq (e : Expr) : MetaM Expr := do
   if e' == e then return e  -- No progress
   expandAbbrevsInCodeReq e'
 
-private def expandAbbrevsInCpsTripleWithin (proof : Expr) : MetaM Expr := do
+private meta def expandAbbrevsInCpsTripleWithin (proof : Expr) : MetaM Expr := do
   let ty ← instantiateMVars (← inferType proof)
   let cleanTy := inlineLets ty
   let some (nSteps, entry, exit_, cr, pre, post) ← parseCpsTripleWithin? cleanTy | return proof
@@ -334,7 +341,7 @@ private def expandAbbrevsInCpsTripleWithin (proof : Expr) : MetaM Expr := do
   let eqProof := mkApp2 (mkConst ``id [Level.zero]) eqTy (← mkEqRefl ty)
   mkEqMP eqProof proof
 
-private def normalizeSpecWithinAddresses (proof : Expr) : MetaM Expr :=
+private meta def normalizeSpecWithinAddresses (proof : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.normalize (fun _ => return m!"normalizeSpecWithinAddresses") do
   let expandedProof ← do
     try expandAbbrevsInCpsTripleWithin proof
@@ -348,7 +355,7 @@ private def normalizeSpecWithinAddresses (proof : Expr) : MetaM Expr :=
     if workType == expandedType then Pure.pure expandedProof
     else Pure.pure (mkApp2 (mkConst ``id [Level.zero]) workType expandedProof)
 
-private def normalizeWithinAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := do
+private meta def normalizeWithinAddr (accExpr : Expr) (targetExit : Expr) : MetaM Expr := do
   let accType ← inferType accExpr
   let some (nSteps, entry, exit₁, cr, P, Q) ← parseCpsTripleWithin? accType
     | throwError "runBlock: not a cpsTripleWithin"
@@ -373,7 +380,7 @@ private def normalizeWithinAddr (accExpr : Expr) (targetExit : Expr) : MetaM Exp
     let congrProof ← mkCongrArg motive eqProof
     mkEqMP congrProof accExpr
 
-private def frameFirstSpecWithin (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
+private meta def frameFirstSpecWithin (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf.frame (fun _ => return m!"frameFirstSpecWithin") do
   let s1Type ← inferType s1Expr
   let some (nSteps, entry, exit_, cr1, preP1, postQ1) ← parseCpsTripleWithin? s1Type
@@ -404,7 +411,7 @@ private def frameFirstSpecWithin (s1Expr : Expr) (goalPre : Expr) : MetaM Expr :
     so that all specs share the same CR (enabling the same-CR fast path in seqFrame).
     Always normalizes spec addresses (signExtend12 reduction and address arithmetic flattening)
     so that atoms match the normalized goal. -/
-private def runBlockWithinCore (specs : Array Expr) (goalPre : Expr)
+private meta def runBlockWithinCore (specs : Array Expr) (goalPre : Expr)
     (goalCr : Option Expr := none) : MetaM Expr :=
   withTraceNode `runBlock.perf (fun _ => return m!"runBlockWithinCore ({specs.size} specs)") do
   if specs.size == 0 then
@@ -448,7 +455,7 @@ private def runBlockWithinCore (specs : Array Expr) (goalPre : Expr)
         seqFrameWithinCore acc' nextSpec
   return acc
 
-private def normalizeWithinToGoal (composed : Expr) (goalType : Expr) : MetaM Expr := do
+private meta def normalizeWithinToGoal (composed : Expr) (goalType : Expr) : MetaM Expr := do
   if let some (_, _, goalExit, _, _, _) ← parseCpsTripleWithin? goalType then
     try return ← normalizeWithinAddr composed goalExit catch _ => return composed
   return composed
@@ -458,14 +465,14 @@ private def normalizeWithinToGoal (composed : Expr) (goalType : Expr) : MetaM Ex
 -- ============================================================================
 
 /-- Check if an expression's head is a constructor. -/
-private def isCtorApp (env : Environment) (e : Expr) : Bool :=
+private meta def isCtorApp (env : Environment) (e : Expr) : Bool :=
   match e.getAppFn with
   | .const name _ => env.isConstructor name
   | _ => false
 
 /-- Check if a type is a decidable proposition about concrete values
     (e.g., `Reg.x7 ≠ Reg.x0`). -/
-private def isConcreteDecidable (ty : Expr) : MetaM Bool := do
+private meta def isConcreteDecidable (ty : Expr) : MetaM Bool := do
   if ty.isAppOfArity ``Ne 3 then
     let env ← getEnv
     let args := ty.getAppArgs
@@ -473,7 +480,7 @@ private def isConcreteDecidable (ty : Expr) : MetaM Bool := do
   return false
 
 /-- Extract the target address from `isValidDwordAccess target = true`. -/
-private def parseIsValidDwordAccess? (ty : Expr) : MetaM (Option Expr) := do
+private meta def parseIsValidDwordAccess? (ty : Expr) : MetaM (Option Expr) := do
   if !ty.isAppOfArity ``Eq 3 then return none
   let args := ty.getAppArgs
   let lhs := args[1]!
@@ -484,7 +491,7 @@ private def parseIsValidDwordAccess? (ty : Expr) : MetaM (Option Expr) := do
   return none
 
 /-- Get a Nat literal value from an expression (handles raw `.lit` and `OfNat.ofNat`). -/
-private def getNatLitVal? (e : Expr) : Option Nat :=
+private meta def getNatLitVal? (e : Expr) : Option Nat :=
   match e with
   | .lit (.natVal n) => some n
   | _ =>
@@ -497,7 +504,7 @@ private def getNatLitVal? (e : Expr) : Option Nat :=
 /-- Try to extract a concrete byte offset from `target` relative to `validAddr`.
     Handles: `validAddr` (offset 0), `validAddr + lit`, `validAddr + signExtend12 lit`,
     `(validAddr + lit₁) + lit₂` (nested additions). -/
-private def extractConcreteOffset? (validAddr target : Expr) : MetaM (Option Nat) := do
+private meta def extractConcreteOffset? (validAddr target : Expr) : MetaM (Option Nat) := do
   -- Case 1: target = validAddr (offset 0)
   if ← withoutModifyingState (isDefEq validAddr target) then return some 0
   -- Case 2: target = something + rhs
@@ -549,7 +556,7 @@ private def extractConcreteOffset? (validAddr target : Expr) : MetaM (Option Nat
   return none
 
 /-- Build a proof of `ValidMemRange.fetch` for a given index (64-bit, stride 8). -/
-private def buildFetchProof (validAddr validN : Expr) (validHyp : Expr)
+private meta def buildFetchProof (validAddr validN : Expr) (validHyp : Expr)
     (i : Nat) (nVal : Nat) (target : Expr) : MetaM (Option Expr) := do
   if i >= nVal then return none
   let eightI := mkApp2 (mkConst ``BitVec.ofNat) (mkNatLit 64) (mkNatLit (8 * i))
@@ -561,7 +568,7 @@ private def buildFetchProof (validAddr validN : Expr) (validHyp : Expr)
 
 /-- Try to prove `isValidDwordAccess target = true` from ValidMemRange hypotheses.
     Searches for `ValidMemRange addr n` hypotheses and uses `ValidMemRange.fetch`. -/
-private def solveFromValidMemRange (ty : Expr) : MetaM (Option Expr) := do
+private meta def solveFromValidMemRange (ty : Expr) : MetaM (Option Expr) := do
   let some target ← parseIsValidDwordAccess? ty | return none
   let lctx ← getLCtx
   for decl in lctx do
@@ -589,7 +596,7 @@ private def solveFromValidMemRange (ty : Expr) : MetaM (Option Expr) := do
 /-- Try to solve a proof obligation MVar.
     Uses mkDecideProof for concrete decidable props (register inequalities),
     local context search for hypotheses, ValidMemRange derivation, and bv_omega as fallback. -/
-private def solveObligation (mvarId : MVarId) : MetaM Bool :=
+private meta def solveObligation (mvarId : MVarId) : MetaM Bool :=
   withTraceNode `runBlock.perf.obligation (fun _ => return m!"solveObligation") do
   let ty ← instantiateMVars (← mvarId.getType)
   -- Try Decidable proof for concrete propositions (rd ≠ .x0, rd ≠ rs, etc.)
@@ -660,7 +667,7 @@ elab "validMem" : tactic => do
     state. Uses unification: creates MVars for all spec parameters, unifies the
     spec's instruction and register/memory atoms with the state, then solves
     proof obligations. Returns the instantiated proof term. -/
-private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
+private meta def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
     (stateAtoms : List Expr) : MetaM Expr := do
   let specConst := mkConst specName
   let specType ← inferType specConst
@@ -735,7 +742,7 @@ private def tryInstantiateSpec (specName : Name) (instrExpr instrAddr : Expr)
 
 /-- Resolve a spec for an instruction by trying all registered specs.
     Returns the first successfully instantiated spec proof. -/
-private def resolveSpecForInstr (instrExpr instrAddr : Expr)
+private meta def resolveSpecForInstr (instrExpr instrAddr : Expr)
     (stateAtoms : List Expr) : MetaM Expr := do
   let instrHead := instrExpr.getAppFn
   let .const instrName _ := instrHead
@@ -771,7 +778,7 @@ private def resolveSpecForInstr (instrExpr instrAddr : Expr)
 
 /-- Compute the state atoms after applying a resolved spec.
     Returns postcondition atoms ∪ (currentAtoms \ precondition atoms). -/
-private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
+private meta def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
   let specType ← inferType specExpr
   let some (_, _, _, _, specPre, specPost) ← parseCpsTripleWithin? specType
     | throwError "advanceState: not a cpsTripleWithin"
@@ -790,7 +797,7 @@ private def advanceState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (L
 
 
 /-- Remove one atom from an array while preserving the order of all other atoms. -/
-private def eraseAtomIdx (atoms : Array Expr) (idx : Nat) : Array Expr := Id.run do
+private meta def eraseAtomIdx (atoms : Array Expr) (idx : Nat) : Array Expr := Id.run do
   let mut result := Array.mkEmpty (atoms.size - 1)
   for i in [:atoms.size] do
     if i != idx then
@@ -801,7 +808,7 @@ private def eraseAtomIdx (atoms : Array Expr) (idx : Nat) : Array Expr := Id.run
     and rolling back failed candidates.  This is the post-driven counterpart of
     `findAtomIdx`: spec postconditions contain metavariables that should be
     instantiated from the requested postcondition. -/
-private def findAtomIdxAssigning (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
+private meta def findAtomIdxAssigning (target : Expr) (atoms : Array Expr) : MetaM (Option Nat) := do
   for i in [:atoms.size] do
     let saved ← saveState
     try
@@ -815,7 +822,7 @@ private def findAtomIdxAssigning (target : Expr) (atoms : Array Expr) : MetaM (O
 /-- Consume every atom required by a resolved spec postcondition from the
     current desired postcondition.  The leftovers are the frame that should be
     preserved while running the instruction backwards. -/
-private def consumePostAtoms (neededAtoms : List Expr) (currentAtoms : List Expr)
+private meta def consumePostAtoms (neededAtoms : List Expr) (currentAtoms : List Expr)
     (ctx : MessageData) : MetaM (List Expr) := do
   let mut rest := currentAtoms.toArray
   for needed in neededAtoms do
@@ -829,7 +836,7 @@ private inductive OwnershipKind where
   | reg (r : Expr)
   | mem (addr : Expr)
 
-private def OwnershipKind.ruleConst (single : Bool) : OwnershipKind → Name
+private meta def OwnershipKind.ruleConst (single : Bool) : OwnershipKind → Name
   | .reg _ =>
       if single then
         ``EvmAsm.Rv64.cpsTripleWithin_of_forall_regIs_to_regOwn_single
@@ -841,26 +848,26 @@ private def OwnershipKind.ruleConst (single : Bool) : OwnershipKind → Name
       else
         ``EvmAsm.Rv64.cpsTripleWithin_of_forall_memIs_to_memOwn
 
-private def OwnershipKind.key : OwnershipKind → Expr
+private meta def OwnershipKind.key : OwnershipKind → Expr
   | .reg r => r
   | .mem addr => addr
 
-private def OwnershipKind.traceMsg : OwnershipKind → MetaM MessageData
+private meta def OwnershipKind.traceMsg : OwnershipKind → MetaM MessageData
   | .reg r => return m!"regOwn {← instantiateMVars r}"
   | .mem addr => return m!"memOwn {← instantiateMVars addr}"
 
-private def isExactMVar (mvarId : MVarId) (e : Expr) : Bool :=
+private meta def isExactMVar (mvarId : MVarId) (e : Expr) : Bool :=
   let e := e.consumeMData
   e.isMVar && e.mvarId! == mvarId
 
-private def exprContainsMVar (mvarId : MVarId) (e : Expr) : Bool :=
+private meta def exprContainsMVar (mvarId : MVarId) (e : Expr) : Bool :=
   (e.find? fun e => isExactMVar mvarId e).isSome
 
-private def replaceMVar (mvarId : MVarId) (replacement : Expr) (e : Expr) : Expr :=
+private meta def replaceMVar (mvarId : MVarId) (replacement : Expr) (e : Expr) : Expr :=
   e.replace fun e =>
     if isExactMVar mvarId e then some replacement else none
 
-private def ownershipKindForOldValueAtom? (mvarId : MVarId) (atom : Expr) : Option OwnershipKind :=
+private meta def ownershipKindForOldValueAtom? (mvarId : MVarId) (atom : Expr) : Option OwnershipKind :=
   if atom.isAppOfArity ``EvmAsm.Rv64.regIs 2 then
     let r := atom.getAppArgs[0]!
     let v := atom.getAppArgs[1]!
@@ -878,7 +885,7 @@ private def ownershipKindForOldValueAtom? (mvarId : MVarId) (atom : Expr) : Opti
   else
     none
 
-private def findOwnershipGeneralization? (mvarId : MVarId) (preAtoms : List Expr)
+private meta def findOwnershipGeneralization? (mvarId : MVarId) (preAtoms : List Expr)
     (post : Expr) : MetaM (Option (Nat × OwnershipKind)) := do
   if exprContainsMVar mvarId post then
     return none
@@ -893,7 +900,7 @@ private def findOwnershipGeneralization? (mvarId : MVarId) (preAtoms : List Expr
       return none
   return found
 
-private def orderPreForOwnership (preAtoms : List Expr) (idx : Nat) : MetaM (Expr × Expr × Bool) := do
+private meta def orderPreForOwnership (preAtoms : List Expr) (idx : Nat) : MetaM (Expr × Expr × Bool) := do
   let oldAtom := preAtoms[idx]!
   let frameAtoms := eraseAtomIdx preAtoms.toArray idx |>.toList
   let frame ← buildSepConjChain frameAtoms
@@ -904,7 +911,7 @@ private def orderPreForOwnership (preAtoms : List Expr) (idx : Nat) : MetaM (Exp
       Pure.pure (mkApp2 (mkConst ``EvmAsm.Rv64.sepConj) frame oldAtom)
   return (frame, orderedPre, frameAtoms.isEmpty)
 
-private def reorderPreForOwnership (proof : Expr) (orderedPre : Expr) : MetaM Expr := do
+private meta def reorderPreForOwnership (proof : Expr) (orderedPre : Expr) : MetaM Expr := do
   let proofType ← instantiateMVars (← inferType proof)
   let some (nSteps, entry, exit_, cr, pre, post) ← parseCpsTripleWithin? proofType
     | throwError "runBlockFromPost: internal error - ownership candidate is not a cpsTripleWithin"
@@ -915,7 +922,7 @@ private def reorderPreForOwnership (proof : Expr) (orderedPre : Expr) : MetaM Ex
   return mkAppN (mkConst ``EvmAsm.Rv64.cpsTripleWithin_weaken)
     #[nSteps, entry, exit_, cr, pre, orderedPre, post, post, hpre, hpost, proof]
 
-private def applyOwnershipGeneralization (proof : Expr) (mvarId : MVarId)
+private meta def applyOwnershipGeneralization (proof : Expr) (mvarId : MVarId)
     (kind : OwnershipKind) (frame : Expr) (single : Bool) : MetaM Expr := do
   let proofType ← instantiateMVars (← inferType proof)
   let some (nSteps, entry, exit_, cr, _pre, post) ← parseCpsTripleWithin? proofType
@@ -932,7 +939,7 @@ private def applyOwnershipGeneralization (proof : Expr) (mvarId : MVarId)
         mkAppN rule #[nSteps, entry, exit_, kind.key, frame, post, cr, h]
     instantiateMVars result
 
-private partial def generalizeOwnershipParams (proof : Expr) (params : Array Expr) : MetaM Expr := do
+private meta partial def generalizeOwnershipParams (proof : Expr) (params : Array Expr) : MetaM Expr := do
   let mut result := proof
   for param in params do
     if !param.isMVar then continue
@@ -959,7 +966,7 @@ private partial def generalizeOwnershipParams (proof : Expr) (params : Array Exp
     `runBlock`, this starts from the post and turns unconstrained old register
     or memory values into `regOwn`/`memOwn` preconditions when the spec shape is
     unambiguous. -/
-private def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : Expr)
+private meta def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : Expr)
     (currentAtoms : List Expr) : MetaM Expr := do
   let specConst := mkConst specName
   let specType ← inferType specConst
@@ -997,7 +1004,7 @@ private def tryInstantiateSpecFromPost (specName : Name) (instrExpr instrAddr : 
 
 /-- Resolve one instruction by matching registered specs against the current
     desired postcondition. -/
-private def resolveSpecForInstrFromPost (instrExpr instrAddr : Expr)
+private meta def resolveSpecForInstrFromPost (instrExpr instrAddr : Expr)
     (currentAtoms : List Expr) : MetaM Expr := do
   let instrHead := instrExpr.getAppFn
   let .const instrName _ := instrHead
@@ -1031,7 +1038,7 @@ private def resolveSpecForInstrFromPost (instrExpr instrAddr : Expr)
 
 /-- Compute the desired predecessor assertion for one already-instantiated spec
     by replacing the spec's postcondition atoms with its precondition atoms. -/
-private def retreatState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
+private meta def retreatState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (List Expr) := do
   let specType ← instantiateMVars (← inferType specExpr)
   let some (_, _, _, _, specPre, specPost) ← parseCpsTripleWithin? specType
     | throwError "retreatState: not a cpsTripleWithin"
@@ -1040,7 +1047,7 @@ private def retreatState (currentAtoms : List Expr) (specExpr : Expr) : MetaM (L
   let preAtoms ← flattenSepConj specPre
   return preAtoms ++ frame
 
-private def synthesizePreFromResolvedSpecs (specsForward : Array Expr) (goalPost : Expr) : MetaM Expr := do
+private meta def synthesizePreFromResolvedSpecs (specsForward : Array Expr) (goalPost : Expr) : MetaM Expr := do
   let mut currentAtoms ← flattenSepConj goalPost
   for spec in specsForward.toList.reverse do
     currentAtoms ← retreatState currentAtoms spec
@@ -1048,7 +1055,7 @@ private def synthesizePreFromResolvedSpecs (specsForward : Array Expr) (goalPost
 
 /-- Extract instruction atoms `(addr, instrExpr)` from assertion atoms,
     preserving the order they appear in the precondition. -/
-private def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
+private meta def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
   atoms.filterMap fun atom =>
     if atom.isAppOfArity `EvmAsm.Rv64.instrAt 2 then
       some (atom.getAppArgs[0]!, atom.getAppArgs[1]!)
@@ -1057,7 +1064,7 @@ private def extractInstrAtoms (atoms : List Expr) : List (Expr × Expr) :=
 /-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression (pure, no whnf).
     Handles: CodeReq.singleton addr instr, CodeReq.union cr1 cr2 (recursive),
     CodeReq.empty (returns []). -/
-private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
+private meta partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
   if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
     let args := cr.getAppArgs
     [(args[0]!, args[1]!)]
@@ -1067,7 +1074,7 @@ private partial def extractCrEntriesPure (cr : Expr) : List (Expr × Expr) :=
   else []
 
 /-- Return the program argument of the first `CodeReq.ofProg` in a CodeReq tree. -/
-private partial def ofProgArg? (cr : Expr) : Option Expr :=
+private meta partial def ofProgArg? (cr : Expr) : Option Expr :=
   if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
     let args := cr.getAppArgs
     (ofProgArg? args[0]!).orElse fun _ => ofProgArg? args[1]!
@@ -1075,7 +1082,7 @@ private partial def ofProgArg? (cr : Expr) : Option Expr :=
     some cr.getAppArgs[1]!
   else none
 
-private def isConcreteGuestLayout (e : Expr) : Bool :=
+private meta def isConcreteGuestLayout (e : Expr) : Bool :=
   match e.getAppFn with
   | .const name _ => name.toString == "EvmAsm.Codegen.guestLayout"
   | _ => false
@@ -1083,7 +1090,7 @@ private def isConcreteGuestLayout (e : Expr) : Bool :=
 /-- Recognize exactly the two-step Codegen bridge shape
     `foo_prog := foo_prog_of guestLayout` and its applied `_prog_of` target.
     Unrelated opaque `CodeReq.ofProg` arguments deliberately remain opaque. -/
-private def layoutProgramHeadDef? (prog : Expr) : MetaM (Option Name) := do
+private meta def layoutProgramHeadDef? (prog : Expr) : MetaM (Option Name) := do
   match prog.getAppFn with
   | .const name _ =>
     let args := prog.getAppArgs
@@ -1125,7 +1132,7 @@ private def layoutProgramHeadDef? (prog : Expr) : MetaM (Option Name) := do
   | _ => return none
 
 /-- Walk a concrete `List Instr` (whnf'd) and emit `(base + 4*k, instr)` entries. -/
-private partial def extractProgEntries (base : Expr) (progList : Expr) (off : Nat := 0) :
+private meta partial def extractProgEntries (base : Expr) (progList : Expr) (off : Nat := 0) :
     MetaM (List (Expr × Expr)) := do
   let listW ← whnf progList
   if listW.isAppOfArity ``List.cons 3 then
@@ -1142,7 +1149,7 @@ private partial def extractProgEntries (base : Expr) (progList : Expr) (off : Na
 /-- Extract instruction entries `(addr, instrExpr)` from a CodeReq expression.
     Recursively unfolds abbreviations using whnfR to handle nested CodeReq abbrevs.
     Also handles CodeReq.ofProg by enumerating (base + 4*k, prog[k]) entries. -/
-private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
+private meta partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) := do
   if cr.isAppOfArity ``EvmAsm.Rv64.CodeReq.singleton 2 then
     let args := cr.getAppArgs
     return [(args[0]!, args[1]!)]
@@ -1161,7 +1168,7 @@ private partial def extractCrEntries (cr : Expr) : MetaM (List (Expr × Expr)) :
   if cr' == cr then return []  -- No progress, give up
   extractCrEntries cr'
 
-private def countSingleInstrSpecs? (specs : Array Expr) : MetaM (Option Nat) := do
+private meta def countSingleInstrSpecs? (specs : Array Expr) : MetaM (Option Nat) := do
   let mut count := 0
   for spec in specs do
     let specType ← inferType spec
@@ -1178,7 +1185,7 @@ private structure SingleInstrHint where
   addr : Expr
   instr : Expr
 
-private def singleInstrHint? (spec : Expr) : MetaM (Option SingleInstrHint) := do
+private meta def singleInstrHint? (spec : Expr) : MetaM (Option SingleInstrHint) := do
   let specType ← instantiateMVars (← inferType spec)
   let some (_, _, _, specCr, _, _) ← parseCpsTripleWithin? specType
     | return none
@@ -1186,7 +1193,7 @@ private def singleInstrHint? (spec : Expr) : MetaM (Option SingleInstrHint) := d
   | [(addr, instr)] => return some { proof := spec, addr := addr, instr := instr }
   | _ => return none
 
-private def findHintIdxForInstr (hints : Array (SingleInstrHint × Bool))
+private meta def findHintIdxForInstr (hints : Array (SingleInstrHint × Bool))
     (addr instr : Expr) : MetaM (Option Nat) := do
   for i in [:hints.size] do
     if let some entry := hints[i]? then
@@ -1202,7 +1209,7 @@ private def findHintIdxForInstr (hints : Array (SingleInstrHint × Bool))
           return some i
   return none
 
-private def mkSingleInstrHints (specs : Array Expr) : MetaM (Array (SingleInstrHint × Bool)) := do
+private meta def mkSingleInstrHints (specs : Array Expr) : MetaM (Array (SingleInstrHint × Bool)) := do
   let mut hints := #[]
   for spec in specs do
     let some hint ← singleInstrHint? spec
@@ -1211,7 +1218,7 @@ private def mkSingleInstrHints (specs : Array Expr) : MetaM (Array (SingleInstrH
     hints := hints.push (hint, true)
   return hints
 
-private def synthesizeSpecsAndPreFromPostWithHints
+private meta def synthesizeSpecsAndPreFromPostWithHints
     (goalPost goalCr : Expr) (hintSpecs : Array Expr) : MetaM (Array Expr × Expr) := do
   let instrAtoms ← extractCrEntries goalCr
   if instrAtoms.isEmpty then
@@ -1253,7 +1260,7 @@ private def synthesizeSpecsAndPreFromPostWithHints
   trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
   return (specsForward.toArray, pre)
 
-private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
+private meta def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Array Expr × Expr) := do
   let instrAtoms ← extractCrEntries goalCr
   if instrAtoms.isEmpty then
     throwError "runBlockFromPost: no instructions found in the goal's CodeReq.\n\
@@ -1275,7 +1282,7 @@ private def synthesizeSpecsAndPreFromPost (goalPost goalCr : Expr) : MetaM (Arra
   trace[runBlock.leafSynth] "synthesized predecessor assertion:\n  {pre}"
   return (specsForward.toArray, pre)
 
-private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) : MetaM Expr := do
+private meta def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) : MetaM Expr := do
   let (resolvedSpecs, synthPre) ←
     if specs.isEmpty then
       synthesizeSpecsAndPreFromPost goalPost goalCr
@@ -1298,7 +1305,7 @@ private def runBlockFromPostCore (specs : Array Expr) (goalPost goalCr : Expr) :
         Pure.pure (processedSpecs, synthPre)
   runBlockWithinCore resolvedSpecs synthPre (goalCr := some goalCr)
 
-private def autoResolveAndComposeWithin (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
+private meta def autoResolveAndComposeWithin (goalPre : Expr) (goalCr : Expr) : MetaM Expr :=
   withTraceNode `runBlock.perf (fun _ => return m!"autoResolveAndComposeWithin") do
   let mut instrAtoms ← extractCrEntries goalCr
   if instrAtoms.isEmpty then

@@ -4,13 +4,24 @@
   EIP-1559 gas-pricing composites over the U256-BE arithmetic helpers.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.U256
-import EvmAsm.Codegen.Programs.U256GasPricingProg
-import EvmAsm.Codegen.GuestLayoutInstance
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.U256
+public import EvmAsm.Codegen.Programs.U256GasPricingProg
+public import EvmAsm.Codegen.GuestLayoutInstance
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Programs.U256
+meta import EvmAsm.Codegen.Programs.U256GasPricingProg
+meta import EvmAsm.Codegen.GuestLayoutInstance
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

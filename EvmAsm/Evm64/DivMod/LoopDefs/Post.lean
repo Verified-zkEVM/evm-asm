@@ -12,9 +12,13 @@
   Imports `LoopDefs.Iter` for the underlying pure computations.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

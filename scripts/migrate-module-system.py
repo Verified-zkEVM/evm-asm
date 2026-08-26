@@ -102,6 +102,15 @@ META_TRIGGERS = [
     r"^\s*(scoped\s+|local\s+)?(syntax|macro|macro_rules|elab|elab_rules)\b",
     r"\bregister_simp_attr\b", r"\bregisterSimpAttr\b",
     r"\brun_cmd\b", r"\bQq\b", r"\bmkSimpAttr\b",
+    # Applying a user-defined attribute needs it at META level, exactly like a
+    # meta definition does. Missed at wave 10 by
+    # `EvmAsm/Rv64/RLP/ValidatingExactArity.lean`, which carries
+    # `attribute [rv64_wp_cert] ...` and imported its declaring module
+    # (`Rv64.Tactics.WPAttr`) publicly but not at meta level:
+    #     error: Unknown attribute `[rv64_wp_cert]`
+    # The symptom names the attribute, not the import, so it does not read as a
+    # missing `meta import` at all.
+    r"^\s*attribute\s*\[",
 ]
 META_RE = re.compile("|".join(META_TRIGGERS), re.MULTILINE)
 
@@ -651,7 +660,11 @@ def self_test() -> int:
         fail.append("  meta detector: fired on an ordinary proof file")
     for trig in ["#guard 1 = 1", "#eval 2", "initialize x : Nat := pure 1",
                  "open Lean in", "def f : MetaM Unit := pure ()",
-                 "syntax \"foo\" : term", "register_simp_attr my_set"]:
+                 "syntax \"foo\" : term", "register_simp_attr my_set",
+                 # Applying a user-defined attribute needs it at meta level.
+                 # Wave 10 hit this as `Unknown attribute [rv64_wp_cert]`,
+                 # which names the attribute and not the missing import.
+                 "attribute [rv64_wp_cert] foo"]:
         if not needs_meta(f"/- b -/\nimport EvmAsm.A\n{trig}\n"):
             fail.append(f"  meta detector: MISSED {trig!r}")
 

@@ -13,7 +13,11 @@
   lift theorems from the no-NOP surfaces to the full bundles.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

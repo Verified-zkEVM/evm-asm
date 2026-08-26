@@ -7,7 +7,11 @@
   `cpsTripleWithin`/`cpsNBranchWithin` contract follows.
 -/
 
-import EvmAsm.Rv64.CPSSpec
+module
+
+public import EvmAsm.Rv64.CPSSpec
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace WP

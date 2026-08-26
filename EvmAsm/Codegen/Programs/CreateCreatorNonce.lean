@@ -29,9 +29,16 @@
   + next nonce (u64).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
