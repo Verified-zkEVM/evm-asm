@@ -27,11 +27,26 @@
   never subtracts below zero, not in the sense that the sum cannot wrap.
 
   ⇒ Progress on the long arms needs a no-wrap premise the relation does not
-  carry.  Call sites have it (`isValidByteAccess` bounds every walked address
-  far below `2 ^ 64`), so this is a statement-level gap rather than a real one —
-  but it belongs in whichever lemma consumes the address bound, not here, and
+  carry.  It belongs in whichever lemma consumes the address bound, not here;
   claiming it here would make this theorem's name write a cheque its hypotheses
   cannot cash.  Progress *is* available on the three short arms.
+
+  **Where the missing premise comes from, stated precisely** (the first version
+  of this paragraph overclaimed, #12903 review).  Every `rlp_walk_next*` entry
+  contract *takes* `hvalid : isValidByteAccess (srcBase + …) = true` as a
+  premise — 23 occurrences in `WalkNext.lean`, 6 in `RlpWalkNextLeafTie.lean`,
+  1 in `RlpWalkNextEntryTie.lean` — and `toNat_le_of_validByte`
+  (`Rv64/MemSat.lean`) turns that into `addr ≤ 0xc0000000`, roughly
+  `1.8 × 10 ^ 19` below `2 ^ 64`.  A call site cannot apply any of these
+  contracts without supplying `hvalid`, so the bound is available **by
+  construction at the point the contract is instantiated**, which is exactly
+  where the residual would be discharged.
+
+  ⛔ That is a claim about the CONTRACT, not about call sites.  It says nothing
+  about the 303 direct `jal` sites to `rlp_walk_next`, most of which have no
+  discharged contract — for those the bound is not established by anything.
+  The earlier wording here ("call sites have it") read as a universal over
+  those 303 and was not checked against them.
 
   ## Why `hlt` is a premise and not a conclusion
 
