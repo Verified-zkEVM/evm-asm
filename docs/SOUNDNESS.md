@@ -93,67 +93,79 @@ fail the bound; ordinary guest arenas cannot.
 
 ---
 
-## 3. The Python spec describes an ideal machine; `U256(...)` raising is a typing artifact, not EVM semantics
+## 3. A raise in the reference is a **rejection**, not an abort — `verify_stateless_new_payload` converts it
 
-**Reading (maintainer's, ratified 2026-08-26).** `execution-specs` describes an **ideal situation
-with unbounded memory and precision**. Where the Python types refuse a value that the idealised
-machine would simply hold, the refusal is an artifact of the reference's implementation language
-and not a statement about EVM semantics. **The guest computes the narrowed result.**
+**Reading (maintainer's, ratified 2026-08-26).** Where the pinned reference raises during
+stateless validation, the specified behaviour is **reject the block**. The guest rejects too. It
+does **not** compute a narrowed or otherwise repaired result.
 
-**Where this bites.** Amsterdam `BLOBBASEFEE` (`vm/instructions/environment.py:605-608` at pinned
-`e5a8caf1b`):
-
-```python
-blob_base_fee = calculate_blob_gas_price(evm.message.block_env.excess_blob_gas)
-push(evm.stack, U256(blob_base_fee))
-```
-
-`calculate_blob_gas_price` returns an unbounded `Uint`. Once the price reaches 2^256 the narrowing
-`U256(...)` raises — in pinned `ethereum-types 0.4.1`, `FixedUint.__init__` is:
+**The mechanism, and it is explicit in the spec rather than inferred.**
+`forks/amsterdam/stateless.py:321-368` — the entry point our guest corresponds to:
 
 ```python
-int_value = int(value)
-if not self._in_range(int_value):
-    raise OverflowError
+def verify_stateless_new_payload(stateless_input): ...
+    try:
+        validate_chain_config(...)
+        ...
+        execute_new_payload_request(...)
+        successful_validation = True
+    except Exception:                     # <- :363
+        successful_validation = False
+
+    return StatelessValidationResult(
+        new_payload_request_root=...,
+        successful_validation=successful_validation,
+        ...
+    )
 ```
 
-and **nothing catches it**: the interpreter handles `ExceptionalHalt` (`interpreter.py:232`,
-`:366`, `:416`) and `Revert` (`:423`), both `EthereumException` subclasses, while `OverflowError`
-is a plain Python error. Read literally, the reference therefore produces **no result at all** —
-not a value, not a revert — and block processing aborts.
+The `try` spans the whole of validation and execution, and the handler catches bare `Exception` —
+**not** `EthereumException`. So an `OverflowError`, a `RecursionError`, or any other Python-level
+failure is caught here and becomes `successful_validation = False`: **a well-defined rejection
+verdict, not a crash.** `run_stateless_guest` (`stateless_guest.py:72-83`) has the same shape for
+deserialization failures.
 
-⭐ Under this reading that abort is **not** the specified behaviour. The EVM stack holds 256-bit
-words, so pushing a wider value is meaningless; the idealised semantics is the value narrowed to
-256 bits (**the low 256 bits, i.e. mod 2^256**), and `U256(...)` is a type assertion that happens
-to be strict rather than a semantic gate.
+**Worked case — `BLOBBASEFEE` above 2^256.** `vm/instructions/environment.py:605-608` computes
+`calculate_blob_gas_price(...)` as an unbounded `Uint` and then narrows: `push(evm.stack,
+U256(blob_base_fee))`. In pinned `ethereum-types 0.4.1`:
 
-**What follows.** The guest **computes and pushes the narrowed value and continues**. It does not
-reject, and it does not treat the boundary as a status.
+```python
+def __init__(self, value: SupportsInt) -> None:
+    int_value = int(value)
+    if not self._in_range(int_value):
+        raise OverflowError
+```
 
-**Consequence, stated plainly.** The guest will accept blocks that a literal run of the pinned
-reference cannot process. That divergence is **deliberate and recorded here**; it is not a defect
-report. Relative soundness is inherited from the reference *as interpreted by this document*, not
-from the behaviour of the reference's Python runtime.
+⭐ **That raise fires at exactly 2^256, and it is a range assertion — not a resource limit.**
+`_in_range` is a bounds test; `taylor_exponential` upstream is pure unbounded `Uint` arithmetic
+with no cap, and a 256-bit integer is 32 bytes, so memory is nowhere near being the constraint.
+**A machine with unbounded memory still raises here.** The `OverflowError` then reaches `:363` and
+the block is rejected.
 
-**Scope — do not over-apply this.** The reading covers **a narrowing conversion the ideal machine
-would not need**. It does **not** license ignoring every exception the reference can raise. In
-particular it does **not** overturn the RLP nesting ruling, where the reference's `RecursionError`
-*is* grounds to reject: that cap is independently justified by the guest's **constant-memory**
-requirement, so the two rest on different footings and both stand. When a new case arises, ask
-which it resembles — a type refusing a value the ideal machine would hold, or a real resource
-bound the guest also faces.
+⇒ The guest **rejects** at the boundary. The helper's 256-bit rejection is correct and stays.
 
-**Not affected.** `fork.py:640` compares `Uint(tx.max_fee_per_blob_gas) < blob_gas_price` in
-**unbounded `Uint`** with no narrowing, so it cannot overflow. On this path `BLOBBASEFEE` is the
-only site that converts to `U256`.
+**Consequence.** None of the divergence an earlier draft of this section contemplated exists: the
+guest and the reference agree, both rejecting. What remains a genuine defect is any guest path
+that **swallows** the rejection — see the note below.
 
-**Reachability, for the record.** This is not theoretical. The spec never pins system-contract
-code — `fork.py:761-765` asserts only that it is non-empty, and the bytes come from state via
-`get_code(...)`. In a stateless guest that code is **witness-supplied**, so an adversarial witness
-can place `BLOBBASEFEE` in a system contract and reach this path through the `BAI = 0` system call
-(`fork.py:897`, `:903`, and the checked calls from `:962`). Tracked in #12632.
+**⚠️ Correction of record.** An earlier version of this entry claimed the reference "produces no
+result at all" and that block processing "aborts", and on that basis argued the guest should
+compute a narrowed result (mod 2^256). **That was wrong.** It was derived from reading only
+`vm/interpreter.py`, whose handlers are `ExceptionalHalt` and `Revert`, and concluding that
+nothing catches a plain Python error — without ever checking the stateless entry point, which is
+the layer the guest actually corresponds to and which catches bare `Exception`. The narrowing
+reading also leaned on "the spec assumes infinite memory", which is true of `Uint` and irrelevant
+to a range assertion. Recorded so the reasoning is not re-run.
 
----
+**What this does not excuse.** A guest routine that computes a status and then discards it is
+still a defect, and is the opposite failure direction from a false reject. `stageRuntimePayloadCode`
+setting `a0 = 0` after the blob-gas-price helper is exactly that shape: the reference rejects at
+`BAI = 0` via `:363`, and a guest that continues with a wrong value **accepts a block the
+reference refuses**. Tracked in #12632.
+
+**Scope.** This entry says a raise reaching `:363` is a reject. It does **not** say the guest may
+raise, trap or fault wherever the reference does — the guest has no such wrapper and must reach a
+rejection *verdict* by its own control flow, which is precisely why a swallowed status matters.
 
 ## 4. RLP nesting deeper than `rlpRecursiveDecodeDepthCap` is rejected — on constant-memory grounds, not because CPython raises
 
@@ -195,16 +207,17 @@ asserted as measured fact and is **wrong** — it inferred a fixed reference thr
 arithmetic before anyone had measured one, and it was retracted publicly. Do not rebuild it. The
 constant-memory justification above is what survived the measurement.
 
-**Relationship to §3 — the two rulings differ, deliberately.** §3 holds that a Python-level
-`OverflowError` from a narrowing conversion is an implementation artifact and must **not** cause a
-reject. Here a Python-level `RecursionError` **does** correspond to a reject. The distinction is
-not which exception fires, but what it stands for:
+**Relationship to §3 — same mechanism, different open question.** CPython's `RecursionError` is
+an `Exception`, so it reaches `stateless.py:363` exactly as an `OverflowError` does and likewise
+becomes `successful_validation = False`. **Both entries therefore reject, by the same mechanism**,
+and §3's earlier framing of the two as opposites was an artifact of the mistaken abort reading it
+has since retracted.
 
-| | §3 `U256(...)` | §4 recursion depth |
-|---|---|---|
-| what the exception reflects | a type refusing a value the ideal machine would hold | a real resource bound the guest also faces |
-| does the ideal machine hit it? | no — it holds the wider value | yes — unbounded depth needs unbounded memory |
-| guest behaviour | compute the narrowed result | reject |
+What is genuinely different here is not the *direction* but the *threshold*. §3's boundary is
+exact and reference-defined: 2^256, fixed by a range assertion. §4's is not — the reference's
+failure depth is `sys.setrecursionlimit / 3` and that limit is caller-settable, so **there is no
+reference threshold to match** and the guest must choose one. It chooses on constant-memory
+grounds, which is why that justification is load-bearing here and has no counterpart in §3.
 
 **Keep the cap a parameter.** `rlpRecursiveDecodeDepthCap` is referenced and never unfolded by the
 linked-decoder theorem (`RlpRecursiveDecodeLinkedSpec.lean:17-18`), so changing the number is an
@@ -220,6 +233,7 @@ Choose on proof convenience.
 
 *Written by **Claude Code** (k3 agent) at the maintainer's direction. Placed in `docs/` to match
 the existing convention (`docs/agents/…`, `docs/4ch8f-…`) rather than creating a second top-level
-documentation directory. §2 added for #12404 (cursor-grok). §3 added for #12632 (coord), recording the
-maintainer's ideal-machine reading of the reference; §4 records the RLP
-recursion-depth ruling and why it rests on different grounds.*
+documentation directory. §2 added for #12404 (cursor-grok). §3 added for #12632 (coord): a raise in the
+reference is a rejection, converted by `verify_stateless_new_payload`. §4
+records the RLP recursion-depth ruling, which rejects by the same mechanism but
+must choose its own threshold.*
