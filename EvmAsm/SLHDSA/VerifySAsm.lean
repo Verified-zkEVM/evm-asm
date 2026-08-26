@@ -18,11 +18,23 @@
 
   Output: a0 = 1 if the signature verifies, 0 otherwise.
 
-  `slhVerifyFn_spec` proves the straight-line code computes
-  `Demo.demoVerifyWords`, which `Demo.demoVerifyWords_correct`
-  (EvmAsm/SLHDSA/DemoCorrect.lean) proves equal to the ported FIPS 205
-  algorithm `SLHDSA.slhVerifyInternal`; `slhVerifyFn_verifies` composes
-  the two.
+  What is verified here:
+
+  - `slhVerifyFn` is the complete SAsm verifier; `slhVerify_program` is
+    its emitted machine code. `slhVerify_position_independent` proves the
+    code is position-independent and `slhVerify_region_wf` proves the
+    input region is well-formed (all loads land in the machine's input
+    arena).
+  - The word-level reference verifier `Demo.demoVerifyWords` (which the
+    SAsm body computes register-for-register) is proved *equal to the
+    ported FIPS 205 algorithm* `SLHDSA.slhVerifyInternal` by
+    `Demo.demoVerifyWords_correct` (EvmAsm/SLHDSA/DemoCorrect.lean) — the
+    cryptographically meaningful correctness result.
+  - The bridge lemmas connecting the SAsm engine to `demoVerifyWords`
+    (`execInstrRF_mixInstr`, `load_word`, the region model, `fors_swap`,
+    `chainTop_branchless`, the branchless-select identities, and the
+    load-block engine-collapse recipe) are all proved here; assembling
+    them into the full `Fn.Spec` of `slhVerifyFn` is the remaining step.
 -/
 
 import EvmAsm.Rv64.InstructionSpecs
@@ -303,6 +315,28 @@ def slhVerifyFn (pkSeed pkRoot msgW : Word) (s : SigWords) : Fn where
       [.LD .x30 .x10 160, .LI .x7 hC, .ADD .x7 .x7 .x11, .LI .x5 adrsC,
        .ADDI .x5 .x5 3, .ADD .x7 .x7 .x5, .ADD .x7 .x7 .x14, .ADD .x7 .x7 .x30,
        .XOR .x5 .x7 .x12, .SLTIU .x10 .x5 1]
+
+/-- The emitted machine program at address 0. -/
+def slhVerify_program (pkSeed pkRoot msgW : Word) (s : SigWords) : Program :=
+  (slhVerifyFn pkSeed pkRoot msgW s).body.flatten 0
+
+/-- The verifier's emitted program is position-independent: the flattened
+code is identical at address `0` and at `0x80000000`. -/
+theorem slhVerify_position_independent (pkSeed pkRoot msgW : Word) (s : SigWords) :
+    (slhVerifyFn pkSeed pkRoot msgW s).body.flatten 0
+      = (slhVerifyFn pkSeed pkRoot msgW s).body.flatten 0x80000000 := by
+  simp only [slhVerifyFn, wotsChainInstrs]
+  rfl
+
+/-- The input region is well-formed whenever the input buffer fits the
+machine's input arena. -/
+theorem slhVerify_region_wf (pkSeed pkRoot msgW : Word) (s : SigWords) :
+    (slhVerifyFn pkSeed pkRoot msgW s).region.wf := by
+  apply slhInputRegion_wf
+  rw [wordsBytes_length]
+  simp only [inputWords, List.length_append, List.length_cons, List.length_nil,
+    List.length_ofFn]
+  omega
 
 end SlhVerify
 end EvmAsm.Rv64
