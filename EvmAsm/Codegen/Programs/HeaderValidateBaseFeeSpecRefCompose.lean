@@ -147,8 +147,9 @@ theorem k73RouteB_adapt
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           raIn old8 (k74FlatFrame F))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+          gasUsed gasLimit parentPtr
+          parentBytes headerBytes
           (k74FlatFrame F)) := by
   intro hsrc
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
@@ -224,16 +225,16 @@ theorem k73RouteB_adapt
     xperm_hyp h2
   unfold k73RouteBPost k73RouteBArmPost at hq
   rcases hq with h_arm | h_arm | h_arm | ⟨status, scratchOutBytes, hstatus, h_arm⟩
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right
       (fun _ h => Or.inr ⟨status, scratchOutBytes, hstatus, h⟩) h
       (arm_to_failure status scratchOutBytes _ h_arm)
@@ -344,7 +345,7 @@ theorem header_validate_base_fee_specref_within
     hspH hspK hret hF hHeaderWf hExpectedWf hHeaderLen hExpectedLen hDisj
     hcode hk73Mono hk73 heqMono
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hmachine
-  unfold hvbfFinalAny at hq
+  unfold hvbfFinalRouteB at hq
   rcases hq with h2 | h0 | h1
   · exact Or.inl h2
   · refine Or.inr (Or.inl ?_)

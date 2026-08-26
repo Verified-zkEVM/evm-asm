@@ -258,6 +258,23 @@ def k73CallPost
     k73FailurePost spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status
       parentBytes scratchBytes headerBytes raIn old8 F h
 
+/-- Route-B twin of `k73CallPost` (#12346 residual 2b): same disjunction
+    envelope and register inventory, but the success arm pins the Expected
+    window at the image K73 actually wrote (`hvbfWrittenImage`) instead of
+    reusing the caller-owned entry byte list, so pre and post no longer
+    share an `expectedBytes` parameter. -/
+def k73RouteBCallPost
+    (spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed gasLimit parentPtr : Word)
+    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    Assertion := fun h =>
+  k73PostOwn spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes
+      raIn old8 F h ∨
+  ∃ status scratchBytes,
+    status ≠ (0 : Word) ∧
+    k73FailurePost spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status
+      parentBytes scratchBytes headerBytes raIn old8 F h
+
 def hvbfPre
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 v18 v19 v20 : Word)
