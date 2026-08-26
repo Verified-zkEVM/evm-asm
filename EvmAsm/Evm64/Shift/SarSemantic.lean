@@ -10,8 +10,12 @@
 -/
 
 -- `Shift.SarCompose` transitively imports `Evm64.SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Shift.SarCompose
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Shift.SarCompose
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

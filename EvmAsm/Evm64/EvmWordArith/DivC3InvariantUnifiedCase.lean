@@ -11,7 +11,11 @@
   `(first-addback carry = 0 AND c3 = 0)` — the Knuth-B unreachability case.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

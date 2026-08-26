@@ -4,9 +4,13 @@
   Pure handler-table entries for basic arithmetic opcodes (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
-import EvmAsm.Evm64.EvmWordArith.SDiv
-import EvmAsm.Evm64.EvmWordArith.SMod
+module
+
+public import EvmAsm.Evm64.HandlerTable
+public import EvmAsm.Evm64.EvmWordArith.SDiv
+public import EvmAsm.Evm64.EvmWordArith.SMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ArithmeticHandlers

@@ -5,8 +5,12 @@
   `EvmState` (GH #104 / GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
-import EvmAsm.Evm64.Calldata.Size
+module
+
+public import EvmAsm.Evm64.HandlerTable
+public import EvmAsm.Evm64.Calldata.Size
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CalldataHandlers

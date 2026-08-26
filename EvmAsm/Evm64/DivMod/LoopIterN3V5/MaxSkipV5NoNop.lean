@@ -11,10 +11,14 @@
   Bead `evm-asm-wbc4i.9.3.3.2.1.1` (atomic foundation of the n=3 v5 loop).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopIterN3
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.LoopIterN3
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

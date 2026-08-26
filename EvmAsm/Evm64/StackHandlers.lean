@@ -4,7 +4,11 @@
   Pure POP/PUSH0 handler entries for the interpreter handler table (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
+module
+
+public import EvmAsm.Evm64.HandlerTable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

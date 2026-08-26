@@ -4,10 +4,14 @@
   No-NOP prefix composition for the b[3]=b[2]=b[1]=0 (n=1) DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
-import EvmAsm.Evm64.DivMod.Compose.NormA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.Norm
+public import EvmAsm.Evm64.DivMod.Compose.NormA
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -12,7 +12,11 @@
   - `divK_correction_skip_spec_within`
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionSkip
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionSkip
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

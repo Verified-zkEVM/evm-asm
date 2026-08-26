@@ -7,14 +7,18 @@
   Start with the n=4 (b[3]≠0, shift≠0) case as the primary composition.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
-import EvmAsm.Evm64.DivMod.Compose.NormA
-import EvmAsm.Evm64.DivMod.Compose.Epilogue
-import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.Norm
+public import EvmAsm.Evm64.DivMod.Compose.NormA
+public import EvmAsm.Evm64.DivMod.Compose.Epilogue
+public import EvmAsm.Evm64.DivMod.Compose.ModEpilogue
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

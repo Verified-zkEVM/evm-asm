@@ -21,9 +21,13 @@
   sibling-quarter cells #53.
 -/
 
-import EvmAsm.Evm64.MStore.StackSpec
-import EvmAsm.Evm64.MStore.UnalignedStackSpec
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.MStore.StackSpec
+public import EvmAsm.Evm64.MStore.UnalignedStackSpec
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

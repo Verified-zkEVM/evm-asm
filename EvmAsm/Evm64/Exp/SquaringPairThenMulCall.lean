@@ -23,9 +23,13 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Exp.SquaringCallSeq
-import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
-import EvmAsm.Evm64.Multiply.Callable
+module
+
+public import EvmAsm.Evm64.Exp.SquaringCallSeq
+public import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
+public import EvmAsm.Evm64.Multiply.Callable
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

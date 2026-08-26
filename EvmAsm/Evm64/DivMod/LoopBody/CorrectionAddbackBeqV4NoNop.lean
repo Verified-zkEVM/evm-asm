@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

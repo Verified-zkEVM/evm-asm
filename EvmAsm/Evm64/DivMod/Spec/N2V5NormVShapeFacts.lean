@@ -9,7 +9,11 @@
   `loopN2SelectedBorrowCarryV5` from shape at the lane level.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

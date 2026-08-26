@@ -7,11 +7,15 @@
   produce clean cpsTriples from base+448 to base+904.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

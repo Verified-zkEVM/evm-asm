@@ -10,8 +10,12 @@
   structural template.  Foundation of the n=4 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 
