@@ -5,10 +5,14 @@
   by recipient address before wiring the result into block_verdict.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.U256
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.U256
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

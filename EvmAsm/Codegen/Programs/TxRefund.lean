@@ -4,9 +4,16 @@
   Transaction-level refund cap helpers for Amsterdam gas accounting.
 -/
 
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

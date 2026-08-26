@@ -19,8 +19,14 @@
   matching the `divmod_addr` / `rv64_addr` / `reg_ops` pattern.
 -/
 
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.ByteAlgAttr
+module
+
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.ByteAlgAttr
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.ByteAlgAttr
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

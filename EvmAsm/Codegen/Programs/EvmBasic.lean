@@ -5,9 +5,13 @@
   smoke, input_echo, evm_add, and evm_add_from_input.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.Add.Program
-import EvmAsm.Codegen.Layout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Evm64.Add.Program
+public import EvmAsm.Codegen.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

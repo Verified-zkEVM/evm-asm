@@ -36,8 +36,12 @@
   bmvmx.1.7 children, not a regression of the self-contained scan itself.)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

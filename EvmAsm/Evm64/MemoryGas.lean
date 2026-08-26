@@ -4,7 +4,11 @@
   Pure EVM memory expansion gas helpers for issue #118.
 -/
 
-import EvmAsm.Evm64.Memory
+module
+
+public import EvmAsm.Evm64.Memory
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace MemoryGas

@@ -15,7 +15,11 @@
   - mulsub_register_4limb_val256: 4-limb register ops → val256 equation
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

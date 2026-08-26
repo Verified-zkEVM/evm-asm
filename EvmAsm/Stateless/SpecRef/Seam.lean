@@ -15,7 +15,11 @@
     original stub (kept for comparison/tests; no longer the default).
 -/
 
-import EvmAsm.Stateless.SpecRef.WitnessReads
+module
+
+public import EvmAsm.Stateless.SpecRef.WitnessReads
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

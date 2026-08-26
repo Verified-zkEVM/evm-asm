@@ -17,10 +17,14 @@
   region support (M5).
 -/
 
-import EvmAsm.Rv64.Execution
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.MemRegionWriteWide
-import EvmAsm.Rv64.SAsm.RegFile
+module
+
+public import EvmAsm.Rv64.Execution
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.MemRegionWriteWide
+public import EvmAsm.Rv64.SAsm.RegFile
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

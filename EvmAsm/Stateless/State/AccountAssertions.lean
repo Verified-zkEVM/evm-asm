@@ -58,9 +58,16 @@
   stated in.
 -/
 
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Stateless.SpecRef.WitnessState
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Stateless.SpecRef.WitnessState
+public import EvmAsm.EL.RLP.Properties
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Stateless.SpecRef.WitnessState
+meta import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 

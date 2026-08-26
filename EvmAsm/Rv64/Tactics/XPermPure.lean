@@ -33,8 +33,14 @@ in the slice-1 design note), `xperm_pure h` degrades cleanly to
 `xperm_hyp h`.
 -/
 
-import EvmAsm.Rv64.Tactics.ExtractPure
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.Tactics.ExtractPure
+public import EvmAsm.Rv64.Tactics.XSimp
+meta import EvmAsm.Rv64.Tactics.ExtractPure
+meta import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.Tactics
 
@@ -43,7 +49,7 @@ open Lean Elab Tactic
 /-- Run a tactic on every currently-open goal, in order. Equivalent
     to Mathlib's `Lean.Elab.Tactic.allGoals` but inlined here to keep
     `XPermPure.lean` Mathlib-free. -/
-private def runOnAllGoals (tac : TacticM Unit) : TacticM Unit := do
+private meta def runOnAllGoals (tac : TacticM Unit) : TacticM Unit := do
   let mvarIds ← getGoals
   let mut newGoals := #[]
   for mvarId in mvarIds do
@@ -57,7 +63,7 @@ private def runOnAllGoals (tac : TacticM Unit) : TacticM Unit := do
     focused sub-goals, recursing into both branches. After this runs
     every leaf in the conjunction tree becomes an open goal — the
     resource leaf and any leftover pure leaves. -/
-partial def xpermPureSplitGoal : TacticM Unit := do
+meta partial def xpermPureSplitGoal : TacticM Unit := do
   let goalType ← instantiateMVars (← (← getMainGoal).getType)
   if goalType.isAppOfArity ``And 2 then
     evalTactic (← `(tactic| refine ⟨?_, ?_⟩))
@@ -68,7 +74,7 @@ partial def xpermPureSplitGoal : TacticM Unit := do
 /-- Repeatedly destructure the leading `∧` in `h`'s type, naming the
     head conjunct under a fresh ident (so `assumption` finds it
     later) and rebinding `h` to the tail. -/
-partial def xpermPureDestructHyp (h : TSyntax `ident) : TacticM Unit :=
+meta partial def xpermPureDestructHyp (h : TSyntax `ident) : TacticM Unit :=
   withMainContext do
     let lctx ← getLCtx
     let some hDecl := lctx.findFromUserName? h.getId | return
@@ -84,7 +90,7 @@ partial def xpermPureDestructHyp (h : TSyntax `ident) : TacticM Unit :=
 syntax (name := xpermPure) "xperm_pure " ident : tactic
 
 @[tactic xpermPure]
-def evalXpermPure : Tactic := fun stx => do
+meta def evalXpermPure : Tactic := fun stx => do
   match stx with
   | `(tactic| xperm_pure $h:ident) => withMainContext do
       -- Step 1: peel pures from the hypothesis. Use `try` so that a

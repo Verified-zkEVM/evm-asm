@@ -5,8 +5,12 @@
   (GH #107 / GH #114).
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.MemoryGas
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.MemoryGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace ReturnDataCopyArgs

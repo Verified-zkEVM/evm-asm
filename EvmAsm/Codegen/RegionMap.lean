@@ -45,11 +45,15 @@
   kernel error.
 -/
 
-import EvmAsm.Codegen.CallFrameLayout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.RegionMapLinkPins
-import EvmAsm.Stateless.MemoryLayout
+module
+
+public import EvmAsm.Codegen.CallFrameLayout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.RegionMapLinkPins
+public import EvmAsm.Stateless.MemoryLayout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.RegionMap
 

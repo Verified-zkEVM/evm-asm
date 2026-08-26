@@ -370,7 +370,12 @@ else
         fail=1
       fi
     done
-    if ! grep -qE '^import EvmAsm\.Codegen\.RegionMapLinkPins$' "$RM"; then
+    # Accept the module-system import forms too: the converter rewrites
+    # `import X` to `public import X` (plus a `meta import X` when the file has
+    # a meta trigger), so an anchored `^import ` pattern silently stops matching
+    # and reports DRIFT on a file that is perfectly correct. This gate needs a
+    # linked ELF, so it does not run locally -- it failed only in CI.
+    if ! grep -qE '^(public |meta )?import (all )?EvmAsm\.Codegen\.RegionMapLinkPins$' "$RM"; then
       note "DRIFT RegionMap.lean missing import EvmAsm.Codegen.RegionMapLinkPins"
       fail=1
     fi

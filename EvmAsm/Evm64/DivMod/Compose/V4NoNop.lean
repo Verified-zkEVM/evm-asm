@@ -4,7 +4,11 @@
   Shared no-NOP code surface for v4 div128 migration.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 
