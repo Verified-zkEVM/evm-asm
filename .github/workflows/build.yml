@@ -122,6 +122,16 @@ jobs:
           scripts/check-specref-citations.py --self-test
           scripts/check-specref-citations.py --strict
 
+      # #12931 fixed one gate that had been wired but unable to fail; this is
+      # the companion that makes the class impossible to reintroduce. Pure
+      # source scan over the workflows + scripts/, no build. Self-test first:
+      # it plants two silent gates and runs the whole check over them, since a
+      # self-test that only exercises the regexes has the #12907 hole.
+      - name: Every wired gate can fail
+        run: |
+          scripts/check-gates-can-fail.py --self-test
+          scripts/check-gates-can-fail.py
+
   build:
     runs-on: ubuntu-latest
     # Was inheriting the 360-minute default; the cache-miss run on
