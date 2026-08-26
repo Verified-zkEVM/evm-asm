@@ -18,8 +18,14 @@
   n-alignment of machine store addresses guarantees.
 -/
 
-import EvmAsm.Rv64.MemRegionWrite
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.Rv64.MemRegionWrite
+public import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.MemRegionWrite
+meta import EvmAsm.Rv64.MemRegion
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

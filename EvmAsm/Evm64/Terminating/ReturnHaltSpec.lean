@@ -47,10 +47,14 @@
   (classical-3 only).
 -/
 
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Rv64.Tactics.XPermPure
-import EvmAsm.Evm64.Terminating.ReturnHaltProgram
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Rv64.Tactics.XPermPure
+public import EvmAsm.Evm64.Terminating.ReturnHaltProgram
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Terminating
 

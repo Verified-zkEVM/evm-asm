@@ -17,8 +17,12 @@
   of the full `step1_v5` spec.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

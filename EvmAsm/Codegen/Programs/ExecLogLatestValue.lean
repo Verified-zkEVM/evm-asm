@@ -24,9 +24,16 @@
   match idiom of `exec_log_slot_tuples` (#8595) but keeps only the last `current`.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -66,8 +66,14 @@
   agreeing implies anything about their inputs.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Programs.HashBridge
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Programs.HashBridge
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

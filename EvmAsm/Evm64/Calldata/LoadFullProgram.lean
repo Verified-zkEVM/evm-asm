@@ -70,8 +70,14 @@
   the follow-up slices.
 -/
 
-import EvmAsm.Evm64.Calldata.LoadProgram
-import EvmAsm.Evm64.Environment.Layout
+module
+
+public import EvmAsm.Evm64.Calldata.LoadProgram
+public import EvmAsm.Evm64.Environment.Layout
+meta import EvmAsm.Evm64.Calldata.LoadProgram
+meta import EvmAsm.Evm64.Environment.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

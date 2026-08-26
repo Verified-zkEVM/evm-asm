@@ -5,10 +5,14 @@
   Extracted from Compose.lean sections 10g–10h.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.LimbSpec.NormB
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseC2
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.LimbSpec.NormB
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseC2
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

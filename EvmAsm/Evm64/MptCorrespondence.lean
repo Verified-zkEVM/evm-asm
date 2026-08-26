@@ -33,7 +33,12 @@
   child form (`mpt_branch_child` status 2) is bead `evm-asm-4ch8f.75.4`.
 -/
 
-import EvmAsm.Evm64.MptAssertions
+module
+
+public import EvmAsm.Evm64.MptAssertions
+meta import EvmAsm.Evm64.MptAssertions
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

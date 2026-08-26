@@ -5,8 +5,12 @@
   (GH #104).
 -/
 
-import EvmAsm.Evm64.Calldata.Basic
-import EvmAsm.Evm64.Calldata.CopyArgs
+module
+
+public import EvmAsm.Evm64.Calldata.Basic
+public import EvmAsm.Evm64.Calldata.CopyArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace CallDataCopyExec

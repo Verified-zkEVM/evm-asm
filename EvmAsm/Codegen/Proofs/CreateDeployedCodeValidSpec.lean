@@ -12,9 +12,13 @@
   `emitProgram` (deployment-connect, byte-identical + probe-verified), so the
   proof constrains the deployed gate. Axiom-clean.
 -/
-import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
+module
+
+public import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics

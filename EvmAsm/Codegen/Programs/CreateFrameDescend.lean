@@ -32,10 +32,14 @@
   returns; the caller then `j .dispatch_loop` to run the init code. Clobbers t0-t4, a0-a7.
 -/
 
-import EvmAsm.Codegen.ArenaCapacities
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.AccountWriteMap
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Codegen.ArenaCapacities
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+public import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

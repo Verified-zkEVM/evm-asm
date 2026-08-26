@@ -14,10 +14,18 @@
   comparison is reflected to the underlying byte offsets via `ptr_eq_iff_ofNat`.
 -/
 
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.WPAttr
-import EvmAsm.Rv64.WP.CFG
+module
+
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.WPAttr
+public import EvmAsm.Rv64.WP.CFG
+
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.Tactics.WPAttr
+meta import EvmAsm.Rv64.WP.CFG
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

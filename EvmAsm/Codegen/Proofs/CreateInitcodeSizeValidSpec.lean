@@ -18,10 +18,14 @@
   emit via `emitProgram` from this structured program, byte-identically) is the
   deployment follow-up (bead evm-asm-x43os). Axiom-clean.
 -/
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Codegen.Programs.CreateInitcodeSizeValid
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Codegen.Programs.CreateInitcodeSizeValid
+
+@[expose] public section
 namespace EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 

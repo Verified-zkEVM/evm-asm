@@ -21,8 +21,14 @@
   5. Close the goal via a permutation proof
 -/
 
-import Lean
-import EvmAsm.Rv64.Tactics.XPerm
+module
+
+public import Lean
+public import EvmAsm.Rv64.Tactics.XPerm
+meta import Lean
+meta import EvmAsm.Rv64.Tactics.XPerm
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 
@@ -30,7 +36,7 @@ namespace EvmAsm.Rv64.Tactics
 
 /-- Build a right-associated sepConj chain from a list of atoms.
     Empty list → `empAssertion`, singleton → the atom, otherwise fold right. -/
-def buildSepConjChain : List Expr → MetaM Expr
+meta def buildSepConjChain : List Expr → MetaM Expr
   | [] => return mkConst ``EvmAsm.Rv64.empAssertion
   | [a] => return a
   | a :: rest => do
@@ -41,7 +47,7 @@ def buildSepConjChain : List Expr → MetaM Expr
     Each goal atom is either matched against a hyp atom (consuming it) or
     identified as the frame metavariable.
     Returns `(consumedHypIndices, frameMVar?)`. -/
-private def matchGoalAgainstHyp (hypAtoms goalAtoms : Array Expr) :
+private meta def matchGoalAgainstHyp (hypAtoms goalAtoms : Array Expr) :
     MetaM (Array Nat × Option Expr) := do
   -- Track which hyp atoms are still available: `available[i] = true` means not yet matched
   let mut available := (Array.mk (List.replicate hypAtoms.size true) : Array Bool)
@@ -65,7 +71,7 @@ private def matchGoalAgainstHyp (hypAtoms goalAtoms : Array Expr) :
   return (matched, frameMVar)
 
 /-- Collect unmatched hyp atoms (those not consumed by goal matching). -/
-private def unmatchedAtoms (hypAtoms : Array Expr) (matchedIndices : Array Nat) : List Expr :=
+private meta def unmatchedAtoms (hypAtoms : Array Expr) (matchedIndices : Array Nat) : List Expr :=
   let matchedSet := matchedIndices.toList
   hypAtoms.toList.zipIdx.filterMap fun (atom, i) =>
     if matchedSet.contains i then none else some atom

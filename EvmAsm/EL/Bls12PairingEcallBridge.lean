@@ -4,9 +4,13 @@
   Pure zkVM BLS12-381 pairing accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Bls12PairingInputBridge
-import EvmAsm.EL.Bls12PairingResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Bls12PairingInputBridge
+public import EvmAsm.EL.Bls12PairingResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

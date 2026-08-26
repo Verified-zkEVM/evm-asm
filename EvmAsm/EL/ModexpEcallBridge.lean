@@ -5,9 +5,13 @@
   precompile (address 0x05 / `zkvm_modexp`).
 -/
 
-import EvmAsm.EL.ModexpInputBridge
-import EvmAsm.EL.ModexpResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.ModexpInputBridge
+public import EvmAsm.EL.ModexpResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

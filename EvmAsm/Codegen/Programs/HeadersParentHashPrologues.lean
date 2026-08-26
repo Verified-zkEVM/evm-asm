@@ -8,15 +8,19 @@
   cursor/length registers set for the checks + copy-loop phase.
 -/
 
-import EvmAsm.Codegen.Programs.HeadersParentHashSpec
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.XPerm
-import EvmAsm.Evm64.CallingConvention
+module
+
+public import EvmAsm.Codegen.Programs.HeadersParentHashSpec
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.XPerm
+public import EvmAsm.Evm64.CallingConvention
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

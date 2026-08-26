@@ -40,12 +40,18 @@
 -- `Ssz.lean` is the one that carries the request container types and the
 -- `MAX_*_PER_PAYLOAD` caps, and it imports `SszCodec` (for `SszType.fixedSize`)
 -- rather than the other way round — so this single import gets both.
-import EvmAsm.Stateless.SpecRef.Ssz
+module
+
+public import EvmAsm.Stateless.SpecRef.Ssz
 -- The `remu`/`divu` bridges the validation triple discharges its `bnez`/`bgtu`
 -- obligations with. Imported here rather than left for the triple's module so
 -- the two halves of this routine's vocabulary — its constants and its
 -- arithmetic — arrive together.
-import EvmAsm.Rv64.RemuNat
+public import EvmAsm.Rv64.RemuNat
+meta import EvmAsm.Stateless.SpecRef.Ssz
+meta import EvmAsm.Rv64.RemuNat
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.RequestsHashParams
 

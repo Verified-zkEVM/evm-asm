@@ -17,9 +17,13 @@
   write several words off ONE base register with different immediates.
 -/
 
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.MemRegionWriteWide
-import EvmAsm.Rv64.WordOps
+module
+
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.MemRegionWriteWide
+public import EvmAsm.Rv64.WordOps
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

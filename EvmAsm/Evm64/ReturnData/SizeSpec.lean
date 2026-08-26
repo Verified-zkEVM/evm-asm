@@ -12,11 +12,15 @@
   split. The instruction order is LD-then-ADDI to match the emitted handler.
 -/
 
-import EvmAsm.Evm64.ReturnData.SizeProgram
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.ReturnData.SizeProgram
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -11,8 +11,14 @@
     where Q is an AC-permutation of P.
 -/
 
-import Lean
-import EvmAsm.Rv64.Tactics.XPerm
+module
+
+public import Lean
+public import EvmAsm.Rv64.Tactics.XPerm
+meta import Lean
+meta import EvmAsm.Rv64.Tactics.XPerm
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 

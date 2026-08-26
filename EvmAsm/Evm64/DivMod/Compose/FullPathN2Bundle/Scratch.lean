@@ -6,7 +6,11 @@
   opacity for composition proofs.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

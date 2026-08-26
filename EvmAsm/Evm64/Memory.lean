@@ -31,8 +31,12 @@
     matches how `evmStackIs` uses a `List EvmWord`.
 -/
 
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

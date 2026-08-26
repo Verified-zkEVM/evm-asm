@@ -13,7 +13,11 @@
   - addback_correction_euclidean: end-to-end from mulsub underflow + addback → Euclidean
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMulSubLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -10,11 +10,15 @@
   from the algorithm's mulsub/addback computations to EvmWord.div correctness.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
-import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
-import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
-import EvmAsm.Evm64.DivMod.LoopSemantic
-import Mathlib.Tactic.FinCases
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+public import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
+public import EvmAsm.Evm64.DivMod.LoopSemantic
+public import Mathlib.Tactic.FinCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,11 +4,20 @@
   Synthetic Amsterdam EIP-7708 Transfer/Burn event-log descriptor helpers.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -68,7 +77,13 @@ def eip7708TransferLogStageAsm (fromSym toSym valSym labFrom labTo labVal : Stri
   (if restoreLabel.isEmpty then "" else restoreLabel ++ ":\n") ++
   "  ld x10, 96(sp)\n  ld x12, 104(sp)\n  ld x13, 112(sp)\n  addi sp, sp, 128\n"
 
-private def copyWordAsm (src : String) (dstOff : Nat) : String :=
+-- Renamed from `copyWordAsm` when `private` was dropped for MODULES.md §5a:
+-- `EvmAsm.Codegen.copyWordAsm` ALREADY EXISTS, publicly, in
+-- `EvmStackHandlers.lean` under this same namespace, taking two register
+-- names rather than a pointer and an offset. `private` was the only thing
+-- keeping the two apart, so widening collided. The name now says which one
+-- this is: 32 bytes, from a pointer, at a fixed destination offset.
+def copyWord32FromPtrAsm (src : String) (dstOff : Nat) : String :=
   "  ld t3, 0(" ++ src ++ ")\n" ++
   "  sd t3, " ++ toString dstOff ++ "(t2)\n" ++
   "  ld t3, 8(" ++ src ++ ")\n" ++
@@ -78,7 +93,7 @@ private def copyWordAsm (src : String) (dstOff : Nat) : String :=
   "  ld t3, 24(" ++ src ++ ")\n" ++
   "  sd t3, " ++ toString (dstOff + 24) ++ "(t2)\n"
 
-private def recordMessageValueTransferCoreAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
+def recordMessageValueTransferCoreAsm (fromSym toSym valSym a3Setup senderPre recipientPre : String)
     (recipientPreAdjust : String := "") : String :=
   "  addi sp, sp, -32\n  sd x10, 0(sp)\n  sd x12, 8(sp)\n  sd x13, 16(sp)\n" ++
   "  la a0, " ++ fromSym ++ "\n  la a1, " ++ toSym ++ "\n  la a2, " ++ valSym ++ "\n  " ++
@@ -146,11 +161,11 @@ def eip7708SyntheticLogFunctions : String :=
   "  li t0, 32\n" ++
   "  sd t0, 16(t2)\n" ++
   "  sd t0, 24(t2)\n" ++
-  copyWordAsm "a1" 32 ++
-  copyWordAsm "a2" 64 ++
+  copyWord32FromPtrAsm "a1" 32 ++
+  copyWord32FromPtrAsm "a2" 64 ++
   "  li t0, 3\n" ++
   "  bne a0, t0, .Leip7708_amount_data\n" ++
-  copyWordAsm "a3" 96 ++
+  copyWord32FromPtrAsm "a3" 96 ++
   ".Leip7708_amount_data:\n" ++
   "  addi t0, a4, 31\n" ++
   "  addi t1, t2, 160\n" ++

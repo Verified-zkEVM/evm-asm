@@ -16,7 +16,11 @@
 
 -- `GenericSpecs` transitively imports `Basic`, `Instructions`, `SepLogic`,
 -- `Execution`, and `CPSSpec`.
-import EvmAsm.Rv64.GenericSpecs
+module
+
+public import EvmAsm.Rv64.GenericSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

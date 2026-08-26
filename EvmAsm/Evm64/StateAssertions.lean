@@ -46,7 +46,11 @@
   `live ++ List.replicate (capacity - live.length) 0`.
 -/
 
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.Rv64.MemRegion
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

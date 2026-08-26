@@ -4,9 +4,13 @@
   M5a unrolled tiny EVM interpreter demo units.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Evm64.Push.Program
-import EvmAsm.Codegen.Programs.EvmBasic
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Evm64.Push.Program
+public import EvmAsm.Codegen.Programs.EvmBasic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

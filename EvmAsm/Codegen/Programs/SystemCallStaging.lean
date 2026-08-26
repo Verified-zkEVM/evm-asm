@@ -18,14 +18,26 @@
   (code_at_header_state_root) and provides the block exec payload.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.AmsterdamSystemTx
-import EvmAsm.Codegen.Programs.BlockVerdictContractStage
-import EvmAsm.Codegen.Programs.BlockVerdictParams
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+public import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+meta import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

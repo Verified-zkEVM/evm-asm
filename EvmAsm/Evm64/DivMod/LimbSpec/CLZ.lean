@@ -20,13 +20,17 @@
   five specs.
 -/
 
-import EvmAsm.Evm64.DivMod.Program
+module
+
+public import EvmAsm.Evm64.DivMod.Program
 -- `Evm64.DivMod.AddrNorm` transitively imports `Rv64.AddrNorm`.
-import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.DivMod.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64.DivMod.AddrNorm (bv6_toNat_63)

@@ -27,8 +27,12 @@
   PR-A2 of the v2 → v4 migration plan. Issue #1337 / Issue #61.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

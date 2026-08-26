@@ -2,7 +2,11 @@
   MOD Phase B n=2 and n=1 compositions.
   Mirrors evm_div_phaseB_n2_spec_within and evm_div_phaseB_n1_spec_within with modCode.
 -/
-import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.ModPhaseB
+
+@[expose] public section
 open EvmAsm.Rv64.Tactics
 namespace EvmAsm.Evm64
 

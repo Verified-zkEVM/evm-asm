@@ -71,10 +71,14 @@
     Phase 1b, regardless of branch (input bound for Round 2).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
-import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
-import EvmAsm.Rv64.AddrNorm
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+public import EvmAsm.Evm64.EvmWordArith.SignExtendLemmas
+public import EvmAsm.Rv64.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

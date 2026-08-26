@@ -8,9 +8,13 @@
   2900-gas Amsterdam cold delta and records newly cold addresses.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Stateless.SpecRef.Gas
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Stateless.SpecRef.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

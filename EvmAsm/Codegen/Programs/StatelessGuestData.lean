@@ -27,7 +27,11 @@
       / `npr_left_subtree_scratch` (32 bytes each) for the
       multi-step merkle computation.
 -/
-import EvmAsm.Codegen.Programs.Ssz
+module
+
+public import EvmAsm.Codegen.Programs.Ssz
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

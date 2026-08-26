@@ -10,7 +10,12 @@
   exercised regardless of the `xperm.cert` setting.
 -/
 
-import EvmAsm.Rv64.Tactics.XPerm
+module
+
+public import EvmAsm.Rv64.Tactics.XPerm
+meta import EvmAsm.Rv64.Tactics.XPerm
+
+@[expose] public section
 
 open Lean Meta Elab Tactic
 

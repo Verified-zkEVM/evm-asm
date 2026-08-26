@@ -56,8 +56,12 @@
   and code are hex. Separators are all distinct, so no escaping is needed.
 -/
 
-import EvmAsm.Stateless.SpecRef.BlockAccessLists
-import EvmAsm.Tests.Correspondence.Harness
+module
+
+public import EvmAsm.Stateless.SpecRef.BlockAccessLists
+public import EvmAsm.Tests.Correspondence.Harness
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Correspondence.Bal
 
@@ -68,18 +72,18 @@ open EvmAsm.Tests.Correspondence
 
 /-- `splitOn` returns `[""]` on the empty string; a corpus field that is absent
 should yield no items, not one empty item. -/
-private def parts (sep s : String) : List String :=
+def parts (sep s : String) : List String :=
   if s.isEmpty then [] else s.splitOn sep
 
-private def natOf? (s : String) : Option Nat := s.trimAscii.toString.toNat?
+def natOf? (s : String) : Option Nat := s.trimAscii.toString.toNat?
 
 /-- `index "," value` -/
-private def pairOf? (s : String) : Option (Nat × Nat) :=
+def pairOf? (s : String) : Option (Nat × Nat) :=
   match s.splitOn "," with
   | [a, b] => do let x ← natOf? a; let y ← natOf? b; some (x, y)
   | _ => none
 
-private def storageChangesOf? (s : String) : Option (List (U256 × List StorageChange)) :=
+def storageChangesOf? (s : String) : Option (List (U256 × List StorageChange)) :=
   (parts "/" s).mapM fun group =>
     match group.splitOn ":" with
     | [slotS, changesS] => do
@@ -90,7 +94,7 @@ private def storageChangesOf? (s : String) : Option (List (U256 × List StorageC
         some (slot, cs)
     | _ => none
 
-private def codesOf? (s : String) : Option (List CodeChange) :=
+def codesOf? (s : String) : Option (List CodeChange) :=
   (parts ";" s).mapM fun item =>
     match item.splitOn "," with
     | [iS, codeS] => do
@@ -121,12 +125,12 @@ def parseBuilder? (line : String) : Option BlockAccessListBuilder := do
 
 /-! ## Rendering -/
 
-private def renderSlotGroup (sc : SlotChanges) : String :=
+def renderSlotGroup (sc : SlotChanges) : String :=
   toString sc.slot ++ ":" ++
     String.intercalate ";" (sc.changes.map fun c =>
       toString c.blockAccessIndex ++ "," ++ toString c.newValue)
 
-private def renderAccount (a : AccountChanges) : String :=
+def renderAccount (a : AccountChanges) : String :=
   String.intercalate "|"
     [ hexOfBytes a.address
     , String.intercalate "/" (a.storageChanges.map renderSlotGroup)

@@ -37,7 +37,11 @@
   a fallback function here would prejudge that.
 -/
 
-import EvmAsm.Stateless.State.WriteMapAssertions
+module
+
+public import EvmAsm.Stateless.State.WriteMapAssertions
+
+@[expose] public section
 
 namespace EvmAsm.Stateless
 
