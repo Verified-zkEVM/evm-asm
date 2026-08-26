@@ -4,8 +4,12 @@
   SMOD wrapper composition through the in-place dividend absolute-value block.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.DivisorSignSequence
-import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
+module
+
+public import EvmAsm.Evm64.SMod.Compose.DivisorSignSequence
+public import EvmAsm.Evm64.SMod.Compose.AbsBlockSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

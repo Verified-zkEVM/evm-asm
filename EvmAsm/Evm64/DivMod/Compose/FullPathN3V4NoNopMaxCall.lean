@@ -4,7 +4,11 @@
   Split-out n=3 max×call exact-source theorem for the v4 no-NOP loop.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,8 +4,12 @@
   Pure fetch/decode/dispatch loop scaffold for the EVM interpreter (GH #108).
 -/
 
-import EvmAsm.Evm64.Dispatch
-import EvmAsm.Evm64.Termination
+module
+
+public import EvmAsm.Evm64.Dispatch
+public import EvmAsm.Evm64.Termination
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

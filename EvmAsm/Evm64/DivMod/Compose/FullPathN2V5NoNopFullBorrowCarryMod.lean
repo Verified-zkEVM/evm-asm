@@ -7,10 +7,14 @@
   `loopN2SelectedBorrowCarryV5` (satisfiable from shape).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

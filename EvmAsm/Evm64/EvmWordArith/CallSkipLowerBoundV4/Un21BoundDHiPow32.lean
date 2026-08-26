@@ -25,7 +25,11 @@
   `uHi < 2^63`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

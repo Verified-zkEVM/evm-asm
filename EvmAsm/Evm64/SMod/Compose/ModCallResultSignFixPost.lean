@@ -5,9 +5,13 @@
   result-sign-fix precondition.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallPost
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallPost
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

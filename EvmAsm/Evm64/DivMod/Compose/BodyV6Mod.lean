@@ -15,10 +15,14 @@
   Brick 6 of the MOD v6 fast arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FastDigitChainV6Mod
-import EvmAsm.Evm64.DivMod.Compose.FastDenormEpilogueV6Mod
-import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
-import EvmAsm.Evm64.DivMod.Compose.BodyV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FastDigitChainV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.FastDenormEpilogueV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.BodyV6
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

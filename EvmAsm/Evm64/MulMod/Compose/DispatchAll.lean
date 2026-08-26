@@ -17,11 +17,15 @@
   to the larger `n ≠ 0` bound with `cpsTripleWithin_mono_nSteps`.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Dispatch
-import EvmAsm.Evm64.MulMod.Compose.DispatchZero
-import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Dispatch
+public import EvmAsm.Evm64.MulMod.Compose.DispatchZero
+public import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

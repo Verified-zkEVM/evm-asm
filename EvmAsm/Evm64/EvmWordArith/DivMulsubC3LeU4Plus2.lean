@@ -20,7 +20,11 @@
   Bead `evm-asm-wbc4i.8.2.2.4`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

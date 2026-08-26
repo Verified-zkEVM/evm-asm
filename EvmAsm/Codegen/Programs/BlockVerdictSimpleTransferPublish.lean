@@ -4,7 +4,11 @@
   Simple-transfer runtime publication assembly, split from BlockVerdictFunction.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransferGas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

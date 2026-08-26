@@ -4,11 +4,15 @@
   Preloop setup wrappers for the n=1 v4/no-NOP full DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.N1MaxChain
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.N1MaxChain
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

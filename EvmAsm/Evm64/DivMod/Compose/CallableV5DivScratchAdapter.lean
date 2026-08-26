@@ -12,7 +12,11 @@
   Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.CallableV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV5Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

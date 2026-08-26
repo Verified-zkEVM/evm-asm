@@ -9,8 +9,12 @@
   Bead `evm-asm-wbc4i.9.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

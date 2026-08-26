@@ -7,9 +7,13 @@
   Mirror of FullPathN2V4NoNopCallCallMax.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

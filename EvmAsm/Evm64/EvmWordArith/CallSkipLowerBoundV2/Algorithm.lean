@@ -9,7 +9,11 @@
   Split out from `CallSkipLowerBoundV2.lean` for file-size hygiene.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipClose
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

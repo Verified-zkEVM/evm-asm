@@ -11,8 +11,12 @@
   Feeds the v5 n=1 max+skip loop bodies (next).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMax
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

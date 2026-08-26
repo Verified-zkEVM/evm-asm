@@ -6,9 +6,16 @@
   sub-block subsumption/lift helpers used by the later stack-spec composition.
 -/
 
-import EvmAsm.Evm64.MulMod.LimbSpec
-import EvmAsm.Evm64.MulMod.ProductLayoutSpec
-import EvmAsm.Evm64.MulMod.AddrNorm
+module
+
+public import EvmAsm.Evm64.MulMod.LimbSpec
+public import EvmAsm.Evm64.MulMod.ProductLayoutSpec
+public import EvmAsm.Evm64.MulMod.AddrNorm
+meta import EvmAsm.Evm64.MulMod.LimbSpec
+meta import EvmAsm.Evm64.MulMod.ProductLayoutSpec
+meta import EvmAsm.Evm64.MulMod.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

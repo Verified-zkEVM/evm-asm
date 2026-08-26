@@ -1,13 +1,17 @@
 /- Shared declaration home for the SDIV dispatch handoff and return chain. -/
 
-import EvmAsm.Evm64.EvmWordArith.Div
-import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
-import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
-import EvmAsm.Evm64.SDiv.Compose.Words
-import EvmAsm.Evm64.SDiv.DispatchViewsShared
-import EvmAsm.Evm64.SDiv.Compose.BzeroPost
-import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div
+public import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
+public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
+public import EvmAsm.Evm64.SDiv.Compose.Words
+public import EvmAsm.Evm64.SDiv.DispatchViewsShared
+public import EvmAsm.Evm64.SDiv.Compose.BzeroPost
+public import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

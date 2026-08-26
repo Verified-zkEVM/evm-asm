@@ -28,8 +28,12 @@
   `Q1ddUndershootFromWideUn21.lean` (PR #7079).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

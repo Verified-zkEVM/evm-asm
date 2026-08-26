@@ -6,7 +6,12 @@
   building blocks for the full product-layout composition proof.
 -/
 
-import EvmAsm.Evm64.MulMod.AddPartialTable
+module
+
+public import EvmAsm.Evm64.MulMod.AddPartialTable
+meta import EvmAsm.Evm64.MulMod.AddPartialTable
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -12,8 +12,12 @@
   `evm-asm-wbc4i.9.3` (children 9.3.1/9.3.2/9.3.3).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

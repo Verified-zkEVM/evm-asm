@@ -14,8 +14,12 @@
   Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

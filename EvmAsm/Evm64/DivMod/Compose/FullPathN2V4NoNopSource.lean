@@ -4,7 +4,11 @@
   Source-level v4/no-NOP wrappers for the n=2 DIV loop.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

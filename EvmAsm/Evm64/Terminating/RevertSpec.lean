@@ -42,7 +42,12 @@
   `bv_decide`.
 -/
 
-import EvmAsm.Evm64.Terminating.ReturnSpec
+module
+
+public import EvmAsm.Evm64.Terminating.ReturnSpec
+meta import EvmAsm.Evm64.Terminating.ReturnSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Terminating

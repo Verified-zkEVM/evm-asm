@@ -4,15 +4,19 @@
   Shared declaration home for SDIV base, absolute-value, and sign views.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.CodeHandles
-import EvmAsm.Evm64.SDiv.Compose.SignCodeSlices
-import EvmAsm.Evm64.SDiv.Compose.DividendAbsPre
-import EvmAsm.Evm64.SDiv.Compose.DividendAbsPost
-import EvmAsm.Evm64.SDiv.LimbSpec
-import EvmAsm.Evm64.SDiv.Compose.SaveRaDividendAbsPre
-import EvmAsm.Evm64.SDiv.Compose.SaveRaDividendAbsPost
-import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
-import EvmAsm.Evm64.SDiv.Compose.DivisorAbsPost
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.CodeHandles
+public import EvmAsm.Evm64.SDiv.Compose.SignCodeSlices
+public import EvmAsm.Evm64.SDiv.Compose.DividendAbsPre
+public import EvmAsm.Evm64.SDiv.Compose.DividendAbsPost
+public import EvmAsm.Evm64.SDiv.LimbSpec
+public import EvmAsm.Evm64.SDiv.Compose.SaveRaDividendAbsPre
+public import EvmAsm.Evm64.SDiv.Compose.SaveRaDividendAbsPost
+public import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
+public import EvmAsm.Evm64.SDiv.Compose.DivisorAbsPost
+
+@[expose] public section
 
 /-
   EvmAsm.Evm64.SDiv.Compose.BaseCode

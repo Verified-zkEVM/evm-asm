@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

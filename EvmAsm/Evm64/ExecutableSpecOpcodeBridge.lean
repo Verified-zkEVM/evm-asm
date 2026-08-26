@@ -6,10 +6,14 @@
   (GH #109).
 -/
 
-import EvmAsm.Evm64.Dispatch
-import EvmAsm.Evm64.Env.Gas
-import EvmAsm.Evm64.TerminatingArgs
-import Mathlib.Tactic.IntervalCases
+module
+
+public import EvmAsm.Evm64.Dispatch
+public import EvmAsm.Evm64.Env.Gas
+public import EvmAsm.Evm64.TerminatingArgs
+public import Mathlib.Tactic.IntervalCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

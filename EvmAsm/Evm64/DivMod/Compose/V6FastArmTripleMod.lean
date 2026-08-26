@@ -14,8 +14,12 @@
   441-step bound.  Brick 6 (triple) of the MOD v6 fast arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.BodyV6Mod
-import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnectMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.BodyV6Mod
+public import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnectMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

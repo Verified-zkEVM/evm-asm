@@ -10,7 +10,11 @@
   result window. This is the `h_f` continuation of the top-level dispatch merge.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.ZeroPathBody
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.ZeroPathBody
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

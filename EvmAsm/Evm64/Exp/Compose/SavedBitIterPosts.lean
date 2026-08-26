@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

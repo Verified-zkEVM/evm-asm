@@ -14,14 +14,18 @@
   n2 `N2V5CallableExact` wrapper.  Step toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOff
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FullShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5DivLimbThreadedShift0
-import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
-import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridgeCallable
-import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOff
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FullShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5DivLimbThreadedShift0
+public import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
+public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridgeCallable
+public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

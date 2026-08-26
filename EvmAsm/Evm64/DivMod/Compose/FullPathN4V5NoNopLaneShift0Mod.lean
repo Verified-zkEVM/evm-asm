@@ -13,10 +13,14 @@
     `carry2` obligation vacuously discharged (`n4_shift0_call_addback_first_carry_nz`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddbackMod
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipModWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackModWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddbackMod
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipModWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackModWordLane
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

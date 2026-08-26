@@ -12,8 +12,12 @@
   compact NAMED post (brick 6, bead `evm-asm-wbc4i.9.1`).
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

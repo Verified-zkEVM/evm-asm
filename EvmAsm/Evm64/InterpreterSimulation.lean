@@ -4,7 +4,11 @@
   First simulation-relation surface for the pure interpreter loop (GH #109).
 -/
 
-import EvmAsm.Evm64.InterpreterLoop
+module
+
+public import EvmAsm.Evm64.InterpreterLoop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

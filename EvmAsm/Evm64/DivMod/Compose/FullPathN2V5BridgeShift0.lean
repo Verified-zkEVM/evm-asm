@@ -12,9 +12,16 @@
   `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FrameShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FrameShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FrameShift0
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

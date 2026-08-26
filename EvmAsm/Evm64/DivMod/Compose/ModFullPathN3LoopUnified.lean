@@ -7,9 +7,13 @@
   should use selected/reachable carry evidence instead.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

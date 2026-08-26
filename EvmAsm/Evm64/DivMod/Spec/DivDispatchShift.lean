@@ -13,8 +13,12 @@
   and still discharge every per-shape lane.  Assembly prep for bead `evm-asm-wbc4i.10.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
-import EvmAsm.Evm64.DivMod.Compose.CLZ
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

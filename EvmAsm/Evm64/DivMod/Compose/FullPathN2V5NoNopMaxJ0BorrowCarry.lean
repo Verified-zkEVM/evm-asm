@@ -9,7 +9,11 @@
   no-borrow, so the conditional hypothesis is vacuously dischargeable.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0Exit
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0Exit
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

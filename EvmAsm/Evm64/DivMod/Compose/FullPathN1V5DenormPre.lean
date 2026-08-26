@@ -11,8 +11,12 @@
   follow-up.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
-import EvmAsm.Evm64.DivMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
+public import EvmAsm.Evm64.DivMod.Compose.Base
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

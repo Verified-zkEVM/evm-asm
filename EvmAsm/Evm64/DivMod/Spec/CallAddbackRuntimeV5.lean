@@ -23,9 +23,13 @@
   `divKTrialCallV4QHat_eq_div128Quot_v4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

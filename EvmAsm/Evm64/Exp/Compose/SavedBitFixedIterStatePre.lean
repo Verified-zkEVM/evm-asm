@@ -4,8 +4,12 @@
   Fixed-loop preconditions that carry the bundled induction state.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterState
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterState
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

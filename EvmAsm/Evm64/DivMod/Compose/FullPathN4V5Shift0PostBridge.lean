@@ -13,7 +13,11 @@
   instantiate it with their `qVal`/scratch.  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

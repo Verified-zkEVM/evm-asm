@@ -5,9 +5,13 @@
   produced by the fixed loop entry bridge.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

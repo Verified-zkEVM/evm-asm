@@ -13,11 +13,15 @@
   Bead `evm-asm-wbc4i.9.3.3.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOff
-import EvmAsm.Evm64.DivMod.Spec.N3V5PostToDispatchPostV5
-import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopFullToNopOff
+public import EvmAsm.Evm64.DivMod.Spec.N3V5PostToDispatchPostV5
+public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShape
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

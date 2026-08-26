@@ -4,7 +4,11 @@
   Named case postconditions for the fixed x19 merged EXP iteration.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

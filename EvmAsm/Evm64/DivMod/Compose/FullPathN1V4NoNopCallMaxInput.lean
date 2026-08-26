@@ -4,7 +4,11 @@
   Bundled call/max/max/max proofs for the n=1 v4/no-NOP full DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

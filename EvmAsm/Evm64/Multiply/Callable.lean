@@ -23,9 +23,13 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Multiply.Spec
-import EvmAsm.Evm64.CallingConvention
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Multiply.Spec
+public import EvmAsm.Evm64.CallingConvention
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

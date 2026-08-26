@@ -11,8 +11,12 @@
   n=3 analog of `FullPathN2V5FrameShift0`.  Bead `evm-asm-wbc4i.9.3.3.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
