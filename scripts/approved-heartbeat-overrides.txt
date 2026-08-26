@@ -153,3 +153,11 @@ vendor/sail-riscv-zkvm-lean/Out/ZicfilpInsts.lean            1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicfilpRegs.lean             1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicsrInsts.lean              1000000000
 vendor/sail-riscv-zkvm-lean/Out/ZicsrTypes.lean              1000000000
+
+# SLH-DSA (FIPS 205) demo verifier proofs (EvmAsm/SLHDSA). The block-effect and
+# spec-assembly collapses over the ~130-instruction routine exceed the default
+# budget; values are ceilings audited here.
+EvmAsm/SLHDSA/DemoCorrect.lean 1000000
+EvmAsm/SLHDSA/VerifyProof.lean 1000000
+EvmAsm/SLHDSA/VerifyProof.lean 2000000
+EvmAsm/SLHDSA/VerifyProof.lean 4000000

@@ -118,6 +118,7 @@ import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates
 import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
+import EvmAsm.SLHDSA
 import EvmAsm.Progress
 import EvmAsm.Progress.CycleBounds
 import EvmAsm.Progress.Routines
