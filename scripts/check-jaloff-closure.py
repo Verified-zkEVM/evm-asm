@@ -105,16 +105,42 @@ NO_EXPAND = {"jalOff", "jalOffInRange", "laHi", "laLo", "brOff", "GuestAddrs"}
 # CodeReq / List RoutineEntry / Stmt) or itself applies `jalOff`.
 # Dotted references (`Ns.foo_prog`) are deliberate cross-module links and are
 # always followed (by last segment).
-EXPAND_TYPE_RE = re.compile(
-    r":\s*(?:Program|List Instr|Stmt|BitVec 21|Word|CodeReq|"
-    r"List RoutineEntry)\b")
+# Return-type shapes that can carry an instruction-bearing body.  This must
+# match the declaration's *return* annotation, not a parameter annotation:
+# ``def f (x : Word) : Fn := ...`` is not a Program and following it pulls the
+# whole proof tower into the textual closure (including unrelated jalOffs).
+# The first-line scanner below recognizes the top-level colon after any
+# parenthesized/braced binders; declarations whose return type is wrapped onto
+# later lines are still eligible through the explicit ``jalOff`` test.
+EXPAND_RETURN_TYPES = {
+    "Program", "List Instr", "Stmt", "BitVec 21", "Word", "CodeReq",
+    "List RoutineEntry",
+}
 
 PROG_SUFFIX_RE = re.compile(r"(?:_prog|_prog_of|_prog_with_cap)$")
 
 
 def expandable(body: str) -> bool:
     first = body.splitlines()[0]
-    return bool(EXPAND_TYPE_RE.search(first)) or "jalOff" in strip_noise(body)
+    # A declaration can contain colons in parameter binders.  Find only a
+    # colon at nesting depth zero, i.e. the return annotation before `:=`.
+    m = re.match(
+        r"^(?:(?:noncomputable|private|protected)\s+)*"
+        r"(?:def|abbrev)\s+[A-Za-z_][A-Za-z0-9_']*\b", first)
+    return_type = None
+    if m:
+        tail = first[m.end():]
+        depth = 0
+        for i, ch in enumerate(tail):
+            if ch in "([{":
+                depth += 1
+            elif ch in ")]}":
+                depth = max(0, depth - 1)
+            elif ch == ":" and depth == 0 and not tail[i:i + 2] == ":=":
+                candidate = tail[i + 1:].split(":=", 1)[0].strip()
+                return_type = candidate
+    return (return_type in EXPAND_RETURN_TYPES or
+            "jalOff" in strip_noise(body))
 
 SELFTEST_ENTRY = "__jaloff_closure_selftest_entry"
 SELFTEST_PROG = "__jaloffClosureSelftest_prog"
