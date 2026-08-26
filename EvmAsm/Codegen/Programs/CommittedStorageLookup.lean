@@ -11,6 +11,8 @@
 import EvmAsm.Rv64.Program
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.GuestAddrs
+import EvmAsm.Codegen.AsmReloc
 
 namespace EvmAsm.Codegen
 
@@ -37,7 +39,7 @@ def storageWritesBlockLatestValue_prog : Program :=
     .SD .x2 .x8 (8 : BitVec 12),
     .SD .x2 .x9 (16 : BitVec 12),
     .SD .x2 .x18 (24 : BitVec 12),
-    .BLTU .x14 .x13 (276 : BitVec 13),
+    .BLTU .x14 .x13 (brOff (GuestAddrs.storage_writes_block_latest_value + 296) (GuestAddrs.storage_writes_block_latest_value + 20)),
     .MV .x8 .x15,
     .MV .x9 .x16,
     .MV .x18 .x17,
@@ -65,27 +67,27 @@ def storageWritesBlockLatestValue_prog : Program :=
     .ADDI .x7 .x7 (-1 : BitVec 12),
     .JAL .x0 (-24 : BitVec 21),
     .LI .x5 (0 : Word),
-    .BEQ .x5 .x13 (156 : BitVec 13),
+    .BEQ .x5 .x13 (brOff (GuestAddrs.storage_writes_block_latest_value + 288) (GuestAddrs.storage_writes_block_latest_value + 132)),
     .SLLI .x6 .x5 (7 : BitVec 6),
     .ADD .x7 .x12 .x6,
     .LD .x28 .x7 (0 : BitVec 12),
     .LD .x29 .x9 (0 : BitVec 12),
-    .BNE .x28 .x29 (128 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 152)),
     .LD .x28 .x7 (8 : BitVec 12),
     .LD .x29 .x9 (8 : BitVec 12),
-    .BNE .x28 .x29 (116 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 164)),
     .LD .x28 .x7 (16 : BitVec 12),
     .LD .x29 .x9 (16 : BitVec 12),
-    .BNE .x28 .x29 (104 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 176)),
     .LD .x28 .x7 (24 : BitVec 12),
     .LD .x29 .x9 (24 : BitVec 12),
-    .BNE .x28 .x29 (92 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 188)),
     .LD .x28 .x7 (32 : BitVec 12),
     .LD .x29 .x18 (0 : BitVec 12),
-    .BNE .x28 .x29 (80 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 200)),
     .LD .x28 .x7 (40 : BitVec 12),
     .LD .x29 .x18 (8 : BitVec 12),
-    .BNE .x28 .x29 (68 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.storage_writes_block_latest_value + 280) (GuestAddrs.storage_writes_block_latest_value + 212)),
     .LD .x28 .x7 (48 : BitVec 12),
     .LD .x29 .x18 (16 : BitVec 12),
     .BNE .x28 .x29 (56 : BitVec 13),
@@ -127,6 +129,7 @@ theorem storageWritesBlockLatestValueFunction_eq_prog :
         emitProgramR storageWritesBlockLatestValue_prog storageWritesBlockLatestValue_relocs := rfl
 
 #guard storageWritesBlockLatestValueFunction.startsWith "storage_writes_block_latest_value:\n"
+#guard storageWritesBlockLatestValue_prog.length = 82
 
 /-! ## Focused ABI probe
 

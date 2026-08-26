@@ -205,7 +205,7 @@ How the routine's text reaches the image — the transcribability question that
 | `handler-spec` | 89 |
 | `label-string` | 233 |
 | `not-authored` | 101 |
-| `register` | 15 |
+| `register` | 11 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
@@ -254,14 +254,13 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-204 unconverted routines have call sites but are named by no obligation,
+200 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 
 | symbol | call sites | shape | cost (B) |
 |---|---:|---|---:|
-| `rlp_field_to_u64_strict` | 152 | register | 148 |
 | `rlp_content_to_u64_strict` | 110 | register | 88 |
 | `rlp_content_to_u256_be_strict` | 87 | register | 104 |
 | `sg_load_u32le` | 39 | register | 48 |
@@ -286,6 +285,7 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `edd_be32_eq` | 10 | register | 92 |
 | `mpt_bounded_node_ref` | 10 | label-string | 176 |
 | `keccak_init` | 9 | label-string | 28 |
+| `bytecode_is_self_contained` | 8 | label-string | 72 |
 
 ## 6. What this queue CANNOT see
 
@@ -328,17 +328,17 @@ spots. In rough order of how much they matter:
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
 | `.text` symbols | 909 | 909 |
-| converted **and linked** | 471 | 471 |
-| unconverted | 438 | 438 |
-| unconverted bytes | 213088 | see below |
+| converted **and linked** | 475 | 475 |
+| unconverted | 434 | 434 |
+| unconverted bytes | 212516 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 572 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 576 conversion rows, of
 which 101 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 572 as "converted symbols" is the easy error here.
+Quoting 576 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -353,7 +353,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 58132 B of 213088 B unconverted
+Named-set cost: 58132 B of 212516 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
