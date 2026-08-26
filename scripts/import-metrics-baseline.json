@@ -1,8 +1,8 @@
 {
- "modules": 3057,
- "edges": 15238,
- "redundant_edges": 7517,
- "total_bytes": 2423271616,
+ "modules": 3065,
+ "edges": 15202,
+ "redundant_edges": 7479,
+ "total_bytes": 2421032032,
  "depth": 57,
  "depth_path_head": [
   "EvmAsm",
@@ -14,55 +14,55 @@
   "EvmAsm.Evm64.SDiv.Compose.StackSpecV5",
   "EvmAsm.Evm64.SDiv.V5ReturnShared"
  ],
- "sum_cone": 347356,
- "sum_private_cone": 68398,
- "module_headers": 1836,
+ "sum_cone": 346835,
+ "sum_private_cone": 68118,
+ "module_headers": 1848,
  "anchors": {
   "EvmAsm.Rv64.Word": {
-   "cone": 2894,
-   "cone_bytes": 2366774824,
+   "cone": 2890,
+   "cone_bytes": 2364535240,
    "private_cone": 1,
    "private_cone_bytes": 240304
   },
   "EvmAsm.Rv64.Basic": {
-   "cone": 2873,
-   "cone_bytes": 2361842360,
+   "cone": 2869,
+   "cone_bytes": 2359602776,
    "private_cone": 1,
    "private_cone_bytes": 5774992
   },
   "EvmAsm.Rv64.SepLogic": {
-   "cone": 2560,
-   "cone_bytes": 2186234536,
+   "cone": 2556,
+   "cone_bytes": 2183994952,
    "private_cone": 1,
    "private_cone_bytes": 4343512
   },
   "EvmAsm.Rv64.Program": {
-   "cone": 2542,
-   "cone_bytes": 2130313224,
+   "cone": 2538,
+   "cone_bytes": 2128073640,
    "private_cone": 1,
    "private_cone_bytes": 253624
   },
   "EvmAsm.Rv64.CPSSpec": {
-   "cone": 2479,
-   "cone_bytes": 2120232656,
+   "cone": 2475,
+   "cone_bytes": 2117993072,
    "private_cone": 1,
    "private_cone_bytes": 1109536
   },
   "EvmAsm.Rv64.Tactics.PerfTrace": {
-   "cone": 2444,
-   "cone_bytes": 2144033960,
+   "cone": 2440,
+   "cone_bytes": 2141794376,
    "private_cone": 1,
    "private_cone_bytes": 103848
   },
   "EvmAsm.Rv64.Tactics.XSimp": {
-   "cone": 2350,
-   "cone_bytes": 2034324136,
+   "cone": 2346,
+   "cone_bytes": 2032084552,
    "private_cone": 1,
    "private_cone_bytes": 222880
   },
   "EvmAsm.Rv64.AddrNormAttr": {
-   "cone": 1862,
-   "cone_bytes": 1381175816,
+   "cone": 1855,
+   "cone_bytes": 1378936232,
    "private_cone": 1,
    "private_cone_bytes": 90712
   },

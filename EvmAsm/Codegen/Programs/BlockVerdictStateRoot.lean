@@ -27,8 +27,6 @@ import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.AccountFieldGetters
 import EvmAsm.Codegen.Programs.BalCodePreimages
-import EvmAsm.Codegen.Programs.BalAccountAccessDescriptors
-import EvmAsm.Codegen.Programs.BalStorageAccessDescriptors
 import EvmAsm.Codegen.Programs.BlockRlpSize
 import EvmAsm.Codegen.Programs.RequestsHash
 import EvmAsm.Codegen.Programs.Address
