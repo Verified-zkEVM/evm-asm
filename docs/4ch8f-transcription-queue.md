@@ -387,7 +387,7 @@ bytes.
 | 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
 | 24 | `_start` | 100 | obl 8 | label-string | 6336 |
 | 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
-| 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
+| 26 | `rlp_content_to_u64` | 67 | gate 3; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
 | 29 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
