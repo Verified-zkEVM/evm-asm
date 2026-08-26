@@ -218,6 +218,32 @@ def k73RouteBMachPost
       v9 old18 v19 v20 status parentBytes scratchOutBytes headerBytes
       (status ≠ (0 : Word)) F) h
 
+/-- Region well-formedness depends on the base only through alignment, and on
+    the byte list only through its length, so equal-length lists at the same
+    base have identical `wf` obligations. -/
+theorem region_wf_of_length_eq {p : Word} {bs bs' : List (BitVec 8)}
+    (hwf : (Region.mk p bs).wf) (hlen : bs'.length = bs.length) :
+    (Region.mk p bs').wf := by
+  obtain ⟨ha, hb, hc⟩ := hwf
+  have hb' : p.toNat + bs'.length < 2 ^ 64 := by
+    have e1 : (Region.mk p bs).bytes.length = bs.length := rfl
+    rw [e1] at hb
+    rwa [hlen]
+  have hc' : ∀ k, k < bs'.length → isValidMemAddr (p + BitVec.ofNat 64 k) = true :=
+    fun k hk => by
+      exact hc k (hlen ▸ hk)
+  refine ⟨ha, hb', hc'⟩
+
+/-- The Expected window holding the Route-B written image is well-formed
+    whenever the caller-owned entry window at the same label is: the two
+    lists have equal length (32), so the `wf` side conditions coincide. -/
+theorem hvbfWrittenImage_wf {gasLimit gasUsed : Word}
+    {parentBytes expectedBytes : List (BitVec 8)}
+    (hwf : (Region.mk Expected expectedBytes).wf)
+    (hlen : expectedBytes.length = 32) :
+    (Region.mk Expected (hvbfWrittenImage gasLimit gasUsed parentBytes)).wf :=
+  region_wf_of_length_eq hwf (by rw [hvbfWrittenImage_length, hlen])
+
 /-! The normalized K73 post consumed by K74.  The successful arm is the
     established fixed-byte post; the failure arm retains both the nonzero
     status and the bytes actually left in the shared output window. -/
@@ -318,6 +344,25 @@ def hvbfFinalAny
       (0 : Word) Expected parentBytes expectedBytes headerBytes F h ∨
     hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
       (1 : Word) Expected parentBytes expectedBytes headerBytes F h
+
+/-- Route-B final state: same three-way outcome split as `hvbfFinalAny`, but
+    the success arms pin the Expected window at the image K73 actually wrote
+    (`hvbfWrittenImage`) instead of at the caller-owned entry image — after a
+    successful run the cell no longer holds the entry bytes, so claiming they
+    survive would repeat the defect this family repairs (#12346 residual 2b).
+    The failure arm keeps its own existential scratch exactly as before. -/
+def hvbfFinalRouteB
+    (sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasLimit gasUsed parentPtr : Word)
+    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  (∃ scratchBytes,
+    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed
+      parentPtr (2 : Word) gasUsed parentBytes scratchBytes headerBytes F h) ∨
+    hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      (0 : Word) Expected parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes F h ∨
+    hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      (1 : Word) Expected parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes F h
 
 def hvbfFinalOwn
     (sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr : Word)
