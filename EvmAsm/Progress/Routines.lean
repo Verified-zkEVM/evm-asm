@@ -415,14 +415,26 @@ def routineRegistry : List RoutineEntry := [
   -- `rlp_encode_uint_be` — the routine whose uncovered triple surfaced #11042.
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_within")
       (gate := "stripped payload `n - reubZeros xs 0 n ≤ 55` — the RLP "
-        ++ "short-form bound. Above it the header byte is still computed as "
-        ++ "specified but stops being an RLP header, so the routine is out of "
-        ++ "domain rather than wrong")
+        ++ "short-form bound, and a CORRECTNESS boundary rather than a domain "
+        ++ "convention. `reubOut` is `encodeBytes ∘ reubStrip`, so it is correct "
+        ++ "RLP at every length and demands a TWO-byte header above 55 "
+        ++ "(`reubOut_header_is_at_least_two_bytes_above_55`), while the "
+        ++ "routine's header path writes exactly one byte "
+        ++ "(`reub_header_path_writes_one_byte`, indices 21–24 of the deployed "
+        ++ "program). Above the gate the routine could not satisfy its own spec. "
+        ++ "boundary: `reubOut_at_55_is_short_form`; gate is a real restriction: "
+        ++ "`gate_excludes_56` with `gate_admits_55`")
       (notes := "whole-routine triple over the routine's own `reubOut` model; "
-        ++ "all three paths (all-zero, raw single byte, header) proved and each "
-        ++ "shown to fire on its own inputs"),
+        ++ "all three paths proved and each shown to fire on its own inputs — "
+        ++ "instances `reub_path_allZero`, `reub_path_rawByte`, "
+        ++ "`reub_path_headerL1`, `reub_path_headerL2`, distinct by "
+        ++ "`reub_paths_are_distinct`, with negative control "
+        ++ "`reub_path_headerL1_control`. #12867: these were anonymous `example`s "
+        ++ "until named, so no gate could see them"),
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_encode_within")
-      (gate := "same `≤ 55` short-form bound as `reub_spec_within`")
+      (gate := "same `≤ 55` short-form bound as `reub_spec_within` — see that "
+        ++ "row for why it is a correctness boundary; same instances and "
+        ++ "controls apply (`reub_path_headerL2`, `gate_excludes_56`)")
       (notes := "the same triple restated against the reference encoding "
         ++ "`encodeBytes (Nat.toBytesBE (Nat.fromBytesBE xs))`, so the claim is "
         ++ "against RLP rather than against the module's own model. The "
@@ -430,8 +442,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "port/Python divergence would not be visible here"),
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_within_of_length_le")
       (gate := "`n ≤ 55` — strictly stronger than the tight bound, and the "
-        ++ "form a caller can discharge without reasoning about `reubZeros`")
-      (notes := "ABI-shaped corollary; every production caller passes 8 or 32"),
+        ++ "form a caller can discharge without reasoning about `reubZeros`. "
+        ++ "Instances/controls as for `reub_spec_within` (`gate_admits_55`, "
+        ++ "`gate_excludes_56`)")
+      (notes := "ABI-shaped corollary. ⚠️ the earlier note said 'every "
+        ++ "production caller passes 8 or 32' — an unverified universal over "
+        ++ "call sites, not a fact this row establishes; dropped rather than "
+        ++ "restated, since nothing here checks it"),
 
   -- `rlp_encode_bytes` — #10780 item 2. Total function: no input-domain
   -- restriction, so `.proven` where `reub` is `.conditional` — both sides of
@@ -4255,6 +4272,32 @@ private noncomputable abbrev _header_hbound_slack_witness :=
   @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_forces_trailing_slack
 private noncomputable abbrev _header_hbound_classify_witness :=
   @EvmAsm.Codegen.HeaderFieldsHboundCover.next_sub_len_classified
+-- #12867: `rlp_encode_uint_be` path coverage. These four were anonymous
+-- `example`s in RlpEncodeUintBeComposeSAsm.lean — proved but unwitnessable,
+-- and so invisible to every gate. Named, plus the boundary evidence showing
+-- why the `≤ 55` gate is a correctness boundary and not a convention.
+private noncomputable abbrev _reub_path_allZero_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_allZero
+private noncomputable abbrev _reub_path_rawByte_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_rawByte
+private noncomputable abbrev _reub_path_headerL1_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1
+private noncomputable abbrev _reub_path_headerL2_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL2
+private noncomputable abbrev _reub_paths_distinct_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_paths_are_distinct
+private noncomputable abbrev _reub_path_headerL1_control_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1_control
+private noncomputable abbrev _reub_short_form_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_at_55_is_short_form
+private noncomputable abbrev _reub_long_form_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_header_is_at_least_two_bytes_above_55
+private noncomputable abbrev _reub_header_one_byte_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_header_path_writes_one_byte
+private noncomputable abbrev _reub_gate_excludes_56_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_excludes_56
+private noncomputable abbrev _reub_gate_admits_55_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_admits_55
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
