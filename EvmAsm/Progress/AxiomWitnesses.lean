@@ -408,6 +408,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
 
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_fails_under_slack_only
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_forces_trailing_slack
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance_has_a_decode
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_vacuous_control
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.next_sub_len_classified
+
 #print axioms EvmAsm.Codegen.HeaderFieldsSpec.header_extract_state_root_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderReceiptsRootSpec.header_extract_receipts_root_spec_within
