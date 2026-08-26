@@ -207,6 +207,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
@@ -1347,7 +1348,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_short_pinned_spec_within")
       (gate := "`len.toNat < 56` — the RLP short-form list-prefix bound. The "
         ++ "`lenlen ≥ 2` long forms are the documented cut (#10780 item 3), the "
-        ++ "same boundary as `rlp_item_size`")
+        ++ "same boundary as `rlp_item_size`"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
         ++ "`0xC0 + len` and sets the cell flag to 1"),
   -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
@@ -1360,7 +1362,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long1_pinned_spec_within")
       (gate := "`56 ≤ len.toNat < 256` — the 1-length-byte long form. Together "
         ++ "with the short row this covers `len < 256`; `lenlen ≥ 2` (the "
-        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3")
+        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long1\") pinned triple; writes header bytes "
         ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
         ++ "byte and minimal by construction here, so no leading-zero side "
@@ -1371,7 +1374,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long2_pinned_spec_within")
       (gate := "`256 ≤ len.toNat < 65536` — the 2-length-byte long form. With the "
         ++ "short and long1 rows this covers `len < 65536`; `lenlen ≥ 3` remains "
-        ++ "the cut")
+        ++ "the cut"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long2\") pinned triple; writes `[0xF9, len >>> 8, len]` "
         ++ "and sets the cell flag to 3. The length-byte loop runs TWICE here, so "
         ++ "the step bound is 32 rather than long1's 22. ⭐ Canonical form is "
@@ -1387,7 +1391,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long3_pinned_spec_within")
       (gate := "`65536 ≤ len.toNat < 16777216` — the 3-length-byte long form. With "
         ++ "the short, long1 and long2 rows this covers `len < 16777216`; the cut "
-        ++ "moves to `lenlen ≥ 4`")
+        ++ "moves to `lenlen ≥ 4`"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long3\") pinned triple; writes "
         ++ "`[0xFA, len >>> 16, len >>> 8, len]` and sets the cell flag to 4. Step "
         ++ "bound 42 = 11 ladder + 5 header + 22 loop (`7*3+1`) + 3 epilogue + 1 "
@@ -4326,6 +4331,22 @@ private noncomputable abbrev _ris_gate_excl_longList_witness :=
   @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longList
 private noncomputable abbrev _ris_gate_boundaries_witness :=
   @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_boundaries
+-- #12867 / #12871: the arm-tiling family. ⚠️ These six theorems landed in
+-- RlpEncodeListPrefixArmsTile.lean and were NEITHER witnessed NOR cited by any
+-- row -- proved, building, and invisible to every gate, which is the same
+-- defect class the census was opened to find. Registering existing work.
+private noncomputable abbrev _lp_arms_tile_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_tile
+private noncomputable abbrev _lp_arms_disjoint_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_disjoint
+private noncomputable abbrev _lp_arms_index_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.armGate_determines_index
+private noncomputable abbrev _lp_arms_reachable_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_each_arm_reachable
+private noncomputable abbrev _lp_arms_top_word_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_top_reachable_as_word
+private noncomputable abbrev _lp_arms_boundary_control_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_boundary_control
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
