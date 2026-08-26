@@ -26,20 +26,24 @@
   Run via `lake exe rlp-diff-check` (see `scripts/rlp-check-all.sh`).
 -/
 
-import EvmAsm.EL.RLP.ByteStringDecodeBridge
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.EL.RLP.ListDecode
-import EvmAsm.EL.RLP.ListDecodeBridge
-import EvmAsm.EL.RLP.LongForm
-import EvmAsm.EL.RLP.LongFormDecodeBridge
-import EvmAsm.EL.RLP.Prefix
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.Program
-import EvmAsm.EL.RLP.ProgramSpec
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.EL.RLP.ReadLength
-import EvmAsm.EL.RLP.ReadLengthBridge
-import EvmAsm.EL.RLP.Scalar
+module
+
+public import EvmAsm.EL.RLP.ByteStringDecodeBridge
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.EL.RLP.ListDecode
+public import EvmAsm.EL.RLP.ListDecodeBridge
+public import EvmAsm.EL.RLP.LongForm
+public import EvmAsm.EL.RLP.LongFormDecodeBridge
+public import EvmAsm.EL.RLP.Prefix
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.Program
+public import EvmAsm.EL.RLP.ProgramSpec
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.EL.RLP.ReadLength
+public import EvmAsm.EL.RLP.ReadLengthBridge
+public import EvmAsm.EL.RLP.Scalar
+
+@[expose] public section
 
 namespace EvmAsm.Tests.RlpDiffCheck
 

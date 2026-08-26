@@ -15,7 +15,12 @@
   (= `mcopyResult`).
 -/
 
-import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+module
+
+public import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+meta import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

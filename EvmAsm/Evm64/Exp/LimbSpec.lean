@@ -10,13 +10,17 @@
   gets exactly one cpsTriple lemma.
 -/
 
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Exp.Program
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.Exp.LimbSpecBase
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Exp.Program
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.Exp.LimbSpecBase
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

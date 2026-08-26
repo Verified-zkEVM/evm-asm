@@ -4,8 +4,12 @@
   Pure stack-to-accelerator execution bridge for KECCAK256 (GH #111).
 -/
 
-import EvmAsm.Evm64.KeccakArgsStackDecode
-import EvmAsm.EL.KeccakEcallBridge
+module
+
+public import EvmAsm.Evm64.KeccakArgsStackDecode
+public import EvmAsm.EL.KeccakEcallBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

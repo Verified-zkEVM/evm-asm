@@ -145,14 +145,33 @@ the interface. They point the same way, and once a definition is unexposed its
 ## 5a. `private` and `public` do not mix inside an exposed body
 
 **A public declaration cannot reference a `private` one** once its body is
-exposed, because the body *is* the interface. The symptom is misleading — an
-`Unknown constant` or `Unknown identifier` pointing at a helper defined a
-hundred lines above **in the same file**:
+exposed, because the body *is* the interface. The headline error looks like an
+ordinary typo — an `Unknown constant` or `Unknown identifier` pointing at a
+helper defined a hundred lines above **in the same file**:
 
 ```
 error: Unknown constant `EvmAsm.EL.RLP.RLPItem.decEq`      -- decEq is `private`
 error: Unknown identifier `modexpReadLengthAsm`            -- and so is this
 ```
+
+✅ **But Lean usually names the cause on the next line, and that note is the
+right thing to grep for:**
+
+```
+Note: A private declaration `warmStorageKey` (from the current module) exists
+but would need to be public to access here.
+```
+
+It appeared on 85 of wave EVM-1's errors and 40 of wave 10's. Keying a sweep on
+the note rather than on `Unknown identifier` is strictly better: it distinguishes
+this class from a genuine typo or a missing import, which the headline alone does
+not. ⚠️ It is not universal, though — some sites give only the headline, so a
+sweep should fall back to `Unknown identifier` and rely on the guards below.
+
+⚠️ **Knock-on errors in the same file are not separate problems.** An
+unresolvable name leaves a hole in a term, so the elaborator then reports things
+like `failed to synthesize instance of type class Decidable __do_lift✝` at an
+unrelated line. Fix the private references and they disappear; do not chase them.
 
 **The fix is to drop `private` from the referenced helper**, not to work around
 it. That is the honest fix rather than merely the convenient one: if a public,
@@ -286,8 +305,7 @@ service a 29-round cascade. What the loop needs is not manual driving but the
 
 Three hazards, each observed:
 
-**1. ⛔ Marking `meta` on a declaration a COMPILED tactic uses at runtime is
-catastrophic, not a no-op.** Marking `SeqFrame.extractUnionChain` meta gives:
+**1. ⛔ A tactic chain that is PARTLY `meta` SIGABRTs at its call sites.**
 
 ```
 libc++abi: terminating due to uncaught exception of type lean::exception:
@@ -296,9 +314,31 @@ Could not find native implementation of external declaration
 ```
 
 `lean` **SIGABRTs (exit 134)**, and because the tactic is used everywhere the
-failure fans out — 115 errors across unrelated `Evm64/**` files that no reader
-would connect to a Tactics edit. The message suggests `supportInterpreter :=
+failure fans out — errors across unrelated `Evm64/**` files that no reader would
+connect to a `Rv64/Tactics` edit. The message suggests `supportInterpreter :=
 true`; that is a red herring here.
+
+⚠️ **This section previously said the cause was marking `extractUnionChain`
+`meta`, and told you not to. That is wrong, and following it is what produces the
+crash.** The cause is a **mix**: an interpreted (`meta`) caller reaching a
+declaration that has no native implementation because *its* callees are `meta`.
+`extractUnionChain` was a plain `partial def` calling into wave 10's `meta`
+chain, so it could not be compiled and had no native symbol left to offer.
+
+✅ **The fix was to mark `extractUnionChain` `meta` as well** — i.e. to make the
+chain *consistent*, not to pull it back out. Verified directly: with that one
+mark the failing `Evm64` modules build.
+
+⇒ **The rule is: once an elab entry point is `meta`, everything it transitively
+reaches must be `meta` too.** A partially-converted chain is the failure mode;
+`meta` is not the hazard, the boundary is.
+
+⚠️ **And the crash need not appear in the wave that causes it.** Wave 10 marked
+115 declarations `meta` and built completely clean — because *the modules that
+invoke those tactics were still unmigrated, so nothing exercised the boundary*.
+The SIGABRT surfaced only in the next wave, when the callers became `module`
+files. A green wave build is **not** evidence that its `meta` marks are safe;
+this is the same structural blind spot that motivates `--check-tree-closure`.
 
 **2. ⛔ Dropping `private` can create a duplicate declaration.** `getBvLitVal?`
 is defined privately in **both** `Tactics/SeqFrame.lean` and
@@ -308,12 +348,24 @@ declared``.
 
 Two refinements, both learned by getting them wrong:
 
-* ⛔ **A PUBLIC sibling collides exactly as a private one does.** Wave 10 widened
-  `copyWordAsm`, private in `Programs/EIP7708Logs.lean`, without noticing it is
-  already **public** in `Programs/EvmStackHandlers.lean` — both under
-  `EvmAsm.Codegen`. A check that looks only for other *private* declarations
-  passes this and the build fails later. Search for the name declared **at all**,
-  not declared privately.
+* ⛔ **Visibility is not the discriminator — the NAMESPACE is.** Every
+  same-namespace sibling collides once one of them becomes public, whatever the
+  sibling's own visibility:
+  - a **public** sibling — `copyWordAsm`, private in `Programs/EIP7708Logs.lean`
+    and already public in `Programs/EvmStackHandlers.lean`, both under
+    `EvmAsm.Codegen`;
+  - a **still-private** sibling — `fourTimes`, private in *both*
+    `Proofs/ReloadHandler.lean` and `Proofs/HandlerSpecs.lean` under
+    `EvmAsm.Codegen.Proofs`. Widening only one of them still gives
+    ``a non-private declaration `EvmAsm.Codegen.Proofs.fourTimes` has already
+    been declared``.
+
+  ⚠️ It is tempting to reason that private names are mangled per module and so
+  two privates cannot clash. **That reasoning is wrong** — I tried it and the
+  build refuted it. Search for the name declared **at all** in the same
+  namespace. `ReloadHandler.lean` even carried a comment asserting *"the two
+  never collide — both are file-private"*, which is precisely the invariant
+  widening destroys.
 * ✅ **The clash is on the FULL name, so compare namespaces.** `plantedValidInput`
   is private in two files, but under `…Correspondence.Transaction` and
   `…Correspondence.Header` — different namespaces, no collision, widening is

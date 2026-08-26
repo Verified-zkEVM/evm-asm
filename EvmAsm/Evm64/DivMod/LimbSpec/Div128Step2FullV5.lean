@@ -16,9 +16,13 @@
   Bead `evm-asm-wbc4i.6.12` (V5.6.13).
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2V5
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase2bV5
-import EvmAsm.Rv64.Tactics.XPermPure
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2V5
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Phase2bV5
+public import EvmAsm.Rv64.Tactics.XPermPure
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

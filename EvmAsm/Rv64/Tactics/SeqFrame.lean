@@ -514,7 +514,7 @@ private meta def buildMonoProofTactic (oldCr newCr : Expr) : MetaM Expr := do
     `(head_singleton, tail_from_here)` pairs. The `tail_from_here` is the
     full sub-expression `union(head, rest)` at each position.
     Returns entries from outermost to innermost. -/
-partial def extractUnionChain (cr : Expr) : MetaM (Array (Expr × Expr × Expr)) := do
+meta partial def extractUnionChain (cr : Expr) : MetaM (Array (Expr × Expr × Expr)) := do
   let crW ← whnfR cr
   if crW.isAppOfArity ``EvmAsm.Rv64.CodeReq.union 2 then
     let head := crW.getAppArgs[0]!

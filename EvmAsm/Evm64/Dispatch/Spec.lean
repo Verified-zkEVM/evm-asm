@@ -20,8 +20,12 @@
   Refs GH #106, beads `evm-asm-afkny`, parent `evm-asm-77w8s`.
 -/
 
-import EvmAsm.Evm64.Dispatch.Compose
-import EvmAsm.Evm64.JumpTable
+module
+
+public import EvmAsm.Evm64.Dispatch.Compose
+public import EvmAsm.Evm64.JumpTable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

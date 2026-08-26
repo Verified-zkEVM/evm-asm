@@ -15,7 +15,11 @@
   (`evm_mload_unaligned_one_limb_q0_stack_spec_within` etc.).
 -/
 
-import EvmAsm.Evm64.MStore.LimbSpec
+module
+
+public import EvmAsm.Evm64.MStore.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

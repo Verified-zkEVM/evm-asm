@@ -1,7 +1,15 @@
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Codegen.GuestLayoutInstance
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Codegen.GuestLayoutInstance
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Codegen.GuestLayoutInstance
+
+@[expose] public section
 
 namespace EvmAsm.Tests.RunBlockLayoutBridge
 

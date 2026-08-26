@@ -17,10 +17,14 @@
   Add/LimbSpec + CallReturn, gate via scripts/port-check.sh.
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Codegen.Programs.U256
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Codegen.Programs.U256
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

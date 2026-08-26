@@ -5,7 +5,11 @@
   `zkvm_bls12_map_fp2_to_g2` accelerator.
 -/
 
-import EvmAsm.EL.KeccakInputBridge
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 
