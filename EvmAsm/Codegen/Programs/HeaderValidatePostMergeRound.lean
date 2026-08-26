@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopClose
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopWitness
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 
