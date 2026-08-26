@@ -516,4 +516,202 @@ theorem header_validate_base_fee_specref_within_arm2_yields_post :
 #print axioms header_validate_base_fee_specref_within_arm1_yields_post
 #print axioms header_validate_base_fee_specref_within_arm2_yields_post
 
+/-! ## §6  The Route-B machine post is inhabited (#12346 residual 2b)
+
+The repaired wrapper premise returns K73 through
+`k73RouteBCallPost`, whose success arm claims — among the usual restored
+registers — that the Expected window holds the image K73 actually wrote
+(`hvbfWrittenImage`), which the OLD premise could not claim truthfully
+(it reused the caller-owned entry list).  This section CONSTRUCTS an
+inhabitant of the success-arm shape at the witness family's gas values,
+proving the repaired contract non-vacuous: there is a real state
+satisfying every atom of the formerly-false clause.  The failure arm
+(existential scratch) is satisfiable a fortiori and needs no separate
+construction. -/
+
+/-- Split witness for the Route-B success arm: some partial state carries
+the callsite link register together with the entire `k73PostOwn` body at
+the written-image spelling. -/
+theorem k73_routeB_post_success_split :
+    ∃ h : PartialState,
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PostOwn (0x0ffff0 : Word) (0x0fffb8 : Word) (0x200000 : Word)
+          1 (2 : Word) ((100000 : Word) >>> 1) 3 4 50000 (0x200100 : Word)
+          hvbfBytes32 (hvbfWrittenImage (100000 : Word) (50000 : Word) hvbfBytes32)
+          hvbfBytes32 (0x12340000 : Word) (0x56780000 : Word)
+          (k74FlatFrame empAssertion)) h := by
+  let fixedRegs : List Reg :=
+    [.x1, .x2, .x8, .x9, .x18, .x19, .x20, .x0]
+  let fixedVal : Reg → Word := fun r => match r with
+    | .x1 => H + 40
+    | .x2 => 0x0ffff0
+    | .x8 => 0x200000
+    | .x9 => 1
+    | .x18 => 2
+    | .x19 => 3
+    | .x20 => 4
+    | .x12 => 0x200100
+    | .x0 => 0
+    | _ => 0
+  let ownedRegs : List Reg :=
+    [.x5, .x6, .x7, .x10, .x11, .x12, .x13, .x14, .x15, .x16, .x17,
+      .x28, .x29, .x30, .x31]
+  let fixedMems : List (Word × Word) :=
+    [(0x0ffff0, 0x12340000), (0x0ffff8, 0x56780000),
+     (0x0fffb8, H + 40), (0x0fffc0, 0x200000), (0x0fffc8, 1),
+     (0x0fffd0, 2), (0x0fffd8, 3), (0x0fffe0, 4)]
+  have hwz : hvbfWrittenImage (100000 : Word) (50000 : Word) hvbfBytes32
+      = hvbfBytes32 := by
+    simp only [hvbfWrittenImage]
+    exact hvbfExpectedBytes_zeros
+  -- h2: pins, owned regs, frame dwords, and the three byte regions.
+  let fixedHeap : Reg → PartialState :=
+    fun r => PartialState.singletonReg r (fixedVal r)
+  let ownedHeap : Reg → PartialState :=
+    fun r => PartialState.singletonReg r 0
+  let memHeap : (Word × Word) → PartialState :=
+    fun p => PartialState.singletonMem p.1 p.2
+  have singletonReg_disjoint {r1 r2 : Reg} {v1 v2 : Word}
+      (hne : r1 ≠ r2) :
+      (PartialState.singletonReg r1 v1).Disjoint
+        (PartialState.singletonReg r2 v2) := by
+    refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+      Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+    intro r
+    by_cases h : r = r1
+    · subst r
+      right
+      simp [PartialState.singletonReg, hne]
+    · left
+      simp [PartialState.singletonReg, h]
+  have singletonMem_disjoint {a1 a2 v1 v2 : Word} (hne : a1 ≠ a2) :
+      (PartialState.singletonMem a1 v1).Disjoint
+        (PartialState.singletonMem a2 v2) := by
+    refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+      Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+    intro a
+    by_cases h : a = a1
+    · subst a
+      right
+      simp [PartialState.singletonMem, hne]
+    · left
+      simp [PartialState.singletonMem, h]
+  have hFixed :
+      (fixedRegs.foldr (fun r acc => (r ↦ᵣ fixedVal r) ** acc) empAssertion)
+        (fixedRegs.foldr (fun p acc => (fixedHeap p).union acc)
+          PartialState.empty) := by
+    apply sepConj_foldr_satisfiable
+    · intro r hr
+      simp [fixedHeap, fixedVal, regIs]
+    · exact List.Pairwise.imp (fun {r1 r2} hne => singletonReg_disjoint hne)
+        (by decide)
+  have hOwned :
+      (ownedRegs.foldr (fun r acc => regOwn r ** acc) empAssertion)
+        (ownedRegs.foldr (fun r acc => (ownedHeap r).union acc)
+          PartialState.empty) := by
+    apply sepConj_foldr_satisfiable
+    · intro r hr
+      exact ⟨0, by simp [ownedHeap, regIs]⟩
+    · exact List.Pairwise.imp (fun {r1 r2} hne => singletonReg_disjoint hne)
+        (by decide)
+  have hRegs := sepConj_foldr_cross_satisfiable
+    (atomL := fun r : Reg => r ↦ᵣ fixedVal r) (heapL := fixedHeap)
+    (xs := fixedRegs) (atomR := fun r : Reg => regOwn r)
+    (heapR := ownedHeap) (ys := ownedRegs) hFixed hOwned (by
+      intro r1 hr1 r2 hr2
+      apply singletonReg_disjoint
+      simp [fixedRegs] at hr1
+      simp [ownedRegs] at hr2
+      aesop)
+  have hMems :
+      (fixedMems.foldr (fun p acc => (p.1 ↦ₘ p.2) ** acc) empAssertion)
+        (fixedMems.foldr (fun p acc => (memHeap p).union acc)
+          PartialState.empty) := by
+    apply sepConj_foldr_satisfiable
+    · intro p hp
+      simp [fixedMems] at hp
+      rcases hp with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ |
+        ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+      all_goals
+        refine ⟨rfl, ?_⟩
+        apply isValidDwordAccess_of_toNat
+        · decide
+        · left
+          exact ⟨by decide, by decide⟩
+    · exact List.Pairwise.imp
+        (fun {p q} hpq => singletonMem_disjoint hpq) (by decide)
+  let regState : PartialState :=
+    (fixedRegs.foldr (fun p acc => (fixedHeap p).union acc)
+      PartialState.empty).union
+      (ownedRegs.foldr (fun r acc => (ownedHeap r).union acc)
+        PartialState.empty)
+  let memState : PartialState :=
+    fixedMems.foldr (fun p acc => (memHeap p).union acc) PartialState.empty
+  have hRegMem : regState.Disjoint memState := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+    · intro r
+      right
+      simp [memState, fixedMems, memHeap, PartialState.singletonMem,
+        PartialState.union, PartialState.empty]
+    · intro a
+      left
+      simp [regState, fixedRegs, ownedRegs, fixedHeap, ownedHeap,
+        PartialState.singletonReg, PartialState.union, PartialState.empty]
+    · intro a
+      exact Or.inl rfl
+    · exact Or.inl rfl
+    · exact Or.inl rfl
+    · exact Or.inl rfl
+    · exact Or.inl rfl
+  have hAll :
+      (((fixedRegs.foldr (fun r acc => (r ↦ᵣ fixedVal r) ** acc) empAssertion) **
+        (ownedRegs.foldr (fun r acc => regOwn r ** acc) empAssertion)) **
+        (fixedMems.foldr (fun p acc => (p.1 ↦ₘ p.2) ** acc) empAssertion))
+        (regState.union memState) := by
+    exact ⟨regState, memState, hRegMem, rfl, hRegs, hMems⟩
+  have hRegions :
+      (bytesRegion (0x200000 : Word) hvbfBytes32 **
+        bytesRegion (0x200100 : Word) hvbfBytes32 **
+        bytesRegion Expected
+          (hvbfWrittenImage (100000 : Word) (50000 : Word) hvbfBytes32))
+        hvbfRegionsState := by
+    rw [hwz]
+    exact hvbfRegions_inhabited
+  have hBaseRegion : (regState.union memState).Disjoint hvbfRegionsState := by
+    apply hvbfRegions_disjoint_of_frame
+    intro a ha
+    simp [regState, memState, fixedRegs, ownedRegs, fixedHeap, ownedHeap,
+      fixedMems, memHeap, PartialState.union, PartialState.empty,
+      PartialState.singletonReg, PartialState.singletonMem] at ha
+    split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+    all_goals split at ha <;> simp_all
+  have hAllRegion :
+      (((((fixedRegs.foldr (fun r acc => (r ↦ᵣ fixedVal r) ** acc) empAssertion) **
+        (ownedRegs.foldr (fun r acc => regOwn r ** acc) empAssertion)) **
+        (fixedMems.foldr (fun p acc => (p.1 ↦ₘ p.2) ** acc) empAssertion)) **
+        (bytesRegion (0x200000 : Word) hvbfBytes32 **
+          bytesRegion (0x200100 : Word) hvbfBytes32 **
+          bytesRegion Expected
+            (hvbfWrittenImage (100000 : Word) (50000 : Word) hvbfBytes32)))
+        ((regState.union memState).union hvbfRegionsState)) := by
+    exact ⟨regState.union memState, hvbfRegionsState, hBaseRegion, rfl,
+      hAll, hRegions⟩
+  refine ⟨(regState.union memState).union hvbfRegionsState, ?_⟩
+  dsimp [regState, memState, fixedRegs, fixedVal, ownedRegs, fixedMems,
+    fixedHeap, ownedHeap, memHeap, hvbfBytes32, k73PostOwn, tailRest,
+    tailRestCore, frameSlotsSaved, hvbfSaved, k73Saved, hvbfFrame, k73Frame,
+    k74FlatFrame]
+    at hAllRegion ⊢
+  simp [sepConj_assoc', sepConj_emp_right', signExtend12]
+    at hAllRegion ⊢
+  xperm_chunked hAllRegion
+
+#print axioms k73_routeB_post_success_split
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef

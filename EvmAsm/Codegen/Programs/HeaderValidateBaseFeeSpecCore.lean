@@ -19,6 +19,7 @@
 import EvmAsm.Codegen.Programs.HeaderBaseFee
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
 import EvmAsm.Codegen.Programs.U256EqSAsm
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRef
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.AssertionSpec
@@ -142,6 +143,57 @@ def k73FailurePost
   tailRestScratch spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
     parentBytes scratchBytes headerBytes F
 
+/-! ### Route-B callee shape (issue #12346 item 10)
+
+    The honest K73 contract separates what the CALLER guarantees about the
+    `hvbf_expected` scratch on entry (`k73PreRest` instantiated at the entry
+    bytes, owned statically) from what K73 LEAVES there: every route of the
+    linked routine stores into the cell, so a success arm must pin the WRITTEN
+    recurrence encoding, not reuse the entry bytes.  #12762's shared-list
+    premise asserted the opposite and was refutable (#12346 residual 2b);
+    this definition family replaces it.  Atom order matches the attributed
+    copy in `HeaderValidateBaseFeeSpecRefCompose.k73RouteBArmPost`, from which
+    this was transcribed, with the return address fixed to the wrapper's
+    callsite link `H + 40`. -/
+
+/-- The content a successful K73 run leaves in the `hvbf_expected` scratch:
+    the reference EIP-1559 recurrence encoding for the route that fired. -/
+abbrev hvbfWrittenImage (gasLimit gasUsed : Word)
+    (parentBytes : List (BitVec 8)) : List (BitVec 8) :=
+  EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfExpectedBytes gasLimit gasUsed parentBytes
+
+theorem hvbfWrittenImage_length (gasLimit gasUsed : Word)
+    (parentBytes : List (BitVec 8)) :
+    (hvbfWrittenImage gasLimit gasUsed parentBytes).length = 32 := by
+  simp [hvbfWrittenImage,
+    EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.hvbfExpectedBytes]
+
+/-- Region well-formedness depends on the base only through alignment, and on
+    the byte list only through its length, so equal-length lists at the same
+    base have identical `wf` obligations. -/
+theorem region_wf_of_length_eq {p : Word} {bs bs' : List (BitVec 8)}
+    (hwf : (Region.mk p bs).wf) (hlen : bs'.length = bs.length) :
+    (Region.mk p bs').wf := by
+  obtain ⟨ha, hb, hc⟩ := hwf
+  have hb' : p.toNat + bs'.length < 2 ^ 64 := by
+    have e1 : (Region.mk p bs).bytes.length = bs.length := rfl
+    rw [e1] at hb
+    rwa [hlen]
+  have hc' : ∀ k, k < bs'.length → isValidMemAddr (p + BitVec.ofNat 64 k) = true :=
+    fun k hk => by
+      exact hc k (hlen ▸ hk)
+  refine ⟨ha, hb', hc'⟩
+
+/-- The Expected window holding the Route-B written image is well-formed
+    whenever the caller-owned entry window at the same label is: the two
+    lists have equal length (32), so the `wf` side conditions coincide. -/
+theorem hvbfWrittenImage_wf {gasLimit gasUsed : Word}
+    {parentBytes expectedBytes : List (BitVec 8)}
+    (hwf : (Region.mk Expected expectedBytes).wf)
+    (hlen : expectedBytes.length = 32) :
+    (Region.mk Expected (hvbfWrittenImage gasLimit gasUsed parentBytes)).wf :=
+  region_wf_of_length_eq hwf (by rw [hvbfWrittenImage_length, hlen])
+
 /-! The normalized K73 post consumed by K74.  The successful arm is the
     established fixed-byte post; the failure arm retains both the nonzero
     status and the bytes actually left in the shared output window. -/
@@ -151,6 +203,23 @@ def k73CallPost
     Assertion := fun h =>
   k73PostOwn spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr
       parentBytes expectedBytes headerBytes raIn old8 F h ∨
+  ∃ status scratchBytes,
+    status ≠ (0 : Word) ∧
+    k73FailurePost spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status
+      parentBytes scratchBytes headerBytes raIn old8 F h
+
+/-- Route-B twin of `k73CallPost` (#12346 residual 2b): same disjunction
+    envelope and register inventory, but the success arm pins the Expected
+    window at the image K73 actually wrote (`hvbfWrittenImage`) instead of
+    reusing the caller-owned entry byte list, so pre and post no longer
+    share an `expectedBytes` parameter. -/
+def k73RouteBCallPost
+    (spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed gasLimit parentPtr : Word)
+    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) :
+    Assertion := fun h =>
+  k73PostOwn spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes
+      raIn old8 F h ∨
   ∃ status scratchBytes,
     status ≠ (0 : Word) ∧
     k73FailurePost spH spK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status
@@ -242,6 +311,25 @@ def hvbfFinalAny
       (0 : Word) Expected parentBytes expectedBytes headerBytes F h ∨
     hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
       (1 : Word) Expected parentBytes expectedBytes headerBytes F h
+
+/-- Route-B final state: same three-way outcome split as `hvbfFinalAny`, but
+    the success arms pin the Expected window at the image K73 actually wrote
+    (`hvbfWrittenImage`) instead of at the caller-owned entry image — after a
+    successful run the cell no longer holds the entry bytes, so claiming they
+    survive would repeat the defect this family repairs (#12346 residual 2b).
+    The failure arm keeps its own existential scratch exactly as before. -/
+def hvbfFinalRouteB
+    (sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasLimit gasUsed parentPtr : Word)
+    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion) : Assertion := fun h =>
+  (∃ scratchBytes,
+    hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed
+      parentPtr (2 : Word) gasUsed parentBytes scratchBytes headerBytes F h) ∨
+    hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      (0 : Word) Expected parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes F h ∨
+    hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr
+      (1 : Word) Expected parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes F h
 
 def hvbfFinalOwn
     (sp0 spH spK raIn old8 headerPtr v9 old18 target v19 v20 gasUsed parentPtr : Word)
@@ -783,6 +871,60 @@ theorem header_validate_base_fee_k73_call_spec_within
       parentBytes expectedBytes headerBytes raIn old8 F)
     (Q := k73CallPost spH spK raIn old8 headerPtr v9 v18 (gasLimit >>> 1) v19 v20
       gasUsed parentPtr parentBytes expectedBytes headerBytes F)
+    (H + 36) K73 raIn
+      (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+        (GuestAddrs.header_validate_base_fee + 36)) n
+    (by exact jalOff_correct_add GuestAddrs.eip1559_calc_base_fee_per_gas
+          GuestAddrs.header_validate_base_fee 36 (by decide) (by decide)
+          (by decide) (by decide)) hmem
+    (by pcf; exact hF) hcalleeCr
+  have hseq := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hhead hcall
+  have hentry : H + 36 + 4 = H + 40 := by bv_omega
+  rw [hentry] at hseq
+  simpa only [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hseq
+
+/-- Call-segment adapter with an ABSTRACT callee contract: like
+    `header_validate_base_fee_k73_call_spec_within`, but the K73 boundary
+    assertions `P`/`Q` are parameters.  The Route-B premise instantiates
+    `Q := k73RouteBCallPost …`, which no longer shares a byte-list parameter
+    between entry and return (#12346 residual 2b repair). -/
+theorem header_validate_base_fee_k73_call_gen_spec_within
+    {cr calleeCode : CodeReq} {n : Nat}
+    (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 v18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion)
+    (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (hF : F.pcFree)
+    (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
+    (Q : Assertion)
+    (hcalleeMono : ∀ a i, calleeCode a = some i → cr a = some i)
+    (hcallee : cpsTripleWithin n K73 (H + 40) calleeCode
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 v18 v19 v20
+        gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes raIn old8 F)
+      ((.x1 ↦ᵣ (H + 40)) ** Q)) :
+    cpsTripleWithin (10 + n) H (H + 40) cr
+      (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+        v9 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+      ((.x1 ↦ᵣ (H + 40)) ** Q) := by
+  have hhead := hvbfHead sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+    v9 v18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK hF hcode
+  have hmem : ∀ a i,
+      CodeReq.singleton (H + 36)
+        (.JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+          (GuestAddrs.header_validate_base_fee + 36))) a = some i → cr a = some i := by
+    intro a i hi
+    apply hcode a i
+    exact CodeReq.ofProg_mem_at H (H + 36) hvbfProg 9
+      (.JAL .x1 (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
+        (GuestAddrs.header_validate_base_fee + 36))) (by bv_omega)
+      (by rw [hvbf_length]; decide) rfl (by rw [hvbf_length]; decide) a i hi
+  have hcalleeCr := cpsTripleWithin_extend_code hcalleeMono hcallee
+  have hcall := callWithin_spec (cr := cr)
+    (P := k73PreRest spH spK headerPtr v9 v18 v19 v20 gasLimit gasUsed parentPtr
+      parentBytes expectedBytes headerBytes raIn old8 F)
+    (Q := Q)
     (H + 36) K73 raIn
       (jalOff GuestAddrs.eip1559_calc_base_fee_per_gas
         (GuestAddrs.header_validate_base_fee + 36)) n
