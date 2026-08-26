@@ -28,8 +28,11 @@ namespace EddMemcpySAsm
 /-! ## The routine's semantics -/
 
 /-- Facts the loop never disturbs: buffer bounds, no address wrap, and
-    src/dst disjointness (the deployed callers copy between disjoint
-    scratch arenas). -/
+    src/dst disjointness.  The deployed callers copy between disjoint
+    scratch arenas, and that is now a THEOREM, not a docstring claim:
+    `eddMemcpy_callsite_spec` in `ExtractDepositData.lean` discharges
+    this whole conjunction from the concrete arena addresses at all five
+    `extract_deposit_data` call sites (#12805). -/
 def mcStatic (src dst : Word) (bs ws0 : List (BitVec 8)) (n : Nat) : Prop :=
   n ≤ bs.length ∧ ws0.length = n ∧ n < 2 ^ 32 ∧
   src.toNat + n < 2 ^ 64 ∧ dst.toNat + n < 2 ^ 64 ∧
@@ -283,7 +286,17 @@ def eddMemcpy_prog : Program :=
 
 #guard eddMemcpy_prog.length = 8
 
--- The code does not depend on the ghost arguments (sampled).
+/-- The code does not depend on the ghost arguments — the general
+    statement (#12805): flattening the derivation at ANY ghosts, at any
+    base, yields the same instructions as the pinned program's ghosts.
+    The ghosts only enter `Prop`-valued annotations, which `flatten`
+    drops, so this is definitional. -/
+theorem mcDeriv_flatten_ghost_free (src dst : Word)
+    (bs ws0 : List (BitVec 8)) (n : Nat) (base : Word) :
+    (mcDeriv src dst bs ws0 n).stmt.flatten base
+      = (mcDeriv 0 0 [] [] 0).stmt.flatten base := rfl
+
+-- The sampled pin kept as a cheap build-time witness of the theorem above.
 #guard (((mcDeriv 8 16 [0] [0] 1).stmt.flatten 0) : List Instr)
     == (eddMemcpy_prog : List Instr)
 
