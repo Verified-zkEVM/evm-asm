@@ -121,6 +121,53 @@ theorem taylorNatAux_next_output_le (num denominator i acc output : Nat)
   exact taylorNatAux_output_le num denominator (i + 1)
     (acc * num / (denominator * i)) (output + acc)
 
+/-! Increasing the numerator cannot decrease the exact recurrence.  This is
+    proved against the terminating recursion itself, rather than inferred from
+    a finite sample of traces: at each common state, multiplication and floor
+    division are monotone, and the larger-numerator run may simply continue
+    after the smaller run's accumulator has reached zero. -/
+
+theorem taylorNatAux_mono_num
+    (num₁ num₂ denominator i acc₁ acc₂ output₁ output₂ : Nat)
+    (h_num : num₁ ≤ num₂) (h_acc : acc₁ ≤ acc₂)
+    (h_output : output₁ ≤ output₂) :
+    taylorNatAux num₁ denominator i acc₁ output₁ ≤
+      taylorNatAux num₂ denominator i acc₂ output₂ := by
+  induction i, acc₂, output₂ using taylorNatAux.induct num₂ denominator
+    generalizing num₁ acc₁ output₁ with
+  | case1 i output₂ =>
+      have h_acc₁ : acc₁ = 0 := Nat.eq_zero_of_le_zero h_acc
+      rw [taylorNatAux.eq_1, if_pos h_acc₁,
+        taylorNatAux.eq_1, if_pos rfl]
+      exact h_output
+  | case2 i acc₂ output₂ h_acc₂ ih =>
+      by_cases h_acc₁ : acc₁ = 0
+      · rw [taylorNatAux.eq_1, if_pos h_acc₁,
+          taylorNatAux_step num₂ denominator i acc₂ output₂ h_acc₂]
+        exact le_trans h_output
+          (le_trans (Nat.le_add_right output₂ acc₂)
+            (taylorNatAux_output_le num₂ denominator (i + 1)
+              (acc₂ * num₂ / (denominator * i)) (output₂ + acc₂)))
+      · have h_prod : acc₁ * num₁ ≤ acc₂ * num₂ :=
+          Nat.mul_le_mul h_acc h_num
+        have h_acc' :
+            acc₁ * num₁ / (denominator * i) ≤
+              acc₂ * num₂ / (denominator * i) :=
+          Nat.div_le_div_right h_prod
+        have h_output' : output₁ + acc₁ ≤ output₂ + acc₂ :=
+          Nat.add_le_add h_output h_acc
+        rw [taylorNatAux_step num₁ denominator i acc₁ output₁ h_acc₁,
+          taylorNatAux_step num₂ denominator i acc₂ output₂ h_acc₂]
+        exact ih num₁ _ _ h_num h_acc' h_output'
+
+theorem taylorExpNat_mono_num {num₁ num₂ : Nat} (h_num : num₁ ≤ num₂) :
+    taylorExpNat 1 num₁ taylorDenominator ≤
+      taylorExpNat 1 num₂ taylorDenominator := by
+  unfold taylorExpNat
+  apply Nat.div_le_div_right
+  exact taylorNatAux_mono_num num₁ num₂ taylorDenominator 1
+    taylorDenominator taylorDenominator 0 0 h_num le_rfl le_rfl
+
 theorem taylorOutputBound_mul_word64_lt_word384 :
     taylorOutputBound * taylorWord64Bound < taylorWord384Bound := by
   rw [taylorOutputBound, taylorResultBound, taylorWord64Bound,
@@ -1041,10 +1088,19 @@ theorem taylorExp384_none_witness_measured :
       taylorResultBound]; decide
   exact ⟨h_result, taylorExp384_none_of_ge 2073394371 h_result⟩
 
+theorem taylorExpNat_ge_result_bound_of_ge
+    (numerator : Nat) (h_num : 2073394371 ≤ numerator) :
+    taylorResultBound ≤ taylorExpNat 1 numerator taylorDenominator := by
+  exact le_trans taylorExp384_none_witness_measured.1
+    (taylorExpNat_mono_num h_num)
+
 #print axioms taylorExp384_some_of_lt
 #print axioms taylorExp384_none_of_ge
 #print axioms taylorExp384_some_iff_lt
 #print axioms taylorExp384_none_iff_ge
 #print axioms taylorExp384_exact_iff_lt
+#print axioms taylorNatAux_mono_num
+#print axioms taylorExpNat_mono_num
+#print axioms taylorExpNat_ge_result_bound_of_ge
 
 end EvmAsm.Stateless.SpecRef

@@ -110,10 +110,10 @@ theorem priceEntryRest_inhabited :
 
 The wrapper's prologue and epilogue are already an ordinary `abiFrame_spec`
 instance.  Keeping this shell separate makes the remaining route obligation
-visible: the body theorem below is a continuation from `K + 32` to `K + 248`,
+visible: the body theorem below is a continuation from `K + 32` to `K + 260`,
 not a renamed copy of the final whole-routine statement. -/
 
-def k70Body : Program := headerValidateExcessBlobGas_prog.drop 8 |>.take 54
+def k70Body : Program := headerValidateExcessBlobGas_prog.drop 8 |>.take 57
 
 def k70BodyPre
     (spC : Word) (vals : Reg → Word)
@@ -275,7 +275,7 @@ theorem k70_status1_tail_spec
     (hsub : ∀ a i,
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i) :
-    cpsTripleWithin 2 (K + 236) (K + 248) cr
+    cpsTripleWithin 2 (K + 248) (K + 260) cr
       (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ old10))
       (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ (1 : Word))) := by
   let rest := k70StatusTailRest spC vals scratch
@@ -283,12 +283,12 @@ theorem k70_status1_tail_spec
     dsimp [rest, k70StatusTailRest]
     pcf
     exact hscratch
-  have hliAny : ∀ v, cpsTripleWithin 1 (K + 236) (K + 240) cr
+  have hliAny : ∀ v, cpsTripleWithin 1 (K + 248) (K + 252) cr
       (rest ** (.x10 ↦ᵣ v)) (rest ** (.x10 ↦ᵣ (1 : Word))) := by
     intro v
-    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 236) (by decide)
-    have hliMem := CodeReq.ofProg_mem_at K (K + 236)
-      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 59
+    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 248) (by decide)
+    have hliMem := CodeReq.ofProg_mem_at K (K + 248)
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 62
       (.LI .x10 (1 : Word)) (by decide) (by decide) rfl (by decide)
     have hliC := cpsTripleWithin_extend_code
       (fun a i hi => hsub a i (hliMem a i hi)) hli
@@ -297,10 +297,10 @@ theorem k70_status1_tail_spec
       (fun _ hq => by xperm_hyp hq) hliF
   have hliOwn := cpsTripleWithin_of_forall_regIs_to_regOwn
     (r := .x10) (P := rest) (Q := rest ** (.x10 ↦ᵣ (1 : Word))) hliAny
-  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 240)
-  rw [show (K + 240) + signExtend21 (8 : BitVec 21) = K + 248 from by decide] at hj
-  have hjMem := CodeReq.ofProg_mem_at K (K + 240)
-    (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 60
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 252)
+  rw [show (K + 252) + signExtend21 (8 : BitVec 21) = K + 260 from by decide] at hj
+  have hjMem := CodeReq.ofProg_mem_at K (K + 252)
+    (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 63
     (.JAL .x0 (8 : BitVec 21)) (by decide) (by decide) rfl (by decide)
   have hjC := cpsTripleWithin_extend_code
     (fun a i hi => hsub a i (hjMem a i hi)) hj
@@ -310,7 +310,7 @@ theorem k70_status1_tail_spec
       dsimp [rest, k70StatusTailRest]
       pcf
       exact hscratch) hjC
-  have hjump : cpsTripleWithin 1 (K + 240) (K + 248) cr
+  have hjump : cpsTripleWithin 1 (K + 252) (K + 260) cr
       (rest ** (.x10 ↦ᵣ (1 : Word)))
       (rest ** (.x10 ↦ᵣ (1 : Word))) := by
     simpa [rest, sepConj_assoc', sepConj_comm', sepConj_left_comm',
@@ -335,7 +335,7 @@ theorem k70_tail_spec
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i) :
     cpsTripleWithin (excessFrame.length + 1 + 1)
-      (K + 248) ret cr
+      (K + 260) ret cr
       (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
         status scratchPost)
       (excessCalleePost sp0 vals status ret scratchPost) := by
@@ -371,15 +371,15 @@ theorem k70_tail_spec
   have mDealloc := k70_piece_mem hfullDealloc hbound hsub
   have mRet := k70_piece_mem hfullRet hbound hsub
   have hpcFrame := pcFree_frameSlotsSaved excessFrame newSp vals
-  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 248)
+  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 260)
     (by decide) (by decide)
-  rw [show (K + 248 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
-      K + 276 from by decide] at hload
+  rw [show (K + 260 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
+      K + 288 from by decide] at hload
   have hloadF := cpsTripleWithin_frameR callerPost
     (by dsimp [callerPost]; pcf; exact hscratchPost) hload
   have hloadC := cpsTripleWithin_extend_code mLoad hloadF
   have hdealloc := addi_spec_gen_same_within .x2 newSp
-    (64 : BitVec 12) (K + 276) (by decide)
+    (64 : BitVec 12) (K + 288) (by decide)
   have hrestore : newSp + signExtend12 (64 : BitVec 12) = sp0 := by
     dsimp [newSp]
     rw [BitVec.add_assoc]
@@ -403,7 +403,7 @@ theorem k70_tail_spec
       frameSlotsSaved excessFrame newSp vals =
         frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) := by
     simp [excessFrame, excessFrameVals, hret]
-  have hret0 := Fn.jalr_ret_spec (K + 280) ret hretAlign
+  have hret0 := Fn.jalr_ret_spec (K + 292) ret hretAlign
     (P := (.x2 ↦ᵣ sp0) ** regsAt excessSavedFrame vals **
       frameSlotsSaved excessFrame newSp vals ** callerPost)
     (pcFree_sepConj pcFree_regIs
@@ -494,7 +494,7 @@ theorem k70_abi_from_body
     (hsub : ∀ a i,
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i)
-    (hbody : cpsTripleWithin bodySteps (K + 32) (K + 248) cr
+    (hbody : cpsTripleWithin bodySteps (K + 32) (K + 260) cr
       (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals
         a0 a1 a2 a3 scratch)
       (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
@@ -530,7 +530,7 @@ theorem k70_abi_from_body
       have hentry : K + BitVec.ofNat 64 (4 * (1 + excessFrame.length)) = K + 32 := by
         decide
       have hexit : K + BitVec.ofNat 64
-          (4 * (1 + excessFrame.length + k70Body.length)) = K + 248 := by
+          (4 * (1 + excessFrame.length + k70Body.length)) = K + 260 := by
         decide
       rw [hentry, hexit]
       simpa [k70BodyPre, k70BodyPost] using hbody)

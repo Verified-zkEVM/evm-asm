@@ -378,8 +378,16 @@ def ziskHeaderValidateBaseFeeDataSection : String :=
     product overflows, it is larger than every representable `base_fee`; the
     overflow arm therefore saturates this comparison to the non-high branch
     instead of returning the helper's overflow status.  This saturation is
-    local to the normalized price comparison; overflow in the price-producing
-    helper remains an error.
+    local to the normalized price comparison.  The price producer itself is
+    bounded to a 256-bit output, so K70 applies the measured result-boundary
+    guard `excess_blob_gas >= 2,073,394,371` before calling it and takes the
+    same non-high branch directly.  The adjacent value 2,073,394,370 still
+    takes the exact helper path; the guard is therefore not a blanket input
+    restriction, but the representability split required by this comparison.
+    The pinned reference has no overflow arm (`execution-specs` e5a8caf1b,
+    `utils/numeric.py:199-208`); the model theorem
+    `taylorExpNat_ge_result_bound_of_ge` proves the boundary implication for
+    every larger U64 numerator rather than extrapolating from one trace.
 
     The schedule branch computes `used // 3` (algebraically `used * 7 // 21`),
     but the spec's `blob_gas_used * 7` is an overflow-checked U64 multiply:
@@ -412,29 +420,32 @@ def headerValidateExcessBlobGas_prog : Program :=
     .MV .x18 .x12,
     .MV .x19 .x13,
     .ADD .x20 .x18 .x9,
-    .BLTU .x20 .x18 (184 : BitVec 13),
+    .BLTU .x20 .x18 (brOff (GuestAddrs.header_validate_excess_blob_gas + 248) (GuestAddrs.header_validate_excess_blob_gas + 52)),
     .LUI .x5 (448 : BitVec 20),
-    .BLTU .x20 .x5 (160 : BitVec 13),
+    .BLTU .x20 .x5 (brOff (GuestAddrs.header_validate_excess_blob_gas + 232) (GuestAddrs.header_validate_excess_blob_gas + 60)),
+    .LUI .x5 (506200 : BitVec 20),
+    .ADDIW .x5 .x5 (-829 : BitVec 12),
+    .BGEU .x18 .x5 (brOff (GuestAddrs.header_validate_excess_blob_gas + 220) (GuestAddrs.header_validate_excess_blob_gas + 72)),
     .MV .x10 .x18,
-    .AUIPC .x11 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 68)),
-    .ADDI .x11 .x11 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 68)),
-    .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.header_validate_excess_blob_gas + 76)),
-    .BNE .x10 .x0 (156 : BitVec 13),
-    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 84)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 84)),
+    .AUIPC .x11 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 80)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 80)),
+    .JAL .x1 (jalOff GuestAddrs.amsterdam_blob_gas_price_u256 (GuestAddrs.header_validate_excess_blob_gas + 88)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.header_validate_excess_blob_gas + 248) (GuestAddrs.header_validate_excess_blob_gas + 92)),
+    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
     .LI .x11 (16 : Word),
-    .AUIPC .x12 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 96)),
-    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.header_validate_excess_blob_gas + 104)),
-    .BNE .x10 .x0 (100 : BitVec 13),
-    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
-    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 112)),
+    .AUIPC .x12 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 108)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 108)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.header_validate_excess_blob_gas + 116)),
+    .BNE .x10 .x0 (brOff (GuestAddrs.header_validate_excess_blob_gas + 220) (GuestAddrs.header_validate_excess_blob_gas + 120)),
+    .AUIPC .x10 (laHi GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 124)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.hvebg_threshold (GuestAddrs.header_validate_excess_blob_gas + 124)),
     .MV .x11 .x19,
-    .AUIPC .x12 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 124)),
-    .ADDI .x12 .x12 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 124)),
-    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.header_validate_excess_blob_gas + 132)),
-    .AUIPC .x5 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
-    .ADDI .x5 .x5 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
+    .AUIPC .x12 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
+    .ADDI .x12 .x12 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 136)),
+    .JAL .x1 (jalOff GuestAddrs.u256_lt_be (GuestAddrs.header_validate_excess_blob_gas + 144)),
+    .AUIPC .x5 (laHi GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 148)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.u256m_acc (GuestAddrs.header_validate_excess_blob_gas + 148)),
     .LD .x5 .x5 (0 : BitVec 12),
     .BEQ .x5 .x0 (60 : BitVec 13),
     .LUI .x5 (4681 : BitVec 20),
@@ -475,15 +486,15 @@ def headerValidateExcessBlobGas_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def headerValidateExcessBlobGas_relocs : RelocTable :=
-  [ (17, .la .x11 "hvebg_threshold"),
-    (19, .jal .x1 "amsterdam_blob_gas_price_u256"),
-    (21, .la .x10 "hvebg_threshold"),
-    (24, .la .x12 "hvebg_threshold"),
-    (26, .jal .x1 "u256_mul_u64_be"),
-    (28, .la .x10 "hvebg_threshold"),
-    (31, .la .x12 "u256m_acc"),
-    (33, .jal .x1 "u256_lt_be"),
-    (34, .la .x5 "u256m_acc") ]
+  [ (20, .la .x11 "hvebg_threshold"),
+    (22, .jal .x1 "amsterdam_blob_gas_price_u256"),
+    (24, .la .x10 "hvebg_threshold"),
+    (27, .la .x12 "hvebg_threshold"),
+    (29, .jal .x1 "u256_mul_u64_be"),
+    (31, .la .x10 "hvebg_threshold"),
+    (34, .la .x12 "u256m_acc"),
+    (36, .jal .x1 "u256_lt_be"),
+    (37, .la .x5 "u256m_acc") ]
 
 def headerValidateExcessBlobGasFunction : String :=
   "header_validate_excess_blob_gas:\n" ++ emitProgramR headerValidateExcessBlobGas_prog headerValidateExcessBlobGas_relocs
@@ -497,7 +508,7 @@ theorem headerValidateExcessBlobGasFunction_eq_prog :
     headerValidateExcessBlobGasFunction = "header_validate_excess_blob_gas:\n" ++ emitProgramR headerValidateExcessBlobGas_prog headerValidateExcessBlobGas_relocs := rfl
 
 #guard headerValidateExcessBlobGasFunction.startsWith "header_validate_excess_blob_gas:\n"
-#guard headerValidateExcessBlobGas_prog.length = 71
+#guard headerValidateExcessBlobGas_prog.length = 74
 /-! ## validate_header_full — RETIRED (#12345)
 
     Replaced by SpecRef-shaped `validate_header` in
