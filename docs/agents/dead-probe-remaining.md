@@ -1,7 +1,7 @@
 # Remaining Dead Codegen Probe Programs (not yet removed)
 
 <!-- Tracked as an issue for batching: https://github.com/Verified-zkEVM/evm-asm/issues/12866 -->
-<!-- Latest scan count: 119 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
+<!-- Latest scan count: 125 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
 <!-- Keep the count line in sync when a batch below is completed. -->
 
 Registry of unverified `EvmAsm/Codegen/Programs/` modules that still define
@@ -10,24 +10,13 @@ are deadweight a future PR can `git rm`. The list is generated and reproducible
 by **committed** `scripts/scan_deadprobes.py` (re-run it to refresh); entries are
 cross-checked with the `git grep -l <Name>` method in the Reviewer playbook.
 
-## Completed / in-flight batches (do not re-list)
+## Completed batches (do not re-list)
 
 * **PR #12814** — 12 block-hash historical-state extractors
   (`BeneficiaryAtBlockHash ... CodeAtBlockHash`).
 * **PR #12860** — 12 block-number historical-state extractors
   (`BalanceAtBlockNumber ... ExtcodesizeAtBlockNumber`, exactly the mirror of
   #12814).
-* **PR #12872** (branch `cleanup/probe-deadcode-2`, in review) — 7
-  balance-account non-storage field comparator families: the accessor/descriptor
-  families (`BalAccountAccessDescriptors`, `BalAccountDescriptorArray`,
-  `BalAccountNthDescriptor`, `BalAllAccountsCode`, `BalAllAccountsCodeCovers`,
-  `BalStorageAccessDescriptors`) plus the CODE-field comparator
-  `BalAccountCodeConsistent`. The last was **surfaced** by this batch: its only
-  remaining reader, the dead `BalAllAccountsCode`, embedded its `balAccountCodeConsistentPc`
-  / `balAccountCodeConsistentFunction` symbols inline; once that file is removed,
-  the symbols become unreferenced and it turns dead too. Live siblings
-  (`BalAccountRecordArray`, `BalAccountChangeValue`, `BalGasValid`,
-  `BalCodePreimages`, …) are retained.
 
 ## Identification criteria (every entry meets all three)
 
@@ -54,7 +43,7 @@ and files that are still live anywhere (for example `TxTotalBlobGas.lean`, whose
 `calculate_total_blob_gas` helper is referenced by the `Stateless/SpecRef` port)
 are correctly excluded even though their probe strings are self-contained.
 
-## Remaining 119 files
+## Remaining 125 files
 
 ```text
   - AccountExistsAtBlockHash
@@ -64,6 +53,12 @@ are correctly excluded even though their probe strings are self-contained.
   - AccountStorageWalkable
   - AccountVerify
   - B3CoinbaseFee
+  - BalAccountAccessDescriptors
+  - BalAccountDescriptorArray
+  - BalAccountNthDescriptor
+  - BalAllAccountsCode
+  - BalAllAccountsCodeCovers
+  - BalStorageAccessDescriptors
   - BaseFeePerGasAtBlockHash
   - BaseFeePerGasAtBlockNumber
   - BlobGasPairAtBlockHash
