@@ -119,28 +119,102 @@ file's own imports. The converter adds it.
 
 ## 5. `@[expose]` — the contract about what proofs may unfold
 
-`@[expose] public section` at the top of every file preserves today's behaviour:
-downstream proofs can see through definitions exactly as they can now. This tree
-depends on that heavily — roughly 1200 `@[irreducible]`, 8400 `unfold`, and
-13000 `simp only [<def>]` sites.
+`@[expose] public section` puts every definition **body** in the file into the
+module interface, so downstream proofs can see through it. That was the right
+default for the migration — it preserved pre-migration behaviour — but it is not
+the right default afterwards, and narrowing it is what the exposure pass does.
 
-**Do not remove `@[expose]` from a file in an ordinary PR.** It is a semantic
-change: an unexposed definition cannot be unfolded downstream, and proofs that
-relied on defeq will break. Tightening it is a deliberate, measured, later pass.
+⚠️ **The operation is `@[expose] public section` → `public section`.** Never
+delete the line: `public section` is what exports the declarations at all.
 
-When that pass runs, the rule of thumb will be:
+### What it actually costs, measured
 
-- A definition whose *value* downstream proofs reason about (`simp [f]`,
-  `unfold f`, `decide` on a concrete instance, `rfl`) needs `@[expose]`.
-- A definition that is only ever *applied*, with its behaviour characterised by
-  lemmas, does not — and is better off unexposed, because then changing its body
-  does not invalidate the cone.
+`Stateless/SpecRef/IncrementalMptWrite.lean` (50 `def`s), same
+semantics-preserving edit to one definition body, public `.olean.hash` (which is
+what Lake keys downstream invalidation on):
 
-Note the relationship to `@[irreducible]`, which this repo already uses to say
-"do not unfold this". `@[irreducible]` asks the elaborator not to unfold;
-*unexposed* means downstream cannot unfold it at all, because the body is not in
-the interface. They point the same way, and once a definition is unexposed its
-`@[irreducible]` is usually redundant.
+| exposure | body | public hash | downstream |
+| --- | --- | --- | --- |
+| `@[expose] public section` | original | `9209185754286df7` | — |
+| `@[expose] public section` | edited | `a2b0a9a51c9f7d99` | **whole cone rebuilds** |
+| `public section` | original | `dfbd7d1b90979cfb` | — |
+| `public section` | edited | `dfbd7d1b90979cfb` | **nothing rebuilds** |
+
+Un-exposing that one file also cut its public `.olean` from 555 080 to 197 432
+bytes — **−64 %** — and the public olean is what every downstream module loads.
+
+### The rule
+
+A definition needs `@[expose]` iff **another module reasons about its value**:
+`unfold f`, `simp only [f]`, `rw [f]`, `delta f`, or `rfl`/`decide` reduction
+that reaches it. A definition that is only ever *applied*, characterised by
+lemmas, does not.
+
+⛔ **Reduction is transitive and no grep sees it.** `rfl` and `decide` reduce
+through the whole call graph, not just the names written in the statement.
+`Codegen/Dispatch.lean:1600` pins `emitProgramR … := rfl`, which must reduce
+`laHi` and the `GuestAddrs` constants — **neither appears in the statement**. So
+a syntactic scan gives a lower bound on what must stay exposed, never the answer.
+Decide per file, then let `lake build` be the oracle.
+
+### What breaks, and what does not (all probed in this tree)
+
+| mechanism, on a non-exposed `def` | result |
+| --- | --- |
+| `rfl` | ✗ `Note: … not exposed: probeDef ↦ 1` |
+| `decide` | ✗ **but the message never says "exposed"** — see below |
+| `simp only [f]` | ✗ `Invalid simp theorem …: Expected a definition with an exposed body` |
+| `unfold f` / `delta f` | ✗ `Tactic 'unfold' failed to unfold` |
+| `#guard` | ✅ **passes** — interpreter-checked, see §7b |
+| `abbrev` (any tactic) | ✅ **passes — `abbrev` stays exposed regardless** |
+| per-declaration `@[expose] def f` | ✅ works inside a plain `public section` |
+| `#print axioms` / `axiomsweep` | ✅ clean — un-exposing adds no axiom taint |
+
+Two of those are traps worth stating outright:
+
+- ⚠️ **`decide`'s failure blames the wrong thing.** It reports *"its `Decidable`
+  instance … did not reduce to `isTrue` or `isFalse` … reduction got stuck"* and
+  never mentions exposure. Someone hitting it will go and audit their
+  `Decidable` instance. If a `decide` breaks in a file whose exposure you just
+  changed, suspect exposure first.
+- ✅ **`abbrev` is auto-exposed.** Reading the toolchain suggests otherwise —
+  there is no `reducible` carve-out at any `forceExpose` call site — but the
+  probe is decisive: an `abbrev` under a plain `public section` still reduces by
+  `rfl` and by `decide` from another module. So abbrev-dense files gain nothing
+  from un-exposing, and offset tables such as `DivMod/Compose/Offsets.lean` and
+  the generated `Codegen/RegionMapLinkPins.lean` are safe by construction.
+
+### The predictor: count plain `def`s, ignore `abbrev`s
+
+Because abbrevs stay exposed, the win tracks the number of plain `def`s and
+nothing else. Measured:
+
+| file | `def` | `abbrev` | public `.olean` |
+| --- | ---: | ---: | ---: |
+| `Stateless/SpecRef/IncrementalMptWrite.lean` | 50 | 0 | **−64 %** |
+| `Evm64/Accelerators/Types.lean` | 1 | 31 | −0.3 % |
+| `Evm64/EvmWordArith/Common.lean` (control) | 0 | 0 | **0, exactly** |
+
+⇒ A file with no plain `def`s gains **nothing** — there is no body to withhold.
+Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
+default, so a `def` added later is not silently exposed), but do not report it as
+a build-time improvement.
+
+### Relationship to `@[irreducible]`
+
+`@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
+**cannot**, because the body is not in the interface. They point the same way, so
+once a definition is unexposed its `@[irreducible]` is redundant — remove it in
+the same commit.
+
+### Measuring the pass
+
+⛔ `scripts/import-graph-metrics.py` **cannot see this change.** It computes
+cones from the import graph, which un-exposing does not touch, so
+`sum_private_cone` reads identical before and after. Do not read that flatness as
+failure. The meter is
+`.github/workflows/scripts/oleansize_collect.sh`, which reports
+`split_public_bytes` — the public half of modules that have a private half.
 
 ## 5a. `private` and `public` do not mix inside an exposed body
 
