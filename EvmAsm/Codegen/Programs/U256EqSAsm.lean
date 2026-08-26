@@ -64,6 +64,7 @@ def u256EqPre (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Reach :=
 def u256EqPost (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) : Reach :=
   fun rf _ A =>
     rf.get .x10 = (if firstDiff bs1 bs2 32 = 32 then (1 : Word) else (0 : Word)) ∧
+    rf.get .x11 = ptr2 ∧
     bs1.length = 32 ∧ bs2.length = 32 ∧
     ptr1.toNat + 32 < 2 ^ 64 ∧ ptr2.toNat + 32 < 2 ^ 64 ∧
     A = bytesRegion ptr2 bs2
@@ -319,7 +320,7 @@ private theorem u256Eq_sp_post (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
   · obtain ⟨rft, wst, hwst, hreach, hrf, _hws⟩ := heq
     obtain ⟨⟨i, hile, hinv⟩, hng⟩ := hreach
     unfold u256EqInv at hinv
-    obtain ⟨hx5, _hx10, _hx11, hx31, hpref, hlen1, hlen2, hpl1, hpl2, _hdisj, hA⟩ := hinv
+    obtain ⟨hx5, _hx10, hx11, hx31, hpref, hlen1, hlen2, hpl1, hpl2, _hdisj, hA⟩ := hinv
     have hi32 : i = 32 := by
       by_contra _hne32
       apply hng
@@ -337,7 +338,12 @@ private theorem u256Eq_sp_post (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
       exact hpref j (by omega)
     unfold u256EqPost
     obtain rfl := List.eq_nil_of_length_eq_zero hwst
-    refine ⟨?_, hlen1, hlen2, hpl1, hpl2, hA⟩
+    have hx11' : rf.get .x11 = ptr2 := by
+      rw [hrf]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x10)]
+      exact hx11
+    refine ⟨?_, hx11', hlen1, hlen2, hpl1, hpl2, hA⟩
     rw [hrf]
     simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
       RegFile.get_set_self _ _ _ (by decide : (Reg.x10 : Reg) ≠ .x0)]
@@ -405,7 +411,17 @@ private theorem u256Eq_sp_post (ptr1 ptr2 : Word) (bs1 bs2 : List (BitVec 8)) :
     have hfd : firstDiff bs1 bs2 32 = i := firstDiff_ne_of_lt bs1 bs2 i 32 hi hpref hneByte
     unfold u256EqPost
     obtain rfl := List.eq_nil_of_length_eq_zero hwst
-    refine ⟨?_, hlen1, hlen2, hpl1, hpl2, ?_⟩
+    have hrft11 : rft.get .x11 = ptr2 := by
+      rw [hrft]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem, loadSem,
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x29)]
+      exact hrf1x11.trans hx11
+    have hx11' : rf.get .x11 = ptr2 := by
+      rw [hrf]
+      simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
+        RegFile.get_set_ne _ _ _ _ (by decide : Reg.x11 ≠ .x10)]
+      exact hrft11
+    refine ⟨?_, hx11', hlen1, hlen2, hpl1, hpl2, ?_⟩
     · rw [hrf]
       simp only [execBlock_cons, execBlock_nil, execInstrRF_nil, aluSem,
         RegFile.get_set_self _ _ _ (by decide : (Reg.x10 : Reg) ≠ .x0)]
