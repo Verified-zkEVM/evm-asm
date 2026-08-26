@@ -119,6 +119,21 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (edd_memcpy call sites — mcStatic discharged, 2026-08-26)
+
+- ✅ **#12805 closed**: `eddMemcpy_retSpec`'s `mcStatic` disjointness
+  premise is now DISCHARGED at all five `extract_deposit_data` call
+  sites (pubkey/wc/amount/sig/index — the issue said four; it is five).
+  `ExtractDepositData.lean` gains `edd_arena_mcStatic` (bounds + no-wrap
+  + disjointness from the concrete probe arenas `0x40000010`/576 B and
+  `0xa0010008`/192 B), `edd_src_region_wf`/`edd_out_region_wf` (both
+  8-aligned — every site offset is a multiple of 8, honouring the
+  aligned-access requirement), and `eddMemcpy_callsite_spec`: the copy
+  triple with `mcStatic` REMOVED from pre and post, instantiated per
+  site as `eddMemcpy_{pubkey,wc,amount,sig,index}_callsite`.  The
+  issue's second item is also closed: `mcDeriv_flatten_ghost_free`
+  proves flatten's ghost-independence in general (was `#guard`-sampled).
+
 ### Recent (edd_memcpy — first store-writing DCode consumer, 2026-08-22)
 
 - ✅ **`edd_memcpy` verified** (`EddMemcpySAsm.eddMemcpy_retSpec`): the
