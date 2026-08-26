@@ -14,10 +14,14 @@
   instead.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,7 +4,11 @@
   Conditional-carry wrappers for the n=1 v4/no-NOP full DIV loop body.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

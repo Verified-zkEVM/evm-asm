@@ -4,12 +4,16 @@
   v4/no-NOP wrappers for the n=2 DIV loop-body j=0 exit paths.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2MaxV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2CallAddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2MaxV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2CallAddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

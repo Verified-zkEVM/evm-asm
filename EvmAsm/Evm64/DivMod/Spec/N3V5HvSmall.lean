@@ -7,7 +7,11 @@
   (`n3_val256_v_lt_pow192`).  n3 mirror of `n2_two_val256_v_lt_pow256`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

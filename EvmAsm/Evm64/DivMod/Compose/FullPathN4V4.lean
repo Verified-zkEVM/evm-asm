@@ -1,7 +1,11 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V4Code
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -34,45 +34,49 @@
   * `Guest`        — `stateless_guest.py` (3 defs), the top-level shell
 -/
 
-import EvmAsm.Stateless.SpecRef.Crypto
-import EvmAsm.Stateless.SpecRef.Runtime
-import EvmAsm.Stateless.SpecRef.Secp256k1Recover
-import EvmAsm.Stateless.SpecRef.Types
-import EvmAsm.Stateless.SpecRef.SszCodec
-import EvmAsm.Stateless.SpecRef.Ssz
-import EvmAsm.Stateless.SpecRef.WitnessState
-import EvmAsm.Stateless.SpecRef.IncrementalMpt
-import EvmAsm.Stateless.SpecRef.WitnessReads
-import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
-import EvmAsm.Stateless.SpecRef.WitnessStateRoot
-import EvmAsm.Stateless.SpecRef.Seam
-import EvmAsm.Stateless.SpecRef.Transactions
-import EvmAsm.Stateless.SpecRef.Gas
-import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
-import EvmAsm.Stateless.SpecRef.TaylorExponential
-import EvmAsm.Stateless.SpecRef.BlocksRlp
-import EvmAsm.Stateless.SpecRef.HeaderRoundTrip
-import EvmAsm.Stateless.SpecRef.BlocksRlpRoundTrip
-import EvmAsm.Stateless.SpecRef.StateTracker
-import EvmAsm.Stateless.SpecRef.BlockAccessLists
-import EvmAsm.Stateless.SpecRef.Vm
-import EvmAsm.Stateless.SpecRef.SeamShell
-import EvmAsm.Stateless.SpecRef.StateTracker
-import EvmAsm.Stateless.SpecRef.BlockAccessLists
-import EvmAsm.Stateless.SpecRef.Vm
-import EvmAsm.Stateless.SpecRef.InstructionsCore
-import EvmAsm.Stateless.SpecRef.InstructionsEnv
-import EvmAsm.Stateless.SpecRef.Interpreter
-import EvmAsm.Stateless.SpecRef.Fork
-import EvmAsm.Stateless.SpecRef.BloomAlgebra
-import EvmAsm.Stateless.SpecRef.ElExecute
-import EvmAsm.Stateless.SpecRef.Precompiles
-import EvmAsm.Stateless.SpecRef.PrecompilesHash
-import EvmAsm.Stateless.SpecRef.PrecompilesCurve
-import EvmAsm.Stateless.SpecRef.PrecompilesPairing
-import EvmAsm.Stateless.SpecRef.PrecompilesBls
-import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
-import EvmAsm.Stateless.SpecRef.PrecompilesKzg
-import EvmAsm.Stateless.SpecRef.PrecompilesTable
-import EvmAsm.Stateless.SpecRef.Stateless
-import EvmAsm.Stateless.SpecRef.Guest
+module
+
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import EvmAsm.Stateless.SpecRef.Runtime
+public import EvmAsm.Stateless.SpecRef.Secp256k1Recover
+public import EvmAsm.Stateless.SpecRef.Types
+public import EvmAsm.Stateless.SpecRef.SszCodec
+public import EvmAsm.Stateless.SpecRef.Ssz
+public import EvmAsm.Stateless.SpecRef.WitnessState
+public import EvmAsm.Stateless.SpecRef.IncrementalMpt
+public import EvmAsm.Stateless.SpecRef.WitnessReads
+public import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+public import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+public import EvmAsm.Stateless.SpecRef.Seam
+public import EvmAsm.Stateless.SpecRef.Transactions
+public import EvmAsm.Stateless.SpecRef.Gas
+public import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
+public import EvmAsm.Stateless.SpecRef.TaylorExponential
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+public import EvmAsm.Stateless.SpecRef.HeaderRoundTrip
+public import EvmAsm.Stateless.SpecRef.BlocksRlpRoundTrip
+public import EvmAsm.Stateless.SpecRef.StateTracker
+public import EvmAsm.Stateless.SpecRef.BlockAccessLists
+public import EvmAsm.Stateless.SpecRef.Vm
+public import EvmAsm.Stateless.SpecRef.SeamShell
+public import EvmAsm.Stateless.SpecRef.StateTracker
+public import EvmAsm.Stateless.SpecRef.BlockAccessLists
+public import EvmAsm.Stateless.SpecRef.Vm
+public import EvmAsm.Stateless.SpecRef.InstructionsCore
+public import EvmAsm.Stateless.SpecRef.InstructionsEnv
+public import EvmAsm.Stateless.SpecRef.Interpreter
+public import EvmAsm.Stateless.SpecRef.Fork
+public import EvmAsm.Stateless.SpecRef.BloomAlgebra
+public import EvmAsm.Stateless.SpecRef.ElExecute
+public import EvmAsm.Stateless.SpecRef.Precompiles
+public import EvmAsm.Stateless.SpecRef.PrecompilesHash
+public import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+public import EvmAsm.Stateless.SpecRef.PrecompilesPairing
+public import EvmAsm.Stateless.SpecRef.PrecompilesBls
+public import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
+public import EvmAsm.Stateless.SpecRef.PrecompilesKzg
+public import EvmAsm.Stateless.SpecRef.PrecompilesTable
+public import EvmAsm.Stateless.SpecRef.Stateless
+public import EvmAsm.Stateless.SpecRef.Guest
+
+@[expose] public section

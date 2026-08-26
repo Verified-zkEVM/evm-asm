@@ -10,10 +10,14 @@
   `FullPathN1V5Preloop`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CopyAUV5
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CopyAUV5
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,9 +4,13 @@
   CodeReq decomposition for the fixed x19 two-MUL saved-bit EXP iteration.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulIter
-import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
-import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulIter
+public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+public import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

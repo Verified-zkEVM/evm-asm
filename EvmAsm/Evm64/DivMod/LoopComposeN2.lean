@@ -18,9 +18,13 @@
   v4 N2 stack/callable work should use selected/reachable carry wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN2
-import EvmAsm.Evm64.DivMod.LoopIterN2NoNop
-import EvmAsm.Evm64.DivMod.LoopComposeN3
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN2
+public import EvmAsm.Evm64.DivMod.LoopIterN2NoNop
+public import EvmAsm.Evm64.DivMod.LoopComposeN3
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

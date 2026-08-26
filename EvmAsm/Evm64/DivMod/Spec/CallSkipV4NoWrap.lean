@@ -4,7 +4,11 @@
   Predicate-packaged surfaces for the v4 n=4 call+skip no-wrap branch.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

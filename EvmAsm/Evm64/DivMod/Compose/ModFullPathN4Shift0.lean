@@ -11,9 +11,13 @@
   Since uTop=0 < b3 (b3≠0), the BLTU condition is always taken → call path only.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
-import EvmAsm.Evm64.DivMod.Compose.ModFullPath
-import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Shift0
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPath
+public import EvmAsm.Evm64.DivMod.Compose.ModShift0Epilogue
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

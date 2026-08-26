@@ -4,7 +4,11 @@
   Overflow from N1QuotientStackBridge (file-size cap).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

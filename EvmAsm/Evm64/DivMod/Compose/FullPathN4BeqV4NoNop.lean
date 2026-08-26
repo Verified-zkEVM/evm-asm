@@ -4,9 +4,13 @@
   V4/no-NOP bridges for n=4 call+addback BEQ composition.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
-import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -16,9 +16,13 @@
   N{2,3}MaxOverestimate / DivN4Overestimate for the +2 forms.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
-import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

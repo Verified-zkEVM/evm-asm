@@ -7,9 +7,13 @@
   loop body and its eight-limb induction.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceBitLoop
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceBitLoop
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

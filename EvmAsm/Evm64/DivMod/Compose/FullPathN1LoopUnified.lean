@@ -13,13 +13,17 @@
   n=1 composes the preloop and unified loop directly.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1Loop
-import EvmAsm.Evm64.DivMod.Compose.FullPath
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.EvmWordArith.DenormLemmas
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1Loop
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3Loop
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+public import EvmAsm.Evm64.EvmWordArith.DenormLemmas
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

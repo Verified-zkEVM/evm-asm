@@ -10,8 +10,12 @@
   post.  Bead `evm-asm-9iqmw.7.1.7.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
