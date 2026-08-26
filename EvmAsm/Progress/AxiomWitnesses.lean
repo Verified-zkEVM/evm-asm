@@ -84,6 +84,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec.exitdiv_core
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_core
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_carry_branch
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.add6_core
