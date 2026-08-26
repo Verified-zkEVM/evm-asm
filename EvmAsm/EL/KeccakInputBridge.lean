@@ -5,8 +5,12 @@
   consumed by the zkVM accelerator (GH #111).
 -/
 
-import EvmAsm.EL.WorldState
-import EvmAsm.Evm64.KeccakArgs
+module
+
+public import EvmAsm.EL.WorldState
+public import EvmAsm.Evm64.KeccakArgs
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

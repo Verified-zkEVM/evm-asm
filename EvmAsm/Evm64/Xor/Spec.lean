@@ -5,10 +5,14 @@
 -/
 
 -- `Xor.LimbSpec → Xor.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Xor.LimbSpec
-import EvmAsm.Evm64.Xor.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Xor.LimbSpec
+public import EvmAsm.Evm64.Xor.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

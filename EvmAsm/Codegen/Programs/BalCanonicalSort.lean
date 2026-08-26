@@ -112,13 +112,24 @@
 
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.StorageWriteMap
-import EvmAsm.Codegen.Programs.AccountWriteMap
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.StorageWriteMap
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.StorageWriteMap
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -426,7 +437,7 @@ theorem balCanonicalSortFunction_eq_prog :
     Probe-only: not linked into `stateless_guest`. The Program's jalOff pc-base is
     a local placeholder (emitProgramR emits a symbolic `jal` via the reloc table);
     do not re-add a `GuestAddrs` entry unless the self-test is re-linked into the guest. -/
-private def balCanonicalSortSelftestPc : Nat := 0x80000000
+def balCanonicalSortSelftestPc : Nat := 0x80000000
 def balCanonicalSortSelftest_prog : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),

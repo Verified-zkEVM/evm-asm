@@ -7,8 +7,12 @@
   instruction sequence to these helpers.
 -/
 
-import EvmAsm.Evm64.MulMod.Program
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.MulMod.Program
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

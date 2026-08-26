@@ -32,7 +32,11 @@
   so Python's `stack[-1 - n]` is index `n` here.
 -/
 
-import EvmAsm.Stateless.SpecRef.Vm
+module
+
+public import EvmAsm.Stateless.SpecRef.Vm
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -115,18 +119,18 @@ def fromSigned (v : Int) : U256 :=
 def toBeBytes32 (x : U256) : Bytes := natToBytesBE 32 x
 
 /-- Advance the program counter. -/
-private def pcAdd (n : Nat) : EvmM Unit :=
+def pcAdd (n : Nat) : EvmM Unit :=
   EvmM.modifyEvm (fun e => { e with pc := e.pc + n })
 
 /-- The shared shape of a binary op: pop 2, charge, push, `pc += 1`. -/
-private def binOp (gas : Uint) (f : U256 → U256 → U256) : EvmM Unit := do
+def binOp (gas : Uint) (f : U256 → U256 → U256) : EvmM Unit := do
   let x ← stackPop
   let y ← stackPop
   charge_gas gas
   stackPush (f x y)
   pcAdd 1
 
-private def unOp (gas : Uint) (f : U256 → U256) : EvmM Unit := do
+def unOp (gas : Uint) (f : U256 → U256) : EvmM Unit := do
   let x ← stackPop
   charge_gas gas
   stackPush (f x)
@@ -194,7 +198,7 @@ def iSignextend : EvmM Unit := binOp GasCosts.OPCODE_SIGNEXTEND (fun byte_num va
 
 /-! ## `comparison.py` -/
 
-private def boolPush (b : Bool) : U256 := if b then 1 else 0
+def boolPush (b : Bool) : U256 := if b then 1 else 0
 
 def iLt : EvmM Unit := binOp GasCosts.OPCODE_LT (fun x y => boolPush (x < y))
 def iGt : EvmM Unit := binOp GasCosts.OPCODE_GT (fun x y => boolPush (x > y))
@@ -286,7 +290,7 @@ def iJumpdest : EvmM Unit := do
 
 /-! ## `memory.py` (instructions) -/
 
-private def chargeWithMemory (base : Uint) (extensions : List (U256 × U256)) :
+def chargeWithMemory (base : Uint) (extensions : List (U256 × U256)) :
     EvmM Unit := do
   let extend ← (fun e => calculate_gas_extend_memory e.memory.length extensions)
     <$> EvmM.getEvm
@@ -357,7 +361,7 @@ def iDupN (item_number : Nat) : EvmM Unit := do
   stackPush (e.stack.getD item_number 0)
   pcAdd 1
 
-private def listSwap (l : List U256) (i j : Nat) : List U256 :=
+def listSwap (l : List U256) (i j : Nat) : List U256 :=
   let a := l.getD i 0
   let b := l.getD j 0
   (l.set i b).set j a
@@ -434,10 +438,10 @@ def iLogN (num_topics : Nat) : EvmM Unit := do
 /-! ## `storage.py` -/
 
 /-- Warm/cold storage-key accounting shared by `sload`/`sstore`. -/
-private def isWarmStorageKey (key : Address × Bytes32) : EvmM Bool := do
+def isWarmStorageKey (key : Address × Bytes32) : EvmM Bool := do
   pure ((← EvmM.getEvm).accessedStorageKeys.contains key)
 
-private def warmStorageKey (key : Address × Bytes32) : EvmM Unit :=
+def warmStorageKey (key : Address × Bytes32) : EvmM Unit :=
   EvmM.modifyEvm (fun e =>
     { e with accessedStorageKeys := setAdd e.accessedStorageKeys key })
 

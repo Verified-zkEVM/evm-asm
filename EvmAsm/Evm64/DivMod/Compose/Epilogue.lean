@@ -5,11 +5,15 @@
   Sections 10l–14 of the original DivModCompose.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
-import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
-import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.LimbSpec.Denorm
+public import EvmAsm.Evm64.DivMod.LimbSpec.Epilogue
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+public import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

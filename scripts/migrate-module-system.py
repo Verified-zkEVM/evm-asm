@@ -494,6 +494,53 @@ def tree_closure_violations() -> list[str]:
     return bad
 
 
+def frontier_wave(limit: int, skip_prefixes: tuple[str, ...] = ()) -> list[str]:
+    """Up to `limit` modules that can migrate NOW, skipping `skip_prefixes`.
+
+    `wave(level)` selects by longest dependency chain, which is the right shape
+    when migrating the whole tree bottom-up. It is the WRONG shape when a subtree
+    is deliberately deferred: levels interleave, so a level-`k` cut drags in the
+    deferred subtree's peers and stalls on them.
+
+    This selects by REACHABILITY instead -- repeatedly take every module whose
+    dependencies are all already migrated or already chosen -- so the result is
+    downward closed by construction while never naming a skipped module. Used for
+    the EVM-first order while `EvmAsm.Rv64.*` is held back for the interpreter /
+    Sail refactor (GH #12900).
+
+    `limit` caps the wave for merge cadence, not for correctness. Modules are
+    taken in dependency order, so a truncated wave is still downward closed.
+    """
+    graph = li.ImportGraph(REPO, ROOT_DIRS)
+    blocked, _why = blocked_modules(graph)
+    migrated = {m for m in graph.modules if graph.module_header.get(m)}
+
+    def skipped(m: str) -> bool:
+        return any(m == p or m.startswith(p + ".") for p in skip_prefixes)
+
+    eligible = {m for m in graph.modules
+                if m not in migrated and m not in blocked and not skipped(m)}
+    chosen: list[str] = []
+    chosen_set: set[str] = set()
+    while len(chosen) < limit:
+        # A module is ready when every in-tree dependency is migrated or chosen.
+        ready = sorted(
+            m for m in eligible
+            if m not in chosen_set
+            and all(e.target not in graph.modules
+                    or e.target in migrated or e.target in chosen_set
+                    for e in graph.edges.get(m, ()))
+        )
+        if not ready:
+            break
+        for m in ready:
+            if len(chosen) >= limit:
+                break
+            chosen.append(m)
+            chosen_set.add(m)
+    return chosen
+
+
 def wave(level: int) -> list[str]:
     """Every module whose longest dependency chain is <= `level`.  Downward
     closed by construction: a module's dependencies all have strictly lower
@@ -774,6 +821,12 @@ def main() -> int:
     ap.add_argument("--check-size-invariant", action="store_true",
                     help="verify over the WHOLE tree that conversion leaves "
                          "every file's effective line count unchanged")
+    ap.add_argument("--evm-wave", type=int, metavar="N",
+                    help="up to N modules that can migrate now, SKIPPING "
+                         "EvmAsm.Rv64.* (held back for the interpreter/Sail "
+                         "refactor, GH #12900). Selects by reachability, not by "
+                         "level, so it stays downward closed while the Rv64 "
+                         "subtree is deferred")
     ap.add_argument("--check-tree-closure", action="store_true",
                     help="verify NO migrated module imports an unmigrated one, "
                          "as the tree stands (run before every wave PR)")
@@ -829,6 +882,23 @@ def main() -> int:
         return 1 if bad else 0
 
     paths = list(args.paths)
+    if args.evm_wave is not None:
+        mods = frontier_wave(args.evm_wave, skip_prefixes=("EvmAsm.Rv64",))
+        if args.check_closed:
+            bad = check_closed(set(mods))
+            if bad:
+                print(f"NOT downward-closed ({len(bad)} violations):")
+                for b in bad[:20]:
+                    print(f"  {b}")
+                return 1
+            print(f"evm-wave {args.evm_wave}: {len(mods)} modules, "
+                  f"downward-closed OK (EvmAsm.Rv64.* skipped)")
+            return 0
+        for m in mods:
+            q = li.module_to_path(m, REPO)
+            if q:
+                paths.append(os.path.join(REPO, q))
+
     if args.wave is not None:
         mods = wave(args.wave)
         if args.check_closed:
@@ -846,7 +916,7 @@ def main() -> int:
                 paths.append(os.path.join(REPO, p))
 
     if not paths:
-        ap.error("nothing to do: pass paths, --wave, or --self-test")
+        ap.error("nothing to do: pass paths, --wave, --evm-wave, or --self-test")
 
     changed = skipped = 0
     problems = []

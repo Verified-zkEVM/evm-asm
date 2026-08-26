@@ -4,9 +4,13 @@
   Pure zkVM BN254 pairing accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Bn254PairingInputBridge
-import EvmAsm.EL.Bn254PairingResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Bn254PairingInputBridge
+public import EvmAsm.EL.Bn254PairingResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

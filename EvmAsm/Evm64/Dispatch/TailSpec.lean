@@ -4,10 +4,14 @@
   LD/JALR tail-call sub-spec for the RV64 opcode dispatch sequence (GH #106).
 -/
 
-import EvmAsm.Evm64.Dispatch.Program
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Dispatch.Program
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

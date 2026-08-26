@@ -4,12 +4,16 @@
   Executable specs for RLP decoder programs.
 -/
 
-import EvmAsm.EL.RLP.Program
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.EL.RLP.Program
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics

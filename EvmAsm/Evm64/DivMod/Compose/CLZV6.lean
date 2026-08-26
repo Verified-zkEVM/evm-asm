@@ -11,8 +11,14 @@
   First brick of the v6 n=1 fast-path body. Bead `evm-asm-7wbf8.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+meta import EvmAsm.Evm64.DivMod.Compose.CLZ
+meta import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

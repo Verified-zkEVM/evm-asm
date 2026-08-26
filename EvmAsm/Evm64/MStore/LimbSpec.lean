@@ -4,11 +4,15 @@
   Level-1 executable specs for MSTORE byte-unpack blocks.
 -/
 
-import EvmAsm.Evm64.MStore.ByteAlg
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MStore.ByteAlg
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

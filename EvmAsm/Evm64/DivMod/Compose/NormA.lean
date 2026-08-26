@@ -5,12 +5,16 @@
   Extracted from Compose.lean sections 10i–10k.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
-import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
-import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.AddrNorm
+public import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
+public import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
+public import EvmAsm.Evm64.DivMod.LimbSpec.NormA
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

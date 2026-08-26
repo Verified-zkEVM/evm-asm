@@ -31,14 +31,26 @@
   the data-section tail so no existing data symbol is moved.
 -/
 
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.Programs.BalSerializer
-import EvmAsm.Codegen.Programs.BalSerializerTail
-import EvmAsm.Codegen.Programs.BalCapacities
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.Programs.BlockAccessListBuilderStorage
+module
+
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.Programs.BalSerializer
+public import EvmAsm.Codegen.Programs.BalSerializerTail
+public import EvmAsm.Codegen.Programs.BalCapacities
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.Programs.BlockAccessListBuilderStorage
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.Programs.BalSerializer
+meta import EvmAsm.Codegen.Programs.BalSerializerTail
+meta import EvmAsm.Codegen.Programs.BalCapacities
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.BlockAccessListBuilderStorage
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

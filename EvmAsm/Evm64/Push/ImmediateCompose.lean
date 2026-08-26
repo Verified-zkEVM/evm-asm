@@ -25,8 +25,12 @@
     * Section D — the top-level `evm_push_stack_spec_within`.
 -/
 
-import EvmAsm.Evm64.Push.Spec
-import EvmAsm.Rv64.MemRegionStore
+module
+
+public import EvmAsm.Evm64.Push.Spec
+public import EvmAsm.Rv64.MemRegionStore
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

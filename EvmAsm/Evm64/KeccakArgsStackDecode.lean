@@ -4,7 +4,11 @@
   Pure top-of-stack decoder for KECCAK256/SHA3 arguments (GH #111).
 -/
 
-import EvmAsm.Evm64.KeccakArgs
+module
+
+public import EvmAsm.Evm64.KeccakArgs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
