@@ -674,6 +674,22 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
 
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_disjoint
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_partition
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortList
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortString
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_singleByte
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_boundaries
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longList
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longString
+
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
