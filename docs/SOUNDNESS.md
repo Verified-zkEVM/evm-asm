@@ -1,10 +1,12 @@
-# Soundness preconditions on the guest's inputs
+# Soundness preconditions and reference readings
 
-This document records **assumptions the guest is entitled to make about its inputs**. They are not
-implementation details: a caller that violates one is outside the specified interface, and the
-guest's behaviour on such an input carries no soundness guarantee.
+This document records **assumptions the guest is entitled to make about its inputs**, and
+**readings of the reference that the guest's behaviour depends on**. They are not implementation
+details: a caller that violates an input assumption is outside the specified interface, and a
+reading recorded here is a deliberate, ratified interpretation rather than an accident of
+implementation.
 
-Each entry states the assumption, why the guest needs it, and what happens if it is broken.
+Each entry states the assumption or reading, why the guest needs it, and what follows from it.
 
 ---
 
@@ -91,6 +93,69 @@ fail the bound; ordinary guest arenas cannot.
 
 ---
 
+## 3. The Python spec describes an ideal machine; `U256(...)` raising is a typing artifact, not EVM semantics
+
+**Reading (maintainer's, ratified 2026-08-26).** `execution-specs` describes an **ideal situation
+with unbounded memory and precision**. Where the Python types refuse a value that the idealised
+machine would simply hold, the refusal is an artifact of the reference's implementation language
+and not a statement about EVM semantics. **The guest computes the narrowed result.**
+
+**Where this bites.** Amsterdam `BLOBBASEFEE` (`vm/instructions/environment.py:605-608` at pinned
+`e5a8caf1b`):
+
+```python
+blob_base_fee = calculate_blob_gas_price(evm.message.block_env.excess_blob_gas)
+push(evm.stack, U256(blob_base_fee))
+```
+
+`calculate_blob_gas_price` returns an unbounded `Uint`. Once the price reaches 2^256 the narrowing
+`U256(...)` raises — in pinned `ethereum-types 0.4.1`, `FixedUint.__init__` is:
+
+```python
+int_value = int(value)
+if not self._in_range(int_value):
+    raise OverflowError
+```
+
+and **nothing catches it**: the interpreter handles `ExceptionalHalt` (`interpreter.py:232`,
+`:366`, `:416`) and `Revert` (`:423`), both `EthereumException` subclasses, while `OverflowError`
+is a plain Python error. Read literally, the reference therefore produces **no result at all** —
+not a value, not a revert — and block processing aborts.
+
+⭐ Under this reading that abort is **not** the specified behaviour. The EVM stack holds 256-bit
+words, so pushing a wider value is meaningless; the idealised semantics is the value narrowed to
+256 bits (**the low 256 bits, i.e. mod 2^256**), and `U256(...)` is a type assertion that happens
+to be strict rather than a semantic gate.
+
+**What follows.** The guest **computes and pushes the narrowed value and continues**. It does not
+reject, and it does not treat the boundary as a status.
+
+**Consequence, stated plainly.** The guest will accept blocks that a literal run of the pinned
+reference cannot process. That divergence is **deliberate and recorded here**; it is not a defect
+report. Relative soundness is inherited from the reference *as interpreted by this document*, not
+from the behaviour of the reference's Python runtime.
+
+**Scope — do not over-apply this.** The reading covers **a narrowing conversion the ideal machine
+would not need**. It does **not** license ignoring every exception the reference can raise. In
+particular it does **not** overturn the RLP nesting ruling, where the reference's `RecursionError`
+*is* grounds to reject: that cap is independently justified by the guest's **constant-memory**
+requirement, so the two rest on different footings and both stand. When a new case arises, ask
+which it resembles — a type refusing a value the ideal machine would hold, or a real resource
+bound the guest also faces.
+
+**Not affected.** `fork.py:640` compares `Uint(tx.max_fee_per_blob_gas) < blob_gas_price` in
+**unbounded `Uint`** with no narrowing, so it cannot overflow. On this path `BLOBBASEFEE` is the
+only site that converts to `U256`.
+
+**Reachability, for the record.** This is not theoretical. The spec never pins system-contract
+code — `fork.py:761-765` asserts only that it is non-empty, and the bytes come from state via
+`get_code(...)`. In a stateless guest that code is **witness-supplied**, so an adversarial witness
+can place `BLOBBASEFEE` in a system contract and reach this path through the `BAI = 0` system call
+(`fork.py:897`, `:903`, and the checked calls from `:962`). Tracked in #12632.
+
+---
+
 *Written by **Claude Code** (k3 agent) at the maintainer's direction. Placed in `docs/` to match
 the existing convention (`docs/agents/…`, `docs/4ch8f-…`) rather than creating a second top-level
-documentation directory. §2 added for #12404 (cursor-grok).*
+documentation directory. §2 added for #12404 (cursor-grok). §3 added for #12632 (coord), recording the
+maintainer's ideal-machine reading of the reference.*
