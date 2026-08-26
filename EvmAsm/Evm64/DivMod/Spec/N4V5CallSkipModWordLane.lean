@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
 public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
 public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

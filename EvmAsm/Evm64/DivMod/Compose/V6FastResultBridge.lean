@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Compose.V6BodyModelBridge
 public import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
 public import EvmAsm.Evm64.Stack
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

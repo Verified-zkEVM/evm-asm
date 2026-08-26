@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFix
 public import EvmAsm.Evm64.SDiv.Compose.Words
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

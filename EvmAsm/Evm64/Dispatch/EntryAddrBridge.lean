@@ -30,7 +30,7 @@ module
 
 public import EvmAsm.Rv64.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace Dispatch

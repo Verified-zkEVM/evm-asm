@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

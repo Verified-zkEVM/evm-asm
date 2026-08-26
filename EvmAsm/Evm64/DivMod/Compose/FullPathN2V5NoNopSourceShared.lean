@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5ExactX1NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5ExactX1NoNop
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

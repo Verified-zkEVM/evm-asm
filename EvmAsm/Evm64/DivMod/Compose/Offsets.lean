@@ -43,7 +43,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

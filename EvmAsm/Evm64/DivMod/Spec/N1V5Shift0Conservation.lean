@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
 public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
 public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -24,7 +24,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
 public import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.Basic
 public import Mathlib.Tactic.Linarith
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

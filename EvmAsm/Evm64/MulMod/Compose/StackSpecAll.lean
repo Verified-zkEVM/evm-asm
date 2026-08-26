@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.MulMod.Compose.DispatchAll
 public import EvmAsm.Evm64.Stack
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

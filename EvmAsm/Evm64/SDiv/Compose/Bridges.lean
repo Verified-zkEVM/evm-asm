@@ -16,7 +16,7 @@ module
 
 public import EvmAsm.Evm64.SDiv.Compose.QuadMemBridges
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

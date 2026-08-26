@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwn
 public import EvmAsm.Evm64.SMod.Compose.Words
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

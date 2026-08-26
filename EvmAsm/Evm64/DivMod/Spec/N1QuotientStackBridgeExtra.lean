@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

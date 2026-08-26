@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
 public import EvmAsm.Evm64.DivMod.SpecCallShift0
 public import EvmAsm.Evm64.DivMod.LoopSemantic
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

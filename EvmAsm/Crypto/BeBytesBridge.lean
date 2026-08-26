@@ -42,7 +42,7 @@ public import EvmAsm.EL.RLP.Basic
 meta import EvmAsm.Crypto.PowLadder
 meta import EvmAsm.EL.RLP.Basic
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Crypto
 

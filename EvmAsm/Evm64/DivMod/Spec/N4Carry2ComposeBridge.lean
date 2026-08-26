@@ -20,7 +20,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallAddback
 public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

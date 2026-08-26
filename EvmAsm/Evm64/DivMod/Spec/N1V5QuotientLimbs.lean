@@ -14,7 +14,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

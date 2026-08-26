@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopSelectedBorrowCar
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopUnified
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

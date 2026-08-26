@@ -13,7 +13,7 @@ public import EvmAsm.EL.RLP.FullDecode
 public import Mathlib.Data.List.Induction
 public import Mathlib.Tactic.Positivity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

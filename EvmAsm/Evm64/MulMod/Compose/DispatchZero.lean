@@ -29,7 +29,7 @@ public import EvmAsm.Evm64.MulMod.MulModResultWord
 public import EvmAsm.Rv64.Tactics.XSimp
 public import EvmAsm.Rv64.Tactics.DropPure
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

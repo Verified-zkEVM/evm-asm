@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExact
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

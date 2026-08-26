@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.QuadMemBridges
 public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

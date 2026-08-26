@@ -35,7 +35,7 @@ public import Mathlib.Tactic.SplitIfs
 meta import EvmAsm.EL.RLP.RefDecode
 meta import Mathlib.Tactic.SplitIfs
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP.Ref
 

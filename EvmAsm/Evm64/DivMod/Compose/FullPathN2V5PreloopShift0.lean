@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
 public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

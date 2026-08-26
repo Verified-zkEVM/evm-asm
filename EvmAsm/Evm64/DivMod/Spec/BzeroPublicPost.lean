@@ -20,7 +20,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
 public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

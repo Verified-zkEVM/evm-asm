@@ -17,7 +17,7 @@ module
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
 public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

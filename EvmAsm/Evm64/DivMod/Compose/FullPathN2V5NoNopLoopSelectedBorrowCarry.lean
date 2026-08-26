@@ -11,7 +11,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

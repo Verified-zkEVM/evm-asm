@@ -26,7 +26,7 @@ public import EvmAsm.Rv64.SyscallSpecs
 public import EvmAsm.Rv64.Tactics.RunBlock
 public import EvmAsm.Evm64.AddMod.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

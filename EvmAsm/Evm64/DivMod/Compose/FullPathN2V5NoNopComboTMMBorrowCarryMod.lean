@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarryMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarryMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

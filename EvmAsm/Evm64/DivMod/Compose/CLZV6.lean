@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
 meta import EvmAsm.Evm64.DivMod.Compose.CLZ
 meta import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

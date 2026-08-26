@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.EvmWordArith.ByteOps
 public import EvmAsm.Rv64.AddrNorm
 public import Mathlib.Tactic.Set
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

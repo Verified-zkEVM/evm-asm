@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
 public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
 public import EvmAsm.Evm64.DivMod.LoopIterN2
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

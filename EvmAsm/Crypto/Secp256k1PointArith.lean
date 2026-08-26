@@ -54,7 +54,7 @@ module
 
 public import EvmAsm.Stateless.SpecRef.Secp256k1Recover
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Crypto.Secp256k1PointArith
 

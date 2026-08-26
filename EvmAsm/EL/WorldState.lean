@@ -8,7 +8,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.EL
 
 abbrev Byte := BitVec 8

@@ -26,7 +26,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
 public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

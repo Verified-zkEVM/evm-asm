@@ -20,7 +20,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseDefs
 public import EvmAsm.Evm64.EvmWordArith.Exp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

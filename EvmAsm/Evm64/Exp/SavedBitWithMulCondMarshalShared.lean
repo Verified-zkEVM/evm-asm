@@ -8,7 +8,7 @@ public import EvmAsm.Evm64.Exp.SquaringMarshalShared
 public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
 public import EvmAsm.Evm64.Multiply.Callable
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

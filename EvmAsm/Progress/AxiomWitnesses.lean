@@ -54,6 +54,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountIsEip161EmptySpec.leniency_agrees
 
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.account_nonce_is_an_unbounded_nat
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_admits_ordinary
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_boundary
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_middle_band_is_inhabited
+
+#print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
+
 #print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
@@ -408,6 +418,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderExtractNumberSpec.header_number_of_decode
 
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_fails_under_slack_only
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_forces_trailing_slack
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance_has_a_decode
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_vacuous_control
+
+#print axioms EvmAsm.Codegen.HeaderFieldsHboundCover.next_sub_len_classified
+
 #print axioms EvmAsm.Codegen.HeaderFieldsSpec.header_extract_state_root_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderReceiptsRootSpec.header_extract_receipts_root_spec_within
@@ -590,6 +612,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeBytesSAsm.reb_spec_within
 
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.armGate_determines_index
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_boundary_control
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_disjoint
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_each_arm_reachable
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_tile
+
+#print axioms EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_top_reachable_as_word
+
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixCanonical.first_length_byte_ne_zero
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixCanonical.pow_le_u64ByteLen
@@ -628,6 +662,28 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpEncodeListPrefixLoopSpec.lpLoop_writes_toBytesBE
 
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_admits_55
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_excludes_56
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_at_55_is_short_form
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_header_is_at_least_two_bytes_above_55
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_header_path_writes_one_byte
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_allZero
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1_control
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL2
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_rawByte
+
+#print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_paths_are_distinct
+
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_encode_within
 
 #print axioms EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
@@ -639,6 +695,22 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpFieldToU64SAsm.rlpFieldToU64_spec_within
 
 #print axioms EvmAsm.Codegen.RlpFieldToU64StrictSAsm.rlpFieldToU64_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_disjoint
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_partition
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortList
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortString
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_singleByte
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_boundaries
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longList
+
+#print axioms EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longString
 
 #print axioms EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
 
@@ -657,6 +729,20 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.risStepsTotal_le
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_is_performed
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.offsetPredicate_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.shortFormThreshold_control
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanNeverComparesAgainst0x38
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_length
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoad_sites
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoads_have_zero_offset
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
 

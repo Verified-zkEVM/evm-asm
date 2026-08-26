@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallExactX1Mod
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

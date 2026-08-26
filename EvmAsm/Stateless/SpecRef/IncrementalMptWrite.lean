@@ -74,7 +74,7 @@ module
 public import EvmAsm.Stateless.SpecRef.IncrementalMpt
 meta import EvmAsm.Stateless.SpecRef.IncrementalMpt
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

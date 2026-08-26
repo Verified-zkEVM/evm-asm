@@ -15,7 +15,7 @@ meta import EvmAsm.Evm64.MulMod.LimbSpec
 meta import EvmAsm.Evm64.MulMod.ProductLayoutSpec
 meta import EvmAsm.Evm64.MulMod.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

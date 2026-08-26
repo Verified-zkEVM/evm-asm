@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.DivMod.Spec.Base
 public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 public import EvmAsm.Evm64.DivMod.Spec.Unified
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

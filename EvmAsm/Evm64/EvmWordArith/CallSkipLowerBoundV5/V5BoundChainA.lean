@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
 
-@[expose] public section
+public section
 
 /-
   EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1dNoFire

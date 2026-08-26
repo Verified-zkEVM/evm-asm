@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

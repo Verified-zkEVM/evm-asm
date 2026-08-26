@@ -71,6 +71,7 @@ import EvmAsm.Codegen.Programs.TxTypeDispatchTyped
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Programs.TxTypeDispatchDischarge
 import EvmAsm.Codegen.Programs.RlpRead
+import EvmAsm.Codegen.Programs.RlpItemSpanNoCanonicalityCheck
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
 import EvmAsm.Codegen.Programs.RlpListNthItemForward
@@ -110,6 +111,8 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
+import EvmAsm.Codegen.Programs.AccountNonceGateCover
 import EvmAsm.Codegen.Programs.RlpItemSizeLongSpec
 import EvmAsm.Codegen.Programs.RlpItemSizeTotalSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanSizeOffset
@@ -166,6 +169,7 @@ import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsHboundCover
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericBlocks
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit

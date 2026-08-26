@@ -10,7 +10,7 @@ module
 
 public import EvmAsm.Evm64.SDiv.Compose.CodeHandles
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

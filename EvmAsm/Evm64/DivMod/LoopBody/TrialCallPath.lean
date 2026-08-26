@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPathBase
 public import EvmAsm.Evm64.DivMod.Compose.Div128V5
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

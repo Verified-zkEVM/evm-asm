@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientLaneShapeMod
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

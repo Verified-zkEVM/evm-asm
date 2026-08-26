@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

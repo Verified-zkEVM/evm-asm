@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
 public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModRemainder
 public import EvmAsm.Evm64.DivMod.SpecCallShift0
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

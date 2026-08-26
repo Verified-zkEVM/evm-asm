@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.N1MaxChain
 public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN1.CallAddbackV4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

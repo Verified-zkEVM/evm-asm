@@ -4,7 +4,7 @@ public import EvmAsm.Evm64.DivMod.CallableV4Div
 public import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
 public import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactR1
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

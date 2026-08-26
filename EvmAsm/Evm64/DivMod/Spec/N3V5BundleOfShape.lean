@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5MaxCarryOfMaxShape
 public import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
 public import EvmAsm.Evm64.DivMod.Spec.N3V5NormVShapeFacts
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 
