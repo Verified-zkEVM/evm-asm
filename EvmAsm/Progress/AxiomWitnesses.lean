@@ -658,15 +658,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpItemSizeTotalSpec.rlp_item_size_total_spec_within
 
-#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_control
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_is_performed
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.offsetPredicate_control
 
 #print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.shortFormThreshold_control
 
 #print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanNeverComparesAgainst0x38
 
-#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanOnlyReadsThePrefixByte
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_length
 
-#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_does_load_the_prefix_byte_reachable
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoad_sites
+
+#print axioms EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoads_have_zero_offset
 
 #print axioms EvmAsm.Codegen.RlpItemSpanSpec.long_gate_negative_control
 
