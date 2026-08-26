@@ -9,10 +9,14 @@
   Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
-import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0
+public import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
+public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

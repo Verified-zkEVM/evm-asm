@@ -18,9 +18,13 @@
   single-addback chain).  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5TopBound
-import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5TopBound
+public import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

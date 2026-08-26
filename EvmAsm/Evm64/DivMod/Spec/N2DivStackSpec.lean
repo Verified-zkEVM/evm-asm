@@ -24,10 +24,14 @@
   `Spec.N2V4CallableExactSelected` and `CallableV4DivSelected` instead.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

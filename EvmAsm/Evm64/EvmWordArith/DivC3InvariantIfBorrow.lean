@@ -13,9 +13,13 @@
   first-addback carry.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -23,7 +23,11 @@
   until the model is fixed.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Div128V5RandomCheck
 

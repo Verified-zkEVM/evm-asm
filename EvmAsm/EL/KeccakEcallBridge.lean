@@ -4,10 +4,14 @@
   Pure zkVM KECCAK accelerator ECALL surface (GH #111).
 -/
 
-import EvmAsm.EL.KeccakInputBridge
-import EvmAsm.EL.KeccakResultBridge
-import EvmAsm.Evm64.Accelerators.Status
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+public import EvmAsm.EL.KeccakResultBridge
+public import EvmAsm.Evm64.Accelerators.Status
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

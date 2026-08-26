@@ -7,7 +7,11 @@
   `FullPathN2V4NoNopFinalPost`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

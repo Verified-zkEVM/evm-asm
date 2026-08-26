@@ -4,7 +4,11 @@
   Shared selected-if-borrow evidence bundle for the N1 DIV callable shape route.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowSelectedPath
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowSelectedPath
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

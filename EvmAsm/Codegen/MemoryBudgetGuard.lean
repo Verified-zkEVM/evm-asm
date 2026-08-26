@@ -95,13 +95,24 @@
   GMP-backed `Nat` handles them directly. No `native_decide`/`bv_decide`.
 -/
 
-import EvmAsm.Codegen.CallFrameLayout
-import EvmAsm.Codegen.Programs.EvmMemoryGas
-import EvmAsm.Stateless.SpecRef.Transactions
-import EvmAsm.Stateless.SpecRef.InstructionsCore
-import EvmAsm.Stateless.SpecRef.InstructionsEnv
-import EvmAsm.Codegen.Programs.EvmAccessGas
-import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+module
+
+public import EvmAsm.Codegen.CallFrameLayout
+public import EvmAsm.Codegen.Programs.EvmMemoryGas
+public import EvmAsm.Stateless.SpecRef.Transactions
+public import EvmAsm.Stateless.SpecRef.InstructionsCore
+public import EvmAsm.Stateless.SpecRef.InstructionsEnv
+public import EvmAsm.Codegen.Programs.EvmAccessGas
+public import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+meta import EvmAsm.Codegen.CallFrameLayout
+meta import EvmAsm.Codegen.Programs.EvmMemoryGas
+meta import EvmAsm.Stateless.SpecRef.Transactions
+meta import EvmAsm.Stateless.SpecRef.InstructionsCore
+meta import EvmAsm.Stateless.SpecRef.InstructionsEnv
+meta import EvmAsm.Codegen.Programs.EvmAccessGas
+meta import EvmAsm.Codegen.Programs.EvmStorageAccessGas
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.MemoryBudgetGuard
 

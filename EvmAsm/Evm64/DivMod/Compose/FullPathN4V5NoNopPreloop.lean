@@ -9,14 +9,18 @@
   (component A).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
-import EvmAsm.Evm64.DivMod.Compose.CLZV5
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
-import EvmAsm.Evm64.DivMod.Compose.NormBV5
-import EvmAsm.Evm64.DivMod.Compose.NormAV5
-import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.PhaseBV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAV5
+public import EvmAsm.Evm64.DivMod.Compose.CLZV5
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5
+public import EvmAsm.Evm64.DivMod.Compose.NormBV5
+public import EvmAsm.Evm64.DivMod.Compose.NormAV5
+public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.LoopIterN4
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

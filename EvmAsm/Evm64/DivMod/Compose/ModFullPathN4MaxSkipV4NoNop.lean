@@ -1,6 +1,10 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.ModPreloopN4V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.ModPreloopN4V4NoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -5,8 +5,12 @@
   bridges from `Compose/Base.lean`.
 -/
 
-import EvmAsm.Evm64.SDiv.AddrNorm
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.SDiv.AddrNorm
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

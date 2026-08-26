@@ -6,7 +6,11 @@
   ordinal without unfolding `evm_mulmod_product_add_partial`.
 -/
 
-import EvmAsm.Evm64.MulMod.AddPartialSpecs
+module
+
+public import EvmAsm.Evm64.MulMod.AddPartialSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

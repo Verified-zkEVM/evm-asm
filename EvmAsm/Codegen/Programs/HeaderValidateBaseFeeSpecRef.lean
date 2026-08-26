@@ -22,9 +22,16 @@
   `HeaderValidateBaseFeeSpecRefCompose.lean`.
 -/
 
-import EvmAsm.Rv64.Basic
-import EvmAsm.Stateless.SpecRef.Crypto
-import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
+module
+
+public import EvmAsm.Rv64.Basic
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
+meta import EvmAsm.Rv64.Basic
+meta import EvmAsm.Stateless.SpecRef.Crypto
+meta import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef
 

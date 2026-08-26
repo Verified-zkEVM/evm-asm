@@ -13,11 +13,15 @@
   `evm_div_n1_lane_shiftNz_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ShapeCallableShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ShapeCallableShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

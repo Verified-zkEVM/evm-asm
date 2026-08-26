@@ -8,8 +8,12 @@
   body borrowCarry (#7438).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

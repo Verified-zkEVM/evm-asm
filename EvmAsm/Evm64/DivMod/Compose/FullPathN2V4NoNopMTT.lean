@@ -7,7 +7,11 @@
   Conditions: bltu_2=false (max), bltu_1=true (call), bltu_0=true (call).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

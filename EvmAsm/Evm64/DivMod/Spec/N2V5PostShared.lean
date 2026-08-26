@@ -1,11 +1,15 @@
 /- Shared declaration home for the n=2 DIV concrete and dispatch-post bridges. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -13,10 +13,14 @@
   Hash half (`erh_hash_one` + `zkvm_sha256`) is a separate residual row.
 -/
 
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.RemuNat
-import EvmAsm.Codegen.Programs.RequestsHashParams
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.Rv64.RemuNat
+public import EvmAsm.Codegen.Programs.RequestsHashParams
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.ExecutionRequestsHashVal
 

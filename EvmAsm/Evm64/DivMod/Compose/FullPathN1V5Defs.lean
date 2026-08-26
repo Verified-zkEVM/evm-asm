@@ -14,8 +14,12 @@
   `Carry2NzAll`. Bead evm-asm-wbc4i.9.1.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1LoopUnified
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

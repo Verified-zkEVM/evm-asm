@@ -15,12 +15,16 @@
   specs.
 -/
 
-import EvmAsm.Evm64.DivMod.Program
-import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.DivMod.Program
+public import EvmAsm.Evm64.DivMod.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

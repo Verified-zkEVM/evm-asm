@@ -12,8 +12,12 @@
   Bead `evm-asm-wbc4i.9.3.3.5` (piece 4).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShiftNz
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShiftNz
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

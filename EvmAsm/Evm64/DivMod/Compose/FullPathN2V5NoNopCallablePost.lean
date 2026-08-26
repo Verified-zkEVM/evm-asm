@@ -6,10 +6,14 @@
   Mirrors FullPathN2V4NoNopCallablePost (v4 bridges) for the v5 code surface.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

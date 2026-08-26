@@ -91,6 +91,13 @@ jobs:
         run: |
           scripts/check-layering.sh --self-test
           scripts/check-layering.sh
+      # Self-test first, for the same reason layering has one: this gate scans
+      # source and prints a count, so it can report a clean tree because its own
+      # matcher missed the thing it exists to find.
+      - name: No declaration is declared in two modules (MODULES.md §5d)
+        run: |
+          python3 scripts/check-duplicate-decls.py --self-test
+          python3 scripts/check-duplicate-decls.py
       - name: "code_at_header empty-hash guard (#11520; raise→reject, not fallback)"
         run: scripts/check-code-preimage-empty-hash.sh
       - name: check-mpt-status-vocab

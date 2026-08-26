@@ -4,9 +4,13 @@
   Boundary block specs lifted to the top-level EXP code bundles.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBase
-import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBase
+public import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

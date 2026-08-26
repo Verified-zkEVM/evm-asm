@@ -100,9 +100,16 @@
   specs will be stated in.
 -/
 
-import EvmAsm.Evm64.StateAssertions
-import EvmAsm.Stateless.SpecRef.WitnessState
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.Evm64.StateAssertions
+public import EvmAsm.Stateless.SpecRef.WitnessState
+public import EvmAsm.EL.RLP.Properties
+meta import EvmAsm.Evm64.StateAssertions
+meta import EvmAsm.Stateless.SpecRef.WitnessState
+meta import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

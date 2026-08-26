@@ -9,8 +9,12 @@
   to `mulsubN4NoBorrow_div128Quot_v5_of_norm_call`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
-import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+public import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

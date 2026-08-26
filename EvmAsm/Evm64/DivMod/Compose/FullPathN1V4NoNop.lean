@@ -4,7 +4,11 @@
   Final v4/no-NOP wrappers for the n=1 DIV call/max/max/max path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

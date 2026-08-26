@@ -8,8 +8,12 @@
   Fifth brick of the v5 n=1 preloop.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

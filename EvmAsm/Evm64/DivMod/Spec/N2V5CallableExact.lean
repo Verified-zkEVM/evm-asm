@@ -9,8 +9,12 @@
   and the body triple as hypotheses; the shape-level dischargers come later.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5PostShared
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

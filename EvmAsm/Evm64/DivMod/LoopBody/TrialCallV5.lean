@@ -23,8 +23,12 @@
     structurally identical to v4 (modulo upstream V5 values).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallHelpers
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallHelpers
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

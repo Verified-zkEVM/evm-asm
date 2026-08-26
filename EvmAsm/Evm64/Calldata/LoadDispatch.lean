@@ -22,12 +22,16 @@
   zero arms before lifting the merged triple to the public form.
 -/
 
-import EvmAsm.Evm64.Calldata.LoadFullProgram
-import EvmAsm.Evm64.Calldata.LoadWindowWord
-import EvmAsm.Evm64.Calldata.CopySpec
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Calldata.LoadFullProgram
+public import EvmAsm.Evm64.Calldata.LoadWindowWord
+public import EvmAsm.Evm64.Calldata.CopySpec
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

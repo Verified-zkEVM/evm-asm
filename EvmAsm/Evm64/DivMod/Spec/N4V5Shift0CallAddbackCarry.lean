@@ -14,8 +14,12 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialBounds
-import EvmAsm.Evm64.DivMod.SpecCallShift0
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialBounds
+public import EvmAsm.Evm64.DivMod.SpecCallShift0
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

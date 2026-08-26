@@ -4,7 +4,11 @@
   Framed scratch case splits for fixed x19 case-post assertions.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

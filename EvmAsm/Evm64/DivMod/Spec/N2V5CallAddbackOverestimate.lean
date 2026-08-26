@@ -14,8 +14,12 @@
   max-digit half is `isAddbackCarry2NzN2Max_of_not_ult_c3_one_of_carry_zero`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

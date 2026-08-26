@@ -10,8 +10,12 @@
   `.proven`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

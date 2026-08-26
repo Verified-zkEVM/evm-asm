@@ -1,8 +1,12 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBodyConditional
-import EvmAsm.Evm64.DivMod.Compose.V4Code
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBody
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopLoopBodyConditional
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

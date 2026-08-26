@@ -4,8 +4,12 @@
   Pure stack-argument record for KECCAK256/SHA3 (GH #111).
 -/
 
-import EvmAsm.Evm64.EvmWord
-import EvmAsm.Evm64.MemoryGas
+module
+
+public import EvmAsm.Evm64.EvmWord
+public import EvmAsm.Evm64.MemoryGas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

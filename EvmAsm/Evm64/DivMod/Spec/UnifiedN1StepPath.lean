@@ -5,9 +5,13 @@
   directly.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesNonzero
-import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
-import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesNonzero
+public import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

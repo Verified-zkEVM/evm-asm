@@ -19,8 +19,12 @@
   Method: docs/agents/spec-correspondence.md.
 -/
 
-import EvmAsm.Stateless.SpecRef.IncrementalMpt
-import EvmAsm.Tests.Correspondence.Harness
+module
+
+public import EvmAsm.Stateless.SpecRef.IncrementalMpt
+public import EvmAsm.Tests.Correspondence.Harness
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Correspondence.Mpt
 
@@ -28,10 +32,10 @@ open EvmAsm.EL.RLP
 open EvmAsm.Stateless.SpecRef
 open EvmAsm.Tests.Correspondence
 
-private def q (bs : Bytes) : String :=
+def q (bs : Bytes) : String :=
   "\"" ++ hexOfBytes bs ++ "\""
 
-private partial def renderNode : Option MutableNode → String
+partial def renderNode : Option MutableNode → String
   | none => "(node empty)"
   | some (.hashed h) => "(node hashed " ++ q h ++ ")"
   | some (.leaf rest value) => "(node leaf " ++ q rest ++ " " ++ q value ++ ")"
@@ -43,17 +47,17 @@ private partial def renderNode : Option MutableNode → String
         | none => "none"
         | some node => renderNode (some node))) ++ ") " ++ q value ++ ")"
 
-private def parseNodes? (fields : List String) : Option (List Bytes) :=
+def parseNodes? (fields : List String) : Option (List Bytes) :=
   fields.mapM parseHexBytes
 
-private def runCompact (s : String) : Option String := do
+def runCompact (s : String) : Option String := do
   let bs ← parseHexBytes s
   match compact_to_nibbles bs with
   | .ok (nibbles, isLeaf) =>
       some <| "(compact " ++ q nibbles ++ " " ++ toString isLeaf ++ ")"
   | .error _ => none
 
-private def runNodes (rootAndChildren : List String) (omitRoot : Bool) : Option String := do
+def runNodes (rootAndChildren : List String) (omitRoot : Bool) : Option String := do
   let fields ← parseNodes? rootAndChildren
   let root ← fields.head?
   let dbFields := if omitRoot then fields.drop 1 else fields
@@ -62,7 +66,7 @@ private def runNodes (rootAndChildren : List String) (omitRoot : Bool) : Option 
   | .ok decoded => some (renderNode decoded)
   | .error _ => none
 
-private def runAccount (s : String) : Option String := do
+def runAccount (s : String) : Option String := do
   let bs ← parseHexBytes s
   match decode_account_from_leaf bs with
   | .ok (account, storageRoot) =>
@@ -79,7 +83,7 @@ def runDecode (line : String) : Option String :=
   | ["account", s] => runAccount s
   | _ => none
 
-private def runCanonicalRlp (line : String) : Option Bool := do
+def runCanonicalRlp (line : String) : Option Bool := do
   match line.splitOn "|" with
   | ["compact", _] => some true
   | "node" :: root :: _ =>

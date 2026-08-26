@@ -12,9 +12,13 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

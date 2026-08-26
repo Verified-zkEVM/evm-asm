@@ -1,9 +1,13 @@
 /- Shared declaration home for the n=2 V5 shape-discharge and callable post path. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
-import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

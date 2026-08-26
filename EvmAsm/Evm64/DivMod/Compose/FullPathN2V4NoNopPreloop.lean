@@ -5,10 +5,14 @@
   Mirrors FullPathN3V4NoNopPreloop.lean for the n=2 case (b3=b2=0, b1≠0).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopSelected
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopLoopSelected
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.Norm
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

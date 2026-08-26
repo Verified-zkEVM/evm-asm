@@ -27,9 +27,13 @@
     `callDataByte` (zero past the end, via the pad).
 -/
 
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Evm64.MLoad.Spec
-import EvmAsm.Evm64.Calldata.Basic
+module
+
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Evm64.MLoad.Spec
+public import EvmAsm.Evm64.Calldata.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

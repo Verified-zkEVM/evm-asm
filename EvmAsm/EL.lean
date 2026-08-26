@@ -3,106 +3,110 @@
 
   Root import file for the Execution Layer (EL) specifications.
 -/
-import EvmAsm.EL.RLP.ByteStringDecodeBridge
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.EL.RLP.ListDecode
-import EvmAsm.EL.RLP.ListDecodeBridge
-import EvmAsm.EL.RLP.LongForm
-import EvmAsm.EL.RLP.LongFormDecodeBridge
-import EvmAsm.EL.RLP.LongSpan
-import EvmAsm.EL.RLP.Prefix
-import EvmAsm.EL.RLP.PrefixDecode
-import EvmAsm.EL.RLP.Program
-import EvmAsm.EL.RLP.ProgramSpec
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.EL.RLP.FuelMono
-import EvmAsm.EL.RLP.EncodeDecode
-import EvmAsm.EL.RLP.ReadLength
-import EvmAsm.EL.RLP.RefDecode
-import EvmAsm.EL.RLP.RefDecodeBridge
-import EvmAsm.EL.RLP.RefDecodeDepth
-import EvmAsm.EL.RLP.RefDecodeStatus
-import EvmAsm.EL.RLP.RefDecodeFuzz
-import EvmAsm.EL.RLP.ReadLengthBridge
-import EvmAsm.EL.RLP.Scalar
-import EvmAsm.EL.RLP.VariableUint
-import EvmAsm.EL.Create
-import EvmAsm.EL.CreateArgsBridge
-import EvmAsm.EL.CreateInitcodeBridge
-import EvmAsm.EL.CreateResultBridge
-import EvmAsm.EL.CreateStackExecutionBridge
-import EvmAsm.EL.Logs
-import EvmAsm.EL.LogArgsBridge
-import EvmAsm.EL.LogDataBridge
-import EvmAsm.EL.LogCallEffects
-import EvmAsm.EL.LogExecutionBridge
-import EvmAsm.EL.LogStackExecutionBridge
-import EvmAsm.EL.KeccakInputBridge
-import EvmAsm.EL.KeccakEcallBridge
-import EvmAsm.EL.KeccakResultBridge
-import EvmAsm.EL.KeccakStackExecutionBridge
-import EvmAsm.EL.Bls12MapFp2ToG2InputBridge
-import EvmAsm.EL.Bls12MapFp2ToG2ResultBridge
-import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
-import EvmAsm.EL.Bls12PairingInputBridge
-import EvmAsm.EL.Bls12PairingResultBridge
-import EvmAsm.EL.Bls12PairingEcallBridge
-import EvmAsm.EL.Bls12G1AddInputBridge
-import EvmAsm.EL.Bls12G1AddResultBridge
-import EvmAsm.EL.Bls12G1AddEcallBridge
-import EvmAsm.EL.Secp256r1VerifyInputBridge
-import EvmAsm.EL.Secp256r1VerifyResultBridge
-import EvmAsm.EL.Secp256r1VerifyEcallBridge
-import EvmAsm.EL.Bls12G1MsmInputBridge
-import EvmAsm.EL.Bls12G1MsmResultBridge
-import EvmAsm.EL.Bls12G1MsmEcallBridge
-import EvmAsm.EL.KzgPointEvalInputBridge
-import EvmAsm.EL.KzgPointEvalResultBridge
-import EvmAsm.EL.KzgPointEvalEcallBridge
-import EvmAsm.EL.Bls12MapFpToG1InputBridge
-import EvmAsm.EL.Bls12MapFpToG1ResultBridge
-import EvmAsm.EL.Bls12MapFpToG1EcallBridge
-import EvmAsm.EL.Bn254PairingInputBridge
-import EvmAsm.EL.Bn254PairingResultBridge
-import EvmAsm.EL.Bn254PairingEcallBridge
-import EvmAsm.EL.ModexpInputBridge
-import EvmAsm.EL.ModexpResultBridge
-import EvmAsm.EL.ModexpEcallBridge
-import EvmAsm.EL.Bn254G1MulInputBridge
-import EvmAsm.EL.Bn254G1MulResultBridge
-import EvmAsm.EL.Bn254G1MulEcallBridge
-import EvmAsm.EL.Bls12G2MsmInputBridge
-import EvmAsm.EL.Bls12G2MsmResultBridge
-import EvmAsm.EL.Bls12G2MsmEcallBridge
-import EvmAsm.EL.Bn254G1AddInputBridge
-import EvmAsm.EL.Bn254G1AddResultBridge
-import EvmAsm.EL.Bn254G1AddEcallBridge
-import EvmAsm.EL.Conformance
-import EvmAsm.EL.Conformance.Call
-import EvmAsm.EL.Conformance.Calldata
-import EvmAsm.EL.Conformance.Code
-import EvmAsm.EL.Conformance.CreateStackExecution
-import EvmAsm.EL.Conformance.KeccakStackExecution
-import EvmAsm.EL.Conformance.ReturnData
-import EvmAsm.EL.Conformance.Log
-import EvmAsm.EL.Conformance.LogStackExecution
-import EvmAsm.EL.Conformance.ExpGas
-import EvmAsm.EL.Conformance.ExpStackExecution
-import EvmAsm.EL.Conformance.SignedArithmeticStackExecution
-import EvmAsm.EL.Conformance.RLP
-import EvmAsm.EL.Conformance.RLPFullDecodeBridge
-import EvmAsm.EL.Conformance.StorageStackExecution
-import EvmAsm.EL.Conformance.TerminatingStackExecution
-import EvmAsm.EL.Conformance.All
-import EvmAsm.EL.WorldState
-import EvmAsm.EL.StorageStackExecutionBridge
-import EvmAsm.EL.MessageCall
-import EvmAsm.EL.MessageCallExecution
-import EvmAsm.EL.CallOutputBridge
-import EvmAsm.EL.TerminatingArgsBridge
-import EvmAsm.EL.TerminatingDataMemory
-import EvmAsm.EL.TerminatingStackExecutionBridge
-import EvmAsm.EL.Withdrawal
-import EvmAsm.EL.Bls12G2AddInputBridge
-import EvmAsm.EL.Bls12G2AddResultBridge
-import EvmAsm.EL.Bls12G2AddEcallBridge
+module
+
+public import EvmAsm.EL.RLP.ByteStringDecodeBridge
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.EL.RLP.ListDecode
+public import EvmAsm.EL.RLP.ListDecodeBridge
+public import EvmAsm.EL.RLP.LongForm
+public import EvmAsm.EL.RLP.LongFormDecodeBridge
+public import EvmAsm.EL.RLP.LongSpan
+public import EvmAsm.EL.RLP.Prefix
+public import EvmAsm.EL.RLP.PrefixDecode
+public import EvmAsm.EL.RLP.Program
+public import EvmAsm.EL.RLP.ProgramSpec
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.EL.RLP.FuelMono
+public import EvmAsm.EL.RLP.EncodeDecode
+public import EvmAsm.EL.RLP.ReadLength
+public import EvmAsm.EL.RLP.RefDecode
+public import EvmAsm.EL.RLP.RefDecodeBridge
+public import EvmAsm.EL.RLP.RefDecodeDepth
+public import EvmAsm.EL.RLP.RefDecodeStatus
+public import EvmAsm.EL.RLP.RefDecodeFuzz
+public import EvmAsm.EL.RLP.ReadLengthBridge
+public import EvmAsm.EL.RLP.Scalar
+public import EvmAsm.EL.RLP.VariableUint
+public import EvmAsm.EL.Create
+public import EvmAsm.EL.CreateArgsBridge
+public import EvmAsm.EL.CreateInitcodeBridge
+public import EvmAsm.EL.CreateResultBridge
+public import EvmAsm.EL.CreateStackExecutionBridge
+public import EvmAsm.EL.Logs
+public import EvmAsm.EL.LogArgsBridge
+public import EvmAsm.EL.LogDataBridge
+public import EvmAsm.EL.LogCallEffects
+public import EvmAsm.EL.LogExecutionBridge
+public import EvmAsm.EL.LogStackExecutionBridge
+public import EvmAsm.EL.KeccakInputBridge
+public import EvmAsm.EL.KeccakEcallBridge
+public import EvmAsm.EL.KeccakResultBridge
+public import EvmAsm.EL.KeccakStackExecutionBridge
+public import EvmAsm.EL.Bls12MapFp2ToG2InputBridge
+public import EvmAsm.EL.Bls12MapFp2ToG2ResultBridge
+public import EvmAsm.EL.Bls12MapFp2ToG2EcallBridge
+public import EvmAsm.EL.Bls12PairingInputBridge
+public import EvmAsm.EL.Bls12PairingResultBridge
+public import EvmAsm.EL.Bls12PairingEcallBridge
+public import EvmAsm.EL.Bls12G1AddInputBridge
+public import EvmAsm.EL.Bls12G1AddResultBridge
+public import EvmAsm.EL.Bls12G1AddEcallBridge
+public import EvmAsm.EL.Secp256r1VerifyInputBridge
+public import EvmAsm.EL.Secp256r1VerifyResultBridge
+public import EvmAsm.EL.Secp256r1VerifyEcallBridge
+public import EvmAsm.EL.Bls12G1MsmInputBridge
+public import EvmAsm.EL.Bls12G1MsmResultBridge
+public import EvmAsm.EL.Bls12G1MsmEcallBridge
+public import EvmAsm.EL.KzgPointEvalInputBridge
+public import EvmAsm.EL.KzgPointEvalResultBridge
+public import EvmAsm.EL.KzgPointEvalEcallBridge
+public import EvmAsm.EL.Bls12MapFpToG1InputBridge
+public import EvmAsm.EL.Bls12MapFpToG1ResultBridge
+public import EvmAsm.EL.Bls12MapFpToG1EcallBridge
+public import EvmAsm.EL.Bn254PairingInputBridge
+public import EvmAsm.EL.Bn254PairingResultBridge
+public import EvmAsm.EL.Bn254PairingEcallBridge
+public import EvmAsm.EL.ModexpInputBridge
+public import EvmAsm.EL.ModexpResultBridge
+public import EvmAsm.EL.ModexpEcallBridge
+public import EvmAsm.EL.Bn254G1MulInputBridge
+public import EvmAsm.EL.Bn254G1MulResultBridge
+public import EvmAsm.EL.Bn254G1MulEcallBridge
+public import EvmAsm.EL.Bls12G2MsmInputBridge
+public import EvmAsm.EL.Bls12G2MsmResultBridge
+public import EvmAsm.EL.Bls12G2MsmEcallBridge
+public import EvmAsm.EL.Bn254G1AddInputBridge
+public import EvmAsm.EL.Bn254G1AddResultBridge
+public import EvmAsm.EL.Bn254G1AddEcallBridge
+public import EvmAsm.EL.Conformance
+public import EvmAsm.EL.Conformance.Call
+public import EvmAsm.EL.Conformance.Calldata
+public import EvmAsm.EL.Conformance.Code
+public import EvmAsm.EL.Conformance.CreateStackExecution
+public import EvmAsm.EL.Conformance.KeccakStackExecution
+public import EvmAsm.EL.Conformance.ReturnData
+public import EvmAsm.EL.Conformance.Log
+public import EvmAsm.EL.Conformance.LogStackExecution
+public import EvmAsm.EL.Conformance.ExpGas
+public import EvmAsm.EL.Conformance.ExpStackExecution
+public import EvmAsm.EL.Conformance.SignedArithmeticStackExecution
+public import EvmAsm.EL.Conformance.RLP
+public import EvmAsm.EL.Conformance.RLPFullDecodeBridge
+public import EvmAsm.EL.Conformance.StorageStackExecution
+public import EvmAsm.EL.Conformance.TerminatingStackExecution
+public import EvmAsm.EL.Conformance.All
+public import EvmAsm.EL.WorldState
+public import EvmAsm.EL.StorageStackExecutionBridge
+public import EvmAsm.EL.MessageCall
+public import EvmAsm.EL.MessageCallExecution
+public import EvmAsm.EL.CallOutputBridge
+public import EvmAsm.EL.TerminatingArgsBridge
+public import EvmAsm.EL.TerminatingDataMemory
+public import EvmAsm.EL.TerminatingStackExecutionBridge
+public import EvmAsm.EL.Withdrawal
+public import EvmAsm.EL.Bls12G2AddInputBridge
+public import EvmAsm.EL.Bls12G2AddResultBridge
+public import EvmAsm.EL.Bls12G2AddEcallBridge
+
+@[expose] public section

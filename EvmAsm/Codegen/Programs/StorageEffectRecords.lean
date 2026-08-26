@@ -7,8 +7,12 @@
   failing executions expose no committed storage effects.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

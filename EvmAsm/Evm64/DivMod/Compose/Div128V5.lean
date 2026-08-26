@@ -18,11 +18,15 @@
   Bead `evm-asm-wbc4i.6.14` (V5.6.15) / `evm-asm-wbc4i.6` (V5.6).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Div128V4
-import EvmAsm.Evm64.DivMod.Compose.V5Code
-import EvmAsm.Evm64.DivMod.Compose.Div128V5CodeBridge
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Div128V4
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+public import EvmAsm.Evm64.DivMod.Compose.Div128V5CodeBridge
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

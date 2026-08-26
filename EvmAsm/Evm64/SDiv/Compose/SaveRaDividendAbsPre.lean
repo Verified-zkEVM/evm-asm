@@ -4,8 +4,12 @@
   Irreducible precondition for the SDIV save-ra/signs/dividendAbs prefix.
 -/
 
-import EvmAsm.Evm64.SDiv.Program
-import EvmAsm.Rv64.SepLogic
+module
+
+public import EvmAsm.Evm64.SDiv.Program
+public import EvmAsm.Rv64.SepLogic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

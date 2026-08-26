@@ -29,7 +29,11 @@
   Issue #1337 algorithm fix migration / Issue #61 stack spec closure.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -41,7 +41,11 @@
   coverRef: `mpt_walk_hop_precondition_reachable` (two-node ext→leaf hop).
 -/
 
-import EvmAsm.Evm64.MptCorrespondence
+module
+
+public import EvmAsm.Evm64.MptCorrespondence
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.MptWalkSpec
 

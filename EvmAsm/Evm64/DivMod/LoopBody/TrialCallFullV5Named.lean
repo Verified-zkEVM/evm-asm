@@ -11,11 +11,15 @@
   (Div128V5FinalEqNamed / Div128V5X7X9Eq / #7252).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
-import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5X7X9Eq
+public import EvmAsm.Evm64.DivMod.Spec.N1V5QuotNoBorrowShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

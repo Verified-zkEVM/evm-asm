@@ -18,12 +18,16 @@
   pieces.  This file accumulates them brick by brick.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
-import EvmAsm.Evm64.DivMod.Compose.NormA
-import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.Norm
+public import EvmAsm.Evm64.DivMod.Compose.NormA
+public import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

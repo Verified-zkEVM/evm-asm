@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

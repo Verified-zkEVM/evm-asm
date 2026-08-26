@@ -10,8 +10,12 @@
   Bead `evm-asm-wbc4i.9.3.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Lane
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Lane
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

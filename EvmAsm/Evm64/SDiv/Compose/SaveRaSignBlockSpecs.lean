@@ -5,8 +5,12 @@
   probe blocks.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SignCodeSlices
-import EvmAsm.Evm64.SDiv.LimbSpec
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.SignCodeSlices
+public import EvmAsm.Evm64.SDiv.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

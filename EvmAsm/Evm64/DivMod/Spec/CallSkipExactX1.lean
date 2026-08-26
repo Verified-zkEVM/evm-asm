@@ -9,7 +9,11 @@
   keep `CallSkip.lean` below the 1500-line cap.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

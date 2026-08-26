@@ -4,8 +4,12 @@
   Generic pure handler-table entries for simple environment opcodes (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
-import EvmAsm.Evm64.Env.Gas
+module
+
+public import EvmAsm.Evm64.HandlerTable
+public import EvmAsm.Evm64.Env.Gas
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace EnvHandlers

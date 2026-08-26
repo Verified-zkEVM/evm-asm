@@ -15,9 +15,13 @@
   `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Bounds
-import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
-import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0Bounds
+public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneBltu
+public import EvmAsm.Evm64.DivMod.Spec.N1V5LaneHborrow
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

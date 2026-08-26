@@ -6,8 +6,12 @@
   cases: bzero, N1, N2, N3, N4.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

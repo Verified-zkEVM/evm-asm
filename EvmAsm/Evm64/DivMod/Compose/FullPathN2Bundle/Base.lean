@@ -4,8 +4,12 @@
   Irreducible algorithm intermediates for n=2 full-path wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

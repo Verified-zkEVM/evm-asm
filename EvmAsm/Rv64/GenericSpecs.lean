@@ -16,7 +16,11 @@
 
 -- `CPSSpec` transitively imports `Basic`, `SepLogic`, `Execution`, and
 -- (via `Execution`) `Instructions`.
-import EvmAsm.Rv64.CPSSpec
+module
+
+public import EvmAsm.Rv64.CPSSpec
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

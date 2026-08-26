@@ -4,8 +4,12 @@
   making pure arithmetic lemmas depend on the complete RV64 proof pipeline.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.CLZResult
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

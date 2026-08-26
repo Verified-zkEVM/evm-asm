@@ -4,8 +4,12 @@
   Adapter from handler tables to the pure interpreter loop (GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTable
-import EvmAsm.Evm64.InterpreterSimulation
+module
+
+public import EvmAsm.Evm64.HandlerTable
+public import EvmAsm.Evm64.InterpreterSimulation
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

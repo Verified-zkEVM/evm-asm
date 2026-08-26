@@ -6,9 +6,13 @@
   and receipt gas increments.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.U256
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.U256
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

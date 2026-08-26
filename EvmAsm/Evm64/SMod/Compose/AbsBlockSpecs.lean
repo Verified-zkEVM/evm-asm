@@ -4,8 +4,12 @@
   Primitive SMOD wrapper specs for the in-place absolute-value blocks.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCode
-import EvmAsm.Evm64.SDiv.LimbSpec
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+public import EvmAsm.Evm64.SDiv.LimbSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

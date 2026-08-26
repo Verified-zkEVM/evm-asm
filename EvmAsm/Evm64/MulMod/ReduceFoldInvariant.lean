@@ -19,7 +19,11 @@
   (Horner) correctness proof needs at each induction step.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceCorrect
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceCorrect
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

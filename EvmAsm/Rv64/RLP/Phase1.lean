@@ -31,11 +31,15 @@
       (`BitVec.ult v5 kVal` on the taken side, `¬…` on the fall-through).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.ExtractPure
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.EL.RLP.Prefix
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.ExtractPure
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.EL.RLP.Prefix
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

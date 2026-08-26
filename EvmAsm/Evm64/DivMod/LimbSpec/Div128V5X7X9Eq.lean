@@ -11,8 +11,12 @@
   trial-call-full post (brick 6).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
-import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5FinalEqNamed
+public import EvmAsm.Evm64.DivMod.LoopIterN1.CallV5NoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -16,8 +16,12 @@
   See beads `evm-asm-qqn4`, parent `evm-asm-wp69` (#61 slice 2).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

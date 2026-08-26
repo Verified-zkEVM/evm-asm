@@ -13,8 +13,12 @@
   (sp+4088/4080/4072/4064), unread by MOD, are framed through.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

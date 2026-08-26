@@ -5,8 +5,12 @@
   weakened to the named dispatch-ready postcondition.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallSequence
-import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallSequence
+public import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

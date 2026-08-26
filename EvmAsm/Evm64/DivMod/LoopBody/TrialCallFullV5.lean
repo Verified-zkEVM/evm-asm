@@ -19,10 +19,14 @@
   (`divK_trial_call_path_v5_spec_within_noNop_exact_x1`, #7210).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
-import EvmAsm.Evm64.DivMod.Compose.V5Code
-import EvmAsm.Evm64.DivMod.Compose.Div128V5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallPath
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+public import EvmAsm.Evm64.DivMod.Compose.Div128V5
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

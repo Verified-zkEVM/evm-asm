@@ -7,10 +7,14 @@
   exact-quotient target without growing the near-cap source file.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

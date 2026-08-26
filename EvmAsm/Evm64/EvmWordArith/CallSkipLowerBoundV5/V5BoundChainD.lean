@@ -2,10 +2,14 @@
   Shared declaration home for the V5 upper- and lower-bound bridges.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainC
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainC
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

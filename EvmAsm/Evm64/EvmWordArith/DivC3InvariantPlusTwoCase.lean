@@ -14,9 +14,13 @@
   invariant under `+2` to exactly two sharp reachability obligations.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

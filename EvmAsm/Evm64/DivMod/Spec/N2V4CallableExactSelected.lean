@@ -4,8 +4,12 @@
   Selected-carry N2 DIV v4 callable exact-frame wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExact
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePostSelected
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

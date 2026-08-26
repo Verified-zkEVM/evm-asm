@@ -61,6 +61,7 @@ stage_runtime_payload_code:
   bnez t0, .Lsrpc_after_blob_price
   addi a0, s2, 520; jal ra, bgv_u64le
   mv a1, s5; jal ra, amsterdam_blob_gas_price_u256
+  bnez a0, .Lsrpc_ret
 .Lsrpc_after_blob_price:
   mv t3, s5
   la t4, m28_blob_stage_count; ld t0, 0(t4); sd t0, 32(t3)

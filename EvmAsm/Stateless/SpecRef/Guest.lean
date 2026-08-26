@@ -13,7 +13,12 @@
   keeping the whole pipeline `#eval`-runnable.
 -/
 
-import EvmAsm.Stateless.SpecRef.Stateless
+module
+
+public import EvmAsm.Stateless.SpecRef.Stateless
+meta import EvmAsm.Stateless.SpecRef.Stateless
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -186,7 +191,7 @@ theorem run_stateless_guest_total (bs : Bytes) (execute : ExecutionSeam) :
 
 /-! ## Sanity checks -/
 
-private def z (n : Nat) : Bytes := List.replicate n (0 : Byte)
+def z (n : Nat) : Bytes := List.replicate n (0 : Byte)
 
 /-- A minimal, correctly-sized `ExecutionPayload` (all fixed byte fields at
     their declared widths so SSZ decode round-trips). -/

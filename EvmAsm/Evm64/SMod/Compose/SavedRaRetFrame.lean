@@ -5,8 +5,12 @@
   return instruction.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixPost
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixPost
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

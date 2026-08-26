@@ -7,9 +7,13 @@
   the code map but not executed by this triple.
 -/
 
-import EvmAsm.Rv64.InstructionSpecs
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

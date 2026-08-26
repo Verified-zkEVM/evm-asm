@@ -23,11 +23,15 @@
 -- Both `Div128KnuthLower` and `Div128FinalAssembly` transitively reach
 -- `Div128QuotientBounds → KnuthTheoremB` and `DivN4Overestimate`
 -- (→ `DivMod.LoopSemantic`). The n=4 path predicates are imported directly.
-import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
-import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
-import EvmAsm.Evm64.DivMod.LoopSemantic
-import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
+public import EvmAsm.Evm64.EvmWordArith.Div128KB6Composition
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+public import EvmAsm.Evm64.DivMod.LoopSemantic
+public import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

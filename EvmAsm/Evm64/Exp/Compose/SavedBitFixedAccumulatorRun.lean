@@ -4,7 +4,11 @@
   Small algebraic helpers for composing the pure fixed-loop accumulator run.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

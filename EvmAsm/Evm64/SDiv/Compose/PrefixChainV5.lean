@@ -7,11 +7,15 @@
   → exact_callable. Toward the SDIV `.proven` flip over evm_div_callable_v5.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
-import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlocks
-import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
-import EvmAsm.Evm64.SDiv.DispatchViewsShared
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+public import EvmAsm.Evm64.SDiv.Compose.SaveRaSignBlocks
+public import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+public import EvmAsm.Evm64.SDiv.DispatchViewsShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

@@ -19,7 +19,11 @@
   `W/(a*b)*b + W%(a*b)/a = W/a`.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceFoldInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

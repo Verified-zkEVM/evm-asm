@@ -13,9 +13,13 @@
   v4 N3 stack/callable work should use selected/reachable carry wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN3
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN3
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 /- No-NOP n=3 loop-body adapters, colocated with their composition consumers. -/
 

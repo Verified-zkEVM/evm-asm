@@ -1,17 +1,21 @@
 /- Shared declaration home for the n=2 V5 families, shape bounds, and max-carry facts. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
-import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
-import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
-import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
-import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
-import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
-import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
-import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopPreloopFullShared
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+public import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
+public import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
+public import EvmAsm.Evm64.DivMod.Spec.N2V5TrialOverestimate
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ThreeStep
+public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
+public import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
+public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

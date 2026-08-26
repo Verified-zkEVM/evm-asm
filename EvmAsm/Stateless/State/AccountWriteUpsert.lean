@@ -64,7 +64,12 @@
      `NonVacuity` for the kernel-checked witness that the two differ.
 -/
 
-import EvmAsm.Stateless.State.WriteMapAssertions
+module
+
+public import EvmAsm.Stateless.State.WriteMapAssertions
+meta import EvmAsm.Stateless.State.WriteMapAssertions
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.State
 

@@ -15,13 +15,17 @@
   Issue #1337 algorithm fix migration / Issue #61 stack spec closure.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Div128Post
-import EvmAsm.Evm64.DivMod.Compose.V4Code
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128PhaseEnd
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1v2
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2v4
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Div128Post
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128PhaseEnd
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1v2
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2v4
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV4
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

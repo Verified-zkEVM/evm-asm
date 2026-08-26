@@ -6,7 +6,11 @@
   wrapper slice table so primitive sign-block specs do not import it.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.CodeHandles
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.CodeHandles
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

@@ -10,8 +10,12 @@
   suffix and the code surface is `modCode_noNop_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNormMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNormMod
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

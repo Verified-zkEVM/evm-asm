@@ -13,8 +13,12 @@
   quotient digit agrees.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5Phase1bBridge
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5CodeModelBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

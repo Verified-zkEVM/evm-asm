@@ -42,22 +42,31 @@
   equivalence with `patricialize` is `#guard`-pinned there.
 -/
 
-import EvmAsm.Stateless.SpecRef.Seam
-import EvmAsm.Stateless.SpecRef.Gas
-import EvmAsm.Stateless.SpecRef.BlocksRlp
-import EvmAsm.Stateless.SpecRef.Transactions
-import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+module
+
+public import EvmAsm.Stateless.SpecRef.Seam
+public import EvmAsm.Stateless.SpecRef.Gas
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+public import EvmAsm.Stateless.SpecRef.Transactions
+public import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+meta import EvmAsm.Stateless.SpecRef.Seam
+meta import EvmAsm.Stateless.SpecRef.Gas
+meta import EvmAsm.Stateless.SpecRef.BlocksRlp
+meta import EvmAsm.Stateless.SpecRef.Transactions
+meta import EvmAsm.Stateless.SpecRef.IncrementalMptWrite
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP (RLPItem)
 
-private def encS (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
+def encS (i : RLPItem) : Bytes := EvmAsm.EL.RLP.encode i
 
 /-! ## Request encoding (`execution_engine/requests.py`) -/
 
 /-- 8-byte little-endian (`U64.to_le_bytes8`). -/
-private def leBytes8 (n : Nat) : Bytes :=
+def leBytes8 (n : Nat) : Bytes :=
   (List.range 8).map (fun i => BitVec.ofNat 8 (n >>> (8 * i)))
 
 /-- `_encode_deposit(d)`. -/

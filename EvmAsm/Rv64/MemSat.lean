@@ -135,6 +135,22 @@ theorem Assertion.SatWithin.congr_bounds {P : Assertion} {lo hi lo' hi' : Nat}
 
 /-! ## Valid-address arithmetic -/
 
+/-- Every valid **byte** address is bounded by `RAM_MEM_END`.
+
+    The byte analogue of `toNat_le_of_validDword`, and the fact that makes
+    `isValidByteAccess` a usable no-wrap premise: `0xc0000000` leaves roughly
+    `1.8 × 10^19` of headroom below `2 ^ 64`, so any offset a walked RLP item
+    can add to a valid address cannot wrap. Used to discharge the residual
+    named in `Rv64/RLP/WalkItemProgress.lean` — strict progress on the
+    long-form arms needs exactly this bound, which `rlpItemDecode` does not
+    itself carry. -/
+theorem toNat_le_of_validByte {a : Word} (h : isValidByteAccess a = true) :
+    a.toNat ≤ 0xc0000000 := by
+  simp only [isValidByteAccess, isValidMemAddr, MEM_START, MEM_END,
+    INPUT_MEM_START, INPUT_MEM_END, RAM_MEM_START, RAM_MEM_END,
+    Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq] at h
+  omega
+
 /-- Every valid dword address is bounded by `RAM_MEM_END`, so `+ 8` never
     wraps in the constructions below. -/
 theorem toNat_le_of_validDword {a : Word} (h : isValidDwordAccess a = true) :

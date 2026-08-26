@@ -1,7 +1,11 @@
 /- Shared declaration home for the n=2 V5 quotient-shape arithmetic. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -18,10 +18,14 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4C3LeUTopPlusOne
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
-import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4C3LeUTopPlusOne
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
+public import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

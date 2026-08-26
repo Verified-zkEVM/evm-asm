@@ -8,10 +8,14 @@
   and status.
 -/
 
-import EvmAsm.Evm64.CodeRegion
-import EvmAsm.Evm64.Environment.Assertion
-import EvmAsm.Evm64.Memory
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.CodeRegion
+public import EvmAsm.Evm64.Environment.Assertion
+public import EvmAsm.Evm64.Memory
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

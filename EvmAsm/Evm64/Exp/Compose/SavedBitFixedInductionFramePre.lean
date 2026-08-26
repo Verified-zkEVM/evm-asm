@@ -5,8 +5,12 @@
   frame selected by the fixed-loop control counter.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -17,10 +17,14 @@
   (bead 7.1.4.x) callers.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
-import EvmAsm.Evm64.EvmWordArith.Common
-import EvmAsm.Evm64.DivMod.LoopDefs.Iter
-import EvmAsm.Rv64.AddrNorm
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+public import EvmAsm.Evm64.EvmWordArith.Common
+public import EvmAsm.Evm64.DivMod.LoopDefs.Iter
+public import EvmAsm.Rv64.AddrNorm
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

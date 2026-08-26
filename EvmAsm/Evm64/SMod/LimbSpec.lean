@@ -9,10 +9,14 @@
   layer, where their code handles and caller frame are pinned.
 -/
 
-import EvmAsm.Evm64.SMod.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.SMod.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -11,7 +11,11 @@
   `iterN3V5_true_eq`) rather than unfolded with `delta`.  Bead `evm-asm-wbc4i.9.3.3.6`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+
+@[expose] public section
 
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 

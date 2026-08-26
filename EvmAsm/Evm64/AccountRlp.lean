@@ -21,11 +21,15 @@
   * `accountRlpIs` + `pcFree_accountRlpIs` — the byte-region ownership assertion.
 -/
 
-import EvmAsm.EL.WorldState
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.EL.RLP.FullDecode
-import EvmAsm.EL.RLP.Scalar
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.EL.WorldState
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.EL.RLP.FullDecode
+public import EvmAsm.EL.RLP.Scalar
+public import EvmAsm.Rv64.MemRegion
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 
