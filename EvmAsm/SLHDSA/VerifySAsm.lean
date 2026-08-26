@@ -100,6 +100,14 @@ theorem slhInputRegion_wf (bs : List (BitVec 8)) (hlen : bs.length ≤ 0x2000) :
       decide_eq_true_eq, BitVec.toNat_add, BitVec.toNat_ofNat, hb]
     omega
 
+/-- Load word `k` (at a literal dword offset `o = 8k`) out of the serialized
+input region: `region.dwordAt (rf.get x10 + signExtend12 o) = vs[k]`. -/
+theorem load_word (vs : List Word) (rf : RegFile) (k : ℕ) (o : BitVec 12)
+    (hk : k < vs.length)
+    (haddr : ((rf.get .x10 + signExtend12 o) - inputBase).toNat = 8 * k) :
+    Region.dwordAt ⟨inputBase, wordsBytes vs⟩ (rf.get .x10 + signExtend12 o) = vs.getD k 0 :=
+  region_dwordAt vs k hk _ haddr
+
 /-! ## Branchless-select word identities -/
 
 /-- Every masked-to-one-bit word is 0 or 1. -/
@@ -208,6 +216,93 @@ theorem chainTop_branchless (pk idx wi d : Word) (i : ℕ) (hd : d = 0 ∨ d = 1
       BitVec.add_comm]
   · rw [if_pos rfl, show (1:Word) - 1 = 0 from by decide]
     simp
+
+/-! ## The verifier function
+
+Registers: `a0`(x10) input pointer→result, `a1`(x11) pkSeed, `a2`(x12)
+pkRoot, `a3`(x13) idxLeaf, `a4`(x14) FORS-pk then WOTS-leaf accumulator;
+`t0`(x5) mb, `t1`(x6) work, `t2`(x7) hm/work, `t3`(x28) WOTS base const,
+`t4`(x29) work, `t5`(x30) loads, `t6`(x31) work, `a5`(x15) WOTS base_i. -/
+
+/-- The 21-word input list for a signature `s` and public key. -/
+def inputWords (pkSeed pkRoot msgW : Word) (s : SigWords) : List Word :=
+  [pkSeed, pkRoot, s.r, msgW, s.s0, s.a0, s.s1, s.a1] ++ List.ofFn s.w ++ [s.xa]
+
+/-- One WOTS chain segment: load `w_i` (offset `o`), extract its digit from
+`rsrc` at shift `sh`, and accumulate `w_i + base_i & (digit-1)` into `a4`,
+using `base_i = t3 + i` materialized into `a5`. -/
+def wotsChainInstrs (o : BitVec 12) (rsrc : Reg) (sh : BitVec 6) (i : BitVec 12) : List Instr :=
+  [.LD .x30 .x10 o, .SRLI .x31 rsrc sh, .ANDI .x31 .x31 1, .ADDI .x31 .x31 (-1),
+   .ADDI .x15 .x28 i, .AND .x31 .x15 .x31, .ADD .x30 .x30 .x31, .ADD .x14 .x14 .x30]
+
+open Stmt in
+/-- The SLH-DSA verifier at the demonstration instance, in SAsm. -/
+def slhVerifyFn (pkSeed pkRoot msgW : Word) (s : SigWords) : Fn where
+  name := "slhVerify"
+  region := ⟨inputBase, wordsBytes (inputWords pkSeed pkRoot msgW s)⟩
+  pre := fun rf _ _ => rf.get .x10 = inputBase
+  post := fun rf _ _ =>
+    rf.get .x10 = (if demoVerifyWords pkSeed pkRoot msgW s then 1 else 0)
+  body :=
+    -- message digest hm = mC + r + pkSeed + pkRoot + msgW  (t2 = x7)
+    .block "load"
+      [.LD .x11 .x10 0, .LD .x12 .x10 8, .LD .x5 .x10 16, .LD .x6 .x10 24,
+       .LI .x7 mC, .ADD .x7 .x7 .x5, .ADD .x7 .x7 .x11, .ADD .x7 .x7 .x12,
+       .ADD .x7 .x7 .x6,
+    -- digest split: idxLeaf (x13), f0 (x28), f1 (x29)
+       .ANDI .x13 .x7 1,
+       .SRLI .x28 .x7 15, .ANDI .x28 .x28 1,
+       .SRLI .x29 .x7 14, .ANDI .x29 .x29 1,
+    -- FORS tree 0: leaf0 (x6), root0 (x7)
+       .LD .x30 .x10 32, .LI .x6 fC, .ADD .x6 .x6 .x11, .LI .x7 adrsC,
+       .ADD .x7 .x7 .x13, .ADDI .x7 .x7 3, .ADD .x7 .x7 .x28, .ADD .x6 .x6 .x7,
+       .ADD .x6 .x6 .x30,
+       .LD .x31 .x10 40, .LI .x7 hC, .ADD .x7 .x7 .x11, .LI .x5 adrsC,
+       .ADD .x5 .x5 .x13, .ADDI .x5 .x5 4, .ADD .x7 .x7 .x5, .ADD .x7 .x7 .x6,
+       .ADD .x7 .x7 .x31,
+    -- forsPk accumulator (x14) := tlInit + root0
+       .LI .x14 tC, .ADD .x14 .x14 .x11, .LI .x5 adrsC, .ADD .x5 .x5 .x13,
+       .ADDI .x5 .x5 4, .ADD .x14 .x14 .x5, .ADD .x14 .x14 .x7,
+    -- FORS tree 1: leaf1 (x6), root1 (x7)
+       .LD .x30 .x10 48, .LI .x6 fC, .ADD .x6 .x6 .x11, .LI .x7 adrsC,
+       .ADD .x7 .x7 .x13, .ADDI .x7 .x7 3, .ADD .x7 .x7 .x29, .ADDI .x7 .x7 2,
+       .ADD .x6 .x6 .x7, .ADD .x6 .x6 .x30,
+       .LD .x31 .x10 56, .LI .x7 hC, .ADD .x7 .x7 .x11, .LI .x5 adrsC,
+       .ADD .x5 .x5 .x13, .ADDI .x5 .x5 5, .ADD .x7 .x7 .x5, .ADD .x7 .x7 .x6,
+       .ADD .x7 .x7 .x31, .ADD .x14 .x14 .x7,
+    -- WOTS setup: mb (x5), dsum (x6), csum (x7)
+       .ANDI .x5 .x14 255,
+       .LI .x6 0,
+       .SRLI .x31 .x5 7, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 6, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 5, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 4, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 3, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 2, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .SRLI .x31 .x5 1, .ANDI .x31 .x31 1, .ADD .x6 .x6 .x31,
+       .ANDI .x31 .x5 1, .ADD .x6 .x6 .x31,
+       .LI .x7 8, .SUB .x7 .x7 .x6,
+    -- WOTS base constant fpConst = fC + pkSeed + adrsC + idxLeaf (x28)
+       .LI .x28 fC, .ADD .x28 .x28 .x11, .LI .x29 adrsC, .ADD .x28 .x28 .x29,
+       .ADD .x28 .x28 .x13,
+    -- WOTS leaf accumulator x14 := tlInit pkSeed (adrsW 1 idx 0 0)
+       .LI .x14 tC, .ADD .x14 .x14 .x11, .LI .x30 adrsC, .ADD .x14 .x14 .x30,
+       .ADD .x14 .x14 .x13, .ADDI .x14 .x14 1]
+    ;;;
+    -- the twelve WOTS chains
+    .block "wots"
+      (wotsChainInstrs 64 .x5 7 0 ++ wotsChainInstrs 72 .x5 6 1 ++
+       wotsChainInstrs 80 .x5 5 2 ++ wotsChainInstrs 88 .x5 4 3 ++
+       wotsChainInstrs 96 .x5 3 4 ++ wotsChainInstrs 104 .x5 2 5 ++
+       wotsChainInstrs 112 .x5 1 6 ++ wotsChainInstrs 120 .x5 0 7 ++
+       wotsChainInstrs 128 .x7 3 8 ++ wotsChainInstrs 136 .x7 2 9 ++
+       wotsChainInstrs 144 .x7 1 10 ++ wotsChainInstrs 152 .x7 0 11)
+    ;;;
+    -- XMSS root and the public-root comparison
+    .block "final"
+      [.LD .x30 .x10 160, .LI .x7 hC, .ADD .x7 .x7 .x11, .LI .x5 adrsC,
+       .ADDI .x5 .x5 3, .ADD .x7 .x7 .x5, .ADD .x7 .x7 .x14, .ADD .x7 .x7 .x30,
+       .XOR .x5 .x7 .x12, .SLTIU .x10 .x5 1]
 
 end SlhVerify
 end EvmAsm.Rv64
