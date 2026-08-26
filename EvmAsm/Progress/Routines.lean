@@ -216,6 +216,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsHboundCover
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
@@ -926,31 +927,64 @@ def routineRegistry : List RoutineEntry := [
   -- "needs Fn.retSpecFlat", which is FALSE — no `Fn`/`retSpecFlat` appears in
   -- these files. The missing piece was CodeReq specialization (`*_spec_within`
   -- over wrapper ∪ walk_init ∪ walk_next). Residual INPUT-DOMAIN gate is
-  -- `hbound` (every walked `rlpItemDecode` has 32 bytes of content room).
+  -- `hbound`, the same proposition in all three statements.
+  --
+  -- ⚠️ #12867: these rows previously described `hbound` as "every walked
+  -- `rlpItemDecode` has 32 bytes of content room", with coverRef "any
+  -- well-formed header whose field-3 payload is a 32-byte string". BOTH halves
+  -- were wrong, and `HeaderFieldsHboundCover.lean` now says so with theorems:
+  --   * `hbound` quantifies `o` over EVERY offset `o ≤ listLenN`, not over the
+  --     offsets the walk visits — `rlpItemDecode` classifies whatever byte is
+  --     at `o`, so mid-item offsets decode too;
+  --   * consequently it is a condition on the CALLER'S BUFFER, not on the
+  --     header. `hbound_forces_trailing_slack` derives `listLenN + 31 ≤
+  --     |headerBytes|` from the single-byte arm at `o = listLenN - 1`, where
+  --     the spec's own `h_slack` supplies only `listLenN + 9`;
+  --   * `next - len` is the item start on the LIST arms (there `len` is the
+  --     full span), not the content start — `next_sub_len_classified`.
   routine "header_extract_state_root" .conditional
       (some "header_extract_state_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are "
-        ++ "not domain gates. coverRef: any well-formed header whose field-3 "
-        ++ "payload is a 32-byte string")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_state_root_fnspec` "
         ++ "(field 3 = walk_init + 4×walk_next + 32-byte LBU/SB copy). Allowlist "
         ++ "tier-B / retSpecFlat note drained — it named a combinator that does "
         ++ "not appear in HeaderFieldsSpec (#12313 / #11637 mislabel)"),
   routine "header_extract_receipts_root" .conditional
       (some "header_extract_receipts_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_receipts_root_fnspec` "
         ++ "(field 5 = walk_init + 6×walk_next). Same CodeReq specialization as "
         ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
   routine "header_extract_withdrawals_root" .conditional
       (some "header_extract_withdrawals_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_withdrawals_root_fnspec` "
         ++ "(field 16 = walk_init + 17×walk_next). Same CodeReq specialization as "
         ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
@@ -4186,6 +4220,21 @@ private noncomputable abbrev _rlp_item_size_long_string_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
 private noncomputable abbrev _rlp_item_size_long_list_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
+-- #12867 / #12313: the `hbound` gate on the three `header_extract_*_root` rows.
+-- Instance, negative control, vacuity control and the two structural facts that
+-- correct the gate's own description of itself.
+private noncomputable abbrev _header_hbound_instance_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance
+private noncomputable abbrev _header_hbound_control_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_fails_under_slack_only
+private noncomputable abbrev _header_hbound_has_decode_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance_has_a_decode
+private noncomputable abbrev _header_hbound_vacuous_control_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_vacuous_control
+private noncomputable abbrev _header_hbound_slack_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_forces_trailing_slack
+private noncomputable abbrev _header_hbound_classify_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.next_sub_len_classified
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=

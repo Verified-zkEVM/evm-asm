@@ -166,6 +166,7 @@ import EvmAsm.Codegen.Programs.HeaderFieldsSpecBlocksTail
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsSpecDispatch2
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsHboundCover
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericBlocks
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericDispatch
 import EvmAsm.Codegen.Programs.HeaderFieldsGenericInit
