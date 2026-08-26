@@ -11,9 +11,13 @@
   Bead `evm-asm-wbc4i.9.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

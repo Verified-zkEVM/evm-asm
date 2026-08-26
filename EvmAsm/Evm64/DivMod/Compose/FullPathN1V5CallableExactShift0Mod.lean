@@ -13,10 +13,18 @@
   `evm_mod_callable_v5` correctness (SMOD `.proven` track).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactMod
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

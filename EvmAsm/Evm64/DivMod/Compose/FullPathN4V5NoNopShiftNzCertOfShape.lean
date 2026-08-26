@@ -20,11 +20,15 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
-import EvmAsm.Evm64.DivMod.Spec.N4V5AddbackBorrowComplement
-import EvmAsm.Evm64.DivMod.Spec.N4SemanticGen
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrowGen
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
+public import EvmAsm.Evm64.DivMod.Spec.N4V5AddbackBorrowComplement
+public import EvmAsm.Evm64.DivMod.Spec.N4SemanticGen
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrowGen
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

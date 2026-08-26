@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

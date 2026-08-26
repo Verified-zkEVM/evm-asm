@@ -10,11 +10,15 @@
   Feeds the callable 5-lane scaffold `lane_n2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ShapeCallableShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
-import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExact
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5ShapeCallableShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5Shift0Shared
+public import EvmAsm.Evm64.DivMod.DivN2V5ShiftShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

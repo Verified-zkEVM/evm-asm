@@ -9,9 +9,13 @@
   and must be owned by the caller.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
-import EvmAsm.Evm64.SMod.Compose.ModCallPost
-import EvmAsm.Evm64.DivMod.CallableV4Mod
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
+public import EvmAsm.Evm64.SMod.Compose.ModCallPost
+public import EvmAsm.Evm64.DivMod.CallableV4Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

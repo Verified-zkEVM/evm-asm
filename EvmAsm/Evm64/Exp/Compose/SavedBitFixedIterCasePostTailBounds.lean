@@ -4,7 +4,11 @@
   Bounded variants for fixed x19 case-post full-tail wrappers.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

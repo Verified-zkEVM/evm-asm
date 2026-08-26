@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.MulMod.ProductLayoutColumn7Target
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutColumn7Target
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

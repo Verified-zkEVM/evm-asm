@@ -6,8 +6,12 @@
   SDIV / SMOD baked-data and from-input `BuildUnit` definitions.
 -/
 
-import EvmAsm.Codegen.Programs.EvmBasic
-import EvmAsm.Codegen.Programs.EvmDivModWrappers
+module
+
+public import EvmAsm.Codegen.Programs.EvmBasic
+public import EvmAsm.Codegen.Programs.EvmDivModWrappers
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

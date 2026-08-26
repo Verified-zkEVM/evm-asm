@@ -4,16 +4,20 @@
   the project’s ordinary Evm64 file-size cap.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariantWithControl
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

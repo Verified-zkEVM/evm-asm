@@ -12,9 +12,16 @@
   digits (sp+4088/4080/4072/4064) are framed through, unread.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
+meta import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0Mod
+meta import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

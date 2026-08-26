@@ -15,13 +15,17 @@
   embedding.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
-import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
-import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
-import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNativeMod
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
+public import EvmAsm.Evm64.DivMod.Compose.FullPathV5BzeroMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShift0Mod
+public import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneOfShapeNativeMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

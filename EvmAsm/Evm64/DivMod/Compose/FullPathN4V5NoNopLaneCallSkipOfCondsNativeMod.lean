@@ -14,11 +14,15 @@
   `n4_call_skip_mod_getLimbN_v5`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLaneNative
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLaneNative
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

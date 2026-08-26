@@ -8,9 +8,16 @@
   equalities that recur in the SDIV bridge layer.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Evm64.SDiv.AddrNormAttr
-import EvmAsm.Evm64.SDiv.Program
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Evm64.SDiv.AddrNormAttr
+public import EvmAsm.Evm64.SDiv.Program
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Evm64.SDiv.AddrNormAttr
+meta import EvmAsm.Evm64.SDiv.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.AddrNorm
 

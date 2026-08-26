@@ -12,7 +12,11 @@
   (`loopN2SelectedBorrowCarryV5_of_shape`) is stated — needed for the n=2 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

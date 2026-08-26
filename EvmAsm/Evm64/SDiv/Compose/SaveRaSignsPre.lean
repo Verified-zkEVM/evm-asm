@@ -5,7 +5,11 @@
   prefix.
 -/
 
-import EvmAsm.Evm64.SDiv.Program
+module
+
+public import EvmAsm.Evm64.SDiv.Program
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

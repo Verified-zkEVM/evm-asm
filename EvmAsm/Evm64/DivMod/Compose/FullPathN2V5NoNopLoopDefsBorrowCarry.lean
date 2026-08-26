@@ -10,7 +10,11 @@
   saturated trial never borrows).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,7 +4,11 @@
   Irreducible postcondition for the SDIV prefix through divisor absolute value.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivisorAbsPre
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.DivisorAbsPre
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

@@ -5,9 +5,13 @@
   carrying the bundled semantic state.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
-import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
+public import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

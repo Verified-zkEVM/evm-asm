@@ -13,15 +13,19 @@
   `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

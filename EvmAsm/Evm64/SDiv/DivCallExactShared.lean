@@ -1,13 +1,17 @@
 /- Shared declaration home for the exact SDIV callable, return, and zero-divisor handoff chain. -/
 
-import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
-import EvmAsm.Evm64.DivMod.CallableV1Legacy
-import EvmAsm.Evm64.DivMod.CallableV4Div
-import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
-import EvmAsm.Evm64.SDiv.DispatchViewsShared
-import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
-import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
-import EvmAsm.Evm64.DivMod.CallableBzeroV4
+module
+
+public import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
+public import EvmAsm.Evm64.DivMod.CallableV1Legacy
+public import EvmAsm.Evm64.DivMod.CallableV4Div
+public import EvmAsm.Evm64.SDiv.Compose.DivCallFramedCallable
+public import EvmAsm.Evm64.SDiv.DispatchViewsShared
+public import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
+public import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
+public import EvmAsm.Evm64.DivMod.CallableBzeroV4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
