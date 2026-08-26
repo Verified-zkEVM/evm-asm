@@ -117,6 +117,7 @@ import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates
 import EvmAsm.Codegen.RoundTripTests
+import EvmAsm.SLHDSA
 import EvmAsm.Stateless
 import EvmAsm.Progress
 import EvmAsm.Progress.CycleBounds
