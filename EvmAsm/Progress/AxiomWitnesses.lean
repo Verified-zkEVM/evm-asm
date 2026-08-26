@@ -31,7 +31,6 @@
 import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
-import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 
 #print axioms EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 
@@ -365,8 +364,6 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
 
-#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
-
 #print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.arity_check_has_no_subword_load
 
 #print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.control_branches_on_the_loaded_register
@@ -456,6 +453,8 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_instance
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
 
