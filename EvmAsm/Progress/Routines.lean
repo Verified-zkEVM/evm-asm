@@ -209,6 +209,7 @@ import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
+import EvmAsm.Codegen.Programs.RlpItemSpanNoCanonicalityCheck
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -530,7 +531,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "stated at the long arm's bound `42 + 19*i`, which dominates "
         ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
         ++ "so the short branch weakens into it via "
-        ++ "`cpsTripleWithin_mono_nSteps`"),
+        ++ "`cpsTripleWithin_mono_nSteps`" ++ "⭐ The two canonicality checks, SPLIT — one is performed and one is not, decided over the program (#10780 item 1). `rlp.py:436` (leading-zero length byte) IS performed: `leadingZeroCheck_is_performed` pins indices 25-27, `ADDI x7,x8,1 ; LBU x7,0(x7) ; BEQ x7,x0,→fail`, on the long-list arm. `rlp.py:441` (`len < 0x38`) is NOT: `spanNeverComparesAgainst0x38` shows 56 appears as no immediate. Controls `offsetPredicate_control` and `shortFormThreshold_control`; `span_length` and `subwordLoad_sites` pin the census at 57 instructions and TWO sub-word loads. ⚠️ An earlier version of this note claimed BOTH checks were unexpressible; that was wrong, from a regex census of the source that missed the second load. The remaining `:441` gap closes under #12843 architecture A, where the eager decoder checks it at entry"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -4147,6 +4148,25 @@ example :
     Convention: name the abbrev `_<lower>_routine_witness`; mark it
     `private noncomputable` to avoid polluting the namespace. -/
 
+-- #10780 item 1, CORRECTED: the two canonicality checks split. `rlp.py:436`
+-- (leading-zero length byte) IS performed at indices 25-27; `rlp.py:441`
+-- (`len < 0x38`) is not. An earlier version claimed both were unexpressible,
+-- from a regex census of the source that reported 53 instructions and one
+-- sub-word load when the program has 57 and two.
+private noncomputable abbrev _span_leading_zero_check_performed_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_is_performed
+private noncomputable abbrev _span_length_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_length
+private noncomputable abbrev _span_subword_load_sites_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoad_sites
+private noncomputable abbrev _span_subword_offsets_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoads_have_zero_offset
+private noncomputable abbrev _span_no_0x38_compare_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanNeverComparesAgainst0x38
+private noncomputable abbrev _span_leading_zero_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.offsetPredicate_control
+private noncomputable abbrev _span_threshold_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.shortFormThreshold_control
 private noncomputable abbrev _reub_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
 private noncomputable abbrev _reub_encode_routine_witness :=
