@@ -247,20 +247,23 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
 /-- 4-instr leaf: `*a5 = a0 + a1; a0 = 0; ret`.
     a2–a4 are retired v0.5 args (ignored; kept so `tx_intrinsic_state_gas` ABI stands). -/
 def eip8037TxStateGas_prog : Program :=
-  [ .ADD .x5 .x10 .x11
-  , .SD .x15 .x5 (0 : BitVec 12)
-  , .LI .x10 (0 : Word)
-  , .JALR .x0 .x1 (0 : BitVec 12) ]
+  [ .ADD .x5 .x10 .x11,
+    .SD .x15 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def eip8037TxStateGasFunction : String :=
   "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `eip8037TxStateGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem eip8037TxStateGasFunction_eq_prog :
-    eip8037TxStateGasFunction =
-      "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
+    eip8037TxStateGasFunction = "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
 
 #guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
-
+#guard eip8037TxStateGas_prog.length = 4
 /-! ## block_verdict_eip8037_tx_state_gas_net_array
 
     Materialize execution-spec `tx_state_gas` per transaction from arrays that

@@ -370,23 +370,61 @@ def accountWriteTouchCurrentFunction : String :=
 /-! Transaction-local EIP-6780 membership query.  This reads only the
     AccountState `created_accounts` set, never the durable map: an account
     created in a prior transaction must remain live after SELFDESTRUCT. -/
-def accountStateCreatedContainsFunction : String :=
-  "account_state_created_contains:\n" ++
-  "  la t0, account_state_overflow; ld t1, 0(t0); bnez t1, .Lascc_overflow\n" ++
-  "  la t0, account_state_created_count; ld t1, 0(t0); li t2, " ++ toString accountStateCreatedCapacity ++ "; bgtu t1, t2, .Lascc_no; li t2, 0; la t3, account_state_created\n" ++
-  ".Lascc_entry:\n" ++
-  "  bgeu t2, t1, .Lascc_no; li t4, 0\n" ++
-  ".Lascc_bytes:\n" ++
-  "  li t5, 20; beq t4, t5, .Lascc_yes; add t5, a0, t4; lbu t6, 0(t5); add t5, t3, t4; lbu a1, 0(t5); bne t6, a1, .Lascc_next; addi t4, t4, 1; j .Lascc_bytes\n" ++
-  ".Lascc_next:\n" ++
-  "  addi t3, t3, 32; addi t2, t2, 1; j .Lascc_entry\n" ++
-  ".Lascc_yes:\n" ++
-  "  li a0, 1; ret\n" ++
-  ".Lascc_no:\n" ++
-  "  li a0, 0; ret\n" ++
-  ".Lascc_overflow:\n" ++
-  "  li a0, 2; ret"
+def accountStateCreatedContains_prog : Program :=
+  [ .AUIPC .x5 (laHi GuestAddrs.account_state_overflow (GuestAddrs.account_state_created_contains + 0)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_state_overflow (GuestAddrs.account_state_created_contains + 0)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .BNE .x6 .x0 (brOff (GuestAddrs.account_state_created_contains + 120) (GuestAddrs.account_state_created_contains + 12)),
+    .AUIPC .x5 (laHi GuestAddrs.account_state_created_count (GuestAddrs.account_state_created_contains + 16)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.account_state_created_count (GuestAddrs.account_state_created_contains + 16)),
+    .LD .x6 .x5 (0 : BitVec 12),
+    .LUI .x7 (2 : BitVec 20),
+    .BLTU .x7 .x6 (brOff (GuestAddrs.account_state_created_contains + 112) (GuestAddrs.account_state_created_contains + 32)),
+    .LI .x7 (0 : Word),
+    .AUIPC .x28 (laHi GuestAddrs.account_state_created (GuestAddrs.account_state_created_contains + 40)),
+    .ADDI .x28 .x28 (laLo GuestAddrs.account_state_created (GuestAddrs.account_state_created_contains + 40)),
+    .BGEU .x7 .x6 (brOff (GuestAddrs.account_state_created_contains + 112) (GuestAddrs.account_state_created_contains + 48)),
+    .LI .x29 (0 : Word),
+    .LI .x30 (20 : Word),
+    .BEQ .x29 .x30 (44 : BitVec 13),
+    .ADD .x30 .x10 .x29,
+    .LBU .x31 .x30 (0 : BitVec 12),
+    .ADD .x30 .x28 .x29,
+    .LBU .x11 .x30 (0 : BitVec 12),
+    .BNE .x31 .x11 (12 : BitVec 13),
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (-32 : BitVec 21),
+    .ADDI .x28 .x28 (32 : BitVec 12),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .JAL .x0 (-52 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12),
+    .LI .x10 (2 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `accountStateCreatedContains_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def accountStateCreatedContains_relocs : RelocTable :=
+  [ (0, .la .x5 "account_state_overflow"),
+    (4, .la .x5 "account_state_created_count"),
+    (10, .la .x28 "account_state_created") ]
+
+def accountStateCreatedContainsFunction : String :=
+  "account_state_created_contains:\n" ++ emitProgramR accountStateCreatedContains_prog accountStateCreatedContains_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `accountStateCreatedContains_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem accountStateCreatedContainsFunction_eq_prog :
+    accountStateCreatedContainsFunction = "account_state_created_contains:\n" ++ emitProgramR accountStateCreatedContains_prog accountStateCreatedContains_relocs := rfl
+
+#guard accountStateCreatedContainsFunction.startsWith "account_state_created_contains:\n"
+#guard accountStateCreatedContains_prog.length = 32
 /-! ## codeStateStatusIsLiveAsm
 
     Coarse status→live map: status ∈ {1,2} → 1, else 0. This is **not** full

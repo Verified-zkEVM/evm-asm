@@ -185,15 +185,32 @@ def balRlpEmitAddressFunction : String :=
     carries over and a later measurement absorbs at the wrong rate position — which
     changes nothing about the COUNT, but leaves a trap for anyone who later reads the
     throwaway context expecting a digest. -/
-def balRlpMeasureIntoThrowawayFunction : String :=
-  "bal_rlp_measure_into_throwaway:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp); sd s0, 8(sp)\n" ++
-  "  mv s0, a1\n" ++                                    -- s0 = emitter address
-  "  mv a1, a2; mv a2, a3; mv a3, a4\n" ++              -- shift the emitter's args down
-  "  jalr ra, 0(s0)\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); addi sp, sp, 16\n" ++
-  "  ret\n"
+def balRlpMeasureIntoThrowaway_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .MV .x8 .x11,
+    .MV .x11 .x12,
+    .MV .x12 .x13,
+    .MV .x13 .x14,
+    .JALR .x1 .x8 (0 : BitVec 12),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def balRlpMeasureIntoThrowawayFunction : String :=
+  "bal_rlp_measure_into_throwaway:\n" ++ emitProgram balRlpMeasureIntoThrowaway_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `balRlpMeasureIntoThrowaway_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem balRlpMeasureIntoThrowawayFunction_eq_prog :
+    balRlpMeasureIntoThrowawayFunction = "bal_rlp_measure_into_throwaway:\n" ++ emitProgram balRlpMeasureIntoThrowaway_prog := rfl
+
+#guard balRlpMeasureIntoThrowawayFunction.startsWith "bal_rlp_measure_into_throwaway:\n"
+#guard balRlpMeasureIntoThrowaway_prog.length = 12
 /-! ## `bal_rlp_emit_bytes`
 
     The RLP **byte-string** shape, absorbed into a keccak context. The one shape this
