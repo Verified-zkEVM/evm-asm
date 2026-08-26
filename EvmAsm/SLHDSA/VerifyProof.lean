@@ -529,5 +529,17 @@ theorem slhVerifyFn_post_fips (pkSeed pkRoot : Word) (msg : List Byte) (s : SigW
       ↔ rf.get .x10 = if slhVerifyInternal demoPrims msg s.toSig ⟨pkSeed, pkRoot⟩ then 1 else 0 := by
   simp only [slhVerifyFn, demoVerifyWords_correct]
 
+/-! ## Non-vacuity witnesses
+
+Guard against a vacuously-true spec: the input/signature types are inhabited,
+and the correctness triple is provable at a concrete, existing input (so it does
+not quantify over an empty domain). -/
+
+example : Nonempty SigWords := ⟨⟨0, 0, 0, 0, 0, fun _ => 0, 0⟩⟩
+
+example (base : Word) :
+    (slhVerifyFn 0 0 0 ⟨0, 0, 0, 0, 0, fun _ => 0, 0⟩).Spec base :=
+  slhVerifyFn_spec 0 0 0 _ base
+
 end SlhVerify
 end EvmAsm.Rv64
