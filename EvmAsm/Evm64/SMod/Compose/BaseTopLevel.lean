@@ -4,8 +4,12 @@
   Top-level SMOD code-region and return-address facts.
 -/
 
-import EvmAsm.Evm64.SMod.AddrNorm
-import EvmAsm.Evm64.SMod.Compose.ModCallCallable
+module
+
+public import EvmAsm.Evm64.SMod.AddrNorm
+public import EvmAsm.Evm64.SMod.Compose.ModCallCallable
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

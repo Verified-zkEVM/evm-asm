@@ -14,8 +14,12 @@
   shape via the shift=0 word equalities.  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkip
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddback
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallSkip
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddback
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

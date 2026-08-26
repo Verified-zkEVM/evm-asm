@@ -4,7 +4,11 @@
   Small control-invariant helpers for the fixed-loop induction frame.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

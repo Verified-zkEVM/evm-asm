@@ -13,14 +13,18 @@
   `FullPathV5DivAssembly` (`evm_div_stack_spec_unconditional_v5_div_of_n4lane`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CallableV5DivScratchAdapter
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5DivCallable
-import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
-import EvmAsm.Evm64.DivMod.Spec.BzeroV5CallableExact
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShape
-import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExact
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CallableV5DivScratchAdapter
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5DivCallable
+public import EvmAsm.Evm64.DivMod.Spec.DivDispatchShift
+public import EvmAsm.Evm64.DivMod.Spec.BzeroV5CallableExact
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShape
+public import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExact
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -4,8 +4,12 @@
   Bounded wrappers for fixed EXP iteration step eliminators.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

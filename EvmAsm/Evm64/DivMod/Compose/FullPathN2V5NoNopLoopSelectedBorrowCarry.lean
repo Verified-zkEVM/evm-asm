@@ -7,7 +7,11 @@
   selectedCarry inst wrapper (#7415).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopUnifiedBorrowCarry
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

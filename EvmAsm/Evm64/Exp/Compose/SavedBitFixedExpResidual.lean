@@ -30,7 +30,11 @@
   reload before applying the IH.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

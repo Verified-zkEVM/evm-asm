@@ -7,9 +7,13 @@
   shape one register at a time.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpec
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnPre
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpec
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnPre
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

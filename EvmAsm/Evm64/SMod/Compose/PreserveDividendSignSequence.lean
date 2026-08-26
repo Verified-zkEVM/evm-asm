@@ -5,8 +5,12 @@
   the dividend sign in `x13`.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.SaveRaSignSequence
-import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
+module
+
+public import EvmAsm.Evm64.SMod.Compose.SaveRaSignSequence
+public import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

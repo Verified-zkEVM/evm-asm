@@ -27,13 +27,19 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64 (cc_ret)
 
-/-- `4 * nSteps` as a 64-bit code-offset Word (local mirror of the private
-    `reloadFourTimes` in HandlerSpecs; the two never collide — both are file-private). -/
--- Renamed from `fourTimes` and made public for MODULES.md §5a: an exposed
--- statement below references it. The docstring above used to say the two
--- copies "never collide -- both are file-private", and that was exactly the
--- invariant widening breaks: a PUBLIC name collides with a same-namespace
--- PRIVATE one (`EvmAsm.Codegen.Proofs.fourTimes` in HandlerSpecs.lean).
+/-- `4 * nSteps` as a 64-bit code-offset Word.
+
+    Renamed from `fourTimes` and made public for MODULES.md §5a: an exposed
+    statement below references it, and an exposed body may not mention a
+    `private` declaration.
+
+    ⛔ The rename is load-bearing, not cosmetic. `HandlerSpecs.lean` still
+    declares `private def fourTimes` under this same namespace
+    (`EvmAsm.Codegen.Proofs`), and this docstring used to assert that the two
+    copies *"never collide — both are file-private"*. That invariant holds only
+    while BOTH are private: widening one gives ``a non-private declaration
+    `EvmAsm.Codegen.Proofs.fourTimes` has already been declared``. Visibility is
+    not the discriminator; the namespace is. -/
 def reloadFourTimes (nSteps : Nat) : Word := BitVec.ofNat 64 (4 * nSteps)
 
 /-- The save/reload handler ABI: save the EVM code pointer `x10` into `save`,

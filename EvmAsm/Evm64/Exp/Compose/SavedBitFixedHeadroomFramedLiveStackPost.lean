@@ -4,7 +4,11 @@
   Framed live-stack post surface for the verified fixed-headroom EXP loop.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

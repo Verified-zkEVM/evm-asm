@@ -10,9 +10,13 @@
   (`n4_shift0_post_to_modStackDispatchPost_v5`, remainder in the output slots).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkipMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkipMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -8,7 +8,11 @@
   normal program-shaped code surface.
 -/
 
-import EvmAsm.Evm64.Exp.Spec
+module
+
+public import EvmAsm.Evm64.Exp.Spec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

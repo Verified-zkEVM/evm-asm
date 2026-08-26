@@ -5,8 +5,12 @@
   callable with the v4 bzero proof.
 -/
 
-import EvmAsm.Evm64.SMod.Spec
-import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
+module
+
+public import EvmAsm.Evm64.SMod.Spec
+public import EvmAsm.Evm64.DivMod.Spec.ModBzeroNoNop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

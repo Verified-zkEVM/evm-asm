@@ -11,8 +11,12 @@
   `FullPathN2V5FamiliesMod`.  First sub-unit of Milestone D of the n=3 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

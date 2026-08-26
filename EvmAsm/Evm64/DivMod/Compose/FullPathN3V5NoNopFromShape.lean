@@ -13,8 +13,12 @@
   Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopBorrowCarry
-import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopBorrowCarry
+public import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

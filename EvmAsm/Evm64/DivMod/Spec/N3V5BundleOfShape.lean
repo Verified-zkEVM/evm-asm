@@ -13,10 +13,14 @@
   over `NormV`/`NormU`).  Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
-import EvmAsm.Evm64.DivMod.Spec.N3V5MaxCarryOfMaxShape
-import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
-import EvmAsm.Evm64.DivMod.Spec.N3V5NormVShapeFacts
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
+public import EvmAsm.Evm64.DivMod.Spec.N3V5MaxCarryOfMaxShape
+public import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
+public import EvmAsm.Evm64.DivMod.Spec.N3V5NormVShapeFacts
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

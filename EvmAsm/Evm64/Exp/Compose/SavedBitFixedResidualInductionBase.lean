@@ -18,12 +18,16 @@
   `255 - (k+1) + 1 = 255 - k` holds.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+module
+
+public import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 
