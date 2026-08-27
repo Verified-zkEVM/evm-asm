@@ -349,9 +349,9 @@ theorem vphl_hash_tail_spec
                           simp only [vphlRetPost]
                           refine ⟨0, outVal, fo, ln, fo, ln, claimedB, computedB,
                             (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
-                              (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)), ?_⟩
-                          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
-                          · have h1 :
+                              (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)), by
+                          refine (sepConj_pure_right _).2 ⟨(by
+                            have h1 :
                               (((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12)) **
                                 ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) **
                                   (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) **
@@ -371,11 +371,11 @@ theorem vphl_hash_tail_spec
                                         (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)))) h := by
                                 simp [vphlTopEpiPost, stackFree] at hq ⊢
                                 xperm_chunked hq
-                            have h2 := sepConj_mono (top_regPair_to_regOwn v11 v12)
+                              have h2 := sepConj_mono (top_regPair_to_regOwn v11 v12)
                               (fun _ x => x) h h1
-                            xperm_chunked h2
-                          · exact Or.inr (Or.inr
-                              ⟨rfl, hsucc, hln32, rfl, rfl, rfl, rfl, houtVal⟩)
+                              xperm_chunked h2),
+                            (by exact Or.inr (Or.inr
+                              ⟨rfl, hsucc, hln32, rfl, rfl, rfl, rfl, houtVal⟩))⟩⟩
                         ) h
                   exact h'
                 let GmatchEq : Assertion :=
@@ -638,10 +638,10 @@ theorem vphl_hash_tail_spec
                     xperm_chunked hp) h56 hEqTail
                 exact hAll
               exact hVal R hR s hcr (by
-                refine ⟨hOwned, hcompat, ?_⟩
-                simp only [prefixVals] at hRest
-                unfold pVal
-                xperm_hyp hRest) hpc
+                refine ⟨hOwned, hcompat, by
+                  simp only [prefixVals] at hRest
+                  unfold pVal
+                  xperm_hyp hRest⟩) hpc
 
 theorem vphl_success_eq32_spec
     (sp0 spC retHdr parentLenW childLenW outPtr v21 : Word)
@@ -784,10 +784,10 @@ theorem vphl_success_eq32_spec
           xperm_chunked hp) h56 hEqTail
       exact hAll
     exact hVal R hR s hcr (by
-      refine ⟨hOwned, hcompat, ?_⟩
-      simp only [prefixVals] at hRest
-      unfold pVal
-      xperm_hyp hRest) hpc
+      refine ⟨hOwned, hcompat, by
+        simp only [prefixVals] at hRest
+        unfold pVal
+        xperm_hyp hRest⟩) hpc
   have hAll := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       unfold hashPost vphlTopHashPost
@@ -1060,9 +1060,9 @@ theorem vphl_continuation_spec
                           simp only [vphlRetPost]
                           refine ⟨0, outVal, fo, ln, fo, ln, claimedB, computedB,
                             (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
-                              (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)), ?_⟩
-                          refine (sepConj_pure_right _).2 ⟨?_, ?_⟩
-                          · have h1 :
+                              (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)), by
+                          refine (sepConj_pure_right _).2 ⟨(by
+                            have h1 :
                               (((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12)) **
                                 ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) **
                                   (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) **
@@ -1082,11 +1082,11 @@ theorem vphl_continuation_spec
                                         (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)))) h := by
                                 simp [vphlTopEpiPost, stackFree] at hq ⊢
                                 xperm_chunked hq
-                            have h2 := sepConj_mono (top_regPair_to_regOwn v11 v12)
+                              have h2 := sepConj_mono (top_regPair_to_regOwn v11 v12)
                               (fun _ x => x) h h1
-                            xperm_chunked h2
-                          · exact Or.inr (Or.inr
-                              ⟨rfl, hsucc, hln32, rfl, rfl, rfl, rfl, houtVal⟩)
+                              xperm_chunked h2),
+                            (by exact Or.inr (Or.inr
+                              ⟨rfl, hsucc, hln32, rfl, rfl, rfl, rfl, houtVal⟩))⟩⟩
                         ) h
                   exact h'
                 let GmatchEq : Assertion :=
@@ -1349,10 +1349,10 @@ theorem vphl_continuation_spec
                     xperm_chunked hp) h56 hEqTail
                 exact hAll
               exact hVal R hR s hcr (by
-                refine ⟨hOwned, hcompat, ?_⟩
-                simp only [prefixVals] at hRest
-                unfold pVal
-                xperm_hyp hRest) hpc
+                refine ⟨hOwned, hcompat, by
+                  simp only [prefixVals] at hRest
+                  unfold pVal
+                  xperm_hyp hRest⟩) hpc
             have hAll := cpsTripleWithin_seq_perm_same_cr
               (fun _ hp => by
                 unfold hashPost vphlTopHashPost

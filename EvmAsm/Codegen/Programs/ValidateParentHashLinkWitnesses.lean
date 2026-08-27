@@ -34,24 +34,26 @@ private theorem vphlParentHash0_is_digest :
 private theorem vphlChildZero_success :
     RlpListNthItemSAsm.Success vphlChildZero (0x30000 : Word) 34 0
       (2 : Word) (32 : Word) := by
-  refine ⟨1, (0x30000 : Word) + 34, (0x30000 : Word) + 34, ?_, ?_, ?_⟩
-  · exact .short 34 1 0xe1 (by decide) (by decide) (by decide) rfl (by decide)
-  · refine .zero 1 ((0x30000 : Word) + 34) (32 : Word) ?_
-    apply EvmAsm.Rv64.RLP.rlpItemDecode_shortBytes_forward
-      _ (0x30000 : Word) 1 34 0xa0 (List.replicate 32 0)
-    all_goals decide
-  · decide
+  refine ⟨1, (0x30000 : Word) + 34, (0x30000 : Word) + 34,
+    by exact .short 34 1 0xe1 (by decide) (by decide) (by decide) rfl (by decide),
+    by
+      refine .zero 1 ((0x30000 : Word) + 34) (32 : Word) (by
+        apply EvmAsm.Rv64.RLP.rlpItemDecode_shortBytes_forward
+          _ (0x30000 : Word) 1 34 0xa0 (List.replicate 32 0)
+        all_goals decide),
+    by decide⟩
 
 private theorem vphlChildMatch_success :
     RlpListNthItemSAsm.Success vphlChildMatch (0x30000 : Word) 34 0
       (2 : Word) (32 : Word) := by
-  refine ⟨1, (0x30000 : Word) + 34, (0x30000 : Word) + 34, ?_, ?_, ?_⟩
-  · exact .short 34 1 0xe1 (by decide) (by decide) (by decide) rfl (by decide)
-  · refine .zero 1 ((0x30000 : Word) + 34) (32 : Word) ?_
-    apply EvmAsm.Rv64.RLP.rlpItemDecode_shortBytes_forward
-      _ (0x30000 : Word) 1 34 0xa0 vphlParentHash0
-    all_goals decide
-  · decide
+  refine ⟨1, (0x30000 : Word) + 34, (0x30000 : Word) + 34,
+    by exact .short 34 1 0xe1 (by decide) (by decide) (by decide) rfl (by decide),
+    by
+      refine .zero 1 ((0x30000 : Word) + 34) (32 : Word) (by
+        apply EvmAsm.Rv64.RLP.rlpItemDecode_shortBytes_forward
+          _ (0x30000 : Word) 1 34 0xa0 vphlParentHash0
+        all_goals decide),
+    by decide⟩
 
 
 set_option maxRecDepth 8000 in
