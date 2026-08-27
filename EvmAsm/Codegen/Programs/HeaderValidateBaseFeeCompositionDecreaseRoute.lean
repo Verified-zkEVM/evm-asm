@@ -21,6 +21,7 @@
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
+import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Rv64.BitAux
 import EvmAsm.Rv64.Tactics.XPermCert
@@ -744,6 +745,21 @@ private theorem k73_decr_quot2_value
   refine Nat.mod_eq_of_lt ?_
   have hle := Nat.div_le_self
     (EvmAsm.Crypto.beBytesToNat A) target.toNat
+  omega
+
+/-- Borrow-free subtract value: when the subtrahend does not exceed the
+    minuend the output encodes exactly `a - b`. -/
+private theorem k73_decr_sub_value
+    {a b orig : List (BitVec 8)} (hla : a.length = 32)
+    (hlb : b.length = 32) (hlo : orig.length = 32)
+    (hle : EvmAsm.Crypto.beBytesToNat b <= EvmAsm.Crypto.beBytesToNat a) :
+    EvmAsm.Crypto.beBytesToNat (u256SubBeBytes a b orig)
+      = EvmAsm.Crypto.beBytesToNat a - EvmAsm.Crypto.beBytesToNat b := by
+  have hk := EvmAsm.Codegen.U256BeFlat.u256SubBe_mod_and_borrow a b orig hla hlb hlo
+  obtain ⟨_, hval⟩ := hk
+  rw [hval]
+  have hb0 := k73_fixed_bytes_bound a
+  rw [k73_bytesBEtoNat_eq_beBytesToNat, hla] at hb0
   omega
 
 /-- Full nonzero-decrease run from the divider entry to a symbolic return:
