@@ -24,7 +24,8 @@
   main) folds this skeleton in and proves the cycle contract against it.
 -/
 
-import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
+import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
+import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Codegen.Programs.RlpWalkNextStrictFuelModel
 
