@@ -200,6 +200,27 @@ Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
 default, so a `def` added later is not silently exposed), but do not report it as
 a build-time improvement.
 
+#### ⚠️ …but `def` COUNT is only a proxy, and a bad one. Body SIZE is the win.
+
+The three files above happen to vary in count and size together. They do not in
+general, and the corrective case is stark:
+
+| file | plain `def`s | public `.olean` |
+| --- | ---: | ---: |
+| `EL/Withdrawal.lean` | **1** | **−209 288 B (−71.9 %)** |
+| `Stateless/VM/Precompiles.lean` | 141 (111 left unexposed) | −81 768 B (−12.2 %) |
+
+`EL/Withdrawal.lean` is 100 lines holding one `structure` and one `def` —
+`decodeWithdrawal`, an RLP decoder whose body elaborates to an enormous term. It
+alone was **more than half** of its tranche's 408 KB, and 2.5x what
+`Precompiles.lean` gave from 111 hidden definitions.
+
+⇒ Rank candidates by the **size of the bodies you are withholding**, not by how
+many there are. A single large decoder, interpreter step, or table-valued
+definition outweighs a hundred small ones. Counting `def`s is a cheap first
+filter — nothing more. (This also explains the `Evm64` leaf result below better
+than its structural story alone: those files hold many *small* definitions.)
+
 ### ⚠️ Where the win is NOT: `Evm64` leaf opcodes
 
 The `def`-count predictor tells you what a file *could* save. It does not tell
@@ -297,6 +318,50 @@ interface (the file still measures **−41.7 %**), and one in
 `Evm64/Calldata/CopyProgram.lean` saved that file. Note the asymmetry that makes
 this worth trying: `decide`/`maxRecDepth` failures name nothing and reduce
 through a whole closure, so they are the ones that genuinely cost a file.
+
+### `EL` is bridge-shaped: expect it to wash out
+
+Third tranche, 96 files across `Stateless/VM`, `Stateless/State`, `Crypto` and
+`EL`. Ninety needed exposure; **six** survived, for −408 136 B (**−34.4 %**).
+`EL` in particular washed out almost completely, and the shape is systematic:
+
+* `*InputBridge` / `*ResultBridge` failed in round 2;
+* `*EcallBridge` survived round 2 only to fail in round 3, once their consumers
+  were rebuilt against the new interfaces;
+* `EL/Conformance/*` failed throughout.
+
+A bridge exists to be reduced through, so its bodies are interface by
+construction. **Pre-filter `EL/*Bridge*.lean` out of a batch** rather than
+spending a build round per wave rediscovering it. `Stateless/State/*Assertions`
+also failed as expected — those are the `@[irreducible]` assertion bundles.
+
+### The most actionable error message in this work
+
+An in-file `rfl`/`decide` lemma that is *exported* forces its own file's
+definitions to stay exposed, and Lean says so exactly:
+
+```
+Not a definitional equality: the left-hand side
+  gasCost 0 0 0 0
+is not definitionally equal to the right-hand side
+  500
+Note: This theorem is exported from the current module. This requires that all
+definitions that need to be unfolded to prove this theorem must be exposed.
+```
+
+This names the culprit, so it is always worth the surgical treatment.
+`Stateless/VM/Precompiles.lean` produced 21 of these; the LHS/RHS heads named
+only **seven** distinct helpers (`bufferRead`, `emptyOutput`, `gasCost`,
+`outputFromVerified`, `successOutput`, `successWordOutput`, `zeroWordOutput`),
+recurring once per precompile namespace — 28 sites. Exposing those kept ~111 of
+the file's 141 `def`s hidden.
+
+⚠️ **Then the transitivity trap fires one round later.** `gasCost` was exposed
+and `gasCost 0 0 0 0 = 500` *still* failed, because the reduction runs on
+through `complexity` and `iterations`, which were not. Exposing a definition
+does not expose what it calls — expect to chase the closure by one or two more
+rounds, and read each round's LHS heads rather than assuming the first set was
+complete.
 
 ### Relationship to `@[irreducible]`
 
