@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

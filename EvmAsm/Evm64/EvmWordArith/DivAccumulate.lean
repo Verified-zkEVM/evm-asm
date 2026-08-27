@@ -22,7 +22,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.DivRemainderBound
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

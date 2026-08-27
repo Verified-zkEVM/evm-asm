@@ -82,4 +82,4 @@ meta import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 meta import EvmAsm.Evm64.SDiv.SpecShared
 public meta import Lean.Meta.Tactic.Simp.Attr
 
-@[expose] public section
+public section

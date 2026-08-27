@@ -35,7 +35,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
 public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

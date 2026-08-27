@@ -19,7 +19,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.BodyV6Mod
 public import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnectMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

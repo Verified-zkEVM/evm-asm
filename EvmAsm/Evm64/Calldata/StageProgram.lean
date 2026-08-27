@@ -77,7 +77,7 @@ meta import EvmAsm.Rv64.SepLogic
 meta import EvmAsm.Evm64.Calldata.LoadProgram
 meta import EvmAsm.Evm64.Environment.Layout
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

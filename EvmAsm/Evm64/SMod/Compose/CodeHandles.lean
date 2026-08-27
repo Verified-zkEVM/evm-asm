@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.SMod.LimbSpec
 public import EvmAsm.Evm64.SMod.AddrNorm
 public import EvmAsm.Evm64.SMod.Compose.BaseOffsets
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

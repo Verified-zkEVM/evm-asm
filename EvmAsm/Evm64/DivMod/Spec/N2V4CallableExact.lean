@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -9,7 +9,7 @@ module
 
 public import EvmAsm.Evm64.MulMod.ReduceSemantics
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -9,7 +9,7 @@ public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
 public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallBounds
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

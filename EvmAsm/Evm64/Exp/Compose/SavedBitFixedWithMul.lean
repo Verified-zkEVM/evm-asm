@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
 public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMulBase
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

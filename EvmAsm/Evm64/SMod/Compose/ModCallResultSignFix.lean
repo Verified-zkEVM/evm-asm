@@ -9,7 +9,7 @@ module
 
 public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFixPost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

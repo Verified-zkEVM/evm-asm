@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.N1CallBase
 public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
 
-@[expose] public section
+public section
 
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.Max

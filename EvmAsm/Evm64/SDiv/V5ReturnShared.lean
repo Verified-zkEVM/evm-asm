@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.SDiv.Compose.PrefixChainV5
 public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnV5
 public import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

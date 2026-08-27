@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.SMod.Compose.Words
 public import EvmAsm.Evm64.EvmWordArith.Div
 public import EvmAsm.Evm64.EvmWordArith.SMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

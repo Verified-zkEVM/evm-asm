@@ -6,6 +6,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptNodeKindMachine
+import EvmAsm.Codegen.Programs.RlpListCountItemsCallSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.XPermChunked

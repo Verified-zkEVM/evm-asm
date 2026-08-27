@@ -51,7 +51,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.MultiLimb
 public import EvmAsm.Evm64.EvmWordArith.Arithmetic
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

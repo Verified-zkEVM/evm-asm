@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.ArithmeticHandlers
 public import EvmAsm.Evm64.SMod.StackExecutionBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace SModStackExecutionBridge

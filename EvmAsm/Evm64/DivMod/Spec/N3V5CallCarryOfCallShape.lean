@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
 public import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

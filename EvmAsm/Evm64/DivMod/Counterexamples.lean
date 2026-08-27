@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntime
 public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
 public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

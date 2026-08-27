@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
 public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
 public import EvmAsm.Rv64.SyscallSpecs
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

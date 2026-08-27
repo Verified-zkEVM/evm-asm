@@ -13,7 +13,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Evm64
 
 /-- A gas charge split into the independently accumulated regular- and

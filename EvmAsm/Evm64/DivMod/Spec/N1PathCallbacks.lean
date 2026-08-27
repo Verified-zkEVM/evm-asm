@@ -4,7 +4,7 @@ public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMax
 public import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

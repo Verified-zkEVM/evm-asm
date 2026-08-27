@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.SDiv.Program
 public import EvmAsm.Rv64.SepLogic
 public import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

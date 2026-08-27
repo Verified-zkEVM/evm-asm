@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
 public import EvmAsm.Rv64.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

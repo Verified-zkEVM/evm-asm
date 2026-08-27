@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
 public import EvmAsm.Evm64.DivMod.Compose.CLZ
 public import EvmAsm.Evm64.DivMod.Compose.Norm
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

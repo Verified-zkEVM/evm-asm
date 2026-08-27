@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridge
 public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -15,7 +15,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialValue
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

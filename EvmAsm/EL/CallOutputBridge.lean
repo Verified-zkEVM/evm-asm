@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.CallArgs
 public import EvmAsm.EL.MessageCallExecution
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL
 

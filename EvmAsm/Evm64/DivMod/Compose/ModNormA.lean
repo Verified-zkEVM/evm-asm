@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.LimbSpec.CopyAU
 public import EvmAsm.Evm64.DivMod.LimbSpec.LoopSetup
 public import EvmAsm.Evm64.DivMod.LimbSpec.NormA
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

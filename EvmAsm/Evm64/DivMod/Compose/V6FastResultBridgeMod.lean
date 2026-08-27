@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.V6Shift0ChainBridge
 public import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
 public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -23,7 +23,7 @@ public import EvmAsm.Evm64.EvmWordArith.AddMod
 public import EvmAsm.Evm64.EvmWordArith.Arithmetic
 public import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

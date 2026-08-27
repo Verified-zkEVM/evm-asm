@@ -6,7 +6,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombosMod
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -9,7 +9,7 @@ public import EvmAsm.EL.RLP.FullDecode
 meta import EvmAsm.EL.RLP.RefDecode
 meta import EvmAsm.EL.RLP.FullDecode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP.RefDecodeFuzz
 

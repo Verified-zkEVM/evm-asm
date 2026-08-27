@@ -7,7 +7,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedBorrowCarryCas
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

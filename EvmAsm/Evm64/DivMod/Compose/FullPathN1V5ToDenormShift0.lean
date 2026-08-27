@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenorm
 public import EvmAsm.Evm64.DivMod.Spec.N1QuotientStackBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

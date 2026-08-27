@@ -8,7 +8,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

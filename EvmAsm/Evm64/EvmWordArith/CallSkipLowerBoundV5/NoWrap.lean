@@ -17,7 +17,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.CapBounds
 public import EvmAsm.Evm64.EvmWordArith.Div128FinalAssembly
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

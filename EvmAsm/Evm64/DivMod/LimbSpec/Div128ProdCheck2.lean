@@ -26,7 +26,7 @@ public import EvmAsm.Rv64.ControlFlow
 public import EvmAsm.Rv64.Tactics.XSimp
 public import EvmAsm.Rv64.Tactics.RunBlock
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Rv64.AddrNorm (se21_8)

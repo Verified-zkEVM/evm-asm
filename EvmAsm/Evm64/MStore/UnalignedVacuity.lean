@@ -51,7 +51,7 @@ module
 public import EvmAsm.Evm64.MStore.ByteAlg
 public import EvmAsm.Rv64.SepLogic
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MStore
 

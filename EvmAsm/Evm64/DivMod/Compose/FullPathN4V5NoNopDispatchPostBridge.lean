@@ -18,7 +18,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

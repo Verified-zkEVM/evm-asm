@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarry
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryNamed
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

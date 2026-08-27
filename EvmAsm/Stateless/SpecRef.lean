@@ -79,4 +79,4 @@ public import EvmAsm.Stateless.SpecRef.PrecompilesTable
 public import EvmAsm.Stateless.SpecRef.Stateless
 public import EvmAsm.Stateless.SpecRef.Guest
 
-@[expose] public section
+public section

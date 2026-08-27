@@ -26,7 +26,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3LoopUnified
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

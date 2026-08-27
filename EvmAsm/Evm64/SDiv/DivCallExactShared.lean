@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
 public import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
 public import EvmAsm.Evm64.DivMod.CallableBzeroV4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

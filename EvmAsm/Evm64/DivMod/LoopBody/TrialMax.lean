@@ -21,7 +21,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.LoopBody
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

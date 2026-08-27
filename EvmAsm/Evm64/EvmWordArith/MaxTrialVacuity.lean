@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.EvmWordArith.Common
 public import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 public import EvmAsm.Evm64.EvmWordArith.MultiLimb
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

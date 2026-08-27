@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FrameShift0
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

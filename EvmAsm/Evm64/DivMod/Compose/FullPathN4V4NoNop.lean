@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
 public import EvmAsm.Evm64.DivMod.Compose.FullPathV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

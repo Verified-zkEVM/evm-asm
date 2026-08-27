@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.QuadMemBridges
 public import EvmAsm.Evm64.SMod.Compose.Words
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

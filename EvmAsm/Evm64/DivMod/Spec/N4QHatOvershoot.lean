@@ -24,7 +24,7 @@ public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5TopBound
 public import EvmAsm.Evm64.DivMod.Spec.N4QHatBound
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarryMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

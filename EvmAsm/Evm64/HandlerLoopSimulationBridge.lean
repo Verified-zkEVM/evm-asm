@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.HandlerLoopBridge
 public import EvmAsm.Evm64.InterpreterLoopSimulation
 public import EvmAsm.Evm64.InterpreterTraceSimulation
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

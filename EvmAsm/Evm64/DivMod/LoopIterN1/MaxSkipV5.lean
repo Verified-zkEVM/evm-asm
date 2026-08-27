@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
 public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
 public import EvmAsm.Evm64.DivMod.N1CallBase
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

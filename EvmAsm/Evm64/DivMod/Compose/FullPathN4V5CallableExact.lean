@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
 public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
 public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackWordLane
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

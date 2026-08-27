@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
 public import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
 public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnPre
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

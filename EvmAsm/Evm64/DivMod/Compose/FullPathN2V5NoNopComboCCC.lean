@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFinalPostCCC
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopSource
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

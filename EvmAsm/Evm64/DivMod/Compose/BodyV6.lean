@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
 public import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
 public import EvmAsm.Evm64.DivMod.Compose.NormAV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

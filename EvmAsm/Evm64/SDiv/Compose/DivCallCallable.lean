@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.CallableV4Div
 public import EvmAsm.Evm64.SDiv.Compose.Base
 public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

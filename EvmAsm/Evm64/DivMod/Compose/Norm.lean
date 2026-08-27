@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
 public import EvmAsm.Evm64.DivMod.LimbSpec.NormB
 public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseC2
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

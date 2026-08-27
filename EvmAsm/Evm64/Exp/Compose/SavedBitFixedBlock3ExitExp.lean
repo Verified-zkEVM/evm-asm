@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 
