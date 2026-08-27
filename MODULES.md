@@ -235,6 +235,69 @@ convergence. Spend the effort where large definitions are *not* value-reasoned �
 `Stateless/SpecRef` is the demonstrated case (`IncrementalMptWrite.lean`, −64 %
 on one file, more than 7× this entire tranche).
 
+### Where the win IS: `Stateless/SpecRef`
+
+The same loop, run over `Stateless/SpecRef`, gives the opposite answer — and the
+contrast is the useful part, because the two tranches differ by 33x on a
+directory a quarter the size:
+
+| | Evm64 leaves | `Stateless/SpecRef` |
+| --- | ---: | ---: |
+| files un-exposed, still building | 10 of 82 | **13 of 37** |
+| plain `def`s kept out of the interface | 40 | **268** |
+| public `.olean` | 704 672 → 677 208 B (−3.9 %) | 1 475 448 → **575 696 B (−61.0 %)** |
+
+Per file, the precompiles dominate: `PrecompilesBls` **−79.0 %**,
+`PrecompilesBlsMap` −77.6 %, `PrecompilesHash` −75.2 %, `ElExecute` −75.3 %,
+`Precompiles` −72.8 %, `PrecompilesCurve` −69.6 %, and `PrecompilesPairing`
+−59.0 % on the largest single file (262 896 → 107 656 B).
+
+**Why this directory and not that one.** `SpecRef` is the reference-implementation
+layer; downstream *characterises* these definitions through correspondence
+theorems rather than reducing through them, so the bodies leave the interface
+cleanly. `Evm64`'s large definitions are RISC-V programs and argument decoders,
+which is exactly what downstream `unfold`s. Same attribute, opposite outcome —
+so **classify a directory by how downstream reasons about it, not by how many
+`def`s it has.**
+
+⇒ When picking the next tranche, ask which one it resembles.
+
+### ⚠️ `Codegen` binds the ceiling from outside the batch
+
+Excluding `Codegen` from a batch does **not** protect it: it *consumes* `SpecRef`,
+and its `by decide` / `rfl` pins reduce transitively into these bodies.  Round 2
+of the `SpecRef` tranche failed almost entirely inside `Codegen`
+(`MemoryBudgetGuard`, `RequestsHashParams`,
+`BlockVerdictTxStateGasArrayModel`) with `decide` failures and `maxRecDepth`,
+and that alone forced back the five largest files in the directory —
+`InstructionsCore` (118 `def`s), `Ssz` (85), `Transactions` (60),
+`InstructionsEnv` (57), `Gas` (57): **377 `def`s**, well over the 268 that
+survived.
+
+So the remaining prize is not more un-exposing; it is those `Codegen` kernel
+pins. Re-stating them so they do not reduce through `SpecRef` is a *semantic*
+change to a kernel-checked proof, not a section-attribute edit — scope it as its
+own piece of work, never as collateral inside an exposure PR.
+
+### The surgical fallback: expose the declaration, not the file
+
+When a failure **names** a definition — `Expected a definition with an exposed
+body`, or ``unfold`` failed to unfold `f` — re-exposing the whole file
+overpays. Put `@[expose]` on that one declaration inside the plain
+`public section`, with the consumer named in a comment above it:
+
+```lean
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
+def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat := …
+```
+
+Six such lines in `SpecRef/Stateless.lean` kept its other 18 `def`s out of the
+interface (the file still measures **−41.7 %**), and one in
+`Evm64/Calldata/CopyProgram.lean` saved that file. Note the asymmetry that makes
+this worth trying: `decide`/`maxRecDepth` failures name nothing and reduce
+through a whole closure, so they are the ones that genuinely cost a file.
+
 ### Relationship to `@[irreducible]`
 
 `@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream

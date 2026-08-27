@@ -28,7 +28,7 @@ module
 public import EvmAsm.Stateless.SpecRef.PrecompilesHash
 meta import EvmAsm.Stateless.SpecRef.PrecompilesHash
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

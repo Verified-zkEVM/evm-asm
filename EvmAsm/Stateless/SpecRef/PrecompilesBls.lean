@@ -27,7 +27,7 @@ module
 
 public import EvmAsm.Stateless.SpecRef.PrecompilesPairing
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
