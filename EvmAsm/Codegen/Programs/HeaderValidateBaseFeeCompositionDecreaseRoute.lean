@@ -21,6 +21,7 @@
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Rv64.BitAux
@@ -33,6 +34,7 @@ open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
 open EvmAsm.Codegen.U256DivU64BeSAsm
 open EvmAsm.Codegen.U256SubBeSAsm
+open EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract
 
 /-- Overflow test of the in-place subtraction on the nonzero decrease arm:
     `bne a0, x0, +52` at K73 + 220 sends a nonzero borrow to the shared
@@ -1129,5 +1131,90 @@ theorem k73_decrease_mul_fall_to_return_spec_within
     (decr_tailpre_unfold _ ▸ hfailT)
   exact cpsBranchWithin_seq_cpsTripleWithin_notTaken_same_cr hfext
     (decr_tailpre_unfold _ ▸ hsuccT)
+
+open EvmAsm.Codegen.U256MulU64Be in
+/-- Entry composed into the multiply stage with the callee contract
+discharged from the deployed flat whole-routine triple through the native
+asymmetric shape (`k73_mul_status_branch_native_spec_within`): the scratch
+windows are owned premises at `accWin` / `outWin`, the image lists thread
+into both branch exits, and no new caller precondition appears. -/
+theorem k73_decrease_entry_status_native_discharged
+    (sp0 spH raIn gasLimit gasUsed target basePtr outPtr : Word)
+    (v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accWin outWin : List (BitVec 8)) (G : Assertion)
+    (hsp : spH = sp0 + signExtend12 (-56 : BitVec 12))
+    (htarget : target = gasLimit >>> 1)
+    (hne : gasUsed ≠ target)
+    (hnotlt : ¬ target.toNat < gasUsed.toNat)
+    (hnonzero : gasUsed ≠ 0)
+    (hG : G.pcFree)
+    (hlenA : baseBytes.length = 32)
+    (hlenAcc : accWin.length = 40)
+    (houtW : outWin.length = 32)
+    (halignA : basePtr.toNat % 8 = 0)
+    (hoverA : basePtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (basePtr + BitVec.ofNat 64 j) = true)
+    (halignOut : outPtr.toNat % 8 = 0)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true) :
+    cpsBranchWithin (19 + 3852) K73 wholeCode
+      (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
+        v8 v9 v18 v19 v20 baseBytes outWin
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** G))
+      (K73 + 272)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+            (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+            (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes (target - gasUsed) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes (target - gasUsed) 32)
+              outWin 32) G **
+          regOwn .x10)
+      (K73 + 92)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+            (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+            (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes (target - gasUsed) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes (target - gasUsed) 32)
+              outWin 32) G **
+          regOwn .x10) := by
+  have hFamb :
+      (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G).pcFree := by
+    pcf
+    exact hG
+  have hretCall : ((K73 + 88 : Word) &&& ~~~(1 : Word)) = K73 + 88 :=
+    EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+  have hcallee := mulWhole_spec
+    (F := frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G)
+    hFamb baseBytes accWin outWin hlenA hlenAcc houtW
+    spH (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word)
+    basePtr (target - gasUsed) outPtr outPtr
+    f0 f1 f2 f3 f4 f5 halignA hoverA hvalidA halignOut hoverOut hvalidOut
+    hretCall
+  have htwin := k73_mul_status_branch_native_spec_within
+    spH raIn target (target - gasUsed) basePtr outPtr v8 v9 v18 v19 v20
+    f0 f1 f2 f3 f4 f5 baseBytes accWin outWin G hG hcallee
+  have hFext :
+      (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** G).pcFree := by
+    pcf
+    exact hG
+  have hentry := k73_decrease_nonzero_entry_to_mul_spec_within
+    sp0 spH raIn gasLimit gasUsed target basePtr outPtr
+    v8 v9 v18 v19 v20 baseBytes outWin
+    (EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+      bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** G)
+    hsp htarget hne hnotlt hnonzero hFext
+  exact cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by
+      dsimp only [k73MulPreNoRa]
+      sep_perm hp) hentry htwin
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
