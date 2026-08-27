@@ -525,8 +525,6 @@ import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.WitnessCodesKeccakAtIndex
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
 import EvmAsm.Codegen.Programs.BlockHashWindow
-import EvmAsm.Codegen.Programs.AccountExistsAtBlockNumber
-import EvmAsm.Codegen.Programs.AccountIsEmptyAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodehashAtBlockNumber
 import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockNumber
 import EvmAsm.Codegen.Programs.SloadAtBlockNumber
@@ -545,15 +543,12 @@ import EvmAsm.Codegen.Programs.HeaderNonceAtBlockNumber
 import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtBlockNumber
 import EvmAsm.Codegen.Programs.BlockHashAtStateRoot
-import EvmAsm.Codegen.Programs.AccountStorageWalkable
 import EvmAsm.Codegen.Programs.CodeAtStateRoot
 import EvmAsm.Codegen.Programs.BlockNumberAtStateRoot
 import EvmAsm.Codegen.Programs.LogsBloomKeccakAtBlockHash
 import EvmAsm.Codegen.Programs.GasLimitAtBlockHash
 import EvmAsm.Codegen.Programs.BaseFeePerGasAtBlockHash
 import EvmAsm.Codegen.Programs.GasUsedAtBlockHash
-import EvmAsm.Codegen.Programs.AccountExistsAtBlockHash
-import EvmAsm.Codegen.Programs.AccountIsEmptyAtBlockHash
 import EvmAsm.Codegen.Programs.ExtcodehashAtBlockHash
 import EvmAsm.Codegen.Programs.SloadAtBlockHash
 import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockHash
@@ -572,7 +567,6 @@ import EvmAsm.Codegen.Programs.WitnessValidation
 import EvmAsm.Codegen.Programs.StorageProof
 import EvmAsm.Codegen.Programs.Eip4788
 import EvmAsm.Codegen.Programs.CodeVerify
-import EvmAsm.Codegen.Programs.AccountVerify
 import EvmAsm.Codegen.Programs.StorageVerify
 import EvmAsm.Codegen.Programs.Eip2935
 import EvmAsm.Codegen.Programs.StorageCompose

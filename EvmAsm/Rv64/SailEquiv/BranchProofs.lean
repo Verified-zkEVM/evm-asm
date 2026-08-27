@@ -21,10 +21,10 @@
   carries a bundled `h_elp` hypothesis: a witness mid-state in which
   `update_elp_state` has succeeded and the entry facts still hold.
 
-  **`jalr_sail_equiv` was vacuous under the old vendored model — fixed
+  **`jalr_sail_equiv` was vacuous under the old scoped model — fixed
   (#10688).** The old extraction's `currentlyEnabled` had no `Ext_Zicsr` arm,
   so `update_elp_state` faulted in every state and the `h_elp` premise was
-  unsatisfiable. As of the regenerated model (tag 2026-07-27-9901550,
+  unsatisfiable. As of the regenerated model (sail-riscv 0.13.1,
   `Zicsr_insts` in scope) the arm is present and `h_elp` is dischargeable:
   `update_elp_state_noop` (`RunInv.lean`) proves the call is a bare-mode no-op,
   `jalr_sideCond_of_runInv` (`StepRun.lean`) discharges the whole `h_elp`
@@ -40,7 +40,7 @@
 
 import EvmAsm.Rv64.SailEquiv.ALUProofs
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
