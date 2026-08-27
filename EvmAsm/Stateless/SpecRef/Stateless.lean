@@ -35,7 +35,7 @@ public import EvmAsm.Stateless.SpecRef.PrecompilesTable
 meta import EvmAsm.Stateless.SpecRef.Ssz
 meta import EvmAsm.Stateless.SpecRef.PrecompilesTable
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -44,6 +44,8 @@ open EvmAsm.EL.RLP (RLPItem decodeFully)
 /-! ## `compute_new_payload_request_root` (`stateless.py:229`) -/
 
 /-- Compute the request root for a stateless input via SSZ hash tree root. -/
+-- `@[expose]`: `SpecRef/Guest.lean` simps through this body.
+@[expose]
 def compute_new_payload_request_root (si : StatelessInput) : Hash32 :=
   (newPayloadRequestToSsz si.newPayloadRequest).hashTreeRoot
 
@@ -93,6 +95,8 @@ def rlpBytes? : RLPItem → Option Bytes
     by their U64 representation (8/9/10/11), while base fee is bounded by its
     32-byte U256 slot (15).  Difficulty's U64 route is justified by the
     post-merge difficulty-zero precondition, not by this reference table. -/
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` simps through this body.
+@[expose]
 def numericFieldWidths : List (Nat × Option Nat) :=
   [(7,  none),      -- difficulty       : Uint  (amsterdam/blocks.py:152)
    (8,  none),      -- number           : Uint  (:157)
@@ -146,12 +150,16 @@ def currentForkBytesFieldWidths : List (Nat × Nat) :=
     `_deserialize_to_uint` + `from_be_bytes`, whose `Option Nat` width argument
     already models the `Uint`-vs-`FixedUnsigned` split — so the two checks live
     in exactly one place in the tree. -/
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
 def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat :=
   match decodeItemScalar maxBytes (.bytes b) with
   | .ok n => .ok n
   | .error _ => .error .headerDecodeError
 
 /-- Every numeric field passes its typed check. -/
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
 def numericFieldsOk (bs : List Bytes) : Bool :=
   numericFieldWidths.all fun p =>
     match getNChecked p.2 (bs.getD p.1 []) with
@@ -192,6 +200,8 @@ def checkNumericFields (isCurrent : Bool) (bs : List Bytes) :
     Public so a caller can read off ANY field of a successfully decoded header
     via `decode_header_inv`. `rlpBytes?` stays private, so that lemma is still
     the only door into `_decode_header` itself. -/
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` simps through this body.
+@[expose]
 def mkHeaderFields (isCurrent : Bool) (bs : List Bytes) : Header :=
   let getB := fun i => bs.getD i []
   let getN := fun i => bytesBEtoNat (bs.getD i [])
@@ -514,6 +524,8 @@ def prepareSeamInput (si : StatelessInput) :
 
 /-- Statelessly validate the execution payload. Every exception the Python
     `try` would catch is folded into `successful_validation = false`. -/
+-- `@[expose]`: `SpecRef/Guest.lean` simps through this body.
+@[expose]
 def verify_stateless_new_payload (si : StatelessInput)
     (execute : ExecutionSeam := elExecute) : StatelessValidationResult :=
   let new_payload_request_root := compute_new_payload_request_root si

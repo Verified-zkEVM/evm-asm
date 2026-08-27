@@ -206,6 +206,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.DivisorAndPadGateCover
 import EvmAsm.Codegen.Programs.AccountWalkGateCover
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
@@ -241,6 +242,11 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+-- #12574: the completed `validate_parent_hash_link` proof family.  These are
+-- axiom-gate witnesses for the top contract and its load-bearing composition
+-- lemmas; the Tier-A `RoutineEntry` row is recorded below.
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 -- #12799: the three full-premise cover witnesses for the hvph dispatcher were
 -- outside the axiom gate entirely — no witness abbrev, and this module did not
 -- import theirs. A `.proven` row whose satisfiability evidence no gate forces
@@ -931,6 +937,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
         ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
         ++ "`header_validate_parent_hash` conjunct 11"),
+  routine "validate_parent_hash_link" .proven
+      (some "validate_parent_hash_link_spec_within")
+      (notes := "Tier-A flat whole-routine triple (`cpsTripleWithin`) at "
+        ++ "`GuestAddrs.validate_parent_hash_link`, over the linked routine plus "
+        ++ "`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256` and "
+        ++ "the byte-copy helper. The three-way post covers decoder/field failure "
+        ++ "(status 1), a non-32-byte field (status 2), and the 32-byte hash "
+        ++ "comparison result (status 0), with static bounds and caller-owned "
+        ++ "regions only in the pre. The proof is direct `cpsTripleWithin` at the "
+        ++ "linked entry, not a structured-only SAsm spec, so it is registrable "
+        ++ "without a `Fn.retSpecFlat` lift; its axiom witness is "
+        ++ "`_vphl_whole_routine_witness` (#12574)."),
   -- #12461 arm 11: unified whole-routine triple over the hvph caller itself.
   -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
   -- mismatch0 only); a unified claim over those arms alone would have been
@@ -1734,8 +1752,14 @@ def routineRegistry : List RoutineEntry := [
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
-      (gate := "nonzero divisor `0 < b < 2^64`; the remaining hypotheses "
-        ++ "are ABI/resource facts")
+      (gate := "nonzero divisor. ⚠️ #12867: the stated `0 < b < 2^64` overstates "
+        ++ "it — `u256DivU64BeInPlaceFlat_spec` carries only `hbPos : 0 < "
+        ++ "b.toNat`, and the upper half holds of EVERY `Word` "
+        ++ "(`divisorGate_upper_bound_is_free`), so the gate is exactly `b ≠ 0` "
+        ++ "(`divisorGate_iff`). instance `divisorGate_admits_eight` (the "
+        ++ "literal K73's +120/+168 calls supply); "
+        ++ "`divisorGate_excludes_only_zero` shows exactly one value is cut. "
+        ++ "The remaining hypotheses are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
         ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
         ++ "big-endian source into the 32-byte quotient window and returns "
@@ -3513,7 +3537,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "not decorative: the reference decodes all 64 bytes, so a nonzero pad "
         ++ "byte makes the value ≥ 2^384 > p and the reference rejects, while the "
         ++ "guest scan never reads those bytes and would not. The two sides agree "
-        ++ "exactly ON the well-formed felts")
+        ++ "exactly ON the well-formed felts. #12867: that divergence is now a "
+        ++ "theorem, not prose — `padGate_is_load_bearing` exhibits `wGood`/"
+        ++ "`wBad` sharing the SAME 48-byte suffix (all the guest reads, per the "
+        ++ "precondition's `bytesRegion inPtr (w.drop 16)`) where "
+        ++ "`bytes_to_fq` accepts one and rejects the other; "
+        ++ "`padGate_separates_the_pair` confirms the pair straddles `hpad` and "
+        ++ "differs nowhere else. Dropping `hpad` would not weaken this row, it "
+        ++ "would falsify it")
       (notes := "model-facing restatement: `a0` IS the accept/reject indicator of "
         ++ "`SpecRef.Bls12.bytes_to_fq` on the wire felt. ⚠️ PREDICATE agreement "
         ++ "only — `lt_p` returns a boolean, never the field element, so value "
@@ -4171,10 +4202,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 205 := by decide
+theorem routineCount_eq : routineCount = 206 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 159 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
 set_option maxRecDepth 16000 in
@@ -4194,7 +4225,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 167 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 168 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4417,6 +4448,21 @@ private noncomputable abbrev _walk_next_scalar_instance_witness :=
   @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_admits_ordinary
 private noncomputable abbrev _walk_next_scalar_boundary_witness :=
   @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_boundary
+-- #12867, last two tractable gates. They fail in OPPOSITE directions: the
+-- divisor row states an upper bound the type makes vacuous, where
+-- rlp_walk_init (#12957) omitted a real one the type supplied.
+private noncomputable abbrev _divisor_upper_free_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_upper_bound_is_free
+private noncomputable abbrev _divisor_gate_iff_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_iff
+private noncomputable abbrev _divisor_admits_eight_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
+private noncomputable abbrev _divisor_excludes_zero_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_excludes_only_zero
+private noncomputable abbrev _pad_gate_load_bearing_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_is_load_bearing
+private noncomputable abbrev _pad_gate_separates_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_separates_the_pair
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
@@ -4843,6 +4889,109 @@ private noncomputable abbrev _headers_parent_hash_out_length_neg_witness :=
 
 private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+-- #12574: the VPHL top-contract proof family.  Keep the load-bearing helper
+-- theorems in the same axiom gate as the headline triple so a green gate does
+-- not silently certify only a different registry surface.
+private noncomputable abbrev _vphl_success_field0_bound_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound
+private noncomputable abbrev _vphl_prog_length_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlProg_length
+private noncomputable abbrev _vphl_code_vphl_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCode_vphl
+private noncomputable abbrev _vphl_la_claimed_5c_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_claimed_5c
+private noncomputable abbrev _vphl_la_computed_6_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_computed_6
+private noncomputable abbrev _vphl_prologue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_prologue_spec_within
+private noncomputable abbrev _vphl_epilogue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_epilogue_spec_within
+private noncomputable abbrev _vphl_call_return_pre_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_callReturn_pre
+private noncomputable abbrev _vphl_k20_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_k20_call_spec_within
+private noncomputable abbrev _vphl_reg_is_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_of_forall_regIs_to_regOwn12
+private noncomputable abbrev _vphl_arm_fail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_fail_spec_within
+private noncomputable abbrev _vphl_arm_len_ne32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_ne32_spec_within
+private noncomputable abbrev _vphl_arm_len_eq32_prefix_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_eq32_prefix_spec_within
+private noncomputable abbrev _vphl_copy_claimed_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_copy_claimed_spec_within
+private noncomputable abbrev _vphl_hash_prep_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_prep_spec_within
+private noncomputable abbrev _vphl_hash_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_call_spec_within
+private noncomputable abbrev _vphl_dwords_eq_iff_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_dwords_eq_iff
+private noncomputable abbrev _vphl_compare_round0_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Eq
+private noncomputable abbrev _vphl_compare_round0_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Ne
+private noncomputable abbrev _vphl_compare_round1_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Eq
+private noncomputable abbrev _vphl_compare_round1_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Ne
+private noncomputable abbrev _vphl_compare_round2_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Eq
+private noncomputable abbrev _vphl_compare_round2_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Ne
+private noncomputable abbrev _vphl_compare_round3_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Eq
+private noncomputable abbrev _vphl_compare_round3_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Ne
+private noncomputable abbrev _vphl_compare_all_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareAllEq
+private noncomputable abbrev _vphl_choose12_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_choose12
+private noncomputable abbrev _vphl_compare_match_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMatchTail
+private noncomputable abbrev _vphl_compare_mismatch_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMismatchTail
+private noncomputable abbrev _vphl_top_reg12_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg12_to_regOwn
+private noncomputable abbrev _vphl_top_reg_pair_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_regPair_to_regOwn
+private noncomputable abbrev _vphl_top_reg4_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg4_to_regOwn
+private noncomputable abbrev _vphl_top_mem4_to_mem_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_to_memOwn
+private noncomputable abbrev _vphl_top_mem4_owned_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_with_owned_tail_to_memOwn
+private noncomputable abbrev _vphl_top_reg8_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg8_to_regOwn
+private noncomputable abbrev _vphl_top_frame_slots_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSlotsSaved_to_own
+private noncomputable abbrev _vphl_top_keccak_frame_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccakFrameSaved_to_own
+private noncomputable abbrev _vphl_top_frame_saved_rest_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
+private noncomputable abbrev _vphl_top_keccak_slot_h0_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h0
+private noncomputable abbrev _vphl_top_keccak_ret_slot_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_ret_slot
+private noncomputable abbrev _vphl_top_keccak_slot_h8_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h8
+private noncomputable abbrev _vphl_top_keccak_slot_h16_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h16
+private noncomputable abbrev _vphl_top_keccak_slot_h24_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h24
+private noncomputable abbrev _vphl_top_keccak_slots_stack_free_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slots_to_stackFree
+private noncomputable abbrev _vphl_top_compare_prefix_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_vphl_compare_prefix_to_own
+private noncomputable abbrev _vphl_hash_tail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_tail_spec
+private noncomputable abbrev _vphl_success_eq32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_eq32_spec
+private noncomputable abbrev _vphl_continuation_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_continuation_spec
+private noncomputable abbrev _vphl_whole_routine_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.validate_parent_hash_link_spec_within
+private noncomputable abbrev _vphl_status0_inhabited_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_status0_inhabited
 -- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
 -- static premise simultaneously with live data and lands on a DIFFERENT arm
 -- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way

@@ -111,6 +111,7 @@ import EvmAsm.Codegen.Programs.AccountAccessorTopSpec
 import EvmAsm.Codegen.Programs.AccountAccessorNonceSpec
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.DivisorAndPadGateCover
 import EvmAsm.Codegen.Programs.AccountWalkGateCover
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.AccountNonceGateCover

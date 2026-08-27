@@ -32,7 +32,7 @@ module
 public import EvmAsm.Stateless.SpecRef.PrecompilesCurve
 meta import EvmAsm.Stateless.SpecRef.PrecompilesCurve
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
