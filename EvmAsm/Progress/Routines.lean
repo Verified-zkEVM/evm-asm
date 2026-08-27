@@ -373,7 +373,6 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
