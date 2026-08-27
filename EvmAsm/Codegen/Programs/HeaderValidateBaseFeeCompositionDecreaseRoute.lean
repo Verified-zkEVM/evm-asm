@@ -1493,4 +1493,215 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
     (fun _ hq => hq) htwin
   exact cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hciiiT htw'
 
+/-- The divide-scratch ownerships AND the stack-pointer pin ride in the
+    corollary's ambient parameter, so the ghole envelope over the enriched
+    environment equals the fall leg's `regOwns [.x14..x17] ** H` token
+    spelling (the fall leg reads `sp` from the frame window, so `H` must
+    carry the pin). -/
+private theorem k73_decr_ghole_env_eq (spH : Word) (G : Assertion) :
+    (k73_decr_ghole spH
+        (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** G)) =
+      (regOwns [.x14, .x15, .x16, .x17] **
+        ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+          regOwn .x19 ** regOwn .x20 ** G)) := by
+  simp only [k73_decr_ghole, regOwns_cons, regOwns_nil, sepConj_emp_right']
+  xperm_cert_eq
+
+/-- Subtractor-return post, shared by the borrow-failure taken exit and the
+    success fall exit (status 1 / 0). -/
+private def k73_decr_sub_return_post
+    (sp0 spH raIn target basePtr outPtr gasUsed v8 v9 v18 v19 v20 : Word)
+    (baseBytes outWin : List (BitVec 8)) (Genv : Assertion) (status : Word) :
+    Assertion :=
+  (.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (.x10 ↦ᵣ status) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
+    regOwns u256SubBeInPlaceScratch **
+    bytesRegion outPtr
+      (u256SubBeBytes baseBytes
+        (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          8)
+        (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          8)) **
+    bytesRegion basePtr baseBytes **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      basePtr outPtr target (target - gasUsed) (0 : Word) **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+      (k73_decr_img1 baseBytes (target - gasUsed)) **
+    ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+      regOwn .x19 ** regOwn .x20 ** Genv)
+
+/-- Multiply-overflow failure post (the taken exit of the mul-status branch,
+    routed through the shared failure epilogue). -/
+private def k73_decr_mulfail_taken_post
+    (sp0 spH raIn target basePtr outPtr gasUsed v8 v9 v18 v19 v20 : Word)
+    (baseBytes outWin : List (BitVec 8)) (Genv : Assertion) : Assertion :=
+  (.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
+    frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+    (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
+    k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
+      baseBytes outWin
+      (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv)
+
+/-! Whole nonzero-decrease route: the mul-status branch is extended past its
+    not-taken exit (the fall leg into the divider/subtractor chain) with the
+    mul-overflow taken exit retargeted through the shared failure epilogue.
+    All divider window claims are threaded at the computed image lists
+    (`mulState` / `copyState`), so the divider quotient premises speak about
+    exactly the bytes the multiply leaves behind. -/
+theorem k73_decrease_route_machine_spec_within
+    (sp0 spH raIn gasLimit gasUsed target basePtr outPtr : Word)
+    (v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accWin outWin : List (BitVec 8)) (Genv : Assertion)
+    (hsp : spH = sp0 + signExtend12 (-56 : BitVec 12))
+    (htarget : target = gasLimit >>> 1)
+    (hne : gasUsed ≠ target)
+    (hnotlt : ¬ target.toNat < gasUsed.toNat)
+    (hnonzero : gasUsed ≠ 0)
+    (hG : Genv.pcFree)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hlenA : baseBytes.length = 32)
+    (hlenAcc : accWin.length = 40)
+    (houtW : outWin.length = 32)
+    (halignA : basePtr.toNat % 8 = 0)
+    (hoverA : basePtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (basePtr + BitVec.ofNat 64 j) = true)
+    (halignOut : outPtr.toNat % 8 = 0)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true)
+    (htargetPos : 0 < target.toNat)
+    (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ basePtr.toNat)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
+    (hszDiv1 :
+      4 * ((u256DivU64BeInPlaceFn outPtr target
+        (k73_decr_img2 baseBytes (target - gasUsed) outWin)).body.size + 1)
+        ≤ 2 ^ 64)
+    (hszDiv2 :
+      4 * ((u256DivU64BeInPlaceFn outPtr 8
+        (u256DivU64BeQuotBytes
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)).body.size
+          + 1)
+        ≤ 2 ^ 64)
+    (hszSub :
+      4 * ((u256SubBeInPlaceFn basePtr outPtr baseBytes
+        (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+          8)).body.size + 1)
+        ≤ 2 ^ 64) :
+    cpsBranchWithin ((19 + 3852 + 9) +
+        (((((10 +
+              (u256DivU64BeInPlaceFn outPtr target
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin)).body.steps +
+            (u256DivU64BeInPlaceFn outPtr 8
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+                target)).body.steps +
+          1) +
+          (1 + (5 + (u256SubBeInPlaceFn basePtr outPtr baseBytes
+            (u256DivU64BeQuotBytes
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
+              8)).body.steps))) + 1) + 9) + 10))
+      K73 wholeCode
+      (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
+        v8 v9 v18 v19 v20 baseBytes outWin
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
+        k73_decr_ghole spH
+          (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv)))
+      raIn
+      (fun st =>
+        ((k73_decr_mulfail_taken_post sp0 spH raIn target basePtr outPtr
+            gasUsed v8 v9 v18 v19 v20 baseBytes outWin Genv) st ∨
+          (k73_decr_sub_return_post sp0 spH raIn target basePtr outPtr gasUsed
+            v8 v9 v18 v19 v20 baseBytes outWin Genv (1 : Word)) st))
+      raIn
+      (k73_decr_sub_return_post sp0 spH raIn target basePtr outPtr gasUsed
+        v8 v9 v18 v19 v20 baseBytes outWin Genv (0 : Word)) := by
+  have hspF : spH + signExtend12 (56 : BitVec 12) = sp0 := by
+    have hx : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+    rw [hsp, hx]
+    have hy : signExtend12 (-56 : BitVec 12) =
+        (18446744073709551560 : Word) := by decide
+    rw [hy]
+    bv_omega
+  have hGr :
+      (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv).pcFree := by
+    pcf
+    exact hG
+  have hHp :
+      ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+        regOwn .x19 ** regOwn .x20 ** Genv).pcFree := by
+    pcf
+    exact hG
+  have hlenI2 :
+      (k73_decr_img2 baseBytes (target - gasUsed) outWin).length = 32 :=
+    EvmAsm.Codegen.U256MulU64Be.copyState_len _ _ 32 houtW
+  have hfall := k73_decrease_mul_fall_to_return_spec_within
+    sp0 spH raIn basePtr outPtr target gasUsed v8 v9 v18 v19 v20
+    baseBytes (k73_decr_img1 baseBytes (target - gasUsed))
+      (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+    ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+      regOwn .x19 ** regOwn .x20 ** Genv)
+    hHp hrw hroBase hlenA hlenI2 hoverA hoverOut hdisj htargetPos
+    hszDiv1 hszDiv2 hszSub hspF hret
+  have hperm : ∀ h : PartialState,
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_ghole spH
+            (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv)) **
+        regOwn .x10) h →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (regOwns [.x14, .x15, .x16, .x17] **
+            ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+              regOwn .x19 ** regOwn .x20 ** Genv)) ** regOwn .x10) h := by
+    intro h hp
+    rw [k73_decr_ghole_env_eq] at hp
+    exact hp
+  have hmf := k73_decr_mulfail_entry_to_return_spec_within
+    sp0 spH raIn gasLimit gasUsed target basePtr outPtr
+    v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accWin outWin
+    (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv)
+    hsp htarget hne hnotlt hnonzero hGr hret hlenA hlenAcc houtW
+    halignA hoverA hvalidA halignOut hoverOut hvalidOut
+  exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr hmf hperm hfall
+    (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
