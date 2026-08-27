@@ -21,6 +21,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountIsEip161EmptyLoop
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 

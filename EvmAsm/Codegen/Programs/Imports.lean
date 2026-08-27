@@ -74,7 +74,6 @@ import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpItemSpanNoCanonicalityCheck
 import EvmAsm.Codegen.Programs.BytesToNibblesBridge
 import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
-import EvmAsm.Codegen.Programs.RlpListNthItemForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
 import EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
 import EvmAsm.Codegen.Programs.RlpRecursiveDecodeLinkedSpec
@@ -154,7 +153,6 @@ import EvmAsm.Codegen.Programs.MptWalkExtHop
 import EvmAsm.Codegen.Programs.MptWalkBranchHopGlue
 import EvmAsm.Codegen.Programs.MptWalkRootHopGlue
 import EvmAsm.Codegen.Programs.MptWalkResidualChain
-import EvmAsm.Codegen.Programs.MptWalkSetupToKind
 import EvmAsm.Codegen.Programs.HpDecodeNibblesCallSAsm
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
 import EvmAsm.Codegen.Programs.MptNodeKindWire
@@ -485,12 +483,6 @@ import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderDecodeNoPrefixTest
 import EvmAsm.Codegen.Programs.HeaderChain
 import EvmAsm.Codegen.Programs.Chain
-import EvmAsm.Codegen.Programs.ChainAggregator
-import EvmAsm.Codegen.Programs.ChainBasefee
-import EvmAsm.Codegen.Programs.ChainBlobCount
-import EvmAsm.Codegen.Programs.ChainExcessBlobGas
-import EvmAsm.Codegen.Programs.ChainTimestamp
-import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.ChainValidate
 import EvmAsm.Codegen.Programs.ChainValidateOfflineAddrs
 import EvmAsm.Codegen.Programs.ChainValidateBlob
@@ -527,8 +519,6 @@ import EvmAsm.Codegen.Programs.State
 import EvmAsm.Codegen.Programs.StateCompose
 import EvmAsm.Codegen.Programs.StatePredicates
 import EvmAsm.Codegen.Programs.WitnessCodesKeccakAtIndex
-import EvmAsm.Codegen.Programs.ChainWalkOneStepBack
-import EvmAsm.Codegen.Programs.ChainWalkNStepsBack
 import EvmAsm.Codegen.Programs.BlockNumberAtBlockHash
 import EvmAsm.Codegen.Programs.BlockHashWindow
 import EvmAsm.Codegen.Programs.AccountExistsAtBlockNumber
@@ -567,7 +557,6 @@ import EvmAsm.Codegen.Programs.SloadAtBlockHash
 import EvmAsm.Codegen.Programs.ExtcodecopyAtBlockHash
 import EvmAsm.Codegen.Programs.StorageRootInWitness
 import EvmAsm.Codegen.Programs.WitnessStorageKeccakAtIndex
-import EvmAsm.Codegen.Programs.ChainLinkExtract
 import EvmAsm.Codegen.Programs.WitnessHeadersStateRootAtIndex
 import EvmAsm.Codegen.Programs.WitnessHeadersAllChainLinksValidate
 import EvmAsm.Codegen.Programs.WitnessStorageNodeKindDistribution
@@ -576,7 +565,6 @@ import EvmAsm.Codegen.Programs.WitnessHeadersChainLink
 import EvmAsm.Codegen.Programs.WitnessHeadersSlotAtIndex
 import EvmAsm.Codegen.Programs.WitnessNodeKindDistribution
 import EvmAsm.Codegen.Programs.WitnessStateKeccakAtIndex
-import EvmAsm.Codegen.Programs.ChainLinkParentKeccak
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.RuntimeAccountWitness
 import EvmAsm.Codegen.Programs.EvmOpcodesStorageRoot
@@ -693,7 +681,7 @@ import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmRound
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmTail
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsm
 import EvmAsm.Codegen.Programs.RlpListCountItemsBridge
-import EvmAsm.Codegen.Programs.RlpListCountItemsFlatSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsCallSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64WholeSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64FlatSAsm
 import EvmAsm.Codegen.Programs.RlpFieldToU64StrictSAsm

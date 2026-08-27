@@ -8,7 +8,6 @@ import EvmAsm.Codegen.Programs.BlockEmpty
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockRoots
 import EvmAsm.Codegen.Programs.BlockVerdictReceiptRecords
-import EvmAsm.Codegen.Programs.ChainEndpoints
 import EvmAsm.Codegen.Programs.HeaderFields
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptRecords

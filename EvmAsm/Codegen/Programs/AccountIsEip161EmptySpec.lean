@@ -28,7 +28,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.AccountFields
-import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Programs.AccountDecodeSpec
 
 namespace EvmAsm.Codegen.AccountIsEip161EmptySpec
