@@ -1228,22 +1228,22 @@ private theorem k73_regsOwnAt_k73Frame_flat :
 
 /-- Outer overflow failure returning to the caller: the multiply stage exit
     at K73 + 272 (multiply carry junk carried in `P`) runs the shared
-    `li x10, 1` plus epilogue tail.  The source is the shape produced by the
-    native discharge composition - pin on the live link register, frame-slot
-    dwords for the callee-saved window, and ownerships of exactly the
-    registers the epilogue overwrites, which the ambient choice supplies.
-    Values reloaded from the frame land per `k73Saved`, and the junk `P`
-    rides through untouched. -/
+    `li x10, 1` plus epilogue tail.  The source pins the registers the
+    epilogue overwrites (`w8..w20` are the mid-body values the multiply left,
+    supplied by the feeder window); the proof lifts them to ownerships since
+    the tail machinery only needs to own what it rewrites.  Values reloaded
+    from the frame land per `k73Saved`, and the junk `P` rides through
+    untouched. -/
 theorem k73_decrease_mulfail_outer_return_spec_within
-    (sp0 spH raIn v8 v9 v18 v19 v20 : Word) (P : Assertion)
+    (sp0 spH raIn v8 v9 v18 v19 v20 w8 w9 w18 w19 w20 : Word) (P : Assertion)
     (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
     (hret : (raIn &&& ~~~(1 : Word)) = raIn)
     (hP : P.pcFree) :
     cpsTripleWithin 9 (K73 + 272) raIn wholeCode
       ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-        (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-        regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P)
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
+        (.x19 ↦ᵣ w19) ** (.x20 ↦ᵣ w20) ** regOwn .x10 ** P)
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
@@ -1270,6 +1270,46 @@ theorem k73_decrease_mulfail_outer_return_spec_within
         xperm_hyp hp)
       (fun _ hq => hq) ht
   refine cpsTripleWithin_weaken (fun s hp => ?_) (fun _ hq => hq) htFlat
+  -- Lift the incoming pins to the ownerships the tail machinery consumes,
+  -- deepest first (each tower descends the chain heads to its pin).
+  have c20 :
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
+        (.x19 ↦ᵣ w19) ** regOwn .x20 ** regOwn .x10 ** P) s :=
+    decr_under_id (decr_under_id (decr_under_id (decr_under_id (decr_under_id
+      (decr_under_id (decr_under_id (decr_under_id
+        (decr_sep_pin_lift (r := Reg.x20) (v := w20))))))))) s hp
+  have c19 :
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
+    decr_under_id (decr_under_id (decr_under_id (decr_under_id (decr_under_id
+      (decr_under_id (decr_under_id
+        (decr_sep_pin_lift (r := Reg.x19) (v := w19)))))))) s c20
+  have c18 :
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) **
+        regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
+    decr_under_id (decr_under_id (decr_under_id (decr_under_id (decr_under_id
+      (decr_under_id
+        (decr_sep_pin_lift (r := Reg.x18) (v := w18))))))) s c19
+  have c9 :
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** regOwn .x9 ** regOwn .x18 **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
+    decr_under_id (decr_under_id (decr_under_id (decr_under_id (decr_under_id
+      (decr_sep_pin_lift (r := Reg.x9) (v := w9)))))) s c18
+  have c8 :
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
+    decr_under_id (decr_under_id (decr_under_id (decr_under_id
+      (decr_sep_pin_lift (r := Reg.x8) (v := w8))))) s c9
   -- Regroup with the link-register pin at the head ...
   have egrpa :
       ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
@@ -1284,7 +1324,7 @@ theorem k73_decrease_mulfail_outer_return_spec_within
   have hx1 : ((.x1 ↦ᵣ (K73 + 88)) ** ((.x2 ↦ᵣ spH) **
       frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
       regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-      regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)) s := egrpa ▸ hp
+      regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)) s := egrpa ▸ c8
   -- ... lift the pin to an ownership (the value is dead: the epilogue
   -- reloads `x1` from the saved slot, and `hsavedU` pins that to `raIn`) ...
   have hl : (regOwn .x1 ** ((.x2 ↦ᵣ spH) **
@@ -1329,20 +1369,29 @@ private def k73_decr_img2 (baseBytes : List (BitVec 8)) (delta : Word)
     outWin 32
 
 /-- The whole-route ambient envelope for this arm: the wrapper-world
-    register facts that the carry rest does not already speak about,
-    kept as one opaque token so permutation certificates match. -/
-private def k73_decr_ghole (spH : Word) (G : Assertion) : Assertion :=
-  (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-    regOwn .x19 ** regOwn .x20 ** G
+    register ownerships that the carry rest does not already speak about,
+    kept as one opaque token so permutation certificates match.  Deliberately
+    pin-free: at K73 entry the machine stack pointer is `sp0` (`k73HeadPre`
+    pins `.x2 ↦ sp0`), and at every return the shared epilogue rewrites it to
+    `sp0`; a `x2` claim here would make the premise unsatisfiable.  The
+    mid-body `.x2 ↦ spH` fact is extracted from the multiply epilogue window
+    by `k73_decr_mulfail_twinfeed` instead. -/
+private def k73_decr_ghole (_spH : Word) (G : Assertion) : Assertion :=
+  regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** G
 
-/-- Leftover machine-visible state after any multiply stage outcome: the
-    overflow-window existential over the epilogue register facts. -/
+/-- Memory-visible leftovers of any multiply-stage outcome: the scratch-frame
+    dwords, the output window, and the overflow core (whose `x5/x6/x28`
+    claims persist - the shared epilogue loads only `x1, x8..x20` and
+    rewrites `x2`).  Deliberately free of the multiply epilogue's `.x2` pin
+    and of its `x8..x20` pins: the epilogue reloads those registers from the
+    frame, so mid-body register claims must not survive into exit junk. -/
 private def k73_decr_mulfail_win (spH deltaV target basePtr outPtr : Word)
     (baseBytes outWin : List (BitVec 8)) : Assertion :=
-  fun s => ∃ k, (k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
-      (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
-    bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
-    k73MulOverflowCoreNoStatus (k73_decr_img1 baseBytes deltaV) k) s
+  fun s => ∃ k,
+    (U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        basePtr outPtr target deltaV (0 : Word) **
+      bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
+      k73MulOverflowCoreNoStatus (k73_decr_img1 baseBytes deltaV) k) s
 
 /-- The ambient junk carried through the outer failure leg: tail extras,
     overflow window, caller ambience. -/
@@ -1351,6 +1400,156 @@ private def k73_decr_mulfail_junk (spH deltaV target basePtr outPtr : Word)
   EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
     k73_decr_mulfail_win spH deltaV target basePtr outPtr baseBytes outWin **
     Grest
+
+/-- Feed the mul-stage carry exit into the shared failure epilogue.  The
+    mid-body `.x2 ↦ spH` fact rides INSIDE the multiply epilogue window (its
+    `spNew + signExtend12 48` value reduces to `spH`); the epilogue's other
+    register claims pass through as pins over the feeder values; and only the
+    memory-visible leftovers survive as junk (`k73_decr_mulfail_win`), since
+    the shared epilogue reloads the callee-saved registers from the frame and
+    rewrites `x2` to `sp0`. -/
+private theorem k73_decr_mulfail_twinfeed
+    (spH raIn basePtr outPtr target deltaV v8 v9 v18 v19 v20 : Word)
+    (baseBytes outWin : List (BitVec 8)) (Grest : Assertion) :
+    ∀ s : PartialState,
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target deltaV
+          v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes deltaV)
+          (k73_decr_img2 baseBytes deltaV outWin)
+          (k73_decr_ghole spH Grest) ** regOwn .x10) s →
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
+        (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) ** (.x20 ↦ᵣ (0 : Word)) **
+        regOwn .x10 **
+        (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
+          k73_decr_mulfail_win spH deltaV target basePtr outPtr
+            baseBytes outWin **
+          (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+            regOwn .x20 ** Grest))) s := by
+  have hsp48 :
+      (spH + signExtend12 (-48 : BitVec 12)) + signExtend12 (48 : BitVec 12) =
+        spH := by
+    have h1 : signExtend12 (-48 : BitVec 12) =
+        (18446744073709551568 : Word) := by decide
+    have h2 : signExtend12 (48 : BitVec 12) = (48 : Word) := by decide
+    rw [h1, h2]
+    bv_omega
+  intro s hp
+  -- Flatten the carry rest (the ghole token unfolds to plain ownerships);
+  -- the image tokens stay folded so every later spelling matches.
+  dsimp only [k73DecreaseMulCarryRest, k73_decr_ghole] at hp
+  -- Pull the existential window out of the chain.
+  have hpW :
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+            frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+            U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
+          ((fun u => ∃ k,
+              (k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
+                  (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
+                bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
+                k73MulOverflowCoreNoStatus
+                  (k73_decr_img1 baseBytes deltaV) k) u) **
+            (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+              regOwn .x20 ** Grest ** regOwn .x10))) s := by
+    xperm_hyp hp
+  have hpE :
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+            frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+            U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
+          ((fun u =>
+              ∃ k,
+                ((k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
+                      (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
+                    bytesRegion outPtr
+                      (k73_decr_img2 baseBytes deltaV outWin) **
+                    k73MulOverflowCoreNoStatus
+                      (k73_decr_img1 baseBytes deltaV) k) **
+                  (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+                    regOwn .x20 ** Grest ** regOwn .x10)) u))) s :=
+    sepConj_mono_right
+      (fun h' hq => (sepConj_exists_left h').mp hq) s hpW
+  obtain ⟨k, hk⟩ := sepConj_exists_right s hpE
+  -- Reduce the epilogue's `x2` pin value to `spH`.
+  dsimp only [k73MulEpilogueNoRa] at hk
+  rw [hsp48] at hk
+  -- Regroup once: the fixed-`k` memory window moves into the junk slot where
+  -- the existential re-wrap happens (every later split stays inside the
+  -- original partition tree, so no cross-block recombination is needed).
+  have hkFlat :
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+          (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
+          (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) **
+          (.x20 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+          (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
+            (((U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12))
+                  (K73 + 88) basePtr outPtr target deltaV (0 : Word)) **
+                (bytesRegion outPtr
+                    (k73_decr_img2 baseBytes deltaV outWin) **
+                  k73MulOverflowCoreNoStatus
+                    (k73_decr_img1 baseBytes deltaV) k)) **
+              (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+                regOwn .x20 ** Grest)))) s := by
+    have hEq :
+        ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+              frameSlotsSaved k73Frame spH
+                (k73Saved raIn v8 v9 v18 v19 v20) **
+              U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
+            ((((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
+                    (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) **
+                    (.x20 ↦ᵣ (0 : Word)) **
+                    U256MulU64Be.frameSlots
+                      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+                      basePtr outPtr target deltaV (0 : Word)) **
+                  (bytesRegion outPtr
+                      (k73_decr_img2 baseBytes deltaV outWin) **
+                    k73MulOverflowCoreNoStatus
+                      (k73_decr_img1 baseBytes deltaV) k)) **
+              (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+                regOwn .x20 ** (Grest ** regOwn .x10)))) =
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+            frameSlotsSaved k73Frame spH
+              (k73Saved raIn v8 v9 v18 v19 v20) **
+            (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
+            (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) **
+            (.x20 ↦ᵣ (0 : Word)) ** regOwn .x10 **
+            (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
+              (((U256MulU64Be.frameSlots
+                    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+                    basePtr outPtr target deltaV (0 : Word)) **
+                  (bytesRegion outPtr
+                      (k73_decr_img2 baseBytes deltaV outWin) **
+                    k73MulOverflowCoreNoStatus
+                      (k73_decr_img1 baseBytes deltaV) k)) **
+                (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+                  regOwn .x20 ** Grest)))) := by
+      xperm_cert_eq
+    exact hEq ▸ hk
+  -- Re-wrap the fixed-`k` window existentially: single-layer rebuilds, each
+  -- split a sibling of an original one, and the witness state already
+  -- separates the window group from the ownership tail.
+  obtain ⟨u1, u2, hd1, hu1, hx0, r1⟩ := hkFlat
+  obtain ⟨u3, u4, hd3, hu3, hx1, r2⟩ := r1
+  obtain ⟨u5, u6, hd5, hu5, hFSS, r3⟩ := r2
+  obtain ⟨u7, u8, hd7, hu7, hx2, r4⟩ := r3
+  obtain ⟨u9, u10, hd9, hu9, hp8, r5⟩ := r4
+  obtain ⟨u11, u12, hd11, hu11, hp9, r6⟩ := r5
+  obtain ⟨u13, u14, hd13, hu13, hp18, r7⟩ := r6
+  obtain ⟨u15, u16, hd15, hu15, hp19, r8⟩ := r7
+  obtain ⟨u17, u18, hd17, hu17, hp20, r9⟩ := r8
+  obtain ⟨u19, u20, hd19, hu19, ho10, r10⟩ := r9
+  obtain ⟨u21, u22, hd21, hu21, hT, r11⟩ := r10
+  obtain ⟨u23, u24, hd23, hu23, hWinG, hOwnG⟩ := r11
+  exact ⟨u1, u2, hd1, hu1, hx0, ⟨u3, u4, hd3, hu3, hx1,
+    ⟨u5, u6, hd5, hu5, hFSS, ⟨u7, u8, hd7, hu7, hx2,
+    ⟨u9, u10, hd9, hu9, hp8, ⟨u11, u12, hd11, hu11, hp9,
+    ⟨u13, u14, hd13, hu13, hp18, ⟨u15, u16, hd15, hu15, hp19,
+    ⟨u17, u18, hd17, hu17, hp20, ⟨u19, u20, hd19, hu19, ho10,
+    ⟨u21, u22, hd21, hu21, hT, ⟨u23, u24, hd23, hu23,
+      ⟨k, hWinG⟩, hOwnG⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩⟩
+
 
 /-- The outer multiply-overflow failure leg, from whole-route entry to the
     shared-epilogue return: charges the native-discharge corollary onto
@@ -1390,7 +1589,7 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
         k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
-          baseBytes outWin Grest)
+          baseBytes outWin (k73_decr_ghole spH Grest))
       (K73 + 92)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73DecreaseMulCarryRest spH raIn basePtr outPtr target
@@ -1442,8 +1641,8 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
       (k73_decr_mulfail_win spH (target - gasUsed) target basePtr outPtr
         baseBytes outWin).pcFree :=
     k73_pcFree_exists (A := fun k =>
-        ((k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
-            (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word)) **
+        (U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12))
+            (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word) **
           bytesRegion outPtr
             (k73_decr_img2 baseBytes (target - gasUsed) outWin) **
           k73MulOverflowCoreNoStatus
@@ -1451,8 +1650,8 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
       (fun k => by pcf)
   have hPjunk :
       (k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
-        baseBytes outWin Grest).pcFree :=
-    pcFree_sepConj hTEpc (pcFree_sepConj hWinpc hG)
+        baseBytes outWin (k73_decr_ghole spH Grest)).pcFree :=
+    pcFree_sepConj hTEpc (pcFree_sepConj hWinpc hGH)
   -- The twin, run at the junk parameter.
   have hspF : spH + signExtend12 (56 : BitVec 12) = sp0 := by
     have hx : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
@@ -1463,47 +1662,30 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
     bv_omega
   have htwin := k73_decrease_mulfail_outer_return_spec_within
     sp0 spH raIn v8 v9 v18 v19 v20
+    basePtr outPtr target (target - gasUsed) (0 : Word)
     (k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
-      baseBytes outWin Grest) hspF hret hPjunk
-  -- Premise alignment: pure permutation after unfolding the carry rest.
-  have eqT :
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
-          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
-          (k73_decr_img1 baseBytes (target - gasUsed))
-          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
-          (k73_decr_ghole spH Grest) ** regOwn .x10) =
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
-        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
-        (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-        regOwn .x19 ** regOwn .x20 ** regOwn .x10 **
-        (U256MulU64Be.mulTailExtra basePtr (target - gasUsed) outPtr baseBytes **
-          (fun s => ∃ k,
-            (k73MulEpilogueNoRa (spH + signExtend12 (-48)) (K73 + 88) basePtr
-                outPtr target (target - gasUsed) (0 : Word) **
-              bytesRegion outPtr
-                (k73_decr_img2 baseBytes (target - gasUsed) outWin) **
-              k73MulOverflowCoreNoStatus
-                (k73_decr_img1 baseBytes (target - gasUsed)) k) s) **
-          Grest)) := by
-    dsimp only [k73DecreaseMulCarryRest, k73_decr_ghole, k73_decr_img1,
-      k73_decr_img2]
-    xperm_cert_eq
-  have htw' := cpsTripleWithin_weaken (fun _ hp => eqT ▸ hp)
+      baseBytes outWin (k73_decr_ghole spH Grest)) hspF hret hPjunk
+  -- Premise alignment: the feeder extracts the epilogue's `.x2` pin and
+  -- register pins from the carry-rest window and re-wraps the fixed-`k`
+  -- memory junk existentially (see `k73_decr_mulfail_twinfeed`).
+  have htf := k73_decr_mulfail_twinfeed spH raIn basePtr outPtr target
+    (target - gasUsed) v8 v9 v18 v19 v20 baseBytes outWin Grest
+  have htw' := cpsTripleWithin_weaken (fun s hp => htf s hp)
     (fun _ hq => hq) htwin
   exact cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hciiiT htw'
 
-/-- The divide-scratch ownerships AND the stack-pointer pin ride in the
-    corollary's ambient parameter, so the ghole envelope over the enriched
-    environment equals the fall leg's `regOwns [.x14..x17] ** H` token
-    spelling (the fall leg reads `sp` from the frame window, so `H` must
-    carry the pin). -/
+/-- The divide-scratch ownerships ride in the corollary's ambient parameter,
+    so the ghole envelope over the enriched environment equals the fall leg's
+    `regOwns [.x14..x17] ** H` token spelling.  Both sides are pin-free: the
+    `.x2 ↦ spH` fact lives inside the carry-rest window mid-body (where
+    `sp = spH` genuinely) and is re-derived by the fall leg's own frame
+    machinery, never claimed at a return exit. -/
 private theorem k73_decr_ghole_env_eq (spH : Word) (G : Assertion) :
     (k73_decr_ghole spH
         (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** G)) =
       (regOwns [.x14, .x15, .x16, .x17] **
-        ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-          regOwn .x19 ** regOwn .x20 ** G)) := by
+        (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+          regOwn .x20 ** G)) := by
   simp only [k73_decr_ghole, regOwns_cons, regOwns_nil, sepConj_emp_right']
   xperm_cert_eq
 
@@ -1542,8 +1724,8 @@ private def k73_decr_sub_return_post
       basePtr outPtr target (target - gasUsed) (0 : Word) **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 baseBytes (target - gasUsed)) **
-    ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-      regOwn .x19 ** regOwn .x20 ** Genv)
+    (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+      regOwn .x20 ** Genv)
 
 /-- Multiply-overflow failure post (the taken exit of the mul-status branch,
     routed through the shared failure epilogue). -/
@@ -1555,7 +1737,8 @@ private def k73_decr_mulfail_taken_post
     (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
     k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
       baseBytes outWin
-      (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv)
+      (k73_decr_ghole spH
+        (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv))
 
 /-! Whole nonzero-decrease route: the mul-status branch is extended past its
     not-taken exit (the fall leg into the divider/subtractor chain) with the
@@ -1660,8 +1843,8 @@ theorem k73_decrease_route_machine_spec_within
     pcf
     exact hG
   have hHp :
-      ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-        regOwn .x19 ** regOwn .x20 ** Genv).pcFree := by
+      (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+        regOwn .x20 ** Genv).pcFree := by
     pcf
     exact hG
   have hlenI2 :
@@ -1671,8 +1854,8 @@ theorem k73_decrease_route_machine_spec_within
     sp0 spH raIn basePtr outPtr target gasUsed v8 v9 v18 v19 v20
     baseBytes (k73_decr_img1 baseBytes (target - gasUsed))
       (k73_decr_img2 baseBytes (target - gasUsed) outWin)
-    ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-      regOwn .x19 ** regOwn .x20 ** Genv)
+    (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+      regOwn .x20 ** Genv)
     hHp hrw hroBase hlenA hlenI2 hoverA hoverOut hdisj htargetPos
     hszDiv1 hszDiv2 hszSub hspF hret
   have hperm : ∀ h : PartialState,
@@ -1690,8 +1873,8 @@ theorem k73_decrease_route_machine_spec_within
           (k73_decr_img1 baseBytes (target - gasUsed))
           (k73_decr_img2 baseBytes (target - gasUsed) outWin)
           (regOwns [.x14, .x15, .x16, .x17] **
-            ((.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
-              regOwn .x19 ** regOwn .x20 ** Genv)) ** regOwn .x10) h := by
+            (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+              regOwn .x20 ** Genv)) ** regOwn .x10) h := by
     intro h hp
     rw [k73_decr_ghole_env_eq] at hp
     exact hp
