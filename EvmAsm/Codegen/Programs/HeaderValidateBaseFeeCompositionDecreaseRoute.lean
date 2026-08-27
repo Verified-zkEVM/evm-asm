@@ -694,6 +694,58 @@ private theorem decr_tailpre_unfold {spH raIn v8 v9 v18 v19 v20 : Word}
       from by simp [k73Frame, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right']]
   xperm_cert_eq
 
+/-! ### Decrease-arm written-image algebra (Route-B success arm, stage 1)
+
+The spec recurrence (`Uint := Nat`) computes `fee - ((fee * δ) / t) / 8` over
+unbounded naturals while the guest truncates the multiply first.  The two agree
+exactly when the fixed-width product fits 256 bits (`hMulFit`); runs whose
+product overflows report status ≠ 0 and take the Route-B failure arm instead,
+so the disjunction stays sound without this condition being a machine fact. -/
+
+/-- Numeric value of one divider step's quotient window. -/
+private theorem k73_decr_quot_val
+    (A : List (BitVec 8)) (target : Word)
+    (htargetPos : 0 < target.toNat) (hleTarget : target.toNat ≤ 2 ^ 56)
+    (halen : A.length = 32) :
+    EvmAsm.Crypto.beBytesToNat (u256DivU64BeQuotBytes A A target)
+      = EvmAsm.Crypto.beBytesToNat A / target.toNat := by
+  have hq1 := k73_quot_bytes_natToBytesBE A A target halen halen htargetPos hleTarget
+  rw [hq1]
+  have hb0 := k73_fixed_bytes_bound A
+  rw [k73_bytesBEtoNat_eq_beBytesToNat, halen] at hb0
+  have hvv := k73_fixed_bytes_value 32
+    (EvmAsm.Crypto.beBytesToNat A / target.toNat)
+  exact hvv.trans (Nat.mod_eq_of_lt
+    (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) hb0))
+
+/-- Numeric value of the twice-divided accumulator window the subtract reads. -/
+private theorem k73_decr_quot2_value
+    (A : List (BitVec 8)) (target : Word)
+    (htargetPos : 0 < target.toNat) (hleTarget : target.toNat ≤ 2 ^ 56)
+    (halen : A.length = 32) :
+    EvmAsm.Crypto.beBytesToNat
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8)
+      = (EvmAsm.Crypto.beBytesToNat A / target.toNat) / 8 := by
+  have hvq1 := k73_decr_quot_val A target htargetPos hleTarget halen
+  have hq1 := k73_quot_bytes_natToBytesBE A A target halen halen htargetPos hleTarget
+  have hlq1 : (u256DivU64BeQuotBytes A A target).length = 32 := by
+    rw [hq1]
+    simp
+  have hq2 := k73_quot_bytes_natToBytesBE
+      (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8 hlq1 hlq1 (by decide) (by decide)
+  rw [hq2, hvq1]
+  have hb0 := k73_fixed_bytes_bound A
+  rw [k73_bytesBEtoNat_eq_beBytesToNat, halen] at hb0
+  have hvv := k73_fixed_bytes_value 32
+    (EvmAsm.Crypto.beBytesToNat A / target.toNat / 8)
+  refine hvv.trans ?_
+  refine Nat.mod_eq_of_lt ?_
+  have hle := Nat.div_le_self
+    (EvmAsm.Crypto.beBytesToNat A) target.toNat
+  omega
+
 /-- Full nonzero-decrease run from the divider entry to a symbolic return:
     the fall leg reaches the borrow test at K73 + 220; a zero borrow falls
     through to `li x10, 0` and returns with status 0 while any other borrow
