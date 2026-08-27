@@ -51,7 +51,7 @@ public import EvmAsm.EL.KzgPointEvalEcallBridge
 public import EvmAsm.EL.ModexpEcallBridge
 public import EvmAsm.EL.Secp256r1VerifyEcallBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.VM.Precompiles
 
@@ -102,14 +102,20 @@ def mulInputLength : Nat := 96
 def pairingPairLength : Nat := 192
 
 /-- `U256(1).to_be_bytes32()`. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def successWordOutput : ByteList :=
   List.replicate 31 (0 : Byte) ++ [1]
 
 /-- `U256(0).to_be_bytes32()`. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def zeroWordOutput : ByteList :=
   List.replicate 32 (0 : Byte)
 
 /-- Invalid point, malformed pairing length, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 structure Result where
@@ -257,6 +263,8 @@ def acceleratorInputFromCallData
   EvmAsm.EL.Bn254PairingInputBridge.bn254PairingInputFromMemory
     memory dataStart (numPairs dataLength)
 
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def outputFromVerified (verified : Bool) : ByteList :=
   if verified then successWordOutput else zeroWordOutput
 
@@ -351,6 +359,8 @@ def maxComponentLength : Nat := 1024
 def headerLength : Nat := 96
 
 /-- Executable-spec `buffer_read(data, start, size)` with zero padding. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def bufferRead (data : ByteList) (start size : Nat) : ByteList :=
   (List.range size).map fun i =>
     match data[start + i]? with
@@ -384,12 +394,16 @@ def exponentHead (data : ByteList) : Nat :=
   natFromBytesBE (bufferRead data (exponentStart data) (min 32 (exponentLength data)))
 
 /-- EIP-2565/Osaka multiplication complexity. -/
+-- `@[expose]`: reached transitively by an exported in-file rfl lemma about `gasCost`.
+@[expose]
 def complexity (baseLen modulusLen : Nat) : Nat :=
   let maxLen := max baseLen modulusLen
   let words := (maxLen + 7) / 8
   if maxLen > 32 then 2 * words * words else 16
 
 /-- EIP-2565/Osaka adjusted exponent iteration count. -/
+-- `@[expose]`: reached transitively by an exported in-file rfl lemma about `gasCost`.
+@[expose]
 def iterations (exponentLen exponentHead : Nat) : Nat :=
   let count :=
     if exponentLen ≤ 32 ∧ exponentHead = 0 then
@@ -401,6 +415,8 @@ def iterations (exponentLen exponentHead : Nat) : Nat :=
   max count 1
 
 /-- Osaka MODEXP gas cost from execution-specs `modexp.gas_cost`. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost (baseLen modulusLen exponentLen exponentHead : Nat) : Nat :=
   max 500 (complexity baseLen modulusLen * iterations exponentLen exponentHead)
 
@@ -586,6 +602,8 @@ def g1KDiscount : List Nat :=
   , 524, 523, 522, 522, 521, 520, 520, 519 ]
 
 /-- Invalid length or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -804,6 +822,8 @@ def g2KDiscount : List Nat :=
   , 528, 528, 527, 526, 526, 525, 524, 524 ]
 
 /-- Invalid length or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1003,14 +1023,20 @@ def baseGas : Nat := 37700
 def perPairGas : Nat := 32600
 
 /-- BLS12 pairing returns a 32-byte boolean word on successful accelerator execution. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def successWordOutput : ByteList :=
   List.replicate 31 (0 : Byte) ++ [1]
 
 /-- BLS12 pairing false result word. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def zeroWordOutput : ByteList :=
   List.replicate 32 (0 : Byte)
 
 /-- Invalid length, invalid points, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /-- Number of pairing pairs in a valid EVM BLS12 pairing call payload. -/
@@ -1084,6 +1110,8 @@ def acceleratorInputFromCallData
     numPairs := numPairs dataLength }
 
 /-- Convert the accelerator boolean into the EVM 32-byte return word. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def outputFromVerified (verified : Bool) : ByteList :=
   if verified then successWordOutput else zeroWordOutput
 
@@ -1263,12 +1291,16 @@ abbrev AcceleratorResult := EvmAsm.EL.Bls12MapFpToG1ResultBridge.AcceleratorResu
 def address : Nat := 0x10
 
 /-- Osaka executable-spec fixed gas cost for BLS12-381 map-Fp-to-G1. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 5500
 
 /-- BLS12 map-Fp-to-G1 consumes exactly one 64-byte Fp element. -/
 def inputLength : Nat := 64
 
 /-- Invalid length, invalid field element, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1396,12 +1428,16 @@ abbrev AcceleratorResult := EvmAsm.EL.Bls12MapFp2ToG2ResultBridge.AcceleratorRes
 def address : Nat := 0x11
 
 /-- Osaka executable-spec fixed gas cost for BLS12-381 map-Fp2-to-G2. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 23800
 
 /-- BLS12 map-Fp2-to-G2 consumes exactly one 128-byte Fp2 element. -/
 def inputLength : Nat := 128
 
 /-- Invalid length, invalid field element, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1531,6 +1567,8 @@ abbrev G1PointBytes := EvmAsm.EL.Bls12G1AddInputBridge.G1PointBytes
 def address : Nat := 0x0b
 
 /-- Osaka executable-spec fixed gas cost for BLS12-381 G1 addition. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 375
 
 /-- BLS12 G1 ADD consumes exactly two 128-byte EIP-2537 G1 points. -/
@@ -1540,6 +1578,8 @@ def inputLength : Nat := 256
 def p2Offset : Nat := 128
 
 /-- Invalid length, invalid point encoding, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1677,6 +1717,8 @@ abbrev G2PointBytes := EvmAsm.EL.Bls12G2AddInputBridge.G2PointBytes
 def address : Nat := 0x0d
 
 /-- Osaka executable-spec fixed gas cost for BLS12-381 G2 addition. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 600
 
 /-- BLS12 G2 ADD consumes exactly two 256-byte EIP-2537 G2 points. -/
@@ -1686,6 +1728,8 @@ def inputLength : Nat := 512
 def p2Offset : Nat := 256
 
 /-- Invalid length, invalid point encoding, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1830,6 +1874,8 @@ abbrev AcceleratorResult := EvmAsm.EL.KzgPointEvalResultBridge.AcceleratorResult
 def address : Nat := 0x0a
 
 /-- Osaka/BPO executable-spec fixed gas cost for KZG point evaluation. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 50000
 
 /-- KZG point evaluation consumes exactly 192 bytes. -/
@@ -1853,10 +1899,14 @@ def blsModulusOutput : ByteList :=
   , 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00, 0x01 ]
 
 /-- Successful KZG point evaluation returns `FIELD_ELEMENTS_PER_BLOB || BLS_MODULUS`. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def successOutput : ByteList :=
   fieldElementsPerBlobOutput ++ blsModulusOutput
 
 /-- Invalid length, invalid hash/proof, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /--
@@ -1891,6 +1941,8 @@ def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
     (dataStart + proofOffset)
 
 /-- Convert the accelerator proof-verification result to EVM return data. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def outputFromVerified (verified : Bool) : ByteList :=
   if verified then successOutput else emptyOutput
 
@@ -2055,16 +2107,22 @@ abbrev AcceleratorResult := EvmAsm.EL.Secp256r1VerifyResultBridge.AcceleratorRes
 def address : Nat := 0x100
 
 /-- Osaka/BPO executable-spec gas cost for P256VERIFY. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def gasCost : Nat := 6900
 
 /-- P256VERIFY consumes exactly five 32-byte fields. -/
 def inputLength : Nat := 160
 
 /-- Successful P256VERIFY returns `left_pad_zero_bytes(b"\x01", 32)`. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def successOutput : ByteList :=
   List.replicate 31 (0 : Byte) ++ [1]
 
 /-- Invalid input, invalid signature, or accelerator failure returns no bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def emptyOutput : ByteList := []
 
 /-- Result surface exposed to the caller by the pure precompile framing layer. -/
@@ -2085,6 +2143,8 @@ def acceleratorInputFromCallData (memory : MemoryReader) (dataStart : Nat) :
     memory dataStart (dataStart + 32) (dataStart + 96)
 
 /-- Convert a successful accelerator boolean to the EVM return-data bytes. -/
+-- `@[expose]`: an exported in-file lemma proves a value fact about this body by rfl.
+@[expose]
 def outputFromVerified (verified : Bool) : ByteList :=
   if verified then successOutput else emptyOutput
 
