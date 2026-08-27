@@ -22,6 +22,7 @@
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
+import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Rv64.BitAux
@@ -332,6 +333,25 @@ private theorem decr_sep_pin_lift {r v Z} :
     obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
     exact ⟨h1, h2, hd, hunion,
       regIs_implies_regOwn (r := r) (v := v) _ hl, hr⟩
+
+private theorem decr_sep_pair_congr {A A' B B' : Assertion}
+    (hA : ∀ q, A q → A' q) (hB : ∀ q, B q → B' q) :
+    ∀ q : PartialState, ((A ** B) q) → ((A' ** B') q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, hA _ hl, hB _ hr⟩
+
+private theorem decr_or_left_lift {A B R : Assertion} :
+    ∀ q : PartialState, ((A ** R) q) → (((fun s => A s ∨ B s) ** R) q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, Or.inl hl, hr⟩
+
+private theorem decr_or_right_lift {A B R : Assertion} :
+    ∀ q : PartialState, ((B ** R) q) → (((fun s => A s ∨ B s) ** R) q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, Or.inr hl, hr⟩
 
 theorem cpsBranchWithin_seq_cpsTripleWithin_notTaken_same_cr
     {nSteps1 nSteps2 : Nat} {entry mid target exit_t : Word} {cr : CodeReq}
@@ -2533,5 +2553,329 @@ private theorem k73_decr_mulfail_routeB_fail
   exact ⟨sa, sb, had, hud, hx1, ⟨(1 : Word),
     k73_decr_img2 parentBytes (target - gasUsed) outWin, k, by decide,
     hFP⟩⟩
+
+
+/- ## Wrapper-vocabulary Route-B adapter for the decrease route (#12346 residual 2b)
+
+The three machine exits (multiply-overflow failure, borrow failure, success)
+are folded into the single `k73RouteBCallPost` disjunction whose `F` slot is
+`k73_decr_outj`: the junk every decrease exit genuinely leaves behind (the
+subtract/multiply scratch-register ownerships, the multiply scratch frame, the
+accumulator image) and the caller's ambient `F`.  The multiply-overflow arm's
+proof-artifact step index `k` is eliminated because `k73MulOverflowCoreNoStatus`
+pins `x5`/`x6` to `k`-dependent *values*; lifting those pins to ownership
+(`regIs_implies_regOwn`) makes the arm `k`-free and lands exactly on the
+`regOwns u256SubBeInPlaceScratch` the unified junk demands. -/
+
+/-- The wrapper-world atoms the decrease machine route consumes at entry but
+    the wrapper premise (`k73PreRest`) supplies beyond its fixed atoms. -/
+private def k73_decr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
+    (accWin : List (BitVec 8)) (F : Assertion) : Assertion :=
+  regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (wspK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
+    regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+    regOwn .x13 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
+    regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F
+
+/-- The unified decrease-route junk: every exit leaves these atoms behind and
+    nothing more; the caller's ambient `F` rides at the tail. -/
+private def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed
+    target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  regOwns u256SubBeInPlaceScratch **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      parentPtr Expected target (target - gasUsed) (0 : Word) **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+      (k73_decr_img1 parentBytes (target - gasUsed)) **
+    regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** F
+
+/-- A two-way branch whose taken and fall exits are the *same* point (both
+    legs have already returned) is a triple with disjunctive post. -/
+private theorem k73_decr_branch_to_triple {n : Nat} {entry pt : Word}
+    {cr : CodeReq} {P Qt Qf : Assertion}
+    (h : cpsBranchWithin n entry cr P pt Qt pt Qf) :
+    cpsTripleWithin n entry pt cr P (fun s => Qt s ∨ Qf s) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  refine ⟨k, hk, s', hstep, ?_⟩
+  rcases hbranch with ⟨hpc', hQR⟩ | ⟨hpc', hQR⟩
+  · obtain ⟨hst, hcomp, hhold⟩ := hQR
+    exact ⟨hpc', hst, hcomp, decr_or_left_lift _ hhold⟩
+  · obtain ⟨hst, hcomp, hhold⟩ := hQR
+    exact ⟨hpc', hst, hcomp, decr_or_right_lift _ hhold⟩
+
+/-- The multiply-overflow failure arm carries a proof-artifact `k` (the
+    overflow window's step index).  `k73MulOverflowCoreNoStatus` pins `x5` and
+    `x6` to `k`-dependent values; lifting those pins to ownership makes the
+    arm `k`-free with junk exactly `k73_decr_outj`'s body. -/
+private theorem k73_decr_mulfail_arm_unify
+    (wspH wspK headerPtr parentPtr v9 old18 v19 v20 _gasLimit gasUsed target : Word)
+    (parentBytes _outWin headerBytes : List (BitVec 8)) (F : Assertion) :
+    ∀ s : PartialState,
+      ((.x1 ↦ᵣ (H + 40)) ** (fun u => ∃ (status : Word)
+        (scratchBytes : List (BitVec 8)) (k : Nat),
+        status ≠ (0 : Word) ∧
+        k73FailurePost wspH wspK headerPtr v9 old18 target v19 v20 gasUsed
+          parentPtr status parentBytes scratchBytes headerBytes
+          (H + 40) old8
+          (EvmAsm.Codegen.U256MulU64Be.frameSlots
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              parentPtr Expected target (target - gasUsed) (0 : Word) **
+            k73MulOverflowCoreNoStatus
+              (k73_decr_img1 parentBytes (target - gasUsed)) k **
+            regOwn .x13 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+            regOwn .x19 ** regOwn .x20 ** regOwn .x14 ** regOwn .x15 **
+            regOwn .x16 ** regOwn .x17 ** F) u)) s →
+      (((.x1 ↦ᵣ (H + 40)) ** (fun u => ∃ (status : Word)
+        (scratchBytes : List (BitVec 8)),
+        status ≠ (0 : Word) ∧
+        k73FailurePost wspH wspK headerPtr v9 old18 target v19 v20 gasUsed
+          parentPtr status parentBytes scratchBytes headerBytes
+          (H + 40) old8
+          (regOwns u256SubBeInPlaceScratch **
+            EvmAsm.Codegen.U256MulU64Be.frameSlots
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              parentPtr Expected target (target - gasUsed) (0 : Word) **
+            bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+              (k73_decr_img1 parentBytes (target - gasUsed)) **
+            regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+            regOwn .x20 ** F) u)) s) := by
+  intro s hp
+  obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hp
+  obtain ⟨st, scr, k, hne, hFP⟩ := harm
+  refine ⟨sa, sb, had, hud, hx1, ⟨st, scr, hne, ?_⟩⟩
+  dsimp only [k73FailurePost, tailRest, tailRestScratch, tailRestCore,
+    k73MulOverflowCoreNoStatus] at hFP ⊢
+  have hR : ∀ q : PartialState,
+      ((EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          parentPtr Expected target (target - gasUsed) (0 : Word) **
+        (((.x5 ↦ᵣ (EvmAsm.Codegen.U256MulU64Be.accBase +
+              BitVec.ofNat 64 (32 + k))) **
+          (.x6 ↦ᵣ BitVec.ofNat 64 (8 - k)) **
+          regOwn .x28 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+            (k73_decr_img1 parentBytes (target - gasUsed))) **
+        (regOwn .x13 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+          regOwn .x31 ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+          regOwn .x19 ** regOwn .x20 ** regOwn .x14 ** regOwn .x15 **
+          regOwn .x16 ** regOwn .x17 ** F))) q) →
+      ((regOwns u256SubBeInPlaceScratch **
+        EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          parentPtr Expected target (target - gasUsed) (0 : Word) **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+          (k73_decr_img1 parentBytes (target - gasUsed)) **
+        regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+        regOwn .x20 ** F) q) := by
+    intro q hq
+    have t1 := decr_under_id
+      (B := EvmAsm.Codegen.U256MulU64Be.frameSlots
+        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        parentPtr Expected target (target - gasUsed) (0 : Word))
+      (decr_sep_pair_congr
+        (decr_sep_pin_lift (r := Reg.x5)
+          (v := EvmAsm.Codegen.U256MulU64Be.accBase + BitVec.ofNat 64 (32 + k)))
+        (fun _ h => h)) q hq
+    have t2 := decr_under_id
+      (B := EvmAsm.Codegen.U256MulU64Be.frameSlots
+        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        parentPtr Expected target (target - gasUsed) (0 : Word))
+      (decr_sep_pair_congr
+        (decr_sep_pair_congr (fun _ h => h)
+          (decr_sep_pin_lift (r := Reg.x6) (v := BitVec.ofNat 64 (8 - k))))
+        (fun _ h => h)) q t1
+    have hE : ((EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          parentPtr Expected target (target - gasUsed) (0 : Word) **
+        ((regOwn .x5 ** (regOwn .x6 ** (regOwn .x28 **
+            bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+              (k73_decr_img1 parentBytes (target - gasUsed))))) **
+          (regOwn .x13 ** regOwn .x7 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+            regOwn .x19 ** regOwn .x20 ** regOwn .x14 ** regOwn .x15 **
+            regOwn .x16 ** regOwn .x17 ** F))) =
+        (regOwns u256SubBeInPlaceScratch **
+          EvmAsm.Codegen.U256MulU64Be.frameSlots
+            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            parentPtr Expected target (target - gasUsed) (0 : Word) **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+            (k73_decr_img1 parentBytes (target - gasUsed)) **
+          regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+          regOwn .x20 ** F)) := by
+      simp only [u256SubBeInPlaceScratch, regOwns_cons, regOwns_nil,
+        sepConj_emp_right']
+      xperm_cert_eq
+    exact hE ▸ t2
+
+  have hc := decr_under_id (B := ((.x2 ↦ᵣ wspH))) (decr_under_id (B := ((.x8 ↦ᵣ headerPtr))) (decr_under_id (B := ((.x10 ↦ᵣ st))) (decr_under_id (B := (regOwn .x11)) (decr_under_id (B := ((.x0 ↦ᵣ (0 : Word)))) (decr_under_id (B := (frameSlotsSaved hvbfFrame wspH (hvbfSaved (H + 40) old8))) (decr_under_id (B := ((.x9 ↦ᵣ v9))) (decr_under_id (B := ((.x18 ↦ᵣ old18))) (decr_under_id (B := ((.x19 ↦ᵣ v19))) (decr_under_id (B := ((.x20 ↦ᵣ v20))) (decr_under_id (B := (regOwn .x12)) (decr_under_id (B := (regOwn .x13)) (decr_under_id (B := (regOwn .x5)) (decr_under_id (B := (regOwn .x6)) (decr_under_id (B := (regOwn .x7)) (decr_under_id (B := (regOwn .x28)) (decr_under_id (B := (regOwn .x29)) (decr_under_id (B := (regOwn .x30)) (decr_under_id (B := (regOwn .x31)) (decr_under_id (B := (frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20))) (decr_under_id (B := (bytesRegion headerPtr headerBytes)) (decr_under_id (B := (bytesRegion parentPtr parentBytes)) (decr_under_id (B := (bytesRegion Expected scr)) (hR))))))))))))))))))))))) sb hFP
+  exact hc
+
+
+/-- The whole nonzero-decrease route, assembled in the wrapper's vocabulary:
+    from `k73PreRest` at the wrapper's stack frame to the Route-B callee post
+    `k73RouteBCallPost`.  The success arm pins the expected buffer at
+    `hvbfWrittenImage`; both failure flavours fold into the existential
+    failure arm; the fixed exit junk rides in the trailing `F` slot as
+    `k73_decr_outj`. -/
+theorem k73_decr_route_adapter {cr : CodeReq}
+    (spH spK old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 old18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes accWin : List (BitVec 8))
+    (f0 f1 f2 f3 f4 f5 : Word) (F : Assertion)
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (hne : gasUsed ≠ gasLimit >>> 1)
+    (hnotlt : ¬ (gasLimit >>> 1).toNat < gasUsed.toNat)
+    (hnonzero : gasUsed ≠ 0)
+    (hret : ((H + 40 : Word) &&& ~~~(1 : Word)) = H + 40)
+    (hF : F.pcFree)
+    (htargetPos : 0 < (gasLimit >>> 1).toNat)
+    (hleTarget : (gasLimit >>> 1).toNat ≤ 2 ^ 56)
+    (hMulFit : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes *
+      ((gasLimit >>> 1) - gasUsed).toNat < 2 ^ 256)
+    (hlenP : parentBytes.length = 32)
+    (hExpectedLen : expectedBytes.length = 32)
+    (hlenAcc : accWin.length = 40)
+    (halignA : parentPtr.toNat % 8 = 0)
+    (hoverA : parentPtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (parentPtr + BitVec.ofNat 64 j) = true)
+    (halignOut : Expected.toNat % 8 = 0)
+    (hoverOut : Expected.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (Expected + BitVec.ofNat 64 j) = true)
+    (hdisj : parentPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ parentPtr.toNat)
+    (hrw : RwRegion.wf ⟨Expected, 32⟩)
+    (hroBase : Region.wf ⟨parentPtr, parentBytes⟩)
+    (hszDiv1 :
+      4 * ((u256DivU64BeInPlaceFn Expected (gasLimit >>> 1)
+        (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)).body.size + 1)
+        ≤ 2 ^ 64)
+    (hszDiv2 :
+      4 * ((u256DivU64BeInPlaceFn Expected 8
+        (u256DivU64BeQuotBytes
+          (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+          (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+          (gasLimit >>> 1))).body.size
+          + 1)
+        ≤ 2 ^ 64)
+    (hszSub :
+      4 * ((u256SubBeInPlaceFn parentPtr Expected parentBytes
+        (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+            (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+            (gasLimit >>> 1))
+          (u256DivU64BeQuotBytes
+            (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+            (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+            (gasLimit >>> 1))
+          8)).body.size + 1)
+        ≤ 2 ^ 64)
+    (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i) :
+    cpsTripleWithin
+      ((19 + 3852 + 9) +
+        (((((10 +
+              (u256DivU64BeInPlaceFn Expected (gasLimit >>> 1)
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)).body.steps +
+            (u256DivU64BeInPlaceFn Expected 8
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (gasLimit >>> 1))).body.steps +
+          1) +
+          (1 + (5 + (u256SubBeInPlaceFn parentPtr Expected parentBytes
+            (u256DivU64BeQuotBytes
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (gasLimit >>> 1))
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+                (gasLimit >>> 1))
+              8)).body.steps))) + 1) + 9) + 10))
+      K73 (H + 40) cr
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20
+        gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
+        (H + 40) old8
+        (k73_decr_env spK f0 f1 f2 f3 f4 f5 accWin F))
+      ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost spH spK (H + 40) old8 headerPtr
+        v9 old18 (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr
+        parentBytes headerBytes
+        (k73_decr_outj spK headerPtr parentPtr v9 old18 v19 v20 gasUsed
+          (gasLimit >>> 1) parentBytes F)) := by
+  have hGenv : (k73_decr_piggyback spH old8 headerPtr headerBytes F).pcFree := by
+    dsimp only [k73_decr_piggyback]
+    pcf
+    exact hF
+  have ht2 : (gasLimit >>> 1).toNat = gasLimit.toNat / 2 := rfl
+  have hne' : gasUsed.toNat ≠ (gasLimit >>> 1).toNat :=
+    fun h => hne (BitVec.eq_of_toNat_eq h)
+  have hdecr : gasUsed.toNat < gasLimit.toNat / 2 := by omega
+  have halenA2 :
+      ((k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)).length = 32 := by
+    rw [k73_decr_img2]
+    exact EvmAsm.Codegen.U256MulU64Be.copyState_len _ _ 32 hExpectedLen
+  have hvalA2 :
+      EvmAsm.Crypto.beBytesToNat (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)
+        = (EvmAsm.Crypto.beBytesToNat parentBytes *
+            ((gasLimit >>> 1) - gasUsed).toNat) % 2 ^ 256 :=
+    EvmAsm.Codegen.U256MulU64Be.beBytesToNat_mulOutput parentBytes expectedBytes ((gasLimit >>> 1) - gasUsed)
+      hlenP hExpectedLen
+  have hcast : k73_decr_sub_bytes parentBytes ((gasLimit >>> 1) - gasUsed)
+      (gasLimit >>> 1) expectedBytes
+      = hvbfWrittenImage gasLimit gasUsed parentBytes :=
+    k73_decr_machine_bytes_eq_written rfl hdecr htargetPos hleTarget hlenP
+      halenA2 hMulFit hvalA2
+  have hw := k73_decrease_route_machine_spec_within spH spK (H + 40) gasLimit
+    gasUsed (gasLimit >>> 1) parentPtr Expected headerPtr v9 old18 v19 v20
+    f0 f1 f2 f3 f4 f5 parentBytes accWin expectedBytes
+    (k73_decr_piggyback spH old8 headerPtr headerBytes F)
+    hspK rfl hne hnotlt hnonzero hGenv hret hlenP hlenAcc hExpectedLen
+    halignA hoverA hvalidA halignOut hoverOut hvalidOut htargetPos hdisj hrw
+    hroBase hszDiv1 hszDiv2 hszSub
+  have htri := k73_decr_branch_to_triple hw
+  have htriC := cpsTripleWithin_extend_code hk73Mono htri
+  have hpreEq :
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20
+          gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
+          (H + 40) old8 (k73_decr_env spK f0 f1 f2 f3 f4 f5 accWin F)) =
+      k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
+        headerPtr v9 old18 v19 v20 parentBytes expectedBytes
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
+        k73_decr_ghole spK
+          (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+            k73_decr_piggyback spH old8 headerPtr headerBytes F)) := by
+    dsimp only [k73HeadPre, k73PreRest]
+    dsimp only [k73_decr_env, k73_decr_ghole, k73_decr_piggyback]
+    xperm
+  refine cpsTripleWithin_weaken (fun s hp => hpreEq ▸ hp) (fun s hq => ?_) htriC
+  rcases hq with hm | hs0
+  · rcases hm with hm | hs1
+    · have hM := k73_decr_mulfail_routeB_fail spH spK headerPtr parentPtr v9
+        old18 v19 v20 gasLimit gasUsed (gasLimit >>> 1) parentBytes expectedBytes
+        headerBytes F s hm
+      have hMu := k73_decr_mulfail_arm_unify spH spK headerPtr parentPtr v9
+        old18 v19 v20 gasLimit gasUsed (gasLimit >>> 1) parentBytes expectedBytes
+        headerBytes F s hM
+      obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hMu
+      exact ⟨sa, sb, had, hud, hx1, Or.inr harm⟩
+    · have hB := k73_decr_sub_return_routeB_fail spH spK headerPtr parentPtr v9
+        old18 v19 v20 gasLimit gasUsed (gasLimit >>> 1) parentBytes expectedBytes
+        headerBytes F s hs1
+      obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hB
+      exact ⟨sa, sb, had, hud, hx1, Or.inr harm⟩
+  · have hS := k73_decr_sub_return_routeB_succ spH spK headerPtr parentPtr v9
+      old18 v19 v20 gasLimit gasUsed (gasLimit >>> 1) parentBytes expectedBytes
+      headerBytes F hcast s hs0
+    obtain ⟨sa, sb, had, hud, hx1, hPO⟩ := hS
+    exact ⟨sa, sb, had, hud, hx1, Or.inl hPO⟩
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
