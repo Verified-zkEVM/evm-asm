@@ -23,7 +23,7 @@ module
 public import EvmAsm.EL.RLP.FullDecode
 public import EvmAsm.EL.RLP.Scalar
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL
 
