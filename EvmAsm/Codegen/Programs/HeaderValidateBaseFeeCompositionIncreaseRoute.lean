@@ -649,4 +649,267 @@ theorem k73_incr_zero_replace_spec_within
     xperm_hyp hp
   · exact hq
 
+/-! ## Increase-arm W-algebra -/
+
+/-- Word-level delta unwrap on the increase arm: when the used gas sits
+    strictly above the target, the register subtraction `gasUsed - target`
+    does not wrap, so its numeric value is the plain difference. -/
+private theorem k73_incr_word_delta_toNat (target gasUsed : Word)
+    (hlt : target.toNat < gasUsed.toNat) :
+    (gasUsed - target).toNat = gasUsed.toNat - target.toNat := by
+  rw [BitVec.toNat_sub]
+  have h1 : target.toNat < 2 ^ 64 := BitVec.isLt target
+  have h2 : gasUsed.toNat < 2 ^ 64 := BitVec.isLt gasUsed
+  omega
+
+/-- Value of the written image on the increase arm: the spec clamps the
+    delta at `1`, so the image encodes `(fee + max raw 1) mod 2^256`. -/
+private theorem k73_incr_written_val
+    {gasLimit gasUsed target : Word} {parentBytes : List (BitVec 8)}
+    (htgtDef : target.toNat = gasLimit.toNat / 2)
+    (hlt : target.toNat < gasUsed.toNat)
+    (_hlenP : parentBytes.length = 32) :
+    EvmAsm.Crypto.beBytesToNat (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      = (EvmAsm.Crypto.beBytesToNat parentBytes
+          + Nat.max ((EvmAsm.Crypto.beBytesToNat parentBytes *
+              (gasUsed.toNat - target.toNat)) / target.toNat / 8) 1)
+        % 2 ^ 256 := by
+  have hbB : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes
+      = EvmAsm.Crypto.beBytesToNat parentBytes :=
+    k73_bytesBEtoNat_eq_beBytesToNat parentBytes
+  show EvmAsm.Crypto.beBytesToNat
+      (EvmAsm.Stateless.SpecRef.natToBytesBE 32
+        (EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+          (gasLimit.toNat / 2)
+          (EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes))) = _
+  have hswap : EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+      (gasLimit.toNat / 2)
+      (EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes)
+      = EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+        (gasLimit.toNat / 2)
+        (EvmAsm.Crypto.beBytesToNat parentBytes) := by
+    rw [hbB]
+  have hneOuter : Not ((gasUsed.toNat == gasLimit.toNat / 2) = true) := by
+    intro hc
+    have hge := beq_iff_eq.mp hc
+    omega
+  have hgtInner : gasUsed.toNat > gasLimit.toNat / 2 := by
+    omega
+  rw [hswap, EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide,
+    if_neg hneOuter, if_pos hgtInner, ← htgtDef,
+    EvmAsm.Stateless.SpecRef.baseFeeIncreaseDelta_eq_reference]
+  have hvv := k73_fixed_bytes_value 32
+    (EvmAsm.Crypto.beBytesToNat parentBytes
+      + Nat.max ((EvmAsm.Crypto.beBytesToNat parentBytes *
+          (gasUsed.toNat - target.toNat)) / target.toNat / 8) 1)
+  rw [hvv]
+  rw [show (256 : Nat) ^ 32 = 2 ^ 256 from by decide]
+
+
+/-- Machine output value on the increase KEEP arm: the window the add reads
+    is the twice-divided accumulator, numerically `raw`, and `raw` is nonzero
+    on this arm so the clamp `max raw 1 = raw` is invisible. -/
+theorem k73_incr_machine_bytes_eq_written_keep
+    {gasLimit gasUsed target : Word} {parentBytes A : List (BitVec 8)}
+    (htgtDef : target.toNat = gasLimit.toNat / 2)
+    (hlt : target.toNat < gasUsed.toNat)
+    (htargetPos : 0 < target.toNat)
+    (hleTarget : target.toNat ≤ 2 ^ 56)
+    (hlenP : parentBytes.length = 32) (halenA : A.length = 32)
+    (hMulFit : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes *
+        (gasUsed - target).toNat < 2 ^ 256)
+    (hvalA : EvmAsm.Crypto.beBytesToNat A
+        = (EvmAsm.Crypto.beBytesToNat parentBytes * (gasUsed - target).toNat)
+          % 2 ^ 256)
+    (hpNZ : EvmAsm.Crypto.beBytesToNat
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8) ≠ 0) :
+    U256AddBeSAsm.u256AddBeBytes parentBytes
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8)
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8)
+      = hvbfWrittenImage gasLimit gasUsed parentBytes := by
+  have hdw : (gasUsed - target).toNat = gasUsed.toNat - target.toNat := by
+    refine k73_incr_word_delta_toNat target gasUsed ?_
+    omega
+  rw [hdw] at hvalA hMulFit
+  have hbB : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes
+      = EvmAsm.Crypto.beBytesToNat parentBytes :=
+    k73_bytesBEtoNat_eq_beBytesToNat parentBytes
+  rw [hbB] at hMulFit
+  have hval2 : EvmAsm.Crypto.beBytesToNat A
+      = EvmAsm.Crypto.beBytesToNat parentBytes
+        * (gasUsed.toNat - target.toNat) :=
+    hvalA.trans (Nat.mod_eq_of_lt hMulFit)
+  have hvq2 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_quot2_value A target htargetPos hleTarget halenA
+  have hq1 := k73_quot_bytes_natToBytesBE A A target halenA halenA htargetPos hleTarget
+  have hlq1 : (u256DivU64BeQuotBytes A A target).length = 32 := by
+    rw [hq1]; simp
+  have hq2 := k73_quot_bytes_natToBytesBE
+      (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8 hlq1 hlq1 (by decide) (by decide)
+  have hlq2 : (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8).length = 32 := by
+    rw [hq2]; simp
+  -- raw as a numeral
+  have hraw : EvmAsm.Crypto.beBytesToNat
+      (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+        (u256DivU64BeQuotBytes A A target) 8)
+      = EvmAsm.Crypto.beBytesToNat parentBytes
+        * (gasUsed.toNat - target.toNat) / target.toNat / 8 := by
+    rw [hvq2, hval2]
+  rw [hraw] at hpNZ
+  -- value of the machine output: truncated sum
+  have hadd := U256BeFlat.beBytesToNat_u256AddBeBytes parentBytes
+    (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8)
+    (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8) hlenP hlq2 hlq2
+  set Q2 := u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+    (u256DivU64BeQuotBytes A A target) 8 with hQ2
+  have hbnd : EvmAsm.Crypto.beBytesToNat
+      (U256AddBeSAsm.u256AddBeBytes parentBytes Q2 Q2) < 2 ^ 256 := by
+    have hb := k73_fixed_bytes_bound
+      (U256AddBeSAsm.u256AddBeBytes parentBytes Q2 Q2)
+    rw [k73_bytesBEtoNat_eq_beBytesToNat,
+      U256BeFlat.u256AddBeBytes_length parentBytes Q2 Q2 hlq2] at hb
+    exact hb
+  have elhs : EvmAsm.Crypto.beBytesToNat
+      (U256AddBeSAsm.u256AddBeBytes parentBytes Q2 Q2)
+      = (EvmAsm.Crypto.beBytesToNat parentBytes
+          + EvmAsm.Crypto.beBytesToNat Q2) % 2 ^ 256 := by
+    have key : ∀ a b : Nat, (a + 2 ^ 256 * b) % 2 ^ 256 = a % 2 ^ 256 := by
+      intro a b
+      rw [Nat.mul_comm ((2 : Nat) ^ 256) b, Nat.add_mul_mod_self_right]
+    have estep := congrArg (fun n : Nat => n % 2 ^ 256) (hadd.symm)
+    exact ((estep.trans (key _ _)).trans (Nat.mod_eq_of_lt hbnd)).symm
+  -- value of the written image
+  have erhs : EvmAsm.Crypto.beBytesToNat
+      (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      = (EvmAsm.Crypto.beBytesToNat parentBytes
+          + (EvmAsm.Crypto.beBytesToNat parentBytes
+              * (gasUsed.toNat - target.toNat)) / target.toNat / 8)
+        % 2 ^ 256 := by
+    rw [k73_incr_written_val htgtDef hlt hlenP]
+    -- max raw 1 = raw because raw != 0
+    exact congrArg (fun n => (EvmAsm.Crypto.beBytesToNat parentBytes + n) % 2 ^ 256)
+      (Nat.max_eq_left (Nat.succ_le_of_lt (Nat.pos_of_ne_zero hpNZ)))
+  apply k73_bytes_inj_same_length
+  · rw [U256BeFlat.u256AddBeBytes_length parentBytes Q2 Q2 hlq2]
+    exact (hvbfWrittenImage_length gasLimit gasUsed parentBytes).symm
+  · rw [erhs]
+    rw [hraw] at elhs
+    exact elhs
+
+
+set_option maxRecDepth 8000 in
+/-- Machine output on the increase REPLACE arm: the accumulator window is
+    all zero (`raw = 0`), the machine replaces it with `u256_from_u64_be 1`,
+    and the spec clamp makes the image `(fee + 1) mod 2^256`. -/
+theorem k73_incr_machine_bytes_eq_written_replace
+    {gasLimit gasUsed target : Word} {parentBytes A : List (BitVec 8)}
+    (htgtDef : target.toNat = gasLimit.toNat / 2)
+    (hlt : target.toNat < gasUsed.toNat)
+    (htargetPos : 0 < target.toNat)
+    (hleTarget : target.toNat ≤ 2 ^ 56)
+    (hlenP : parentBytes.length = 32) (halenA : A.length = 32)
+    (hMulFit : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes *
+        (gasUsed - target).toNat < 2 ^ 256)
+    (hvalA : EvmAsm.Crypto.beBytesToNat A
+        = (EvmAsm.Crypto.beBytesToNat parentBytes * (gasUsed - target).toNat)
+          % 2 ^ 256)
+    (hpZ : EvmAsm.Crypto.beBytesToNat
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8) = 0) :
+    U256AddBeSAsm.u256AddBeBytes parentBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+      = hvbfWrittenImage gasLimit gasUsed parentBytes := by
+  have hdw : (gasUsed - target).toNat = gasUsed.toNat - target.toNat := by
+    refine k73_incr_word_delta_toNat target gasUsed ?_
+    omega
+  rw [hdw] at hvalA hMulFit
+  have hbB : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes
+      = EvmAsm.Crypto.beBytesToNat parentBytes :=
+    k73_bytesBEtoNat_eq_beBytesToNat parentBytes
+  rw [hbB] at hMulFit
+  have hval2 : EvmAsm.Crypto.beBytesToNat A
+      = EvmAsm.Crypto.beBytesToNat parentBytes
+        * (gasUsed.toNat - target.toNat) :=
+    hvalA.trans (Nat.mod_eq_of_lt hMulFit)
+  have hvq2 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_quot2_value
+    A target htargetPos hleTarget halenA
+  have hraw : EvmAsm.Crypto.beBytesToNat
+      (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+        (u256DivU64BeQuotBytes A A target) 8)
+      = EvmAsm.Crypto.beBytesToNat parentBytes
+        * (gasUsed.toNat - target.toNat) / target.toNat / 8 := by
+    rw [hvq2, hval2]
+  rw [hraw] at hpZ
+  have hlen1 := U256FromU64BeSAsm.length_u256FromU64Bytes (1 : Word)
+  have hval1 : EvmAsm.Crypto.beBytesToNat
+      (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) = 1 := by
+    rw [U256BeFlat.beBytesToNat_u256FromU64Bytes (1 : Word)]
+    rfl
+  have hadd := U256BeFlat.beBytesToNat_u256AddBeBytes parentBytes
+    (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+    (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) hlenP hlen1 hlen1
+  have hbnd : EvmAsm.Crypto.beBytesToNat
+      (U256AddBeSAsm.u256AddBeBytes parentBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))) < 2 ^ 256 := by
+    have hb := k73_fixed_bytes_bound
+      (U256AddBeSAsm.u256AddBeBytes parentBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
+    rw [k73_bytesBEtoNat_eq_beBytesToNat,
+      U256BeFlat.u256AddBeBytes_length parentBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) hlen1] at hb
+    exact hb
+  have elhs : EvmAsm.Crypto.beBytesToNat
+      (U256AddBeSAsm.u256AddBeBytes parentBytes
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
+      = (EvmAsm.Crypto.beBytesToNat parentBytes + 1) % 2 ^ 256 := by
+    have key : ∀ a b : Nat, (a + 2 ^ 256 * b) % 2 ^ 256 = a % 2 ^ 256 := by
+      intro a b
+      rw [Nat.mul_comm ((2 : Nat) ^ 256) b, Nat.add_mul_mod_self_right]
+    have t4 : (EvmAsm.Crypto.beBytesToNat parentBytes + 1) % 2 ^ 256
+        = (EvmAsm.Crypto.beBytesToNat parentBytes
+            + EvmAsm.Crypto.beBytesToNat
+              (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))) % 2 ^ 256 := by
+      rw [hval1]
+    have t3 : (EvmAsm.Crypto.beBytesToNat parentBytes
+          + EvmAsm.Crypto.beBytesToNat
+            (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))) % 2 ^ 256
+        = (EvmAsm.Crypto.beBytesToNat
+            (U256AddBeSAsm.u256AddBeBytes parentBytes
+              (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+              (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
+          + 2 ^ 256 * (U256AddBeSAsm.u256AddBeCarry parentBytes
+              (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+              (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))).toNat) % 2 ^ 256 := by
+      rw [hadd]
+    exact (((t4.trans t3).trans (key _ _)).trans
+      (Nat.mod_eq_of_lt hbnd)).symm
+  have erhs : EvmAsm.Crypto.beBytesToNat
+      (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      = (EvmAsm.Crypto.beBytesToNat parentBytes + 1) % 2 ^ 256 := by
+    have eval := k73_incr_written_val htgtDef hlt hlenP
+    have hmax : Nat.max ((EvmAsm.Crypto.beBytesToNat parentBytes *
+        (gasUsed.toNat - target.toNat)) / target.toNat / 8) 1 = 1 := by
+      rw [hpZ]
+      rfl
+    exact eval.trans (congrArg
+      (fun n => (EvmAsm.Crypto.beBytesToNat parentBytes + n) % 2 ^ 256) hmax)
+  apply k73_bytes_inj_same_length
+  · rw [U256BeFlat.u256AddBeBytes_length parentBytes
+      (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word))
+      (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) hlen1]
+    exact (hvbfWrittenImage_length gasLimit gasUsed parentBytes).symm
+  · rw [erhs]
+    exact elhs
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
