@@ -278,7 +278,7 @@ local macro "pcf" : tactic =>
       | assumption)
 
 def vphlTopKFrame
-    (spC retHdr outPtr : Word) (cs0 cs1 cs2 cs3 cs4 v21 : Word)
+    (spC retHdr outPtr : Word) (cs0 cs1 cs2 cs3 cs4 : Word)
     (parentBase : Word) (parentBytes claimedOld : List (BitVec 8))
     (os : List (BitVec 8)) : Assertion :=
     regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
@@ -377,7 +377,7 @@ def vphlTopArmPre
     bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 zk3B)
 
 def vphlTopComparePrefix
-    (spC retPC retHdr parentLenW childLenW outPtr v21 : Word)
+    (spC retPC retHdr parentLenW childLenW v21 : Word)
     (v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 : Word)
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word) : Assertion :=
   ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ retPC) **
@@ -392,8 +392,8 @@ def vphlTopComparePrefix
     empAssertion)
 
 def vphlTopComparePrefixOwn
-    (spC retPC retHdr parentLenW childLenW outPtr v21 : Word)
-    (v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 : Word)
+    (spC retPC retHdr parentLenW childLenW v21 : Word)
+    (v11 v12 : Word)
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word) : Assertion :=
   ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ retPC) **
     (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) **
@@ -406,13 +406,13 @@ def vphlTopComparePrefixOwn
     empAssertion)
 
 theorem top_vphl_compare_prefix_to_own
-    (spC retPC retHdr parentLenW childLenW outPtr v21 : Word)
+    (spC retPC retHdr parentLenW childLenW v21 : Word)
     (v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 : Word)
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word) : ∀ h,
-    vphlTopComparePrefix spC retPC retHdr parentLenW childLenW outPtr v21
+    vphlTopComparePrefix spC retPC retHdr parentLenW childLenW v21
       v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 cs0 cs1 cs2 cs3 cs4 parentBase childBase h →
-    vphlTopComparePrefixOwn spC retPC retHdr parentLenW childLenW outPtr v21
-      v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 cs0 cs1 cs2 cs3 cs4 parentBase childBase h := by
+    vphlTopComparePrefixOwn spC retPC retHdr parentLenW childLenW v21
+      v11 v12 cs0 cs1 cs2 cs3 cs4 parentBase childBase h := by
   intro h hp
   let fixed : Assertion :=
     ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ retPC) **
@@ -450,7 +450,7 @@ def vphlTopCompareStackSaved
     memOwn (spC - BitVec.ofNat 64 56) ** memOwn (spC - BitVec.ofNat 64 64))
 
 def vphlTopCompareSuffix
-    (spC parentBase childBase : Word) (parentBytes childBytes : List (BitVec 8))
+    (parentBase childBase : Word) (parentBytes childBytes : List (BitVec 8))
   (fo ln : Word) (zk3B : List (BitVec 8)) : Assertion :=
   (bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **
     (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlZk3 zk3B)
@@ -461,10 +461,10 @@ def vphlTopCompareBase
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word)
     (parentBytes childBytes : List (BitVec 8)) (fo ln : Word)
     (zk3B : List (BitVec 8)) : Assertion :=
-  (vphlTopComparePrefix spC retPC retHdr parentLenW childLenW outPtr v21
+  (vphlTopComparePrefix spC retPC retHdr parentLenW childLenW v21
       v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 cs0 cs1 cs2 cs3 cs4 parentBase childBase **
     vphlTopCompareStackSaved spC retPC parentBase parentLenW childBase outPtr **
-    vphlTopCompareSuffix spC parentBase childBase parentBytes childBytes fo ln zk3B)
+    vphlTopCompareSuffix parentBase childBase parentBytes childBytes fo ln zk3B)
 
 def vphlTopCompareDword
     (claimedBytes computedBytes : List (BitVec 8)) (q : Nat)
@@ -523,7 +523,7 @@ def vphlTopEpiPreExact
     bytesRegion vphlZk3 osPost)
 
 def vphlTopEpiPost
-    (sp0 spC retHdr statusW v11e v12e parentBase parentLenW childBase childLenW outPtr v21 : Word)
+    (sp0 spC retHdr statusW v11e v12e parentBase childBase outPtr v21 : Word)
     (cs0 cs1 cs2 cs3 cs4 outValW offV lenV : Word)
     (parentBytes childBytes claimedB computedB osPost : List (BitVec 8)) : Assertion :=
   (regIs .x2 sp0 ** regIs .x1 retHdr ** regIs .x8 cs0 **

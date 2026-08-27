@@ -13,7 +13,7 @@ open EvmAsm.Codegen.RlpListNthItemSAsm
 
     In the linked `validate_parent_hash_link` image (sha256
     `06cd10315b05beda7fc5dc43839ffc3a9e809f6e031d0b58d207a1633b351c4f`),
-    the routine enters at `0x80003320`, calls `rlp_list_nth_item` at
+    the routine enters at `GuestAddrs.validate_parent_hash_link = 0x80003320`, calls `rlp_list_nth_item` at
     `0x80003370`, rejects a nonzero decoder status at `0x80003374`, loads
     `vphl_length` at `0x80003380`, compares it with 32 at `0x80003384`, and
     branches to status 2 at `0x80003388` when the comparison fails.  Thus
@@ -138,11 +138,11 @@ theorem vphl_hash_tail_spec
         (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
           (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0))
     let G0Own : Assertion :=
-      (vphlTopComparePrefixOwn spC (vphlBase + 184) retHdr parentLenW childLenW outPtr v21
-          v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 cs0 cs1 cs2 cs3 cs4
+      (vphlTopComparePrefixOwn spC (vphlBase + 184) retHdr parentLenW childLenW v21
+          v11 v12 cs0 cs1 cs2 cs3 cs4
           parentBase childBase **
         stackFree spC 8 **
-        vphlTopCompareSuffix spC parentBase childBase parentBytes childBytes fo ln
+        vphlTopCompareSuffix parentBase childBase parentBytes childBytes fo ln
           (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
             (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0)))
     have hG0 : G0.pcFree := by unfold G0 vphlTopCompareBase; pcf
@@ -152,7 +152,7 @@ theorem vphl_hash_tail_spec
       dsimp [G0Own]
       unfold vphlTopCompareBase at hp
       have hp1 := sepConj_mono
-        (top_vphl_compare_prefix_to_own spC (vphlBase + 184) retHdr parentLenW childLenW outPtr v21
+        (top_vphl_compare_prefix_to_own spC (vphlBase + 184) retHdr parentLenW childLenW v21
           v11 v12 v13 v14 v15 v16 v17 v29 v30 v31 cs0 cs1 cs2 cs3 cs4 parentBase childBase)
         (fun _ x => x) h hp
       exact sepConj_mono (fun _ x => x)
@@ -324,8 +324,7 @@ theorem vphl_hash_tail_spec
       have hOwn' := sepConj_mono (fun _ x => x) hInnerMap h hOwn
       simp [epiPre, G0Own, vphlTopComparePrefixOwn, vphlTopCompareSuffix, stackFree,
         vphlBase, vphlOffsetAddr, vphlLengthAddr,
-        vphlClaimedAddr, vphlComputedAddr, sepConj_emp_right',
-        sepConj_emp_left'] at hOwn' ⊢
+        vphlClaimedAddr, vphlComputedAddr, sepConj_emp_right'] at hOwn' ⊢
       xperm_chunked hOwn'
     have hEpiFor : ∀ outVal,
         outVal = (if claimedB = computedB then (1 : Word) else (0 : Word)) →
@@ -353,7 +352,7 @@ theorem vphl_hash_tail_spec
           (cr := vphlCode)
           (P' := epiPre outVal)
           (Q := vphlTopEpiPost sp0 spC retHdr (0 : Word) v11 v12
-            parentBase parentLenW childBase childLenW outPtr v21
+            parentBase childBase outPtr v21
             cs0 cs1 cs2 cs3 cs4 outVal fo ln parentBytes childBytes
             claimedB computedB
             (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
@@ -468,8 +467,7 @@ theorem vphl_hash_tail_spec
               -/
               have hEqEpi := cpsTripleWithin_seq_perm_same_cr
                 (fun h hp => by
-                  simp only [GmatchEq, vphlTopCompareDword,
-                    vphlClaimedOwn] at hp
+                  simp only [GmatchEq, vphlTopCompareDword] at hp
                   have hp' : adaptSrc (1 : Word)
                       (vphlDwordAt claimedB 3) (vphlDwordAt computedB 3)
                       (1 : Word) h := by
@@ -654,9 +652,8 @@ theorem vphl_hash_tail_spec
         unfold g6 hashRest vphlTopHashRest at hp
         simp only [Gcmp, G0, vphlTopCompareBase, vphlTopComparePrefix,
           vphlTopCompareStackSaved, vphlTopCompareSuffix, frameSlotsSaved,
-          keccakFrame, List.foldr, stackFree, claimedB, computedB,
-          vphlClaimedAddr, vphlComputedAddr, sepConj_emp_right',
-          sepConj_emp_left'] at hp ⊢
+          keccakFrame, List.foldr, claimedB, computedB,
+          vphlClaimedAddr, vphlComputedAddr, sepConj_emp_right'] at hp ⊢
         xperm_chunked hp) h56 hEqTail
     exact hAll
   exact hVal R hR s hcr (by
@@ -806,7 +803,7 @@ theorem vphl_success_eq32_spec
   exact cpsTripleWithin_weaken
     (fun _ hp => by
       simp only [p32Core, hkFrameCore, vphlTopArmPre, vphlTopKFrameCore,
-        sepConj_emp_right', sepConj_emp_left'] at hp ⊢
+        sepConj_emp_right'] at hp ⊢
       xperm_chunked hp)
     (fun _ hq => hq) hAllBound
 
@@ -816,7 +813,7 @@ theorem vphl_continuation_spec
     (parentBytes childBytes claimedOld : List (BitVec 8))
     (childLen N rem : Nat) (os : List (BitVec 8))
     (kFrame kFrameCore F : Assertion)
-    (hkFrame : kFrame = vphlTopKFrame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21
+    (hkFrame : kFrame = vphlTopKFrame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4
       parentBase parentBytes claimedOld os)
     (hkFrameCore : kFrameCore = vphlTopKFrameCore spC retHdr outPtr cs0 cs1 cs2 cs3 cs4
       parentBase parentBytes claimedOld os)
@@ -828,7 +825,6 @@ theorem vphl_continuation_spec
     (hcover : childBase.toNat + childBytes.length < 2 ^ 64)
     (hcvalid : ∀ k, k < childBytes.length →
       isValidByteAccess (childBase + BitVec.ofNat 64 k) = true)
-    (hpalign : parentBase.toNat % 8 = 0)
     (hpover : parentBase.toNat + parentBytes.length < 2 ^ 64)
     (hpvalid : ∀ k, k < parentBytes.length →
       isValidByteAccess (parentBase + BitVec.ofNat 64 k) = true)
@@ -922,7 +918,7 @@ theorem vphl_continuation_spec
             (nSteps' := 264 + keccakBodyFuel N rem) (by omega) hOwn
           exact cpsTripleWithin_weaken
             (fun _ hp => by
-              simp only [pSucc, pSuccCore, hkFrame, hkFrameCore, vphlTopArmPre,
+              simp only [pSuccCore, hkFrame, hkFrameCore, vphlTopArmPre,
                 vphlTopKFrame, vphlTopKFrameCore] at hp ⊢
               xperm_chunked hp)
             (fun _ hq => hq) hOwnBound
@@ -981,7 +977,7 @@ theorem vphl_continuation_spec
             vphlTopArmPre spC parentBase parentLenW childBase childLenW outPtr v21
               (0 : Word) v11 v12 fo ln childBytes kFrameCore empAssertion
           have hFrameShape :
-              vphlTopKFrame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21
+              vphlTopKFrame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4
                 parentBase parentBytes claimedOld os =
               (X ** vphlTopKFrameCore spC retHdr outPtr cs0 cs1 cs2 cs3 cs4
                 parentBase parentBytes claimedOld os) := by

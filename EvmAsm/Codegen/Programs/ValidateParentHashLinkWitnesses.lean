@@ -95,14 +95,13 @@ example : True := by
       (childLen := 34) (N := 0) (rem := 4)
       (os := List.replicate 200 0) (F := empAssertion)
       (hret := by decide) (hspC := rfl) (hplenW := by decide)
-      (hclenW := by decide) (hpalign := by decide) (hpover := by decide)
+      (hclenW := by decide) (hpover := by decide)
       (hpvalid := by
         intro k hk
         simp [vphlParentBytes0] at hk
         exact valid_zone 0x20000 k (by decide) (by omega))
       (hcalign := by decide) (hcslack := hcslack) (hcover := hcover)
       (hcvalid := hcvalid)
-      (houtAlign := by decide) (houtValid := by decide)
       (hkeccakLen := by decide) (hrem_le := by decide)
       (hNbound := by decide) (hb8i := by decide) (hos := by decide)
       (hclaimedLen := by decide) (hF := pcFree_emp)
@@ -141,7 +140,6 @@ example : True := by
     (hspC := rfl)
     (hplenW := by decide)
     (hclenW := by decide)
-    (hpalign := by decide)
     (hpover := by decide)
     (hpvalid := by
       intro k hk
@@ -154,8 +152,6 @@ example : True := by
       intro k hk
       norm_num at hk
       exact valid_zone 0x30000 k (by decide) (by omega))
-    (houtAlign := by decide)
-    (houtValid := by decide)
     (hkeccakLen := by decide)
     (hrem_le := by decide)
     (hNbound := by decide)
