@@ -57,6 +57,29 @@ Both in [`VerifyProof.lean`](VerifyProof.lean):
 | [`DemoCorrect.lean`](DemoCorrect.lean) | `demoVerifyWords_correct` — `demoVerifyWords` equals `slhVerifyInternal demoPrims`. |
 | [`VerifyProof.lean`](VerifyProof.lean) | The block-effect lemmas, the memory VCs, `slhVerifyFn_spec`, `slhVerifyFn_post_fips`, and the non-vacuity witnesses (`slhVerify_pre_inhabited`, `accept_witness`, `reject_witness`). |
 
+## Provenance and references
+
+- The FIPS 205 specification here (`Scheme.lean` and its dependencies) is
+  **ported from the VCVio development** — module `HashSig.SLHDSA`, by
+  **Nicolas Consigny**, Apache-2.0. It was ported from VCVio commit
+  [`c5d6cb03`](https://github.com/Verified-zkEVM/VCVio/tree/c5d6cb03d11126e6290bec58ef8824f36fc3a73b/HashSig/SLHDSA)
+  (`Verified-zkEVM/VCVio`, `HashSig/SLHDSA/`; on the
+  `codex/sphincsplus-formalization` branch, not yet merged to VCVio `main`).
+  Its license is reproduced in [`LICENSE`](LICENSE), and the per-file copyright
+  headers are preserved. The deterministic core (`slhVerifyInternal` and
+  `slhVerifyInternal_slhSignInternal`) is ported as-is; the probabilistic
+  external wrappers, which live on VCVio's `OracleComp` framework, are
+  intentionally not ported (the RV64 verifier only needs the deterministic
+  algorithm).
+- The demonstration instance (`DemoInstance.lean`), the RV64 program
+  (`VerifySAsm.lean`), and the correctness proof (`VerifyProof.lean`,
+  `DemoCorrect.lean`) are new to this repository.
+- Standard: **NIST FIPS 205**, *Stateless Hash-Based Digital Signature
+  Standard* — verification is Algorithm 20 (`slh_verify_internal`), the message
+  digest split is §4.1, and the tweakable hash functions `F`/`H`/`T_ℓ`/`H_msg`
+  are §11 (the `mix`-based `demoPrims` stands in for their SHA-2/SHAKE
+  instantiations).
+
 ## Building
 
 ```
