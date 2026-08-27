@@ -34,6 +34,7 @@ namespace EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
+open EvmAsm.Stateless.SpecRef
 
 /-- A full dword paste is byte-transparent: the little-endian expansion of a
     packed word reproduces an 8-byte chunk exactly. -/
@@ -171,5 +172,19 @@ theorem k73_copyOut_eq_src {src out : List (BitVec 8)}
   exact Eq.trans (k73_splice4 out ((src.drop 0).take 8) ((src.drop 8).take 8)
     ((src.drop 16).take 8) ((src.drop 24).take 8) _hout l0 l1 l2 l3)
     (k73_chunks_eq_self hsrc)
+
+/-- The equal-route written image is the entry content: with
+    `gasUsed = gasLimit >>> 1` the recurrence's equal arm fires and returns
+    the parent fee encoding, which for a 32-byte list is the list itself. -/
+theorem hvbfWrittenImage_eq_self (gl gu : Word) {pb : List (BitVec 8)}
+    (heqWord : gu = gl >>> 1) (hlen32 : pb.length = 32) :
+    hvbfWrittenImage gl gu pb = pb := by
+  have hguard : gu.toNat = gl.toNat / 2 := by rw [heqWord]; rfl
+  have hrw : baseFeeRecurrenceWide gu.toNat (gl.toNat / 2) (bytesBEtoNat pb)
+      = bytesBEtoNat pb := by
+    rw [baseFeeRecurrenceWide, if_pos (by simp [hguard])]
+  show natToBytesBE 32 (baseFeeRecurrenceWide gu.toNat (gl.toNat / 2) (bytesBEtoNat pb)) = pb
+  rw [hrw]
+  exact k73_fixed_bytes_repr pb hlen32
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
