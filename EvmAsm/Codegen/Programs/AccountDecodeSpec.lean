@@ -44,7 +44,7 @@
   No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only.
 -/
 
-import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Programs.State
 import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
 import EvmAsm.Stateless.SpecRef.WitnessState

@@ -65,7 +65,6 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Bridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
