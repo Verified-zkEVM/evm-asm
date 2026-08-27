@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

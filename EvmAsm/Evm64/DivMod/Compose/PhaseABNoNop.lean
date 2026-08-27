@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
 public import EvmAsm.Rv64.Tactics.XPermChunked
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

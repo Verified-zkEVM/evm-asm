@@ -5,7 +5,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
 public import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
 public import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

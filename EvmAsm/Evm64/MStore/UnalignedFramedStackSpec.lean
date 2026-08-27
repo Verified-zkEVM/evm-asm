@@ -27,7 +27,7 @@ public import EvmAsm.Evm64.MStore.StackSpec
 public import EvmAsm.Evm64.MStore.UnalignedStackSpec
 public import EvmAsm.Evm64.Stack
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

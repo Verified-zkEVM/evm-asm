@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
 public import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
 public import EvmAsm.Rv64.Tactics.XPermChunked
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

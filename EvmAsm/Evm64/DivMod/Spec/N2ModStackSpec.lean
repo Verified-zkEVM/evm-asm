@@ -21,7 +21,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N2ModBridge
 public import EvmAsm.Evm64.DivMod.Spec.N2RemainderWord
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

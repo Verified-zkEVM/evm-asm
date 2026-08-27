@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelectedIfBorrow
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

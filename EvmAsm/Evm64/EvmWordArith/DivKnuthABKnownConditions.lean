@@ -23,7 +23,7 @@ module
 
 public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

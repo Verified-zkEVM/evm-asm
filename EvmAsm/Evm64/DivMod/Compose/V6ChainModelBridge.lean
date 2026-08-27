@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.DivMod.Compose.DigitChainV6
 public import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

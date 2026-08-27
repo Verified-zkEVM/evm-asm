@@ -13,7 +13,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
 public import EvmAsm.Rv64.CPSSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

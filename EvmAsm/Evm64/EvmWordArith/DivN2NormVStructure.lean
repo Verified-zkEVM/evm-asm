@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
 public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
 public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

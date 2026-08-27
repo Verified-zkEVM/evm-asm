@@ -46,7 +46,7 @@ meta import EvmAsm.Rv64.SepLogic
 meta import EvmAsm.Rv64.Tactics.RunBlock
 meta import EvmAsm.Evm64.AddMod.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

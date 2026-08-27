@@ -20,7 +20,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.LoopComposeN3
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

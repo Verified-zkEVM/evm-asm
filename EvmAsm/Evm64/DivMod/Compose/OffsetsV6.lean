@@ -30,7 +30,7 @@ module
 public import EvmAsm.Evm64.DivMod.FastN1Program
 public import EvmAsm.Evm64.DivMod.Compose.V5Code2
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

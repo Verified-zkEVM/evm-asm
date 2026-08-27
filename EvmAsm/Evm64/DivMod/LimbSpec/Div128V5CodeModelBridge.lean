@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
 public import Mathlib.Tactic.Ring
 public import Mathlib.Data.BitVec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

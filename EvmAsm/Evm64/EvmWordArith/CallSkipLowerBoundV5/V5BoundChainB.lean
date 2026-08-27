@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainA
 public import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
 public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
 
-@[expose] public section
+public section
 
 /-
   EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1cLB

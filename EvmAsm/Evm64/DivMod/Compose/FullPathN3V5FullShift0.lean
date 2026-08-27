@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5PathShift0
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BridgeShift0
 public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

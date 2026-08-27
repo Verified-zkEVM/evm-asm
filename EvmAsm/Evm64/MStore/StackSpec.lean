@@ -11,7 +11,7 @@ module
 public import EvmAsm.Evm64.MStore.Spec
 public import EvmAsm.Evm64.MStore.CombinedSequenceSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

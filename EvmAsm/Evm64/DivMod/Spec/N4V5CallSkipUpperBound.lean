@@ -25,7 +25,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
 public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

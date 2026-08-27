@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitBase
 public import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
 public import EvmAsm.Evm64.Exp.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

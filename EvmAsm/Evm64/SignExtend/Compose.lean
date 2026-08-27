@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.SignExtend.LimbSpec
 public import EvmAsm.Evm64.EvmWordArith.Common
 public import EvmAsm.Evm64.EvmWordArith.SignExtend
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -8,7 +8,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

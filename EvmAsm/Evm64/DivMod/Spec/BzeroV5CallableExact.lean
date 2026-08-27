@@ -24,7 +24,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

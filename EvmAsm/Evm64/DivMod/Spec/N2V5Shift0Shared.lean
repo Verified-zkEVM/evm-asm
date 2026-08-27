@@ -7,7 +7,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
 public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientShared
 public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -27,7 +27,7 @@ module
 
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

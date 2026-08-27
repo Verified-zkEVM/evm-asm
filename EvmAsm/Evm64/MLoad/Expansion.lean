@@ -14,7 +14,7 @@ public import EvmAsm.Rv64.Tactics.ExtractPure
 public import EvmAsm.Rv64.Tactics.RunBlock
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

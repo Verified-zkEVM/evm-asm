@@ -11,7 +11,7 @@ module
 public import EvmAsm.EL.RLP.PrefixDecode
 public import EvmAsm.EL.RLP.ListDecodeBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

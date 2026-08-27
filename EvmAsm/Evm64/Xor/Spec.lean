@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.Xor.Program
 public import EvmAsm.Evm64.Stack
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

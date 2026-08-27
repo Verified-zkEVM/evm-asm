@@ -18,7 +18,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopBorrowCarry
 public import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

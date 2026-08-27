@@ -7,7 +7,7 @@
 -/
 
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakFrame
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
 import EvmAsm.Codegen.Programs.HashBridge
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Codegen.AsmReloc

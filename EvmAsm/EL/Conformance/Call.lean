@@ -10,7 +10,7 @@ module
 public import EvmAsm.EL.Conformance
 public import EvmAsm.EL.CallOutputBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL
 namespace Conformance

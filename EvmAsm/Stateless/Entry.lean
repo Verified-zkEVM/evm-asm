@@ -62,7 +62,7 @@ module
 public import EvmAsm.Rv64.Program
 public import EvmAsm.Stateless.SSZ.Encode.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless
 

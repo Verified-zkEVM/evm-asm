@@ -22,7 +22,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

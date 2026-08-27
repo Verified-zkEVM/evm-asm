@@ -28,7 +28,7 @@ module
 public import Mathlib.Tactic.Ring
 public import Mathlib.Tactic.Linarith
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

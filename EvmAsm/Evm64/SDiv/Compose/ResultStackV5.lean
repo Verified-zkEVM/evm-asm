@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.SDiv.Compose.StackSpecV5
 public import EvmAsm.Evm64.SDiv.SpecShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

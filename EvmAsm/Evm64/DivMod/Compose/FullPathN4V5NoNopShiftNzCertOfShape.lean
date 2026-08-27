@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4SemanticGen
 public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrowGen
 public import EvmAsm.Evm64.DivMod.Spec.N4Carry2ComposeBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

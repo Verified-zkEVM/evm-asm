@@ -13,6 +13,7 @@
   (ValidateHeaderPostMergeCorrespondence.lean) consumes.
 -/
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeTop
+import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
 import EvmAsm.Codegen.RegionMap
 
 namespace EvmAsm.Codegen.HeaderValidatePostMergeLoopSpec

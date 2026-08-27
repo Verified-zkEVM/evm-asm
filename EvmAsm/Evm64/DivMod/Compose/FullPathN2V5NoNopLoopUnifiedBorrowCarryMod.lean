@@ -23,7 +23,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMTTBorrowCarryMo
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMMBorrowCarryMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMTBorrowCarryMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -21,7 +21,7 @@ meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FrameShift0
 meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
 meta import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

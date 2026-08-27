@@ -99,6 +99,185 @@ def extractDepositDataFunction : String :=
   "edd_memcpy:\n" ++
   emitProgram EddMemcpySAsm.eddMemcpy_prog
 
+/-! ## Consuming `eddMemcpy_retSpec` at the call sites (#12805)
+
+    `eddMemcpy_retSpec` is gated on `mcStatic`, whose disjointness
+    disjunct was a docstring claim about "the deployed callers".  This
+    section makes it a theorem: at each of the FIVE `edd_memcpy` call
+    sites above (pubkey/wc/amount/sig/index), the source is inside the
+    576-byte DepositEvent arena and the destination inside the 192-byte
+    output arena, and the arenas the deployed probe passes are concrete
+    and disjoint.  `eddMemcpy_callsite_spec` discharges the whole
+    `mcStatic` conjunction (and both region well-formednesses, whose
+    dword-alignment demand every site meets — all five src offsets
+    192/288/352/416/544 and dst offsets 0/48/80/88/184 are 8-aligned)
+    from those addresses, yielding a triple whose pre/post do not
+    mention `mcStatic` at all. -/
+
+section EddMemcpyCallSites
+
+open EvmAsm.Rv64.SAsm
+
+/-- The probe's DepositEvent data arena: `a0` after the ziskemu length
+    wrapper (`0x40000000 + 16`), 576 bytes, inside the input window. -/
+def eddDataPtr : Word := 0x40000010
+
+/-- The probe's output arena: the 192-byte unframed deposit at
+    `OUTPUT + 8` (`0xa0010008`), inside writable RAM. -/
+def eddOutPtr : Word := 0xa0010008
+
+/-- `mcStatic` discharged from the concrete arenas: any copy of `n`
+    bytes from offset `offS` of the data arena to offset `offD` of the
+    output arena satisfies every conjunct — bounds, no wrap, and
+    disjointness (the data arena ends at `0x40000250`, far below the
+    output arena at `0xa0010008`). -/
+theorem edd_arena_mcStatic (offS offD n : Nat) (bs ws0 : List (BitVec 8))
+    (hbs : n ≤ bs.length) (hw : ws0.length = n)
+    (hS : offS + n ≤ 576) (hD : offD + n ≤ 192) :
+    EddMemcpySAsm.mcStatic (eddDataPtr + BitVec.ofNat 64 offS)
+      (eddOutPtr + BitVec.ofNat 64 offD) bs ws0 n := by
+  unfold EddMemcpySAsm.mcStatic eddDataPtr eddOutPtr
+  refine ⟨hbs, hw, by omega, ?_, ?_, Or.inl ?_⟩ <;> bv_omega
+
+/-- Wrap-free three-term address arithmetic in the single-mod form
+    `omega` handles (nested `ofNat` additions otherwise split into
+    independent mod variables it cannot tie together). -/
+theorem edd_toNat_add3 (x : Word) (a k : Nat)
+    (hx : x.toNat + a + k < 2 ^ 64) :
+    (x + BitVec.ofNat 64 a + BitVec.ofNat 64 k).toNat
+      = x.toNat + a + k := by
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+/-- Two-term version of `edd_toNat_add3`. -/
+theorem edd_toNat_add2 (x : Word) (a : Nat)
+    (hx : x.toNat + a < 2 ^ 64) :
+    (x + BitVec.ofNat 64 a).toNat = x.toNat + a := by
+  simp only [BitVec.toNat_add, BitVec.toNat_ofNat]
+  omega
+
+/-- The source region of a call-site copy is well-formed: 8-aligned
+    (all five source offsets are multiples of 8 off the 8-aligned data
+    pointer) and inside the valid input window. -/
+theorem edd_src_region_wf (offS n : Nat) (bs : List (BitVec 8))
+    (hbs : bs.length = n) (h8 : offS % 8 = 0) (hS : offS + n ≤ 576) :
+    Region.wf ⟨eddDataPtr + BitVec.ofNat 64 offS, bs⟩ := by
+  have hbase : eddDataPtr.toNat = 0x40000010 := by decide
+  have h2 : (eddDataPtr + BitVec.ofNat 64 offS).toNat
+      = 0x40000010 + offS := by
+    rw [edd_toNat_add2 _ _ (by rw [hbase]; omega), hbase]
+  refine ⟨?_, ?_, fun k hk => ?_⟩
+  · show (eddDataPtr + BitVec.ofNat 64 offS).toNat % 8 = 0
+    rw [h2]; omega
+  · show (eddDataPtr + BitVec.ofNat 64 offS).toNat + bs.length < 2 ^ 64
+    rw [h2, hbs]; omega
+  · have hk' : k < bs.length := hk
+    rw [hbs] at hk'
+    have haddr : (eddDataPtr + BitVec.ofNat 64 offS
+          + BitVec.ofNat 64 k).toNat = 0x40000010 + offS + k := by
+      rw [edd_toNat_add3 _ _ _ (by rw [hbase]; omega), hbase]
+    show isValidMemAddr (eddDataPtr + BitVec.ofNat 64 offS
+      + BitVec.ofNat 64 k) = true
+    simp only [isValidMemAddr, haddr, EvmAsm.Rv64.MEM_START,
+      EvmAsm.Rv64.MEM_END, EvmAsm.Rv64.INPUT_MEM_START,
+      EvmAsm.Rv64.INPUT_MEM_END, EvmAsm.Rv64.RAM_MEM_START,
+      EvmAsm.Rv64.RAM_MEM_END, decide_eq_true_eq, Bool.and_eq_true,
+      Bool.or_eq_true]
+    omega
+
+/-- The destination region of a call-site copy is well-formed:
+    8-aligned (all five destination offsets are multiples of 8 off the
+    8-aligned output pointer) and inside writable RAM. -/
+theorem edd_out_region_wf (offD n : Nat)
+    (h8 : offD % 8 = 0) (hD : offD + n ≤ 192) :
+    RwRegion.wf ⟨eddOutPtr + BitVec.ofNat 64 offD, n⟩ := by
+  have hbase : eddOutPtr.toNat = 0xa0010008 := by decide
+  have h2 : (eddOutPtr + BitVec.ofNat 64 offD).toNat
+      = 0xa0010008 + offD := by
+    rw [edd_toNat_add2 _ _ (by rw [hbase]; omega), hbase]
+  refine ⟨?_, ?_, fun k hk => ?_⟩
+  · show (eddOutPtr + BitVec.ofNat 64 offD).toNat % 8 = 0
+    rw [h2]; omega
+  · show (eddOutPtr + BitVec.ofNat 64 offD).toNat + n < 2 ^ 64
+    rw [h2]; omega
+  · have hk' : k < n := hk
+    have haddr : (eddOutPtr + BitVec.ofNat 64 offD
+          + BitVec.ofNat 64 k).toNat = 0xa0010008 + offD + k := by
+      rw [edd_toNat_add3 _ _ _ (by rw [hbase]; omega), hbase]
+    show isValidMemAddr (eddOutPtr + BitVec.ofNat 64 offD
+      + BitVec.ofNat 64 k) = true
+    simp only [isValidMemAddr, haddr, EvmAsm.Rv64.MEM_START,
+      EvmAsm.Rv64.MEM_END, EvmAsm.Rv64.INPUT_MEM_START,
+      EvmAsm.Rv64.INPUT_MEM_END, EvmAsm.Rv64.RAM_MEM_START,
+      EvmAsm.Rv64.RAM_MEM_END, decide_eq_true_eq, Bool.and_eq_true,
+      Bool.or_eq_true]
+    omega
+
+/-- The consumed call-site triple at `(offS, offD, n)`: the copy spec
+    with `mcStatic` GONE from both pre and post — it holds at the site,
+    so the caller no longer owes it. -/
+def EddMemcpyCallSite (offS offD n : Nat) : Prop :=
+  ∀ (bs ws0 : List (BitVec 8)) (base ret : Word),
+    bs.length = n → ws0.length = n → (ret &&& ~~~(1 : Word)) = ret →
+    cpsTripleWithin
+      (EddMemcpySAsm.mcDeriv (eddDataPtr + BitVec.ofNat 64 offS)
+        (eddOutPtr + BitVec.ofNat 64 offD) bs ws0 n).stmt.steps base ret
+      (CodeReq.ofProg base
+        ((EddMemcpySAsm.mcDeriv (eddDataPtr + BitVec.ofNat 64 offS)
+          (eddOutPtr + BitVec.ofNat 64 offD) bs ws0 n).stmt.flatten base))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM ⟨eddDataPtr + BitVec.ofNat 64 offS, bs⟩
+            ⟨eddOutPtr + BitVec.ofNat 64 offD, n⟩
+          (fun rf ws A =>
+            rf.get .x10 = eddDataPtr + BitVec.ofNat 64 offS ∧
+            rf.get .x11 = eddOutPtr + BitVec.ofNat 64 offD ∧
+            rf.get .x12 = BitVec.ofNat 64 n ∧ ws = ws0 ∧
+            A = empAssertion))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM ⟨eddDataPtr + BitVec.ofNat 64 offS, bs⟩
+            ⟨eddOutPtr + BitVec.ofNat 64 offD, n⟩
+          (fun _ ws A => ws = bs.take n ∧ A = empAssertion))
+
+/-- `eddMemcpy_retSpec` consumed: at any call site whose offsets are
+    8-aligned and whose copy stays inside the two arenas, the spec's
+    every premise (`mcStatic` including disjointness, and both region
+    well-formednesses) is discharged from the concrete addresses. -/
+theorem eddMemcpy_callsite_spec (offS offD n : Nat)
+    (h8S : offS % 8 = 0) (h8D : offD % 8 = 0)
+    (hS : offS + n ≤ 576) (hD : offD + n ≤ 192) :
+    EddMemcpyCallSite offS offD n := by
+  intro bs ws0 base ret hbs hw halign
+  have hst := edd_arena_mcStatic offS offD n bs ws0 (by omega) hw hS hD
+  exact cpsTripleWithin_weaken
+    (sepConj_mono_right (asrtM_mono (fun rf ws A h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, hst, h.2.2.2.2⟩)))
+    (sepConj_mono_right (asrtM_mono (fun rf ws A h => ⟨h.1, h.2.2⟩)))
+    (EddMemcpySAsm.eddMemcpy_retSpec _ _ bs ws0 n base ret
+      (edd_src_region_wf offS n bs hbs h8S hS)
+      (edd_out_region_wf offD n h8D hD) halign)
+
+/-- Site 1: `pubkey` — `data+192 → out[0]`, 48 bytes. -/
+theorem eddMemcpy_pubkey_callsite : EddMemcpyCallSite 192 0 48 :=
+  eddMemcpy_callsite_spec 192 0 48 rfl rfl (by decide) (by decide)
+
+/-- Site 2: `withdrawal_credentials` — `data+288 → out[48]`, 32 bytes. -/
+theorem eddMemcpy_wc_callsite : EddMemcpyCallSite 288 48 32 :=
+  eddMemcpy_callsite_spec 288 48 32 rfl rfl (by decide) (by decide)
+
+/-- Site 3: `amount` — `data+352 → out[80]`, 8 bytes. -/
+theorem eddMemcpy_amount_callsite : EddMemcpyCallSite 352 80 8 :=
+  eddMemcpy_callsite_spec 352 80 8 rfl rfl (by decide) (by decide)
+
+/-- Site 4: `signature` — `data+416 → out[88]`, 96 bytes. -/
+theorem eddMemcpy_sig_callsite : EddMemcpyCallSite 416 88 96 :=
+  eddMemcpy_callsite_spec 416 88 96 rfl rfl (by decide) (by decide)
+
+/-- Site 5: `index` — `data+544 → out[184]`, 8 bytes. -/
+theorem eddMemcpy_index_callsite : EddMemcpyCallSite 544 184 8 :=
+  eddMemcpy_callsite_spec 544 184 8 rfl rfl (by decide) (by decide)
+
+end EddMemcpyCallSites
+
 /-- `zisk_extract_deposit_data`: focused probe.
     Input (after the ziskemu length wrapper at 0x40000000):
       bytes 8..16 : data length (so the check can exercise the length guard)

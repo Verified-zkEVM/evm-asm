@@ -21,7 +21,7 @@ module
 
 public import EvmAsm.Crypto.PowLadder
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Crypto
 

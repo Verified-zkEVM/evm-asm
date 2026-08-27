@@ -24,7 +24,7 @@ meta import EvmAsm.Rv64.BitAux
 meta import EvmAsm.Evm64.Exp.AddrNormAttr
 meta import EvmAsm.Evm64.Exp.Program
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.AddrNorm
 

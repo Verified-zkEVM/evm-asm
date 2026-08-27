@@ -28,7 +28,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
 public import EvmAsm.Evm64.EvmWordArith.DivN4IterConservationGen
 public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

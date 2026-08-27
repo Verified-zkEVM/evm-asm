@@ -15,7 +15,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.AddrNorm (se12_32 se12_40 se12_48 se12_56)
 

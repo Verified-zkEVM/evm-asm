@@ -31,7 +31,7 @@ public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
 public import EvmAsm.Evm64.DivMod.Spec.N2QuotientWord
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Full
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -10,7 +10,7 @@ module
 public import EvmAsm.EL.Conformance.RLP
 public import EvmAsm.EL.RLP.FullDecode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL
 namespace Conformance

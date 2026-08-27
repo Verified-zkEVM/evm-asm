@@ -26,7 +26,7 @@ module
 public import EvmAsm.Evm64.Terminating.SelfdestructSpec
 public import EvmAsm.Rv64.LaResolve
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Terminating
 

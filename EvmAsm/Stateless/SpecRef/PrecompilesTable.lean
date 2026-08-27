@@ -19,7 +19,7 @@ module
 public import EvmAsm.Stateless.SpecRef.PrecompilesKzg
 public import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

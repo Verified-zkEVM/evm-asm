@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.MulMod.ReduceOuterInduction
 public import EvmAsm.Evm64.MulMod.ProductAlgebra
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

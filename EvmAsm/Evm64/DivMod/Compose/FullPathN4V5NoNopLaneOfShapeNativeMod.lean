@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNativeMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0Mod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

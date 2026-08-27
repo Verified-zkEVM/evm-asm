@@ -14,7 +14,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
 public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

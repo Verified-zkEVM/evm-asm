@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
 public import EvmAsm.Evm64.DivMod.Spec.CallablePost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

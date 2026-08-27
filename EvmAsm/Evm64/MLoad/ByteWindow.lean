@@ -11,7 +11,7 @@ module
 
 public import EvmAsm.Evm64.MLoad.Spec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

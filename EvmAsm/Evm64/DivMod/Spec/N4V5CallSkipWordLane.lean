@@ -15,7 +15,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
 public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

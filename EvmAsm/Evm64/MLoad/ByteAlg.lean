@@ -24,7 +24,7 @@ module
 
 public import EvmAsm.Rv64.Word
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MLoad
 

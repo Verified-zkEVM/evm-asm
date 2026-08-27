@@ -16,7 +16,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

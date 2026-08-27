@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.Not.Program
 public import EvmAsm.Evm64.Stack
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

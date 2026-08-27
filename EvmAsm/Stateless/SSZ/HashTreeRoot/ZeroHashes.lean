@@ -85,7 +85,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Stateless.SSZ.HashTreeRoot
 
 /-- Number of pre-computed SSZ zero hashes. Covers SSZ List/

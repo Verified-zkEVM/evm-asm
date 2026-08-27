@@ -20,7 +20,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.FastDigitV6Mod
 public import EvmAsm.Evm64.DivMod.Compose.EpilogueV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

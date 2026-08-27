@@ -70,7 +70,7 @@ module
 
 public import EvmAsm.Evm64.AccountRlp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

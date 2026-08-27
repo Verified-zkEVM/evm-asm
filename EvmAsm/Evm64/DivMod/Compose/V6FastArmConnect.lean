@@ -23,7 +23,7 @@ module
 public import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

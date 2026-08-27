@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
 public import EvmAsm.Evm64.DivMod.Compose.V4Code
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

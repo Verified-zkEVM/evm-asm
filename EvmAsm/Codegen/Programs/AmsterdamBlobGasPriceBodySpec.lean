@@ -26,7 +26,7 @@ set_option maxRecDepth 8000
 /-! ## Buffer cell vocabulary -/
 
 /-- Pinned dword cells at `base + signExtend12 o`, right-nested, ending `empAssertion`. -/
-private def bufCells : Word → List (BitVec 12 × Word) → Assertion
+def bufCells : Word → List (BitVec 12 × Word) → Assertion
   | _, [] => empAssertion
   | base, (o, v) :: rest => ((base + signExtend12 o) ↦ₘ v) ** bufCells base rest
 
@@ -56,7 +56,7 @@ private theorem taylorDW_eq : taylorDW = 11684671 := by decide
 /-- State at the loop head (`PriceK+144`) of the inlined taylor recurrence.
 Buffers are pinned; `iVal` is the recurrence index; the saved-frame cells and the
 caller-owned registers ride along framed. -/
-private def taylorLoopInv (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+def taylorLoopInv (newSp excess outPtr iVal : Word) (vals : Reg → Word)
     (aC pC sC : List (BitVec 12 × Word)) : Assertion :=
   (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
   (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
@@ -140,16 +140,25 @@ private theorem price_setup_core (_sp0 newSp excess outPtr : Word) (vals : Reg �
     (PriceK + 140)
   runBlock hv1 hv2 hv3 hv4 hv5 hv6 hv7 hv8 hv9 hv10 hv11 hv12 hv13 hv14 hv15 hv16
     hv17 hv18 hv19 hv20 hv21 hv22 hv23 hv24 hv25 hv26 hv27
-/-- Setup window restated against the shell-level `priceBodyPre` / `taylorLoopInv`
-vocabularies (what the assembled body contract consumes). -/
+/-- The concrete setup-window contract.  It keeps the eighteen old dword
+    values explicit: the ownership-only lift belongs to the contract-family
+    adapter, while this window theorem describes the emitted stores directly. -/
 theorem price_setup_spec (sp0 excess outPtr : Word) (vals : Reg → Word)
     (m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17 : Word) :
     cpsTripleWithin 27 (PriceK + 36) (PriceK + 144) priceCode
-      (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr
-        (bufCells (sp0 + signExtend12 (-208 : BitVec 12))
+      ((.x2 ↦ᵣ (sp0 + signExtend12 (-208 : BitVec 12))) **
+        (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ (vals .x8)) ** (.x9 ↦ᵣ (vals .x9)) **
+        (.x18 ↦ᵣ (vals .x18)) ** (.x19 ↦ᵣ (vals .x19)) **
+        (.x20 ↦ᵣ (vals .x20)) ** (.x21 ↦ᵣ (vals .x21)) **
+        (.x22 ↦ᵣ (vals .x22)) **
+        frameSlotsSaved priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) vals **
+        (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+          regOwn .x30 ** regOwn .x31) **
+        bufCells (sp0 + signExtend12 (-208 : BitVec 12))
           [(64, m0), (72, m1), (80, m2), (88, m3), (96, m4), (104, m5), (112, m6),
             (120, m7), (128, m8), (136, m9), (144, m10), (152, m11), (160, m12),
-            (168, m13), (176, m14), (184, m15), (192, m16), (200, m17)]))
+            (168, m13), (176, m14), (184, m15), (192, m16), (200, m17)])
       (taylorLoopInv (sp0 + signExtend12 (-208 : BitVec 12)) excess outPtr
         (1 : Word) vals
         [(64, taylorDW), (72, 0), (80, 0), (88, 0), (96, 0), (104, 0)]
@@ -159,8 +168,8 @@ theorem price_setup_spec (sp0 excess outPtr : Word) (vals : Reg → Word)
     (price_setup_core sp0 (sp0 + signExtend12 (-208 : BitVec 12)) excess outPtr vals
       m0 m1 m2 m3 m4 m5 m6 m7 m8 m9 m10 m11 m12 m13 m14 m15 m16 m17)
   · intro h hx
-    simp only [priceBodyPre, priceFrame, regsAt, frameSlotsSaved, bufCells, regOwns,
-      List.foldr_cons, List.foldr_nil, sepConj_emp_right'] at hx ⊢
+    simp only [priceFrame, frameSlotsSaved, bufCells, List.foldr_cons, List.foldr_nil,
+      sepConj_emp_right'] at hx ⊢
     xperm_hyp hx
   · intro h hx
     simp only [taylorLoopInv, priceFrame, frameSlotsSaved, bufCells,

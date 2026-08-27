@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.LoopIterN4MaxV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

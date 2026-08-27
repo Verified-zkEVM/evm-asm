@@ -16,7 +16,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

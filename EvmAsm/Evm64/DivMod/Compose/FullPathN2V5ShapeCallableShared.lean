@@ -7,7 +7,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarry
 public import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
 public import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.SaveRaSignSequence
 public import EvmAsm.Evm64.SMod.Compose.PreserveDividendSign
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

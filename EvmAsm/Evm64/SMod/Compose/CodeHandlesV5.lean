@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.SMod.Compose.ModCallCallable
 public import EvmAsm.Evm64.DivMod.Callable
 public import EvmAsm.Evm64.SMod.Compose.CodeHandles
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

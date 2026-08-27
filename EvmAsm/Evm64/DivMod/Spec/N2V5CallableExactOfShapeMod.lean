@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
 public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
 public import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

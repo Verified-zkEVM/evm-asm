@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallSkipMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

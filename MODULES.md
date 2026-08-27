@@ -119,28 +119,265 @@ file's own imports. The converter adds it.
 
 ## 5. `@[expose]` — the contract about what proofs may unfold
 
-`@[expose] public section` at the top of every file preserves today's behaviour:
-downstream proofs can see through definitions exactly as they can now. This tree
-depends on that heavily — roughly 1200 `@[irreducible]`, 8400 `unfold`, and
-13000 `simp only [<def>]` sites.
+`@[expose] public section` puts every definition **body** in the file into the
+module interface, so downstream proofs can see through it. That was the right
+default for the migration — it preserved pre-migration behaviour — but it is not
+the right default afterwards, and narrowing it is what the exposure pass does.
 
-**Do not remove `@[expose]` from a file in an ordinary PR.** It is a semantic
-change: an unexposed definition cannot be unfolded downstream, and proofs that
-relied on defeq will break. Tightening it is a deliberate, measured, later pass.
+⚠️ **The operation is `@[expose] public section` → `public section`.** Never
+delete the line: `public section` is what exports the declarations at all.
 
-When that pass runs, the rule of thumb will be:
+### What it actually costs, measured
 
-- A definition whose *value* downstream proofs reason about (`simp [f]`,
-  `unfold f`, `decide` on a concrete instance, `rfl`) needs `@[expose]`.
-- A definition that is only ever *applied*, with its behaviour characterised by
-  lemmas, does not — and is better off unexposed, because then changing its body
-  does not invalidate the cone.
+`Stateless/SpecRef/IncrementalMptWrite.lean` (50 `def`s), same
+semantics-preserving edit to one definition body, public `.olean.hash` (which is
+what Lake keys downstream invalidation on):
 
-Note the relationship to `@[irreducible]`, which this repo already uses to say
-"do not unfold this". `@[irreducible]` asks the elaborator not to unfold;
-*unexposed* means downstream cannot unfold it at all, because the body is not in
-the interface. They point the same way, and once a definition is unexposed its
-`@[irreducible]` is usually redundant.
+| exposure | body | public hash | downstream |
+| --- | --- | --- | --- |
+| `@[expose] public section` | original | `9209185754286df7` | — |
+| `@[expose] public section` | edited | `a2b0a9a51c9f7d99` | **whole cone rebuilds** |
+| `public section` | original | `dfbd7d1b90979cfb` | — |
+| `public section` | edited | `dfbd7d1b90979cfb` | **nothing rebuilds** |
+
+Un-exposing that one file also cut its public `.olean` from 555 080 to 197 432
+bytes — **−64 %** — and the public olean is what every downstream module loads.
+
+### The rule
+
+A definition needs `@[expose]` iff **another module reasons about its value**:
+`unfold f`, `simp only [f]`, `rw [f]`, `delta f`, or `rfl`/`decide` reduction
+that reaches it. A definition that is only ever *applied*, characterised by
+lemmas, does not.
+
+⛔ **Reduction is transitive and no grep sees it.** `rfl` and `decide` reduce
+through the whole call graph, not just the names written in the statement.
+`Codegen/Dispatch.lean:1600` pins `emitProgramR … := rfl`, which must reduce
+`laHi` and the `GuestAddrs` constants — **neither appears in the statement**. So
+a syntactic scan gives a lower bound on what must stay exposed, never the answer.
+Decide per file, then let `lake build` be the oracle.
+
+### What breaks, and what does not (all probed in this tree)
+
+| mechanism, on a non-exposed `def` | result |
+| --- | --- |
+| `rfl` | ✗ `Note: … not exposed: probeDef ↦ 1` |
+| `decide` | ✗ **but the message never says "exposed"** — see below |
+| `simp only [f]` | ✗ `Invalid simp theorem …: Expected a definition with an exposed body` |
+| `unfold f` / `delta f` | ✗ `Tactic 'unfold' failed to unfold` |
+| `#guard` | ✅ **passes** — interpreter-checked, see §7b |
+| `abbrev` (any tactic) | ✅ **passes — `abbrev` stays exposed regardless** |
+| per-declaration `@[expose] def f` | ✅ works inside a plain `public section` |
+| `#print axioms` / `axiomsweep` | ✅ clean — un-exposing adds no axiom taint |
+
+Two of those are traps worth stating outright:
+
+- ⚠️ **`decide`'s failure blames the wrong thing.** It reports *"its `Decidable`
+  instance … did not reduce to `isTrue` or `isFalse` … reduction got stuck"* and
+  never mentions exposure. Someone hitting it will go and audit their
+  `Decidable` instance. If a `decide` breaks in a file whose exposure you just
+  changed, suspect exposure first.
+- ✅ **`abbrev` is auto-exposed.** Reading the toolchain suggests otherwise —
+  there is no `reducible` carve-out at any `forceExpose` call site — but the
+  probe is decisive: an `abbrev` under a plain `public section` still reduces by
+  `rfl` and by `decide` from another module. So abbrev-dense files gain nothing
+  from un-exposing, and offset tables such as `DivMod/Compose/Offsets.lean` and
+  the generated `Codegen/RegionMapLinkPins.lean` are safe by construction.
+
+### The predictor: count plain `def`s, ignore `abbrev`s
+
+Because abbrevs stay exposed, the win tracks the number of plain `def`s and
+nothing else. Measured:
+
+| file | `def` | `abbrev` | public `.olean` |
+| --- | ---: | ---: | ---: |
+| `Stateless/SpecRef/IncrementalMptWrite.lean` | 50 | 0 | **−64 %** |
+| `Evm64/Accelerators/Types.lean` | 1 | 31 | −0.3 % |
+| `Evm64/EvmWordArith/Common.lean` (control) | 0 | 0 | **0, exactly** |
+
+⇒ A file with no plain `def`s gains **nothing** — there is no body to withhold.
+Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
+default, so a `def` added later is not silently exposed), but do not report it as
+a build-time improvement.
+
+#### ⚠️ …but `def` COUNT is only a proxy, and a bad one. Body SIZE is the win.
+
+The three files above happen to vary in count and size together. They do not in
+general, and the corrective case is stark:
+
+| file | plain `def`s | public `.olean` |
+| --- | ---: | ---: |
+| `EL/Withdrawal.lean` | **1** | **−209 288 B (−71.9 %)** |
+| `Stateless/VM/Precompiles.lean` | 141 (111 left unexposed) | −81 768 B (−12.2 %) |
+
+`EL/Withdrawal.lean` is 100 lines holding one `structure` and one `def` —
+`decodeWithdrawal`, an RLP decoder whose body elaborates to an enormous term. It
+alone was **more than half** of its tranche's 408 KB, and 2.5x what
+`Precompiles.lean` gave from 111 hidden definitions.
+
+⇒ Rank candidates by the **size of the bodies you are withholding**, not by how
+many there are. A single large decoder, interpreter step, or table-valued
+definition outweighs a hundred small ones. Counting `def`s is a cheap first
+filter — nothing more. (This also explains the `Evm64` leaf result below better
+than its structural story alone: those files hold many *small* definitions.)
+
+### ⚠️ Where the win is NOT: `Evm64` leaf opcodes
+
+The `def`-count predictor tells you what a file *could* save. It does not tell
+you whether the file will survive the build, and in `Evm64` those two pull in
+opposite directions. Measured over one 82-file tranche across 15 leaf-opcode
+directories (`Calldata`, `Shift`, `MLoad`, `MStore`, `Code`, `Env`, `Push`,
+`Terminating`, `ReturnData`, `AddMod`, `Byte`, `And`, `Xor`, `Slt`, `Sgt`):
+
+| | |
+| --- | ---: |
+| files un-exposed and still building | **10 of 82 (12 %)** |
+| public `.olean` over those 10 | 704 672 → 677 208 B (**−3.9 %**) |
+| share of the ~131 MB migrated public total | **0.02 %** |
+| downstream modules freed from body-edit invalidation | 128 of 3045 (4.2 %) |
+| full builds spent converging | 5 |
+
+Two of the ten got **larger** (`Calldata/StageProgram` +240 B, `Env/Semantics`
++176 B): for a small body, the re-exported `.axiomInfo` costs more than the body
+did. Un-exposing is not monotone in bytes.
+
+**The mechanism, and why it generalises to the rest of `Evm64`.** Exposure mass
+and cross-module value-reasoning are *correlated here*. The big definitions in
+`Evm64` are big because they are RISC-V **programs** and **argument decoders**,
+and those are exactly what downstream `unfold`s — `Calldata/CopySpec.lean:247`
+does `unfold evm_calldatacopy` to split the program into preamble and loop. The
+files that survived un-exposure are `*Spec`-shaped, whose public half is mostly
+theorem *statements* — interface no matter what you do. So the files with
+something to save are the ones that cannot save it.
+
+⇒ Do **not** grind the remaining ~640 `Evm64` def-bearing files. Extrapolating
+this tranche gives ~78 sticking files for ~210 KB, at ~40 full builds of
+convergence. Spend the effort where large definitions are *not* value-reasoned —
+`Stateless/SpecRef` is the demonstrated case (`IncrementalMptWrite.lean`, −64 %
+on one file, more than 7× this entire tranche).
+
+### Where the win IS: `Stateless/SpecRef`
+
+The same loop, run over `Stateless/SpecRef`, gives the opposite answer — and the
+contrast is the useful part, because the two tranches differ by 33x on a
+directory a quarter the size:
+
+| | Evm64 leaves | `Stateless/SpecRef` |
+| --- | ---: | ---: |
+| files un-exposed, still building | 10 of 82 | **13 of 37** |
+| plain `def`s kept out of the interface | 40 | **268** |
+| public `.olean` | 704 672 → 677 208 B (−3.9 %) | 1 475 448 → **575 696 B (−61.0 %)** |
+
+Per file, the precompiles dominate: `PrecompilesBls` **−79.0 %**,
+`PrecompilesBlsMap` −77.6 %, `PrecompilesHash` −75.2 %, `ElExecute` −75.3 %,
+`Precompiles` −72.8 %, `PrecompilesCurve` −69.6 %, and `PrecompilesPairing`
+−59.0 % on the largest single file (262 896 → 107 656 B).
+
+**Why this directory and not that one.** `SpecRef` is the reference-implementation
+layer; downstream *characterises* these definitions through correspondence
+theorems rather than reducing through them, so the bodies leave the interface
+cleanly. `Evm64`'s large definitions are RISC-V programs and argument decoders,
+which is exactly what downstream `unfold`s. Same attribute, opposite outcome —
+so **classify a directory by how downstream reasons about it, not by how many
+`def`s it has.**
+
+⇒ When picking the next tranche, ask which one it resembles.
+
+### ⚠️ `Codegen` binds the ceiling from outside the batch
+
+Excluding `Codegen` from a batch does **not** protect it: it *consumes* `SpecRef`,
+and its `by decide` / `rfl` pins reduce transitively into these bodies.  Round 2
+of the `SpecRef` tranche failed almost entirely inside `Codegen`
+(`MemoryBudgetGuard`, `RequestsHashParams`,
+`BlockVerdictTxStateGasArrayModel`) with `decide` failures and `maxRecDepth`,
+and that alone forced back the five largest files in the directory —
+`InstructionsCore` (118 `def`s), `Ssz` (85), `Transactions` (60),
+`InstructionsEnv` (57), `Gas` (57): **377 `def`s**, well over the 268 that
+survived.
+
+So the remaining prize is not more un-exposing; it is those `Codegen` kernel
+pins. Re-stating them so they do not reduce through `SpecRef` is a *semantic*
+change to a kernel-checked proof, not a section-attribute edit — scope it as its
+own piece of work, never as collateral inside an exposure PR.
+
+### The surgical fallback: expose the declaration, not the file
+
+When a failure **names** a definition — `Expected a definition with an exposed
+body`, or ``unfold`` failed to unfold `f` — re-exposing the whole file
+overpays. Put `@[expose]` on that one declaration inside the plain
+`public section`, with the consumer named in a comment above it:
+
+```lean
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
+def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat := …
+```
+
+Six such lines in `SpecRef/Stateless.lean` kept its other 18 `def`s out of the
+interface (the file still measures **−41.7 %**), and one in
+`Evm64/Calldata/CopyProgram.lean` saved that file. Note the asymmetry that makes
+this worth trying: `decide`/`maxRecDepth` failures name nothing and reduce
+through a whole closure, so they are the ones that genuinely cost a file.
+
+### `EL` is bridge-shaped: expect it to wash out
+
+Third tranche, 96 files across `Stateless/VM`, `Stateless/State`, `Crypto` and
+`EL`. Ninety needed exposure; **six** survived, for −408 136 B (**−34.4 %**).
+`EL` in particular washed out almost completely, and the shape is systematic:
+
+* `*InputBridge` / `*ResultBridge` failed in round 2;
+* `*EcallBridge` survived round 2 only to fail in round 3, once their consumers
+  were rebuilt against the new interfaces;
+* `EL/Conformance/*` failed throughout.
+
+A bridge exists to be reduced through, so its bodies are interface by
+construction. **Pre-filter `EL/*Bridge*.lean` out of a batch** rather than
+spending a build round per wave rediscovering it. `Stateless/State/*Assertions`
+also failed as expected — those are the `@[irreducible]` assertion bundles.
+
+### The most actionable error message in this work
+
+An in-file `rfl`/`decide` lemma that is *exported* forces its own file's
+definitions to stay exposed, and Lean says so exactly:
+
+```
+Not a definitional equality: the left-hand side
+  gasCost 0 0 0 0
+is not definitionally equal to the right-hand side
+  500
+Note: This theorem is exported from the current module. This requires that all
+definitions that need to be unfolded to prove this theorem must be exposed.
+```
+
+This names the culprit, so it is always worth the surgical treatment.
+`Stateless/VM/Precompiles.lean` produced 21 of these; the LHS/RHS heads named
+only **seven** distinct helpers (`bufferRead`, `emptyOutput`, `gasCost`,
+`outputFromVerified`, `successOutput`, `successWordOutput`, `zeroWordOutput`),
+recurring once per precompile namespace — 28 sites. Exposing those kept ~111 of
+the file's 141 `def`s hidden.
+
+⚠️ **Then the transitivity trap fires one round later.** `gasCost` was exposed
+and `gasCost 0 0 0 0 = 500` *still* failed, because the reduction runs on
+through `complexity` and `iterations`, which were not. Exposing a definition
+does not expose what it calls — expect to chase the closure by one or two more
+rounds, and read each round's LHS heads rather than assuming the first set was
+complete.
+
+### Relationship to `@[irreducible]`
+
+`@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
+**cannot**, because the body is not in the interface. They point the same way, so
+once a definition is unexposed its `@[irreducible]` is redundant — remove it in
+the same commit.
+
+### Measuring the pass
+
+⛔ `scripts/import-graph-metrics.py` **cannot see this change.** It computes
+cones from the import graph, which un-exposing does not touch, so
+`sum_private_cone` reads identical before and after. Do not read that flatness as
+failure. The meter is
+`.github/workflows/scripts/oleansize_collect.sh`, which reports
+`split_public_bytes` — the public half of modules that have a private half.
 
 ## 5a. `private` and `public` do not mix inside an exposed body
 

@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
 public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

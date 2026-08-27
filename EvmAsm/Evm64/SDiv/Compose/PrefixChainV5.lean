@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.SDiv.Compose.BaseSignSequence
 public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
 public import EvmAsm.Evm64.SDiv.DispatchViewsShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 
