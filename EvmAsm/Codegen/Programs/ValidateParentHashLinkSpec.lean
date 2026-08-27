@@ -794,11 +794,12 @@ theorem vphl_copy_claimed_spec_within    (spC retHdr parentLenW childLenW outPtr
         (fun _ hp => by
           dsimp [msetP] at hp ⊢
           rw [← hfo] at hp
-          simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+          simpa only [BitVec.add_zero, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
         (fun _ hq => by
           dsimp [msetQ] at ⊢
           rw [← hcopyPure]
-          simpa only [msetQ, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq) hcopy'
+          simpa [msetQ, BitVec.add_zero, Nat.zero_add,
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq) hcopy'
     simpa only [show vphlBase + 152 = vphlBase + 148 + 4 by bv_omega] using hcopy0
   have htarget : (vphlBase + 148) +
       signExtend21 (jalOff GuestAddrs.mset_memcpy

@@ -241,6 +241,10 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+-- #12574: the completed `validate_parent_hash_link` proof family.  These are
+-- axiom-gate witnesses for the top contract and its load-bearing composition
+-- lemmas; this PR does not add a `RoutineEntry` row for a new guest symbol.
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
 -- #12799: the three full-premise cover witnesses for the hvph dispatcher were
 -- outside the axiom gate entirely — no witness abbrev, and this module did not
 -- import theirs. A `.proven` row whose satisfiability evidence no gate forces
@@ -4843,6 +4847,107 @@ private noncomputable abbrev _headers_parent_hash_out_length_neg_witness :=
 
 private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+-- #12574: the VPHL top-contract proof family.  Keep the load-bearing helper
+-- theorems in the same axiom gate as the headline triple so a green gate does
+-- not silently certify only a different registry surface.
+private noncomputable abbrev _vphl_success_field0_bound_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound
+private noncomputable abbrev _vphl_prog_length_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlProg_length
+private noncomputable abbrev _vphl_code_vphl_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCode_vphl
+private noncomputable abbrev _vphl_la_claimed_5c_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_claimed_5c
+private noncomputable abbrev _vphl_la_computed_6_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_computed_6
+private noncomputable abbrev _vphl_prologue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_prologue_spec_within
+private noncomputable abbrev _vphl_epilogue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_epilogue_spec_within
+private noncomputable abbrev _vphl_call_return_pre_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_callReturn_pre
+private noncomputable abbrev _vphl_k20_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_k20_call_spec_within
+private noncomputable abbrev _vphl_reg_is_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_of_forall_regIs_to_regOwn12
+private noncomputable abbrev _vphl_arm_fail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_fail_spec_within
+private noncomputable abbrev _vphl_arm_len_ne32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_ne32_spec_within
+private noncomputable abbrev _vphl_arm_len_eq32_prefix_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_eq32_prefix_spec_within
+private noncomputable abbrev _vphl_copy_claimed_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_copy_claimed_spec_within
+private noncomputable abbrev _vphl_hash_prep_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_prep_spec_within
+private noncomputable abbrev _vphl_hash_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_call_spec_within
+private noncomputable abbrev _vphl_dwords_eq_iff_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_dwords_eq_iff
+private noncomputable abbrev _vphl_compare_round0_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Eq
+private noncomputable abbrev _vphl_compare_round0_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Ne
+private noncomputable abbrev _vphl_compare_round1_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Eq
+private noncomputable abbrev _vphl_compare_round1_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Ne
+private noncomputable abbrev _vphl_compare_round2_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Eq
+private noncomputable abbrev _vphl_compare_round2_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Ne
+private noncomputable abbrev _vphl_compare_round3_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Eq
+private noncomputable abbrev _vphl_compare_round3_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Ne
+private noncomputable abbrev _vphl_compare_all_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareAllEq
+private noncomputable abbrev _vphl_choose12_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_choose12
+private noncomputable abbrev _vphl_compare_match_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMatchTail
+private noncomputable abbrev _vphl_compare_mismatch_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMismatchTail
+private noncomputable abbrev _vphl_top_reg12_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg12_to_regOwn
+private noncomputable abbrev _vphl_top_reg_pair_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_regPair_to_regOwn
+private noncomputable abbrev _vphl_top_reg4_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg4_to_regOwn
+private noncomputable abbrev _vphl_top_mem4_to_mem_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_to_memOwn
+private noncomputable abbrev _vphl_top_mem4_owned_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_with_owned_tail_to_memOwn
+private noncomputable abbrev _vphl_top_reg8_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg8_to_regOwn
+private noncomputable abbrev _vphl_top_frame_slots_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSlotsSaved_to_own
+private noncomputable abbrev _vphl_top_keccak_frame_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccakFrameSaved_to_own
+private noncomputable abbrev _vphl_top_frame_saved_rest_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
+private noncomputable abbrev _vphl_top_keccak_slot_h0_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h0
+private noncomputable abbrev _vphl_top_keccak_ret_slot_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_ret_slot
+private noncomputable abbrev _vphl_top_keccak_slot_h8_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h8
+private noncomputable abbrev _vphl_top_keccak_slot_h16_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h16
+private noncomputable abbrev _vphl_top_keccak_slot_h24_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h24
+private noncomputable abbrev _vphl_top_keccak_slots_stack_free_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slots_to_stackFree
+private noncomputable abbrev _vphl_top_compare_prefix_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_vphl_compare_prefix_to_own
+private noncomputable abbrev _vphl_hash_tail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_tail_spec
+private noncomputable abbrev _vphl_success_eq32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_eq32_spec
+private noncomputable abbrev _vphl_continuation_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_continuation_spec
+private noncomputable abbrev _vphl_whole_routine_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.validate_parent_hash_link_spec_within
 -- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
 -- static premise simultaneously with live data and lands on a DIFFERENT arm
 -- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way

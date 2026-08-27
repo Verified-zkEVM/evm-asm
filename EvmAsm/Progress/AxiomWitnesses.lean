@@ -924,6 +924,104 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSlotsSaved_to_own
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccakFrameSaved_to_own
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_ret_slot
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h0
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h16
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h24
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h8
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slots_to_stackFree
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_to_memOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_with_owned_tail_to_memOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg12_to_regOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg4_to_regOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg8_to_regOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_regPair_to_regOwn
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_vphl_compare_prefix_to_own
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.validate_parent_hash_link_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCode_vphl
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareAllEq
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMatchTail
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMismatchTail
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Eq
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Ne
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Eq
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Ne
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Eq
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Ne
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Eq
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Ne
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_claimed_5c
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_computed_6
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlProg_length
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_fail_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_eq32_prefix_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_ne32_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_callReturn_pre
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_choose12
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_continuation_spec
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_copy_claimed_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_dwords_eq_iff
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_epilogue_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_call_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_prep_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_tail_spec
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_k20_call_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_of_forall_regIs_to_regOwn12
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_prologue_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_eq32_spec
+
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound
+
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
