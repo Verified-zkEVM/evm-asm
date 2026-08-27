@@ -482,6 +482,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderU64ExtractSpec.header_extended_decode_u64_site_negative_control
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_call_native_spec_within
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_inhabited

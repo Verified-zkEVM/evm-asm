@@ -1887,4 +1887,55 @@ theorem k73_decrease_route_machine_spec_within
   exact cpsBranchWithin_seq_cpsBranchWithin_with_perm_same_cr hmf hperm hfall
     (fun _ hp => Or.inl hp) (fun _ hp => Or.inr hp)
 
+/-- CONSTRUCTED non-vacuity inhabitance of the native-discharge corollary
+    (adopted standard for #12346: a whole-route theorem does not count until a
+    closed-proposition witness exists at corollary level - an unsatisfiable
+    premise cannot admit a constructed witness, so this check catches the
+    vacuity class by construction rather than by vigilance).  Concrete
+    literals: `sp0 - spH = 56`, decrease guard family `target = 5000 >
+    gasUsed = 2500`, `gasLimit = 10000`, zero scratch windows, empty
+    ambience.  Discharged by direct application - no hypotheses, no sorry. -/
+theorem k73_decr_entry_status_native_inhabited :
+    cpsBranchWithin (19 + 3852) K73 wholeCode
+      (k73HeadPre (0xa0050038 : Word) 0xa0050000 0 10000 2500 0xa0000000
+        0xa0000100 0 0 0 0 0 (List.replicate 32 0) (List.replicate 32 0)
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (0xa0050000 + signExtend12 (-48 : BitVec 12)) 0 0 0 0 0 0 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+            (List.replicate 40 0) ** empAssertion))
+      (K73 + 272)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest 0xa0050000 0 0xa0000000 0xa0000100 5000
+            (5000 - 2500 : Word) 0 0 0 0 0 (List.replicate 32 0)
+            (EvmAsm.Codegen.U256MulU64Be.mulState (List.replicate 32 0)
+              (5000 - 2500 : Word) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState (List.replicate 32 0)
+                (5000 - 2500 : Word) 32) (List.replicate 32 0) 32)
+            empAssertion **
+          regOwn .x10)
+      (K73 + 92)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest 0xa0050000 0 0xa0000000 0xa0000100 5000
+            (5000 - 2500 : Word) 0 0 0 0 0 (List.replicate 32 0)
+            (EvmAsm.Codegen.U256MulU64Be.mulState (List.replicate 32 0)
+              (5000 - 2500 : Word) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState (List.replicate 32 0)
+                (5000 - 2500 : Word) 32) (List.replicate 32 0) 32)
+            empAssertion **
+          regOwn .x10) := by
+  exact k73_decrease_entry_status_native_discharged
+    (0xa0050038 : Word) 0xa0050000 0 10000 2500 5000 0xa0000000 0xa0000100
+    0 0 0 0 0 0 0 0 0 0 0
+    (List.replicate 32 0) (List.replicate 40 0) (List.replicate 32 0)
+    empAssertion
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by pcf)
+    (by simp) (by simp) (by simp)
+    (by decide) (by decide)
+    (by intro j _; interval_cases j <;> decide)
+    (by decide) (by decide)
+    (by intro j _; interval_cases j <;> decide)
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
