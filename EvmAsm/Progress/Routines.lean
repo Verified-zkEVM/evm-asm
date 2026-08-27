@@ -255,6 +255,7 @@ import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
@@ -5285,6 +5286,16 @@ private noncomputable abbrev _k73_increase_second_div_source_witness :=
 -- values.
 private noncomputable abbrev _k73_routeB_post_success_split_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
+-- #12346 residual 2b: native-shape multiply callee contract (own PR).  The
+-- win/image separation removes the symmetric contract's hidden
+-- initial-content-equals-final-image precondition; the constructed
+-- inhabitance discharges non-vacuity at concrete values.
+private noncomputable abbrev _k73_mul_call_native_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_call_native_spec_within
+private noncomputable abbrev _k73_mul_status_branch_native_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
+private noncomputable abbrev _k73_mul_status_branch_native_inhabited_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
