@@ -1,7 +1,7 @@
 # Remaining Dead Codegen Probe Programs (not yet removed)
 
 <!-- Tracked as an issue for batching: https://github.com/Verified-zkEVM/evm-asm/issues/12866 -->
-<!-- Latest scan count: 99 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
+<!-- Latest scan count: 89 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
 <!-- Keep the count line in sync when a batch below is completed. -->
 
 Registry of unverified `EvmAsm/Codegen/Programs/` modules that still define
@@ -14,9 +14,16 @@ cross-checked with the `git grep -l <Name>` method in the Reviewer playbook.
 
 * **PR #12814** — 12 block-hash historical-state extractors
   (`BeneficiaryAtBlockHash ... CodeAtBlockHash`).
-* **PR #12860** — 12 block-number historical-state extractors
-  (`BalanceAtBlockNumber ... ExtcodesizeAtBlockNumber`, exactly the mirror of
-  #12814).
+ * **PR #12860** — 12 block-number historical-state extractors
+   (`BalanceAtBlockNumber ... ExtcodesizeAtBlockNumber`, exactly the mirror of
+   #12814).
+ * **Chain\* probe family** (10 files, `ChainAggregator` ... `ChainWalkOneStepBack`).
+   Pure dead probe-family files plus the `chainExtract*FirstLast` /
+   `chainExtractNumberRange` / `headerExtractBasefeeFunction` dead converters
+   they carry; no live `import`, no `GuestImageEntries` linkage, no guestAddrs
+   pins. `Chain.lean` was *not* removed — it is a dead-code file with no
+   probe-family `<stem-lc>Function` def (only `chainExtract*` converters) so the
+   committed `scan_deadprobes.py` correctly keeps it.
 
 In flight: a `State*` account/state-extractor batch (20 files, `StateBalanceProof` ... `StateWalkExtractSlot`) was filed as a dead-code PR. Move it into Completed batches once merged.
 
@@ -47,7 +54,7 @@ and files that are still live anywhere (for example `TxTotalBlobGas.lean`, whose
 `calculate_total_blob_gas` helper is referenced by the `Stateless/SpecRef` port)
 are correctly excluded even though their probe strings are self-contained.
 
-## Remaining 99 files
+## Remaining 89 files
 
 ```text
   - AccountExistsAtBlockHash
@@ -74,18 +81,8 @@ are correctly excluded even though their probe strings are self-contained.
   - BlockValidate
   - BlockValidate1Tx
   - BlockVerdictRecipientCredits
-  - BlockVerdictTxsIndependent
-  - ChainAggregator
-  - ChainBasefee
-  - ChainBlobCount
-  - ChainEndpoints
-  - ChainExcessBlobGas
-  - ChainLinkExtract
-  - ChainLinkParentKeccak
-  - ChainTimestamp
-  - ChainWalkNStepsBack
-  - ChainWalkOneStepBack
-  - CodeAtStateRoot
+   - BlockVerdictTxsIndependent
+   - CodeAtStateRoot
   - CodeVerify
   - CreateDescend
   - Eip2935
