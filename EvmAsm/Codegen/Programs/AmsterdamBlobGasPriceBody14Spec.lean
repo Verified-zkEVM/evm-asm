@@ -1276,6 +1276,48 @@ theorem taylor_round (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Wor
       ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) ** FR)]) nb5 hSd'
   simpa using nb6
 
+private theorem x0Free_sepConj {P Q : Assertion}
+    (hP : x0FreeAssertion P) (hQ : x0FreeAssertion Q) :
+    x0FreeAssertion (P ** Q) := by
+  intro h hh
+  obtain ⟨h1, h2, hd, hu, hp, hq⟩ := hh
+  have h1x := hP h1 hp
+  have h2x := hQ h2 hq
+  rw [← hu]
+  simp [PartialState.union, h1x, h2x]
+
+private theorem x0Free_regIs {r : Reg} {v : Word} (hr : r ≠ .x0) :
+    x0FreeAssertion (regIs r v) := by
+  intro h hh
+  rw [hh]
+  simp [PartialState.singletonReg, Ne.symm hr]
+
+/-! The linked terminal-index pair can be used without making the caller's
+    frame own the architectural zero register.  This is the exact artifact
+    window cited by `loop_test_li_bgeu_terminal_496`; the frame is added only
+    after the x0 transfer, so the theorem remains valid for an arbitrary
+    pc-free caller assertion, including one that owns x0. -/
+theorem loop_test_li_bgeu_terminal_496_drop_x0
+    (iVal vOld : Word) (h_i : iVal = (496 : Word))
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 2 (PriceK + 200) (PriceK + 964) priceCode
+      (((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld)) ** FR)
+      (((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) ** FR) := by
+  have hbase :=
+    EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_li_bgeu_terminal_496
+      iVal vOld h_i
+  have hbase_x0 := cpsTripleWithin_frameR (.x0 ↦ᵣ (0 : Word)) (by pcFree) hbase
+  have hn_x0 := cpsTripleWithin_as_cpsNBranchWithin hbase_x0
+  have hfree : x0FreeAssertion ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld)) :=
+    x0Free_sepConj (x0Free_regIs (by decide)) (x0Free_regIs (by decide))
+  have hn := cpsNBranchWithin_drop_x0
+    (exits := [(PriceK + 964,
+      (.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝)]) hfree hn_x0
+  have hdrop := cpsNBranchWithin_as_cpsTripleWithin hn
+  exact cpsTripleWithin_frameR FR hFR hdrop
+
 /-! The arithmetic values exposed by `taylor_round` are the same pure six-limb
     transitions used by the model.  Keep these bridges next to the private
     machine-value abbreviations: the outer-loop composition can then reason
@@ -1323,6 +1365,7 @@ theorem roundS_carry_eq_add384Run
     add384Run, addLimbStep]
 
 #print axioms taylor_round
+#print axioms loop_test_li_bgeu_terminal_496_drop_x0
 #print axioms roundP_eq_mul384Run
 #print axioms roundP_high_eq_mul384Run
 #print axioms roundS_eq_add384Run
