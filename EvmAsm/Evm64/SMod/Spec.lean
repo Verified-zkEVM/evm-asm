@@ -58,7 +58,7 @@ public import EvmAsm.Evm64.SMod.Compose.ModCallDispatchReadySequence
 public import EvmAsm.Evm64.SMod.SpecSemantic
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

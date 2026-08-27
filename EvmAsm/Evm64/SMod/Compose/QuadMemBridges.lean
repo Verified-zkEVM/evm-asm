@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.SMod.AddrNorm
 public import EvmAsm.Evm64.Stack
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

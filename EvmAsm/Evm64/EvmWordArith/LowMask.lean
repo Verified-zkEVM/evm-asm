@@ -10,7 +10,7 @@ module
 
 public import EvmAsm.Evm64.EvmWord
 
-@[expose] public section
+public section
 
 theorem BitVec.and_two_pow_sub_one_eq_zero_iff
     (v : BitVec 64) (k : Nat) (hk : k ≤ 64) :

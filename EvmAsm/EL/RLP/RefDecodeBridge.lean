@@ -31,7 +31,7 @@ meta import EvmAsm.EL.RLP.RefDecode
 meta import EvmAsm.EL.RLP.Properties
 meta import EvmAsm.EL.RLP.EncodeDecode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

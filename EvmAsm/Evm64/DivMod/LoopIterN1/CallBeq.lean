@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.DivMod.N1CallBase
 public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

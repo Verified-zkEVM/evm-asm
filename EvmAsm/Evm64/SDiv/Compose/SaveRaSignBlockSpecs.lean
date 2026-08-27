@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SDiv.Compose.SignCodeSlices
 public import EvmAsm.Evm64.SDiv.LimbSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

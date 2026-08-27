@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.SMod.Compose.StackSpecV5
 public import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
 public import EvmAsm.Evm64.SMod.SpecSemantic
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

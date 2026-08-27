@@ -23,7 +23,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
 public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

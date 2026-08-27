@@ -23,7 +23,7 @@ module
 public import EvmAsm.Evm64.DivMod.LoopComposeN1
 public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

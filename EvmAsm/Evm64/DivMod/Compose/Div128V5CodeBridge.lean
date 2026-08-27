@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Compose.Base
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

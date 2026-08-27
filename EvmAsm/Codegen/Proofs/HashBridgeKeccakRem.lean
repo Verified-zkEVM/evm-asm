@@ -7,8 +7,13 @@
   BEQ, not this loop.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
+import EvmAsm.Rv64.MemRegionWriteWide
 import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.SAsm.FramePort
+import EvmAsm.Rv64.SAsm.MultiDword
+import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Stateless.SpecRef.Crypto
 import EvmAsm.Rv64.Tactics.XPermChunked
 
 namespace EvmAsm.Codegen.Proofs

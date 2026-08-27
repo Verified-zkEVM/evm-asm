@@ -37,7 +37,7 @@ meta import EvmAsm.Rv64.Tactics.RunBlock
 meta import EvmAsm.Rv64.Tactics.XSimp
 meta import EvmAsm.Rv64.Tactics.XPermChunked
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.ExecutableSpecOpcodeBridge
 public import EvmAsm.Evm64.InterpreterLoop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

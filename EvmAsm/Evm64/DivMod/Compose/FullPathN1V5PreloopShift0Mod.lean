@@ -16,7 +16,7 @@ public import EvmAsm.Evm64.DivMod.Compose.CopyAUV5Mod
 public import EvmAsm.Evm64.DivMod.Compose.LoopSetupV5Mod
 public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

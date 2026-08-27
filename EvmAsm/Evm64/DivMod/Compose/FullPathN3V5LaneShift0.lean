@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridge
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

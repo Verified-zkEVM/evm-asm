@@ -21,7 +21,7 @@ public import EvmAsm.Evm64.DivMod.Compose.V6FastArmTripleMod
 public import EvmAsm.Evm64.DivMod.Compose.DispatchV6Mod
 public import EvmAsm.Rv64.Tactics.ExtractPure
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Rv64
 

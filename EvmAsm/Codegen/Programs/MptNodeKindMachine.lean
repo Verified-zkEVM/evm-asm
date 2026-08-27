@@ -14,8 +14,8 @@
 -/
 
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
-import EvmAsm.Codegen.Programs.RlpListCountItemsCallSAsm
-import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Programs.Mpt
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FramePort

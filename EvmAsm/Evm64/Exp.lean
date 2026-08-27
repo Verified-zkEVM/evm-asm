@@ -226,4 +226,4 @@ meta import EvmAsm.Evm64.Exp.Spec
 meta import EvmAsm.Evm64.Exp.StackExecutionBridge
 public meta import Lean.Meta.Tactic.Simp.Attr
 
-@[expose] public section
+public section

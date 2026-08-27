@@ -10,7 +10,7 @@ public import EvmAsm.Evm64.Exp.SquaringCallSeq
 public import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
 public import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -14,7 +14,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

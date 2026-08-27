@@ -119,4 +119,4 @@ public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
 public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
 public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
 
-@[expose] public section
+public section

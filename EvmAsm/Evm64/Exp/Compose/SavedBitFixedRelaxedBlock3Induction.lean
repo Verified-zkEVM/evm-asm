@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

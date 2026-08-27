@@ -27,7 +27,7 @@ public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Induction
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

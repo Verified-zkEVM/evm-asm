@@ -13,7 +13,7 @@ public import EvmAsm.Evm64.DivMod.AddrNorm
 public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
 public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

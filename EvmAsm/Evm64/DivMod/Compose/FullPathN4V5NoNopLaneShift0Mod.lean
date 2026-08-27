@@ -20,7 +20,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0CallAddback
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipModWordLane
 public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackModWordLane
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

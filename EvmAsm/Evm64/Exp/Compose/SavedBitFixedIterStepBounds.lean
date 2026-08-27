@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

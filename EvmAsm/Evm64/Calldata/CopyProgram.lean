@@ -95,7 +95,7 @@ public import EvmAsm.Rv64.Program
 public import EvmAsm.Rv64.SepLogic
 public import EvmAsm.Evm64.Environment.Layout
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 namespace Calldata
@@ -108,6 +108,9 @@ open EvmAsm.Evm64.EvmEnv (callDataPtrOff callDataLenOff)
     roles, and the byte-by-byte loop layout.
 
     19 instructions = 76 bytes. -/
+-- `@[expose]`: `Calldata/CopySpec.lean` unfolds this body to split the
+-- program into its preamble and loop, so it must stay in the interface.
+@[expose]
 def evm_calldatacopy
     (envBaseReg memBaseReg destReg srcReg cntReg cdpReg endReg
       byteReg : Reg) : Program :=

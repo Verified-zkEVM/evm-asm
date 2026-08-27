@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1AllPhasesNonzero
 public import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedN1Normalized
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

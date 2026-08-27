@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreSelected
 public import EvmAsm.Evm64.DivMod.Spec.N3TrialWitnesses
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

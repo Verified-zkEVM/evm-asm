@@ -41,7 +41,7 @@ public import EvmAsm.Rv64.Tactics.XSimp
 public import EvmAsm.Rv64.Tactics.RunBlock
 public import EvmAsm.Evm64.Transient.LoadLoopSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

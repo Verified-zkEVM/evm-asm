@@ -261,12 +261,18 @@ def measure(tree: str = REPO) -> dict:
         "sum_cone": sum(len(c) for c in cones.values()),
         "sum_private_cone": sum(len(private(m)) for m in graph.modules),
         "module_headers": sum(graph.module_header.values()),
+        "module_names": sorted(graph.modules),
         "anchors": {
             a: {
                 "cone": len(cones[a]),
                 "cone_bytes": sum(weights.get(m, 0) for m in cones[a]),
                 "private_cone": len(private(a)),
                 "private_cone_bytes": sum(weights.get(m, 0) for m in private(a)),
+                # Full cone member set.  Needed by the cone-migration ratchet
+                # (see `compare`): to tell a deletion from a structural
+                # regression we must know WHICH modules are in the cone, not
+                # just how many.  Stored for the curated anchor set only.
+                "cone_modules": sorted(cones[a]),
             }
             for a in anchors
         },
@@ -274,21 +280,31 @@ def measure(tree: str = REPO) -> dict:
 
 
 def insulation(m: dict) -> dict:
-    """Growth-proof complements of the raw cone metrics.  Bigger is better; the
-    ratchet fails on a DROP.  See the header for the monotonicity argument."""
+    """Advisory complements of the raw cone metrics, plus their scale-invariant
+    ratios.  Advisory ONLY -- NOT ratcheted.  Every member of this dict is a
+    function of the module count `n`, so it moves whenever the tree grows or
+    shrinks, even when nothing structural changed; ratcheting it would fire on
+    every deletion and every module fold (see #12962).  The ratcheted signal is
+    the cone-migration count in `compare`, which is neutral to such churn."""
     n = m.get("modules") or 0
     tb = m.get("total_bytes") or 0
     out = {"slack": n * n - m.get("sum_cone", 0)}
+    if n:
+        out["slack_ratio"] = out["slack"] / (n * n)
     for a, v in m.get("anchors", {}).items():
         out[f"outside {a}"] = n - v["cone"]
+        if n:
+            out[f"outside_ratio {a}"] = out[f"outside {a}"] / n
         if tb:
             out[f"bytes_outside {a}"] = tb - v["cone_bytes"]
     return out
 
 
 def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
-    """Return (regressions, notes).  `depth` ratchets on increase; every cone
-    metric ratchets as its growth-proof complement, on decrease."""
+    """Return (regressions, notes).  `depth` ratchets on increase; `module_headers`
+    as a floor; the cone metric ratchets on the cone-MIGRATION count (a
+    pre-existing module moving INTO an anchor's cone), which is neutral to
+    additions and deletions.  See `cone-migration` below for the #12962 fix."""
     regressions, notes = [], []
 
     c, b = cur["depth"], base.get("depth")
@@ -320,21 +336,89 @@ def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
             "[advisory, not ratcheted]"
         )
 
+    # ---- CONE-MIGRATION ratchet (#12962). --------------------------------
+    #
+    # The regression this gate exists to catch is a STRUCTURAL one: a module
+    # that already existed pulling into an anchor's cone, so that editing the
+    # anchor re-elaborates more of the library than before.  Additions and
+    # deletions are NOT regressions and must be neutral:
+    #
+    #   * a NEW module was not in the baseline tree, so it cannot be a
+    #     "pre-existing module that moved into a cone";
+    #   * a DELETED module is not in the current tree, so it is not "in a cone".
+    #
+    # The old ratchet instead compared `outside[a] = n - cone[a]` (and the
+    # global `slack`), which are functions of the module count `n`: deleting a
+    # module that sits OUTSIDE a cone lowers `n` without touching `cone[a]`, so
+    # `outside[a]` fell even though nothing structural changed.  #12961 tripped
+    # exactly this, and two workstreams (dead-probe removal, module folding)
+    # make such shrinkage routine -- so re-baselining every time trained people
+    # to re-baseline, the failure family #12907/#12938/#12960 rejected.
+    #
+    # A scale-invariant RATIO (`outside/n`) is not quite neutral either: an
+    # out-of-cone deletion moves `outside` and `n` together by 1, so
+    # `outside/n` still drifts by ~cone/n^2 per deletion -- a real, if tiny,
+    # drop that the exact-integer ratchet would fire on for every 7-20-file
+    # dead-probe batch.  The migration count is neutral BY CONSTRUCTION: it
+    # counts only modules present at BOTH baseline and current, so any change
+    # in the module set is invisible to it.
+    #
+    # A module is "in cone[a]" if it is in the baseline AND current cone sets.
+    # The ratcheted quantity is how many such surviving modules moved INTO
+    # cone[a]; it must stay at the baseline value (0 after a re-baseline).
+    cur_mods = set(cur.get("module_names") or ())
+    base_mods = set(base.get("module_names") or ())
+    shared = cur_mods & base_mods
+    weights = load_weights()
+    for a in cur.get("anchors", {}):
+        cur_cone = set(cur["anchors"][a].get("cone_modules") or ()) & shared
+        base_cone = set(base["anchors"][a].get("cone_modules") or ()) & shared
+        moved = sorted(cur_cone - base_cone)
+        c_n, b_n = len(cur_cone), len(base_cone)
+        if moved:
+            mb = sum(weights.get(m, 0) for m in moved)
+            names = ", ".join(moved[:8]) + (" ..." if len(moved) > 8 else "")
+            regressions.append(
+                f"cone {a}: {len(moved)} pre-existing module(s) moved INTO this "
+                f"cone (shared in-cone {b_n} -> {c_n}): {names} [+{mb} bytes]"
+            )
+        else:
+            notes.append(
+                f"cone {a}: shared in-cone count {b_n} -> {c_n} ({c_n - b_n:+d})"
+            )
+
+    # ---- Advisory raw / ratio context (NOT ratcheted). ---------------------
+    # These are the numbers the #12962 discussion quoted; keep printing them so
+    # a reviewer can see the size-related movement alongside the migration
+    # verdict.  Bigger `outside`/`slack`/ratios are better; they may move with
+    # the module count in either direction without being a regression.
     cur_i, base_i = insulation(cur), insulation(base)
     raw = {"slack": (base.get("sum_cone"), cur.get("sum_cone"))}
     for a in cur.get("anchors", {}):
         raw[f"outside {a}"] = (base.get("anchors", {}).get(a, {}).get("cone"),
                                cur["anchors"][a]["cone"])
-    for key, c in cur_i.items():
+    for key in ("slack", "slack_ratio"):
+        c = cur_i.get(key)
         b = base_i.get(key)
         if b is None:
             notes.append(f"{key}: {c} (no baseline)")
             continue
-        line = f"{key}: {b} -> {c} ({c - b:+d})"
-        if key in raw and raw[key][0] is not None:
-            line += f"   [raw cone {raw[key][0]} -> {raw[key][1]}, "
-            line += f"modules {base.get('modules')} -> {cur.get('modules')}]"
-        (regressions if c < b else notes).append(line)
+        notes.append(f"{key}: {b} -> {c} ({c - b:+.1f}) [advisory]")
+    for a in cur.get("anchors", {}):
+        for key in (f"outside {a}", f"outside_ratio {a}",
+                    f"bytes_outside {a}"):
+            c = cur_i.get(key)
+            b = base_i.get(key)
+            if b is None:
+                continue
+            base_v = base.get("anchors", {}).get(a, {})
+            cur_v = cur["anchors"][a]
+            line = f"{key}: {b:.6g} -> {c:.6g} ({c - b:+.6g}) [advisory"
+            if key == f"outside {a}":
+                line += (f"; raw cone {base_v.get('cone')} -> {cur_v['cone']}, "
+                         f"modules {base.get('modules')} -> {cur.get('modules')}")
+            line += "]"
+            notes.append(line)
     return regressions, notes
 
 
@@ -456,44 +540,75 @@ def self_test() -> int:
 
     # Ratchet direction, both ways. A gate that cannot fail proves nothing, and
     # one that fails on an IMPROVEMENT would block exactly the PRs we want.
-    # Ratchet fixtures at repo scale.
-    def snap(modules, sum_cone, depth, cone, cone_bytes, total_bytes):
+    # Ratchet fixtures at repo scale.  The cone fixtures carry the full module
+    # set so the cone-migration ratchet can tell a deletion from a structural
+    # change; `n_mods` names the module set of size `modules`.
+    def snap(modules, sum_cone, depth, cone, cone_bytes, total_bytes,
+             n_mods=None, cone_mods=None):
+        if n_mods is None:
+            n_mods = [f"m{i}" for i in range(modules)]
+        if cone_mods is None:
+            cone_mods = n_mods[:cone]
         return {"modules": modules, "sum_cone": sum_cone, "depth": depth,
-                "total_bytes": total_bytes,
-                "anchors": {"X": {"cone": cone, "cone_bytes": cone_bytes}}}
+                "total_bytes": total_bytes, "module_names": n_mods,
+                "anchors": {"X": {"cone": len(cone_mods),
+                                  "cone_bytes": cone_bytes,
+                                  "cone_modules": sorted(cone_mods)}}}
 
     base = snap(3000, 340_000, 69, 2850, 2_300_000_000, 2_400_000_000)
     # depth is ratcheted absolutely: one extra chain link is a regression.
     depth_rise = snap(3000, 340_000, 70, 2850, 2_300_000_000, 2_400_000_000)
-    # A genuine fan-in regression: 100 modules pulled into X's cone, tree size
-    # unchanged.  Must be caught.
-    fanin = snap(3000, 350_000, 69, 2950, 2_380_000_000, 2_400_000_000)
-    # THE REGRESSION PIN FOR #12789's OWN BUG.  Eight ordinary proof files land;
-    # each joins X's cone and adds ~150 to sum_cone.  Raw counts all rise, so
-    # the old integer ratchet failed here -- and did, on `main`, blocking every
-    # PR in the repo.  Growth-normalised, this must be CLEAN.
-    growth = snap(3008, 341_200, 69, 2858, 2_301_800_000, 2_401_800_000)
+    # A genuine fan-in regression: 100 PRE-EXISTING modules pulled into X's
+    # cone, tree size unchanged.  Must be caught (positive control).
+    fanin = snap(3000, 350_000, 69, 2950, 2_380_000_000, 2_400_000_000,
+                 cone_mods=[f"m{i}" for i in range(2950)])
+    # THE REGRESSION PIN FOR #12789's OWN BUG.  Eight ordinary proof files land,
+    # each joining X's cone.  They are NEW modules (absent from the baseline), so
+    # the cone-migration ratchet -- which counts only PRE-EXISTING modules --
+    # must be CLEAN here.  (The old integer ratchet failed on exactly this
+    # growth, turning `main` red and blocking every PR.)
+    growth = snap(3008, 341_200, 69, 2858, 2_301_800_000, 2_401_800_000,
+                  n_mods=[f"m{i}" for i in range(3008)],
+                  cone_mods=[f"m{i}" for i in range(2850)] +
+                           [f"m{i}" for i in range(3000, 3008)])
     # A real improvement plus growth: must not be reported as a regression.
-    better = snap(3008, 300_000, 68, 2400, 2_000_000_000, 2_401_800_000)
+    better = snap(3008, 300_000, 68, 2400, 2_000_000_000, 2_401_800_000,
+                  n_mods=[f"m{i}" for i in range(3008)],
+                  cone_mods=[f"m{i}" for i in range(2400)])
 
     if not compare(depth_rise, base)[0]:
         failures.append("  ratchet: a depth RISE was not reported as a regression")
     if not compare(fanin, base)[0]:
-        failures.append("  ratchet: a fan-in regression (cone +100 at fixed "
-                        "module count) was not reported")
+        failures.append("  ratchet: a fan-in regression (100 pre-existing "
+                        "modules pulled into X's cone) was not reported")
     if compare(growth, base)[0]:
         failures.append(
-            "  ratchet: ordinary library growth (8 added modules) was reported "
-            "as a regression -- this is exactly the #12789 defect that turned "
-            "`main` red; the ratchet must be growth-normalised")
+            "  ratchet: ordinary library growth (8 NEW modules joined X's cone) "
+            "was reported as a regression -- this is exactly the #12789 defect "
+            "that turned `main` red; the cone-migration ratchet must ignore "
+            "new modules")
     if compare(better, base)[0]:
         failures.append("  ratchet: an IMPROVEMENT was reported as a regression")
-    # A deletion outside the cone is the documented false-positive; pin that it
-    # really does fire, so the header's `--update-baseline` advice stays true.
-    deletion = snap(2999, 340_000, 69, 2850, 2_300_000_000, 2_400_000_000)
-    if not compare(deletion, base)[0]:
-        failures.append("  ratchet: deleting an out-of-cone module should lower "
-                        "`outside` and be reported (documented false positive)")
+
+    # ---- #12962: the cone-migration ratchet must be NEUTRAL to deletions. ----
+    # Deleting a module that sits OUTSIDE X's cone used to lower `outside`
+    # (n - cone) and fire -- the bug that tripped #12961 and this PR fixes.
+    # A deleted module is absent from the current tree, so it is not "in a
+    # cone"; the migration count over surviving modules must stay 0.
+    del_out = snap(2999, 340_000, 69, 2850, 2_300_000_000, 2_400_000_000,
+                   n_mods=[f"m{i}" for i in range(2999)])  # drop m2999 (outside cone)
+    if compare(del_out, base)[0]:
+        failures.append("  #12962: deleting an OUT-OF-CONE module was reported "
+                        "as a regression -- this is the exact defect the "
+                        "migration ratchet must not fire on")
+    # Deleting a module that sits INSIDE X's cone is also neutral: it leaves the
+    # surviving in-cone set unchanged, so nothing "moved into" the cone.
+    del_in = snap(2999, 339_000, 69, 2849, 2_299_000_000, 2_400_000_000,
+                  n_mods=[f"m{i}" for i in range(1, 3000)],
+                  cone_mods=[f"m{i}" for i in range(1, 2850)])  # drop m0 (in cone)
+    if compare(del_in, base)[0]:
+        failures.append("  #12962: deleting an IN-CONE module was reported as a "
+                        "regression")
     if compare(base, base)[0]:
         failures.append("  ratchet: an unchanged tree was reported as a regression")
 
@@ -544,9 +659,12 @@ def self_test() -> int:
 
     # ---------------- module_headers floor, all four directions ------------
     def hdr(modules, headers):
+        names = [f"m{i}" for i in range(modules)]
         return {"modules": modules, "module_headers": headers, "sum_cone": 340_000,
                 "depth": 69, "total_bytes": 2_400_000_000,
-                "anchors": {"X": {"cone": 2850, "cone_bytes": 2_300_000_000}}}
+                "module_names": names,
+                "anchors": {"X": {"cone": 2850, "cone_bytes": 2_300_000_000,
+                                  "cone_modules": names[:2850]}}}
 
     hbase = hdr(3000, 1500)
     # A header REMOVED: a module silently rejoined the invalidate-everything

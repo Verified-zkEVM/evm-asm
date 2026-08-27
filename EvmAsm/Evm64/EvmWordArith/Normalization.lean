@@ -11,7 +11,7 @@ module
 public import EvmAsm.Evm64.EvmWordArith.MulSubChain
 public import EvmAsm.Evm64.EvmWordArith.Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

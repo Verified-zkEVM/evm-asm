@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

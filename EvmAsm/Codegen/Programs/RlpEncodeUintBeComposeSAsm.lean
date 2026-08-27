@@ -1021,10 +1021,12 @@ variable {srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 : Word} {oldOut : List Byte}
   (hsvalid : ∀ k, k < 2 → isValidByteAccess (srcPtr + BitVec.ofNat 64 k) = true)
   (hovalid : ∀ k, k < 3 → isValidByteAccess (outPtr + BitVec.ofNat 64 k) = true)
 
+include holen hsalign hoalign hsover hoover hsvalid hovalid
+
 /-- The output side of `reubAbiPost` with the written bytes given literally, so
     that instantiating it is a claim about *content*.  `outBytes` is what the
     routine must leave at the front of the buffer. -/
-private def reubLiteralPost (srcPtr outPtr raVal : Word) (xs oldOut outBytes : List Byte)
+def reubLiteralPost (srcPtr outPtr raVal : Word) (xs oldOut outBytes : List Byte)
     (n : Nat) : Assertion :=
   ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64 outBytes.length) **
   ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 n) **
@@ -1035,14 +1037,14 @@ private def reubLiteralPost (srcPtr outPtr raVal : Word) (xs oldOut outBytes : L
   bytesRegion outPtr (outBytes ++ oldOut.drop outBytes.length)
 
 /-- §4 · all-zero input writes `0x80` and returns 1, in 29 steps. -/
-example : cpsTripleWithin 29 reubBase (raVal &&& ~~~1) reubCode
+theorem reub_path_allZero : cpsTripleWithin 29 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0] oldOut 2 v5 v6 v28 v29 v30 v31)
     (reubLiteralPost srcPtr outPtr raVal [0, 0] oldOut [0x80] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
 /-- §5 · one byte below `0x80` is written raw and returns 1, in 36 steps. -/
-example : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
+theorem reub_path_rawByte : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0x2a] oldOut 2 v5 v6 v28 v29 v30 v31)
     (reubLiteralPost srcPtr outPtr raVal [0, 0x2a] oldOut [0x2a] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0x2a] oldOut 2
@@ -1051,20 +1053,123 @@ example : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
 /-- §6 at `L = 1` · one byte at or above `0x80` gets the `0x81` header and
     returns 2, in 36 steps.  This is the check the header path's *content* rests
     on: the `0x81` is in the type. -/
-example : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
+theorem reub_path_headerL1 : cpsTripleWithin 36 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0, 0x81] oldOut 2 v5 v6 v28 v29 v30 v31)
     (reubLiteralPost srcPtr outPtr raVal [0, 0x81] oldOut [0x81, 0x81] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0, 0x81] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
 /-- §6 at `L = 2` · the short-form `0x82` header and returns 3, in 43 steps. -/
-example : cpsTripleWithin 43 reubBase (raVal &&& ~~~1) reubCode
+theorem reub_path_headerL2 : cpsTripleWithin 43 reubBase (raVal &&& ~~~1) reubCode
     (reubAbiPre srcPtr outPtr raVal [0x01, 0x02] oldOut 2 v5 v6 v28 v29 v30 v31)
     (reubLiteralPost srcPtr outPtr raVal [0x01, 0x02] oldOut [0x82, 0x01, 0x02] 2) :=
   reub_spec_within srcPtr outPtr raVal v5 v6 v28 v29 v30 v31 [0x01, 0x02] oldOut 2
     (by decide) (by decide) holen hsalign hoalign hsover hoover hsvalid hovalid
 
 end PathCoverage
+
+/-! ### The `≤ 55` gate is a correctness boundary, not a domain convention
+
+    The registry describes the gate as *"above it the header byte is still
+    computed as specified but stops being an RLP header, so the routine is out
+    of domain rather than wrong"*.  The first half of that does not survive
+    contact with `reubOut`, which is `encodeBytes ∘ reubStrip` and therefore
+    emits **correct** RLP at every length — including the two-byte long-form
+    header above 55.  What changes at the boundary is the *shape* of the header
+    the model demands, and the routine's header path writes exactly one byte.
+
+    So above 55 the routine does not merely leave its specified domain: it could
+    not satisfy `reubOut` if it were asked to, because a one-byte store cannot
+    produce a two-byte header.  The gate carries the correctness of the header
+    path, and these four `decide`s pin where it turns over. -/
+
+/-- At the top of the gate the header is the single byte `0xb7 = 0x80 + 55`,
+    and the output is exactly one byte longer than the payload. -/
+theorem reubOut_at_55_is_short_form :
+    (reubOut (List.replicate 55 (1 : Byte))).take 1 = [(0xb7 : Byte)] ∧
+    (reubOut (List.replicate 55 (1 : Byte))).length = 56 := by
+  refine ⟨by decide, by decide⟩
+
+/-- Above the gate the header is **at least two** bytes: `0xB7 + k` followed by
+    the `k`-byte length field, with `k ≥ 1`.  Stated generically rather than at
+    one input — `decide` cannot reduce the long-form header (`Fin.Internal.ofNat`
+    blocks it), and the general fact is the one that carries the point anyway.
+
+    The routine's header path writes exactly one byte
+    (`reub_header_path_writes_one_byte` below pins the four instructions), so it
+    could not satisfy `reubOut` above 55.  The gate is not a tidiness convention
+    about which inputs are "interesting"; it is the boundary past which the
+    header path could not be correct. -/
+theorem reubOut_header_is_at_least_two_bytes_above_55 (xs : List Byte)
+    (h : 55 < (reubStrip xs).length) :
+    (reubOut xs).length ≥ (reubStrip xs).length + 2 := by
+  have hne : (reubStrip xs).length ≠ 1 := by omega
+  obtain ⟨c, tl, hcons, -⟩ :=
+    Nat.toBytesBE_eq_cons_of_pos (reubStrip xs).length (by omega)
+  have hk1 : 1 ≤ (Nat.toBytesBE (reubStrip xs).length).length := by rw [hcons]; simp
+  rw [reubOut]
+  match hm : reubStrip xs with
+  | [] => rw [hm] at h; simp at h
+  | [_] => rw [hm] at hne; simp at hne
+  | a :: b :: rest =>
+    rw [hm] at h hk1
+    simp only [encodeBytes]
+    rw [if_neg (by simpa using Nat.not_le.mpr h)]
+    simp only [List.length_cons] at hk1
+    simp only [List.length_append, List.length_cons, List.length_nil]
+    omega
+
+/-- The other side of the boundary, read off the deployed program rather than
+    off a proof: the header path is four instructions at indices 21–24, of which
+    **one** is a store, and the output pointer advances by exactly 1.
+
+    ```
+    21  LI   x28, 0x80
+    22  ADD  x28, x28, x31   -- x31 = stripped length L
+    23  SB   x12, x28, 0     -- ONE header byte, value 0x80 + L
+    24  ADDI x29, x12, 1     -- advance the output pointer by exactly 1
+    ```
+
+    So the header the routine can emit is one byte wide, always.  Paired with
+    `reubOut_header_is_at_least_two_bytes_above_55`, that is why the `≤ 55` gate
+    has to be there: both halves are machine-checked, neither is read off a
+    docstring. -/
+theorem reub_header_path_writes_one_byte :
+    rlpEncodeUintBe_prog[21]? = some (.LI .x28 (0x80 : Word)) ∧
+    rlpEncodeUintBe_prog[22]? = some (.ADD .x28 .x28 .x31) ∧
+    rlpEncodeUintBe_prog[23]? = some (.SB .x12 .x28 (0 : BitVec 12)) ∧
+    rlpEncodeUintBe_prog[24]? = some (.ADDI .x29 .x12 (1 : BitVec 12)) := by
+  refine ⟨by decide, by decide, by decide, by decide⟩
+
+/-- The gate really excludes the 56-byte input: nothing is stripped, so the
+    stripped length is 56 and `56 ≤ 55` is false.  Without this the boundary
+    theorems above would not be evidence about the *gate*. -/
+theorem gate_excludes_56 :
+    56 - reubZeros (List.replicate 56 (1 : Byte)) 0 56 = 56 ∧
+    ¬ (56 - reubZeros (List.replicate 56 (1 : Byte)) 0 56 ≤ 55) := by
+  refine ⟨by decide, by decide⟩
+
+/-- …and admits the 55-byte one, so the gate is not vacuous on this family. -/
+theorem gate_admits_55 :
+    55 - reubZeros (List.replicate 55 (1 : Byte)) 0 55 ≤ 55 := by decide
+
+/-! ### Negative controls for the four path theorems -/
+
+/-- ⛔ The `L = 1` header path writes `0x81`, not `0x80`.  The docstring on
+    §6 above says this was checked by making the example fail to elaborate;
+    that check left no trace in the build, so here it is as a proposition. -/
+theorem reub_path_headerL1_control :
+    reubOut [0, 0x81] ≠ [(0x80 : Byte), (0x81 : Byte)] := by decide
+
+/-- ⛔ The four covered paths produce four different outputs, so they are four
+    behaviours and not one behaviour reached four ways. -/
+theorem reub_paths_are_distinct :
+    reubOut [0, 0] ≠ reubOut [0, 0x2a] ∧
+    reubOut [0, 0x2a] ≠ reubOut [0, 0x81] ∧
+    reubOut [0, 0x81] ≠ reubOut [0x01, 0x02] ∧
+    reubOut [0, 0] ≠ reubOut [0x01, 0x02] := by
+  refine ⟨by decide, by decide, by decide, by decide⟩
+
 
 end RlpEncodeUintBeSAsm
 

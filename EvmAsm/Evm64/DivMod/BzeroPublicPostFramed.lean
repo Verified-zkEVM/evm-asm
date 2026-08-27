@@ -15,7 +15,7 @@ public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 public import EvmAsm.Rv64.SepLogic
 public import EvmAsm.Rv64.CPSSpec
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -21,7 +21,7 @@ meta import EvmAsm.Evm64.DivMod.Compose.CLZV6
 meta import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
 meta import EvmAsm.Evm64.DivMod.Compose.NormAV6
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

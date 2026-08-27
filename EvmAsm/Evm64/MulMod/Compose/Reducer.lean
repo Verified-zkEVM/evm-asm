@@ -5,7 +5,7 @@ public import EvmAsm.Evm64.MulMod.ReduceOuterInduction
 meta import EvmAsm.Evm64.MulMod.Compose.Base
 meta import EvmAsm.Evm64.MulMod.ReduceOuterInduction
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

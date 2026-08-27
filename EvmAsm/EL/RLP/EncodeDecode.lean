@@ -58,7 +58,7 @@ module
 
 public import EvmAsm.EL.RLP.Properties
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 

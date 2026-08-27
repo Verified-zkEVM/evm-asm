@@ -17,7 +17,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
 public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
 public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

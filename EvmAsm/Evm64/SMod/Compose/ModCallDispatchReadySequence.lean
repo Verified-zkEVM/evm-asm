@@ -10,7 +10,7 @@ module
 public import EvmAsm.Evm64.SMod.Compose.ModCallSequence
 public import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

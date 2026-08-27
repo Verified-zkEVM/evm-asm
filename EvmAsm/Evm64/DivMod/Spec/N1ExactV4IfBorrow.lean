@@ -9,7 +9,7 @@ module
 public import EvmAsm.Evm64.DivMod.Spec.N1ExactV4
 public import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

@@ -47,7 +47,7 @@ module
 
 public import EvmAsm.EL.RLP.RefDecode
 
-@[expose] public section
+public section
 
 namespace EvmAsm.EL.RLP
 namespace RefDecodeToBytesFidelity

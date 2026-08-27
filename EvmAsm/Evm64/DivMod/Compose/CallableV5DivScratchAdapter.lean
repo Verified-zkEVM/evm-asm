@@ -16,7 +16,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.CallableV5Div
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

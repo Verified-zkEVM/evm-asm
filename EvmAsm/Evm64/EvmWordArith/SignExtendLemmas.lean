@@ -2,7 +2,7 @@ module
 
 public import EvmAsm.Rv64.Instructions
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

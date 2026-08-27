@@ -16,7 +16,7 @@ module
 
 public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

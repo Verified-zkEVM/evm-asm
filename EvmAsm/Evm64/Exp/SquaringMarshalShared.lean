@@ -8,7 +8,7 @@ public import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
 public import EvmAsm.Evm64.Multiply.Callable
 public import EvmAsm.Evm64.Exp.AddrNorm
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -69,7 +69,7 @@
 
 module
 
-@[expose] public section
+public section
 namespace EvmAsm.Stateless.Headers.BlockHash
 
 /-- Asm shim for `block_hash` -- delegates to the parameterised

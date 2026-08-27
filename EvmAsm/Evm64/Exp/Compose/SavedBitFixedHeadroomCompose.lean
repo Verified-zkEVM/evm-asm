@@ -26,7 +26,7 @@ module
 public import EvmAsm.Evm64.Exp.LimbSpec
 public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

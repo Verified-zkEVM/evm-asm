@@ -31,7 +31,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
 public import EvmAsm.Evm64.DivMod.LoopSemantic
 public import EvmAsm.Evm64.DivMod.TrialPredicatesN4
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

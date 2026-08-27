@@ -11,7 +11,7 @@ public import EvmAsm.Evm64.SMod.Compose.AbsComponents
 public import EvmAsm.Evm64.SMod.Compose.Bridges
 public import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

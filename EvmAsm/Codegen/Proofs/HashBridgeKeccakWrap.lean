@@ -264,9 +264,9 @@ theorem keccakFinalCsrs_framed (cr : CodeReq) (csrsHdr : Word)
 
 /-- Digest under post-CSRS ambient (own x5 from csrsRest). Fuel 8. -/
 theorem keccakDigest_framed (cr : CodeReq) (digHdr : Word)
-    (scratchBase outputBase : Word) (st : List (BitVec 8))
+    (scratchBase outputBase : Word) (st out0 : List (BitVec 8))
     (A : Assertion) (hA : A.pcFree)
-    (hst : st.length = 200)
+    (hst : st.length = 200) (hout0 : out0.length = 32)
     (hmemLd0 : ∀ a i, CodeReq.singleton digHdr
         (.LD .x5 .x8 (BitVec.ofNat 12 (8 * 0))) a = some i → cr a = some i)
     (hmemSd0 : ∀ a i, CodeReq.singleton (digHdr + 4)
@@ -287,7 +287,7 @@ theorem keccakDigest_framed (cr : CodeReq) (digHdr : Word)
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
         (regOwn .x5) **
         bytesRegion scratchBase st **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) ** A)
+        bytesRegion outputBase out0 ** A)
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
         (regOwn .x5) **
         bytesRegion scratchBase st **
@@ -296,16 +296,16 @@ theorem keccakDigest_framed (cr : CodeReq) (digHdr : Word)
       cpsTripleWithin 8 digHdr (digHdr + 32) cr
         ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (.x5 ↦ᵣ v5) **
           bytesRegion scratchBase st **
-          bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)))
+          bytesRegion outputBase out0)
         ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
           bytesRegion scratchBase st **
           bytesRegion outputBase (keccakDigestCopy st)) :=
-    keccakDigestAll_spec cr digHdr scratchBase outputBase st hst v5
+    keccakDigestAll_spec cr digHdr scratchBase outputBase st out0 hst hout0 v5
       hmemLd0 hmemSd0 hmemLd1 hmemSd1 hmemLd2 hmemSd2 hmemLd3 hmemSd3
   have h (v5 : Word) : cpsTripleWithin 8 digHdr (digHdr + 32) cr
       ((((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase)) **
           bytesRegion scratchBase st **
-          bytesRegion outputBase (List.replicate 32 (0 : BitVec 8))) **
+          bytesRegion outputBase out0) **
         (.x5 ↦ᵣ v5))
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
         bytesRegion scratchBase st **
@@ -316,7 +316,7 @@ theorem keccakDigest_framed (cr : CodeReq) (digHdr : Word)
   have hcoreOwn : cpsTripleWithin 8 digHdr (digHdr + 32) cr
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
         bytesRegion scratchBase st **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)))
+        bytesRegion outputBase out0)
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
         bytesRegion scratchBase st **
         bytesRegion outputBase (keccakDigestCopy st)) := by
@@ -342,13 +342,13 @@ def keccakCsrsRestNoX5 : List Reg :=
 
 /-- Peel own x5 from csrsRest for digest focus. -/
 theorem postCsrs_to_digestPre (h : PartialState)
-    (scratchBase outputBase : Word) (st : List (BitVec 8)) (A : Assertion)
-    (hp : keccakPostCsrsAmb scratchBase outputBase st
-      (List.replicate 32 (0 : BitVec 8)) A h) :
+    (scratchBase outputBase : Word) (st out0 : List (BitVec 8))
+    (A : Assertion)
+    (hp : keccakPostCsrsAmb scratchBase outputBase st out0 A h) :
     ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
       (regOwn .x5) **
       bytesRegion scratchBase st **
-      bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
+      bytesRegion outputBase out0 **
       ((.x10 ↦ᵣ scratchBase) ** (.x0 ↦ᵣ (0 : Word)) **
         regOwns keccakCsrsRestNoX5 ** A)) h := by
   have hp1 : (
@@ -356,7 +356,7 @@ theorem postCsrs_to_digestPre (h : PartialState)
         regOwns keccakCsrsRest **
         bytesRegion scratchBase st **
         (.x18 ↦ᵣ outputBase) ** (.x0 ↦ᵣ (0 : Word)) **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) ** A) h := by
+        bytesRegion outputBase out0 ** A) h := by
     simpa [keccakPostCsrsAmb] using hp
   have unfolded : (
       (.x8 ↦ᵣ scratchBase) ** (.x10 ↦ᵣ scratchBase) **
@@ -366,13 +366,13 @@ theorem postCsrs_to_digestPre (h : PartialState)
           (regOwn .x15) ** (regOwn .x16) ** (regOwn .x17) ** empAssertion) **
         bytesRegion scratchBase st **
         (.x18 ↦ᵣ outputBase) ** (.x0 ↦ᵣ (0 : Word)) **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) ** A) h := by
+        bytesRegion outputBase out0 ** A) h := by
     simpa [regOwns, keccakCsrsRest, regOwn] using hp1
   have goal : (
       (.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
         (regOwn .x5) **
         bytesRegion scratchBase st **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion outputBase out0 **
         (.x10 ↦ᵣ scratchBase) ** (.x0 ↦ᵣ (0 : Word)) **
         ((regOwn .x6) ** (regOwn .x7) ** (regOwn .x28) **
           (regOwn .x29) ** (regOwn .x30) ** (regOwn .x31) **
@@ -385,9 +385,9 @@ theorem postCsrs_to_digestPre (h : PartialState)
 /-- Full pad → final CSRS → digest → LI0 (fuel 7+2+8+1 = 18).
     Starts at padHdr, ends at li0+4. Output must be zeroed 32 B on entry. -/
 theorem keccakPadCsrsDigestLi0_spec (cr : CodeReq) (padHdr : Word)
-    (scratchBase outputBase : Word) (st : List (BitVec 8)) (rem : Nat)
+    (scratchBase outputBase : Word) (st out0 : List (BitVec 8)) (rem : Nat)
     (A : Assertion) (hA : A.pcFree)
-    (hst : st.length = 200) (hrem : rem ≤ 135)
+    (hst : st.length = 200) (hout0 : out0.length = 32) (hrem : rem ≤ 135)
     (halign : scratchBase.toNat % 8 = 0)
     (h_over : scratchBase.toNat + 200 ≤ 2 ^ 64)
     (hvalidRem : isValidByteAccess (scratchBase + BitVec.ofNat 64 rem) = true)
@@ -436,8 +436,7 @@ theorem keccakPadCsrsDigestLi0_spec (cr : CodeReq) (padHdr : Word)
     (hmemLi : ∀ a i, CodeReq.singleton (padHdr + 68) (.LI .x10 (0 : Word)) a = some i →
       cr a = some i) :
     cpsTripleWithin 18 padHdr (padHdr + 72) cr
-      (keccakPadPre scratchBase outputBase rem st
-        (List.replicate 32 (0 : BitVec 8)) A)
+      (keccakPadPre scratchBase outputBase rem st out0 A)
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
         (regOwn .x5) ** (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion scratchBase
@@ -448,8 +447,6 @@ theorem keccakPadCsrsDigestLi0_spec (cr : CodeReq) (padHdr : Word)
             (setBytes (keccakGuestPad st rem) 0
               (keccakBytes (keccakGuestPad st rem) 0))) **
         ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 ** A)) := by
-  let out0 := List.replicate 32 (0 : BitVec 8)
-  have hout0 : out0.length = 32 := by simp only [out0, List.length_replicate]
   -- 1. pad
   have cPad := keccakPad_framed cr padHdr scratchBase outputBase st out0 rem A hA
     hst hout0 hrem halign h_over hvalidRem hvalid135
@@ -485,16 +482,18 @@ theorem keccakPadCsrsDigestLi0_spec (cr : CodeReq) (padHdr : Word)
           regOwns keccakCsrsRestNoX5 ** A)) := by
     have hpc36_32 : (padHdr + 36 : Word) + 32 = padHdr + 68 := by
       rw [BitVec.add_assoc, show ((36 : Word) + 32) = (68 : Word) from by decide]
-    have hdig := keccakDigest_framed cr (padHdr + 36) scratchBase outputBase stFinal
+    have hdig := keccakDigest_framed cr (padHdr + 36) scratchBase outputBase
+      stFinal out0
       ((.x10 ↦ᵣ scratchBase) ** (.x0 ↦ᵣ (0 : Word)) **
         regOwns keccakCsrsRestNoX5 ** A)
       (pcFree_sepConj (by pcf) <|
         pcFree_sepConj (by pcf) <|
         pcFree_sepConj (pcFree_regOwns _) hA)
-      hstFinal hmemLd0 hmemSd0 hmemLd1 hmemSd1 hmemLd2 hmemSd2 hmemLd3 hmemSd3
+      hstFinal hout0 hmemLd0 hmemSd0 hmemLd1 hmemSd1 hmemLd2 hmemSd2 hmemLd3 hmemSd3
     rw [hpc36_32] at hdig
     refine cpsTripleWithin_weaken
-      (fun h hp => postCsrs_to_digestPre h scratchBase outputBase stFinal A hp)
+      (fun h hp =>
+        postCsrs_to_digestPre h scratchBase outputBase stFinal out0 A hp)
       (fun _ hq => by xperm_hyp hq) hdig
   have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) c01 cDig
   -- 4. LI a0,0
@@ -531,7 +530,7 @@ theorem keccakPadCsrsDigestLi0_spec (cr : CodeReq) (padHdr : Word)
       (fun _ hq => by xperm_hyp hq) hliF
   have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) c012 cLi0
   -- fold stPad/stFinal names into post
-  refine cpsTripleWithin_weaken (fun _ hp => by simpa [out0] using hp)
-    (fun _ hq => by simpa [out0, stPad, stFinal] using hq) cAll
+  refine cpsTripleWithin_weaken (fun _ hp => hp)
+    (fun _ hq => by simpa [stPad, stFinal] using hq) cAll
 
 end EvmAsm.Codegen.Proofs

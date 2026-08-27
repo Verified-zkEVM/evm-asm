@@ -25,7 +25,7 @@ public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
 public import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
 public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

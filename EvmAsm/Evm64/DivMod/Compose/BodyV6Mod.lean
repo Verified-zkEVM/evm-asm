@@ -22,7 +22,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FastDenormEpilogueV6Mod
 public import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
 public import EvmAsm.Evm64.DivMod.Compose.BodyV6
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

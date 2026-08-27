@@ -18,7 +18,7 @@ public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
 public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeq
 public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

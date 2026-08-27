@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5CallCarryOfCallShape
 public import EvmAsm.Evm64.DivMod.Spec.N3V5MaxCarryOfMaxShape
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopLoopDefsBorrowCarry
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

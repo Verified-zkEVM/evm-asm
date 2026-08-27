@@ -140,5 +140,5 @@ meta import EvmAsm.Evm64.MulMod.Compose.StackSpecAll
 meta import EvmAsm.Evm64.MulMod.Spec
 public meta import Lean.Meta.Tactic.Simp.Attr
 
-@[expose] public section
+public section
 

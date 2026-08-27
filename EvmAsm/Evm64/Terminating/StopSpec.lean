@@ -37,7 +37,7 @@ public import EvmAsm.Evm64.CallingConvention
 public import EvmAsm.Rv64.Tactics.XPermPure
 public import EvmAsm.Evm64.Terminating.StopProgram
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Terminating
 

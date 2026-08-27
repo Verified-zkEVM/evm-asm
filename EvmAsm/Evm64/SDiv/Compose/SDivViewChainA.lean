@@ -14,7 +14,7 @@ public import EvmAsm.Evm64.SDiv.Args
 public import EvmAsm.Evm64.SDiv.StackExecutionBridge
 public import EvmAsm.Evm64.SDiv.HandlerBridge
 
-@[expose] public section
+public section
 
 /-
   EvmAsm.Evm64.SDiv.Compose.BzeroStackTailViews

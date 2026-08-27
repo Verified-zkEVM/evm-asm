@@ -18,7 +18,7 @@ module
 public import EvmAsm.Evm64.MulMod.Compose.Reducer
 public import EvmAsm.Rv64.Tactics.XSimp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

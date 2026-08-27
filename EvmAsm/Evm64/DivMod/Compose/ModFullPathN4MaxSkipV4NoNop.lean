@@ -4,7 +4,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
 public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
 public import EvmAsm.Evm64.DivMod.Compose.ModPreloopN4V4NoNop
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

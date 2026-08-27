@@ -25,12 +25,16 @@
 
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpWalkDeterminism
+import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
+import EvmAsm.Stateless.SpecRef.Stateless
 import EvmAsm.Codegen.AsmReloc
 import EvmAsm.Rv64.LaResolve
 
 namespace EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.RLP EvmAsm.Rv64.SAsm
+open EvmAsm.EL.RLP
 open EvmAsm.Codegen.RlpListNthItemSAsm
 
 /-! ## Base addresses and linked code -/
@@ -861,6 +865,47 @@ theorem header_validate_extra_data_length_spec_within
   have hrest := hvedRest sp0 spH newSp raIn listBase oldOffset oldLen saved bytes
     listLen hspH hret hraSaved
   exact cpsTripleWithin_seq_same_cr hcall hrest
+
+
+open EvmAsm.Stateless.SpecRef in
+/-- **`header_validate_extra_data_length` against `validate_header`'s
+    `extra_data` clause.**
+
+    The second conjunct is the tie proper: the guest's `a0 = 0`-vs-`a0 = 1` guard
+    (`¬ (32 <ᵤ len)`) holds exactly when the reference's
+    `header.extraData.length > 32` throw does *not* fire.  The first conjunct is
+    what makes that meaningful — it pins the guest's reported `len` to the decoded
+    field's length, so the two comparisons are about the same quantity. -/
+theorem header_extra_data_length_of_decode
+    (headerBytes : List (BitVec 8)) (base : Word) (hdr : Header) (fo len : Word)
+    (hdec : _decode_header headerBytes = .ok hdr)
+    (hsucc : Success headerBytes base headerBytes.length 12 fo len)
+    (hover : base.toNat + headerBytes.length < 2 ^ 64) :
+    len = BitVec.ofNat 64 hdr.extraData.length ∧
+      (¬ BitVec.ult (32 : Word) len ↔ hdr.extraData.length ≤ 32) := by
+  obtain ⟨items, bs, hfull, hlenEq, harity, hidx, hval, -, -⟩ := decode_header_inv hdec
+  have hextra : hdr.extraData = bs.getD 12 [] := by rw [hval]; rfl
+  -- field 12 exists in BOTH arms (23 and 21), which is why this row represents
+  -- the pair with `chain_validate_extra_data_length`
+  have h12 : 12 < items.length := by rcases harity with h | h <;> omega
+  have hbytes : ∀ it ∈ items, ∃ q, it = RLPItem.bytes q := by
+    intro it hit
+    obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hit
+    exact ⟨bs.getD i [], by
+      have := hidx i hi
+      rw [List.getElem?_eq_getElem hi, hget] at this
+      exact Option.some.inj this⟩
+  obtain ⟨offset, hsucc', hcont, hle⟩ :=
+    success_content_of_decodeFully_list headerBytes base items 12 (bs.getD 12 [])
+      hfull hbytes (hidx 12 h12) hover
+  obtain ⟨rfl, rfl⟩ := success_deterministic hsucc' hsucc
+  -- the field cannot be wider than the buffer, so no wraparound in the compare
+  have hlt : (bs.getD 12 []).length < 2 ^ 64 := by omega
+  refine ⟨by rw [hextra], ?_⟩
+  rw [hextra]
+  have h32 : (32 : Word).toNat = 32 := by decide
+  simp only [BitVec.ult_iff_toNat_lt, h32, BitVec.toNat_ofNat,
+    Nat.mod_eq_of_lt hlt, Nat.not_lt]
 
 
 end EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec

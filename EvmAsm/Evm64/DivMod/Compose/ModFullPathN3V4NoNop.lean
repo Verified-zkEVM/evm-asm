@@ -12,7 +12,7 @@ public import EvmAsm.Evm64.DivMod.LoopIterN3MaxV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
 public import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

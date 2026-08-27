@@ -7,7 +7,7 @@ public import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

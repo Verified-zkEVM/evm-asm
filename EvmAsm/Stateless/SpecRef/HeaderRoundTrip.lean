@@ -57,7 +57,7 @@ meta import Batteries.Tactic.OpenPrivate
 -- that reaches them.
 import all EvmAsm.Stateless.SpecRef.BlocksRlp
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

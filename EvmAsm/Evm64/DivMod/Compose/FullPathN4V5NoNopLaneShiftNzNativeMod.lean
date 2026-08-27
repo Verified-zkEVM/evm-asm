@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneAddbackShared
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipOfCondsNativeMod
 public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackMod
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

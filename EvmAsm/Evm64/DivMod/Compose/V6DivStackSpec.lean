@@ -19,7 +19,7 @@ public import EvmAsm.Evm64.DivMod.V5StackSurfaceShared
 public import EvmAsm.Evm64.DivMod.Compose.DispatchV6
 public import EvmAsm.Rv64.Tactics.ExtractPure
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

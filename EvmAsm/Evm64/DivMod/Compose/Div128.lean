@@ -6,7 +6,7 @@ public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2
 public import EvmAsm.Evm64.DivMod.LimbSpec.Div128UnProdCheck
 
-@[expose] public section
+public section
 
 /-!
 # DivMod Compose: div128 subroutine composition

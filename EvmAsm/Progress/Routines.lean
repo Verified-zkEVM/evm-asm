@@ -206,9 +206,15 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.DivisorAndPadGateCover
+import EvmAsm.Codegen.Programs.AccountWalkGateCover
+import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
+import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
+import EvmAsm.Codegen.Programs.AccountNonceGateCover
 import EvmAsm.Codegen.Programs.RlpItemSpanBody
 import EvmAsm.Codegen.Programs.RlpItemSpanLong
 import EvmAsm.Codegen.Programs.RlpItemSpanMachine
+import EvmAsm.Codegen.Programs.RlpItemSpanNoCanonicalityCheck
 -- #10780 item 3: the 2-length-byte long form, in a sibling module because
 -- RlpSpliceHelperSpec is at the 1500-line cap.
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong2Spec
@@ -216,6 +222,7 @@ import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeSAsm
 import EvmAsm.Codegen.Programs.RlpBytesEncodedSizeBridge
 import EvmAsm.Codegen.Programs.HeaderExtractNumberSpec
 import EvmAsm.Codegen.Programs.HeaderFieldsSpec
+import EvmAsm.Codegen.Programs.HeaderFieldsHboundCover
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.HeaderReceiptsRootSpec
 import EvmAsm.Codegen.Programs.HeaderWithdrawalsRootSpec
@@ -230,11 +237,16 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
-import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
+-- #12574: the completed `validate_parent_hash_link` proof family.  These are
+-- axiom-gate witnesses for the top contract and its load-bearing composition
+-- lemmas; the Tier-A `RoutineEntry` row is recorded below.
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 -- #12799: the three full-premise cover witnesses for the hvph dispatcher were
 -- outside the axiom gate entirely — no witness abbrev, and this module did not
 -- import theirs. A `.proven` row whose satisfiability evidence no gate forces
@@ -242,6 +254,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 -- and abbrev'd below.
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
@@ -345,7 +358,7 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
+import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
 -- #12018: whole-routine `zkvm_sha256_spec_within` (flat CodeReq.ofProg at the
 -- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Top
@@ -413,14 +426,26 @@ def routineRegistry : List RoutineEntry := [
   -- `rlp_encode_uint_be` — the routine whose uncovered triple surfaced #11042.
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_within")
       (gate := "stripped payload `n - reubZeros xs 0 n ≤ 55` — the RLP "
-        ++ "short-form bound. Above it the header byte is still computed as "
-        ++ "specified but stops being an RLP header, so the routine is out of "
-        ++ "domain rather than wrong")
+        ++ "short-form bound, and a CORRECTNESS boundary rather than a domain "
+        ++ "convention. `reubOut` is `encodeBytes ∘ reubStrip`, so it is correct "
+        ++ "RLP at every length and demands a TWO-byte header above 55 "
+        ++ "(`reubOut_header_is_at_least_two_bytes_above_55`), while the "
+        ++ "routine's header path writes exactly one byte "
+        ++ "(`reub_header_path_writes_one_byte`, indices 21–24 of the deployed "
+        ++ "program). Above the gate the routine could not satisfy its own spec. "
+        ++ "boundary: `reubOut_at_55_is_short_form`; gate is a real restriction: "
+        ++ "`gate_excludes_56` with `gate_admits_55`")
       (notes := "whole-routine triple over the routine's own `reubOut` model; "
-        ++ "all three paths (all-zero, raw single byte, header) proved and each "
-        ++ "shown to fire on its own inputs"),
+        ++ "all three paths proved and each shown to fire on its own inputs — "
+        ++ "instances `reub_path_allZero`, `reub_path_rawByte`, "
+        ++ "`reub_path_headerL1`, `reub_path_headerL2`, distinct by "
+        ++ "`reub_paths_are_distinct`, with negative control "
+        ++ "`reub_path_headerL1_control`. #12867: these were anonymous `example`s "
+        ++ "until named, so no gate could see them"),
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_encode_within")
-      (gate := "same `≤ 55` short-form bound as `reub_spec_within`")
+      (gate := "same `≤ 55` short-form bound as `reub_spec_within` — see that "
+        ++ "row for why it is a correctness boundary; same instances and "
+        ++ "controls apply (`reub_path_headerL2`, `gate_excludes_56`)")
       (notes := "the same triple restated against the reference encoding "
         ++ "`encodeBytes (Nat.toBytesBE (Nat.fromBytesBE xs))`, so the claim is "
         ++ "against RLP rather than against the module's own model. The "
@@ -428,8 +453,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "port/Python divergence would not be visible here"),
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_within_of_length_le")
       (gate := "`n ≤ 55` — strictly stronger than the tight bound, and the "
-        ++ "form a caller can discharge without reasoning about `reubZeros`")
-      (notes := "ABI-shaped corollary; every production caller passes 8 or 32"),
+        ++ "form a caller can discharge without reasoning about `reubZeros`. "
+        ++ "Instances/controls as for `reub_spec_within` (`gate_admits_55`, "
+        ++ "`gate_excludes_56`)")
+      (notes := "ABI-shaped corollary. ⚠️ the earlier note said 'every "
+        ++ "production caller passes 8 or 32' — an unverified universal over "
+        ++ "call sites, not a fact this row establishes; dropped rather than "
+        ++ "restated, since nothing here checks it"),
 
   -- `rlp_encode_bytes` — #10780 item 2. Total function: no input-domain
   -- restriction, so `.proven` where `reub` is `.conditional` — both sides of
@@ -450,7 +480,15 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_item_size" .conditional (some "rlp_item_size_spec_within")
       (gate := "`SpanForm (bs.getD 0 0)` — single byte, short string and short "
         ++ "list forms. The `lenlen ≥ 2` long forms are the documented cut "
-        ++ "(#10780 item 3)")
+        ++ "(#10780 item 3). #12867: this gate and its two sibling rows' gates "
+        ++ "PARTITION the head byte (`head_byte_forms_partition`, "
+        ++ "`head_byte_forms_disjoint`) — the three rows are a complete case "
+        ++ "split, so `.conditional` records which arm proves which case, not a "
+        ++ "hole in the input space. instances, one per admitted form: "
+        ++ "`spanForm_admits_singleByte`, `spanForm_admits_shortString`, "
+        ++ "`spanForm_admits_shortList` (each pinning the span the guest "
+        ++ "computes); negative controls `spanForm_excludes_longString` and "
+        ++ "`spanForm_excludes_longList`; edges `spanForm_boundaries`")
       (notes := "stated at `rlpItemSizeBase = GuestAddrs.rlp_item_size`, the "
         ++ "form the `rlp_item_span` / `mpt_splice_slot` compositions consume"),
   -- #10780 item 3: the two arms `SpanForm` excludes, proved per-form rather than by
@@ -530,7 +568,7 @@ def routineRegistry : List RoutineEntry := [
       (notes := "stated at the long arm's bound `42 + 19*i`, which dominates "
         ++ "the short arm's; `cpsTripleWithin` is an upper bound on steps, "
         ++ "so the short branch weakens into it via "
-        ++ "`cpsTripleWithin_mono_nSteps`"),
+        ++ "`cpsTripleWithin_mono_nSteps`" ++ "⭐ The two canonicality checks, SPLIT — one is performed and one is not, decided over the program (#10780 item 1). `rlp.py:436` (leading-zero length byte) IS performed: `leadingZeroCheck_is_performed` pins indices 25-27, `ADDI x7,x8,1 ; LBU x7,0(x7) ; BEQ x7,x0,→fail`, on the long-list arm. `rlp.py:441` (`len < 0x38`) is NOT: `spanNeverComparesAgainst0x38` shows 56 appears as no immediate. Controls `offsetPredicate_control` and `shortFormThreshold_control`; `span_length` and `subwordLoad_sites` pin the census at 57 instructions and TWO sub-word loads. ⚠️ An earlier version of this note claimed BOTH checks were unexpressible; that was wrong, from a regex census of the source that missed the second load. The remaining `:441` gap closes under #12843 architecture A, where the eager decoder checks it at entry"),
 
   -- The RLP walk chain / account accessors.
   routine "rlp_walk_init" .proven (some "account_rlp_walk_init_spec_within")
@@ -542,7 +580,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "correspondence registry, not from here. Two theorems share the "
         ++ "unqualified name; do not read either as the other"),
   routine "rlp_walk_init" .conditional (some "rlp_walk_init_long1_spec_within")
-      (gate := "`56 ≤ payload.length` — the long-form-1 arm specifically")
+      (gate := "`56 ≤ payload.length` — the long-form-1 arm. ⚠️ #12867: that is "
+        ++ "only the LOWER half. `lenB : BitVec 8` with `hlenB : lenB.toNat = "
+        ++ "payload.length` caps the payload at 255 with no further assumption "
+        ++ "(`walkInitLong1_upper_bound_is_implicit`), so the effective gate is "
+        ++ "the BAND `56 ≤ len ≤ 255` (`walkInitLong1_band`) — correct for "
+        ++ "one length byte, but arriving from the type of a different "
+        ++ "hypothesis than the stated one. Both ends inhabited "
+        ++ "(`walkInitLong1_band_ends_inhabited`); controls "
+        ++ "`walkInitLong1_excludes_55` and `walkInitLong1_excludes_256` (no "
+        ++ "`BitVec 8` witnesses 256, so the upper exclusion is structural)")
       (notes := "per-form companion to the account triple above"),
   -- #12799 ownership-table row 8: the OWN-ANCHORED contract. The two rows above
   -- are both unusable by a caller at `GuestAddrs.rlp_walk_init` — one is
@@ -574,7 +621,12 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field1_spec_within")
       (notes := "field 1 (balance) of an `encodeAccount` list"),
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
-      (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
+      (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form, a "
+        ++ "condition on the ENCODING. #12867: `scalarGate_iff` gives the "
+        ++ "equivalent condition on the VALUE, which is what a caller holds — "
+        ++ "`(Nat.toBytesBE n).length ≤ 55 ↔ n < 256 ^ 55`. instance "
+        ++ "`scalarGate_admits_ordinary`; boundary both sides "
+        ++ "`scalarGate_boundary` (`256 ^ 55` is the least excluded value)")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
   -- #12799 ownership-table row 3: a contract for the THUNK at
   -- `GuestAddrs.rlp_walk_next` itself. ⚠️ The three rows above cite theorems
@@ -723,8 +775,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "cursor=end terminal case") ,
   routine "rlp_content_to_u64" .conditional
       (some "account_rlp_content_to_u64_nonce_spec_within")
-      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
-        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width. ⚠️ #12867 "
+        ++ "CORRECTION: this row used to say the gate is narrower than "
+        ++ "`Account.nonce`'s own `< 2 ^ 256` invariant. `Account.nonce` has NO "
+        ++ "invariant — it is a bare `Nat` "
+        ++ "(`account_nonce_is_an_unbounded_nat`); the `2 ^ 256` is a "
+        ++ "HYPOTHESIS (`hnonce`) carried by the `encodeAccount` length lemmas "
+        ++ "and the sibling balance accessor. Three regimes, exhaustive by "
+        ++ "`nonce_regimes_exhaustive`: below 2^64 both hold; "
+        ++ "`nonce_gate_middle_band_is_inhabited` exhibits a type-legal nonce "
+        ++ "that satisfies those lemmas' `hnonce` and is EXCLUDED here; above "
+        ++ "2^256 nothing in the family claims anything. instance "
+        ++ "`nonce_gate_admits_ordinary`, edges `nonce_gate_boundary`")
       (notes := "step bound `7 * (Nat.toBytesBE a.nonce).length + 11`"),
   routine "rlp_content_to_u256_be" .proven
       (some "account_rlp_content_to_u256_be_balance_spec_within")
@@ -800,8 +862,18 @@ def routineRegistry : List RoutineEntry := [
   -- whose nonce fits a u64 cell.
   routine "account_extract_nonce" .conditional
       (some "account_extract_nonce_spec_within")
-      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width, narrower "
-        ++ "than `Account.nonce`'s own `< 2 ^ 256` invariant")
+      (gate := "`a.nonce < 2 ^ 64` — the accessor's u64 output width. ⚠️ #12867 "
+        ++ "CORRECTION: this row used to say the gate is narrower than "
+        ++ "`Account.nonce`'s own `< 2 ^ 256` invariant. `Account.nonce` has NO "
+        ++ "invariant — it is a bare `Nat` "
+        ++ "(`account_nonce_is_an_unbounded_nat`); the `2 ^ 256` is a "
+        ++ "HYPOTHESIS (`hnonce`) carried by the `encodeAccount` length lemmas "
+        ++ "and the sibling balance accessor. Three regimes, exhaustive by "
+        ++ "`nonce_regimes_exhaustive`: below 2^64 both hold; "
+        ++ "`nonce_gate_middle_band_is_inhabited` exhibits a type-legal nonce "
+        ++ "that satisfies those lemmas' `hnonce` and is EXCLUDED here; above "
+        ++ "2^256 nothing in the family claims anything. instance "
+        ++ "`nonce_gate_admits_ordinary`, edges `nonce_gate_boundary`")
       (notes := "grade inherited from its callee `rlp_content_to_u64`, which is "
         ++ "`.conditional` at Routines.lean:204 with this exact gate; every "
         ++ "dead code path carries a total post; step bound 139"),
@@ -865,6 +937,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
         ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
         ++ "`header_validate_parent_hash` conjunct 11"),
+  routine "validate_parent_hash_link" .proven
+      (some "validate_parent_hash_link_spec_within")
+      (notes := "Tier-A flat whole-routine triple (`cpsTripleWithin`) at "
+        ++ "`GuestAddrs.validate_parent_hash_link`, over the linked routine plus "
+        ++ "`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256` and "
+        ++ "the byte-copy helper. The three-way post covers decoder/field failure "
+        ++ "(status 1), a non-32-byte field (status 2), and the 32-byte hash "
+        ++ "comparison result (status 0), with static bounds and caller-owned "
+        ++ "regions only in the pre. The proof is direct `cpsTripleWithin` at the "
+        ++ "linked entry, not a structured-only SAsm spec, so it is registrable "
+        ++ "without a `Fn.retSpecFlat` lift; its axiom witness is "
+        ++ "`_vphl_whole_routine_witness` (#12574)."),
   -- #12461 arm 11: unified whole-routine triple over the hvph caller itself.
   -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
   -- mismatch0 only); a unified claim over those arms alone would have been
@@ -926,31 +1010,64 @@ def routineRegistry : List RoutineEntry := [
   -- "needs Fn.retSpecFlat", which is FALSE — no `Fn`/`retSpecFlat` appears in
   -- these files. The missing piece was CodeReq specialization (`*_spec_within`
   -- over wrapper ∪ walk_init ∪ walk_next). Residual INPUT-DOMAIN gate is
-  -- `hbound` (every walked `rlpItemDecode` has 32 bytes of content room).
+  -- `hbound`, the same proposition in all three statements.
+  --
+  -- ⚠️ #12867: these rows previously described `hbound` as "every walked
+  -- `rlpItemDecode` has 32 bytes of content room", with coverRef "any
+  -- well-formed header whose field-3 payload is a 32-byte string". BOTH halves
+  -- were wrong, and `HeaderFieldsHboundCover.lean` now says so with theorems:
+  --   * `hbound` quantifies `o` over EVERY offset `o ≤ listLenN`, not over the
+  --     offsets the walk visits — `rlpItemDecode` classifies whatever byte is
+  --     at `o`, so mid-item offsets decode too;
+  --   * consequently it is a condition on the CALLER'S BUFFER, not on the
+  --     header. `hbound_forces_trailing_slack` derives `listLenN + 31 ≤
+  --     |headerBytes|` from the single-byte arm at `o = listLenN - 1`, where
+  --     the spec's own `h_slack` supplies only `listLenN + 9`;
+  --   * `next - len` is the item start on the LIST arms (there `len` is the
+  --     full span), not the content start — `next_sub_len_classified`.
   routine "header_extract_state_root" .conditional
       (some "header_extract_state_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are "
-        ++ "not domain gates. coverRef: any well-formed header whose field-3 "
-        ++ "payload is a 32-byte string")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_state_root_fnspec` "
         ++ "(field 3 = walk_init + 4×walk_next + 32-byte LBU/SB copy). Allowlist "
         ++ "tier-B / retSpecFlat note drained — it named a combinator that does "
         ++ "not appear in HeaderFieldsSpec (#12313 / #11637 mislabel)"),
   routine "header_extract_receipts_root" .conditional
       (some "header_extract_receipts_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_receipts_root_fnspec` "
         ++ "(field 5 = walk_init + 6×walk_next). Same CodeReq specialization as "
         ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
   routine "header_extract_withdrawals_root" .conditional
       (some "header_extract_withdrawals_root_spec_within")
-      (gate := "`hbound`: ∀ walked `rlpItemDecode` of the header list, the decoded "
-        ++ "content has room for 32 bytes (`(next-len-listBase).toNat + 32 ≤ "
-        ++ "|headerBytes|`). Same gate shape as `header_extract_state_root`")
+      (gate := "`hbound`: ∀ o ≤ listLenN — EVERY offset, not just walked ones — any "
+        ++ "`rlpItemDecode` there satisfies `(next-len-listBase).toNat + 32 ≤ "
+        ++ "|headerBytes|`. A buffer condition, not a header-shape one: "
+        ++ "`hbound_forces_trailing_slack` shows it implies `listLenN + 31 ≤ "
+        ++ "|headerBytes|` whenever the list's last byte is < 0x80, which "
+        ++ "`h_slack` (nine bytes) does not give. instance: `hbound_instance`; "
+        ++ "instance is non-vacuous: `hbound_instance_has_a_decode`; "
+        ++ "negative control: `hbound_fails_under_slack_only` (all other domain "
+        ++ "hyps hold, `hbound` false); vacuity control: `hbound_vacuous_control`. "
+        ++ "ABI hyps (`align`, `slack`, `valid`, `dst≥32`) are not domain gates")
       (notes := "flat guest-image specialization of `header_extract_withdrawals_root_fnspec` "
         ++ "(field 16 = walk_init + 17×walk_next). Same CodeReq specialization as "
         ++ "state_root; allowlist retSpecFlat note drained (#12313)"),
@@ -1286,7 +1403,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_short_pinned_spec_within")
       (gate := "`len.toNat < 56` — the RLP short-form list-prefix bound. The "
         ++ "`lenlen ≥ 2` long forms are the documented cut (#10780 item 3), the "
-        ++ "same boundary as `rlp_item_size`")
+        ++ "same boundary as `rlp_item_size`"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"short\") pinned triple; writes header byte "
         ++ "`0xC0 + len` and sets the cell flag to 1"),
   -- #10780: the 1-length-byte long form was proven in `RlpSpliceHelperSpec.lean`
@@ -1299,7 +1417,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long1_pinned_spec_within")
       (gate := "`56 ≤ len.toNat < 256` — the 1-length-byte long form. Together "
         ++ "with the short row this covers `len < 256`; `lenlen ≥ 2` (the "
-        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3")
+        ++ "`SLLI`-widened arms) remains the cut, #10780 item 3"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long1\") pinned triple; writes header bytes "
         ++ "`[0xF8, len]` and sets the cell flag to 2. Length-of-length is one "
         ++ "byte and minimal by construction here, so no leading-zero side "
@@ -1310,7 +1429,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long2_pinned_spec_within")
       (gate := "`256 ≤ len.toNat < 65536` — the 2-length-byte long form. With the "
         ++ "short and long1 rows this covers `len < 65536`; `lenlen ≥ 3` remains "
-        ++ "the cut")
+        ++ "the cut"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long2\") pinned triple; writes `[0xF9, len >>> 8, len]` "
         ++ "and sets the cell flag to 3. The length-byte loop runs TWICE here, so "
         ++ "the step bound is 32 rather than long1's 22. ⭐ Canonical form is "
@@ -1326,7 +1446,8 @@ def routineRegistry : List RoutineEntry := [
       (some "rlp_encode_list_prefix_long3_pinned_spec_within")
       (gate := "`65536 ≤ len.toNat < 16777216` — the 3-length-byte long form. With "
         ++ "the short, long1 and long2 rows this covers `len < 16777216`; the cut "
-        ++ "moves to `lenlen ≥ 4`")
+        ++ "moves to `lenlen ≥ 4`"
+        ++ "#12867: the nine arms TILE every `len : Word` (`listPrefixArms_tile`, `listPrefixArms_disjoint`), each arm is inhabited (`listPrefixArms_each_arm_reachable`, with `listPrefixArms_top_reachable_as_word` for the top arm), and the boundaries are load-bearing rather than incidentally adequate (`listPrefixArms_boundary_control`)")
       (notes := "per-form (\"long3\") pinned triple; writes "
         ++ "`[0xFA, len >>> 16, len >>> 8, len]` and sets the cell flag to 4. Step "
         ++ "bound 42 = 11 ladder + 5 header + 22 loop (`7*3+1`) + 3 epilogue + 1 "
@@ -1631,8 +1752,14 @@ def routineRegistry : List RoutineEntry := [
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
-      (gate := "nonzero divisor `0 < b < 2^64`; the remaining hypotheses "
-        ++ "are ABI/resource facts")
+      (gate := "nonzero divisor. ⚠️ #12867: the stated `0 < b < 2^64` overstates "
+        ++ "it — `u256DivU64BeInPlaceFlat_spec` carries only `hbPos : 0 < "
+        ++ "b.toNat`, and the upper half holds of EVERY `Word` "
+        ++ "(`divisorGate_upper_bound_is_free`), so the gate is exactly `b ≠ 0` "
+        ++ "(`divisorGate_iff`). instance `divisorGate_admits_eight` (the "
+        ++ "literal K73's +120/+168 calls supply); "
+        ++ "`divisorGate_excludes_only_zero` shows exactly one value is cut. "
+        ++ "The remaining hypotheses are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
         ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
         ++ "big-endian source into the 32-byte quotient window and returns "
@@ -3410,7 +3537,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "not decorative: the reference decodes all 64 bytes, so a nonzero pad "
         ++ "byte makes the value ≥ 2^384 > p and the reference rejects, while the "
         ++ "guest scan never reads those bytes and would not. The two sides agree "
-        ++ "exactly ON the well-formed felts")
+        ++ "exactly ON the well-formed felts. #12867: that divergence is now a "
+        ++ "theorem, not prose — `padGate_is_load_bearing` exhibits `wGood`/"
+        ++ "`wBad` sharing the SAME 48-byte suffix (all the guest reads, per the "
+        ++ "precondition's `bytesRegion inPtr (w.drop 16)`) where "
+        ++ "`bytes_to_fq` accepts one and rejects the other; "
+        ++ "`padGate_separates_the_pair` confirms the pair straddles `hpad` and "
+        ++ "differs nowhere else. Dropping `hpad` would not weaken this row, it "
+        ++ "would falsify it")
       (notes := "model-facing restatement: `a0` IS the accept/reject indicator of "
         ++ "`SpecRef.Bls12.bytes_to_fq` on the wire felt. ⚠️ PREDICATE agreement "
         ++ "only — `lt_p` returns a boolean, never the field element, so value "
@@ -3459,7 +3593,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
-        ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
+        ++ "keccakBodyDigest_eq_specref (#12037). Output buffer contents on "
+        ++ "entry are ARBITRARY (`out0`, any 32 bytes — #12896): every byte "
+        ++ "is overwritten, so repeated calls are covered. "
+        ++ "Resource/ABI only → .proven"),
   -- #12018: whole-routine SHA-256 leaf at GuestAddrs.zkvm_sha256.
   -- `sha256Cr = CodeReq.ofProg B sha256ProgL` (single-program pairing at the
   -- guest address — tier A). N/rem is the length partition
@@ -3558,10 +3695,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "address-derivation formula against the reference, NOT the guest "
         ++ "sponge. ⚠️ GRADES THE FORMULA ONLY -- whether a0 holds the right "
         ++ "public key is the secp256k1 recover rung, a separate obligation. "
-        ++ "⚠️ DOMAIN: the keccak contract fixes its output buffer to 32 zero "
-        ++ "bytes and this routine never zeroes `afp_digest`; the data section "
-        ++ "declares `afp_digest: .zero 32`, so the FIRST call satisfies it and "
-        ++ "a second would not"),
+        ++ "The `afp_digest` scratch on entry is ARBITRARY (`digest0`, any 32 "
+        ++ "bytes — the #12896 fix): the keccak callee overwrites all of it, "
+        ++ "so calls 2..N are covered, not only the first after image load"),
   -- #12313. The first startable whole-routine result for the witness-header
   -- block-hash path. The empty section is an input-domain gate: it takes the
   -- early miss branch, so the nonempty scan and both already-proven callees
@@ -4066,10 +4202,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 205 := by decide
+theorem routineCount_eq : routineCount = 206 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 159 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
 set_option maxRecDepth 16000 in
@@ -4089,7 +4225,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 167 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 168 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4147,6 +4283,25 @@ example :
     Convention: name the abbrev `_<lower>_routine_witness`; mark it
     `private noncomputable` to avoid polluting the namespace. -/
 
+-- #10780 item 1, CORRECTED: the two canonicality checks split. `rlp.py:436`
+-- (leading-zero length byte) IS performed at indices 25-27; `rlp.py:441`
+-- (`len < 0x38`) is not. An earlier version claimed both were unexpressible,
+-- from a regex census of the source that reported 53 instructions and one
+-- sub-word load when the program has 57 and two.
+private noncomputable abbrev _span_leading_zero_check_performed_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.leadingZeroCheck_is_performed
+private noncomputable abbrev _span_length_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.span_length
+private noncomputable abbrev _span_subword_load_sites_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoad_sites
+private noncomputable abbrev _span_subword_offsets_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.subwordLoads_have_zero_offset
+private noncomputable abbrev _span_no_0x38_compare_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.spanNeverComparesAgainst0x38
+private noncomputable abbrev _span_leading_zero_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.offsetPredicate_control
+private noncomputable abbrev _span_threshold_control_witness :=
+  @EvmAsm.Codegen.RlpItemSpanNoCanonicalityCheck.shortFormThreshold_control
 private noncomputable abbrev _reub_routine_witness :=
   @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_spec_within
 private noncomputable abbrev _reub_encode_routine_witness :=
@@ -4186,6 +4341,128 @@ private noncomputable abbrev _rlp_item_size_long_string_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longStringSample_reachable
 private noncomputable abbrev _rlp_item_size_long_list_cover_witness :=
   @EvmAsm.Codegen.RlpItemSizeLongSpec.longListSample_reachable
+-- #12867 / #12313: the `hbound` gate on the three `header_extract_*_root` rows.
+-- Instance, negative control, vacuity control and the two structural facts that
+-- correct the gate's own description of itself.
+private noncomputable abbrev _header_hbound_instance_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance
+private noncomputable abbrev _header_hbound_control_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_fails_under_slack_only
+private noncomputable abbrev _header_hbound_has_decode_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_instance_has_a_decode
+private noncomputable abbrev _header_hbound_vacuous_control_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_vacuous_control
+private noncomputable abbrev _header_hbound_slack_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.hbound_forces_trailing_slack
+private noncomputable abbrev _header_hbound_classify_witness :=
+  @EvmAsm.Codegen.HeaderFieldsHboundCover.next_sub_len_classified
+-- #12867: `rlp_encode_uint_be` path coverage. These four were anonymous
+-- `example`s in RlpEncodeUintBeComposeSAsm.lean — proved but unwitnessable,
+-- and so invisible to every gate. Named, plus the boundary evidence showing
+-- why the `≤ 55` gate is a correctness boundary and not a convention.
+private noncomputable abbrev _reub_path_allZero_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_allZero
+private noncomputable abbrev _reub_path_rawByte_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_rawByte
+private noncomputable abbrev _reub_path_headerL1_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1
+private noncomputable abbrev _reub_path_headerL2_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL2
+private noncomputable abbrev _reub_paths_distinct_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_paths_are_distinct
+private noncomputable abbrev _reub_path_headerL1_control_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_path_headerL1_control
+private noncomputable abbrev _reub_short_form_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_at_55_is_short_form
+private noncomputable abbrev _reub_long_form_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubOut_header_is_at_least_two_bytes_above_55
+private noncomputable abbrev _reub_header_one_byte_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_header_path_writes_one_byte
+private noncomputable abbrev _reub_gate_excludes_56_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_excludes_56
+private noncomputable abbrev _reub_gate_admits_55_witness :=
+  @EvmAsm.Codegen.RlpEncodeUintBeSAsm.gate_admits_55
+-- #12867: the `SpanForm` row cited no coverage at all, while both its sibling
+-- rows cited a reachable sample. The useful statement turned out not to be
+-- another sample but that the THREE gates partition the head byte.
+private noncomputable abbrev _ris_gate_partition_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_partition
+private noncomputable abbrev _ris_gate_disjoint_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.head_byte_forms_disjoint
+private noncomputable abbrev _ris_gate_singleByte_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_singleByte
+private noncomputable abbrev _ris_gate_shortString_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortString
+private noncomputable abbrev _ris_gate_shortList_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_admits_shortList
+private noncomputable abbrev _ris_gate_excl_longString_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longString
+private noncomputable abbrev _ris_gate_excl_longList_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_excludes_longList
+private noncomputable abbrev _ris_gate_boundaries_witness :=
+  @EvmAsm.Codegen.RlpItemSizeGateCover.spanForm_boundaries
+-- #12867 / #12871: the arm-tiling family. ⚠️ These six theorems landed in
+-- RlpEncodeListPrefixArmsTile.lean and were NEITHER witnessed NOR cited by any
+-- row -- proved, building, and invisible to every gate, which is the same
+-- defect class the census was opened to find. Registering existing work.
+private noncomputable abbrev _lp_arms_tile_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_tile
+private noncomputable abbrev _lp_arms_disjoint_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_disjoint
+private noncomputable abbrev _lp_arms_index_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.armGate_determines_index
+private noncomputable abbrev _lp_arms_reachable_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_each_arm_reachable
+private noncomputable abbrev _lp_arms_top_word_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_top_reachable_as_word
+private noncomputable abbrev _lp_arms_boundary_control_witness :=
+  @EvmAsm.Codegen.RlpEncodeListPrefixArmsTile.listPrefixArms_boundary_control
+-- #12867: the `a.nonce < 2 ^ 64` gate on `rlp_content_to_u64` and
+-- `account_extract_nonce`. Both rows described it as narrower than an
+-- `Account.nonce` invariant that does not exist.
+private noncomputable abbrev _nonce_unbounded_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.account_nonce_is_an_unbounded_nat
+private noncomputable abbrev _nonce_gate_instance_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_admits_ordinary
+private noncomputable abbrev _nonce_gate_boundary_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_boundary
+private noncomputable abbrev _nonce_gate_middle_band_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_middle_band_is_inhabited
+private noncomputable abbrev _nonce_regimes_witness :=
+  @EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
+-- #12867: the two account-walk arm gates. Stating each exactly turned up an
+-- unstated upper bound on one and an encoding-vs-value mismatch on the other.
+private noncomputable abbrev _walk_init_upper_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_upper_bound_is_implicit
+private noncomputable abbrev _walk_init_band_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band
+private noncomputable abbrev _walk_init_ends_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band_ends_inhabited
+private noncomputable abbrev _walk_init_excl55_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_55
+private noncomputable abbrev _walk_init_excl256_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_256
+private noncomputable abbrev _walk_next_scalar_iff_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_iff
+private noncomputable abbrev _walk_next_scalar_instance_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_admits_ordinary
+private noncomputable abbrev _walk_next_scalar_boundary_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_boundary
+-- #12867, last two tractable gates. They fail in OPPOSITE directions: the
+-- divisor row states an upper bound the type makes vacuous, where
+-- rlp_walk_init (#12957) omitted a real one the type supplied.
+private noncomputable abbrev _divisor_upper_free_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_upper_bound_is_free
+private noncomputable abbrev _divisor_gate_iff_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_iff
+private noncomputable abbrev _divisor_admits_eight_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
+private noncomputable abbrev _divisor_excludes_zero_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_excludes_only_zero
+private noncomputable abbrev _pad_gate_load_bearing_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_is_load_bearing
+private noncomputable abbrev _pad_gate_separates_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_separates_the_pair
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
@@ -4612,6 +4889,109 @@ private noncomputable abbrev _headers_parent_hash_out_length_neg_witness :=
 
 private noncomputable abbrev _header_validate_parent_hash_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateParentHashSpec.header_validate_parent_hash_spec_within
+-- #12574: the VPHL top-contract proof family.  Keep the load-bearing helper
+-- theorems in the same axiom gate as the headline triple so a green gate does
+-- not silently certify only a different registry surface.
+private noncomputable abbrev _vphl_success_field0_bound_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound
+private noncomputable abbrev _vphl_prog_length_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlProg_length
+private noncomputable abbrev _vphl_code_vphl_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCode_vphl
+private noncomputable abbrev _vphl_la_claimed_5c_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_claimed_5c
+private noncomputable abbrev _vphl_la_computed_6_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlLa_computed_6
+private noncomputable abbrev _vphl_prologue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_prologue_spec_within
+private noncomputable abbrev _vphl_epilogue_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_epilogue_spec_within
+private noncomputable abbrev _vphl_call_return_pre_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_callReturn_pre
+private noncomputable abbrev _vphl_k20_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_k20_call_spec_within
+private noncomputable abbrev _vphl_reg_is_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_of_forall_regIs_to_regOwn12
+private noncomputable abbrev _vphl_arm_fail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_fail_spec_within
+private noncomputable abbrev _vphl_arm_len_ne32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_ne32_spec_within
+private noncomputable abbrev _vphl_arm_len_eq32_prefix_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_arm_len_eq32_prefix_spec_within
+private noncomputable abbrev _vphl_copy_claimed_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_copy_claimed_spec_within
+private noncomputable abbrev _vphl_hash_prep_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_prep_spec_within
+private noncomputable abbrev _vphl_hash_call_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_call_spec_within
+private noncomputable abbrev _vphl_dwords_eq_iff_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_dwords_eq_iff
+private noncomputable abbrev _vphl_compare_round0_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Eq
+private noncomputable abbrev _vphl_compare_round0_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound0Ne
+private noncomputable abbrev _vphl_compare_round1_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Eq
+private noncomputable abbrev _vphl_compare_round1_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound1Ne
+private noncomputable abbrev _vphl_compare_round2_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Eq
+private noncomputable abbrev _vphl_compare_round2_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound2Ne
+private noncomputable abbrev _vphl_compare_round3_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Eq
+private noncomputable abbrev _vphl_compare_round3_ne_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareRound3Ne
+private noncomputable abbrev _vphl_compare_all_eq_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareAllEq
+private noncomputable abbrev _vphl_choose12_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_choose12
+private noncomputable abbrev _vphl_compare_match_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMatchTail
+private noncomputable abbrev _vphl_compare_mismatch_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphlCompareMismatchTail
+private noncomputable abbrev _vphl_top_reg12_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg12_to_regOwn
+private noncomputable abbrev _vphl_top_reg_pair_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_regPair_to_regOwn
+private noncomputable abbrev _vphl_top_reg4_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg4_to_regOwn
+private noncomputable abbrev _vphl_top_mem4_to_mem_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_to_memOwn
+private noncomputable abbrev _vphl_top_mem4_owned_tail_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_mem4_with_owned_tail_to_memOwn
+private noncomputable abbrev _vphl_top_reg8_to_reg_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_reg8_to_regOwn
+private noncomputable abbrev _vphl_top_frame_slots_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSlotsSaved_to_own
+private noncomputable abbrev _vphl_top_keccak_frame_saved_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccakFrameSaved_to_own
+private noncomputable abbrev _vphl_top_frame_saved_rest_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
+private noncomputable abbrev _vphl_top_keccak_slot_h0_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h0
+private noncomputable abbrev _vphl_top_keccak_ret_slot_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_ret_slot
+private noncomputable abbrev _vphl_top_keccak_slot_h8_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h8
+private noncomputable abbrev _vphl_top_keccak_slot_h16_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h16
+private noncomputable abbrev _vphl_top_keccak_slot_h24_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slot_h24
+private noncomputable abbrev _vphl_top_keccak_slots_stack_free_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_keccak_slots_to_stackFree
+private noncomputable abbrev _vphl_top_compare_prefix_own_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.top_vphl_compare_prefix_to_own
+private noncomputable abbrev _vphl_hash_tail_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_hash_tail_spec
+private noncomputable abbrev _vphl_success_eq32_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_eq32_spec
+private noncomputable abbrev _vphl_continuation_spec_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_continuation_spec
+private noncomputable abbrev _vphl_whole_routine_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.validate_parent_hash_link_spec_within
+private noncomputable abbrev _vphl_status0_inhabited_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_status0_inhabited
 -- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
 -- static premise simultaneously with live data and lands on a DIFFERENT arm
 -- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way
@@ -4899,6 +5279,12 @@ private noncomputable abbrev _k73_increase_second_add_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
 private noncomputable abbrev _k73_increase_second_div_source_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
+-- #12346 residual 2b: Route-B repair of the `hk73`/`hvbfFinalAny` class-a
+-- premise defect. CONSTRUCTED inhabitance witness for the repaired
+-- (formerly-false) success clause, non-vacuous at the equal-route gas
+-- values.
+private noncomputable abbrev _k73_routeB_post_success_split_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec

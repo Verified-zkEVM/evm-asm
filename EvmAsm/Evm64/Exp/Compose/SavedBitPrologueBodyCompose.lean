@@ -23,7 +23,7 @@ module
 public import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
 public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

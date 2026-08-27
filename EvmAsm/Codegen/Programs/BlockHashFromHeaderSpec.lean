@@ -128,8 +128,9 @@ theorem block_hash_from_header_spec_within
   let spC := sp0 + signExtend12 (-16 : BitVec 12)
   let out0 := List.replicate 32 (0 : BitVec 8)
   have hcallee := zkvm_keccak256_spec_within spC (B + 12)
-    inputBase outputBase input N rem v8 v9 v18 v20 v28 v29 os A hA
-    (by decide) hlen hrem_le hos halign_zk hover hNbound hrem64 hb8i hovers hoveri
+    inputBase outputBase input N rem out0 v8 v9 v18 v20 v28 v29 os A hA
+    (by decide) hlen hrem_le (by simp [out0]) hos halign_zk hover hNbound
+    hrem64 hb8i hovers hoveri
     hvalids hvalidi hvalidRem hvalid135 hvalidMem
   have hcallee' :
       cpsTripleWithin (5 + keccakBodyFuel N rem + 6) K (B + 12) keccakCode
