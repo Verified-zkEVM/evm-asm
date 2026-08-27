@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14OrChain
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
+import EvmAsm.Rv64.SAsm.X0Frame
 import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XPermPure
 
@@ -1275,7 +1276,57 @@ theorem taylor_round (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Wor
       ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) ** FR)]) nb5 hSd'
   simpa using nb6
 
+/-! The arithmetic values exposed by `taylor_round` are the same pure six-limb
+    transitions used by the model.  Keep these bridges next to the private
+    machine-value abbreviations: the outer-loop composition can then reason
+    about `mul384Run`/`add384Run` without unfolding the 12-exit body proof. -/
+
+theorem roundP_eq_mul384Run
+    (a0 a1 a2 a3 a4 a5 excess : Word) :
+    [roundP0 a0 excess, roundP1 a0 a1 excess, roundP2 a0 a1 a2 excess,
+      roundP3 a0 a1 a2 a3 excess, roundP4 a0 a1 a2 a3 a4 excess,
+      roundP5 a0 a1 a2 a3 a4 a5 excess] =
+      (mul384Run [a0, a1, a2, a3, a4, a5] excess 0).1 := by
+  simp [mul384Run, mulLimbStep, roundP0, roundP1, roundP2, roundP3,
+    roundP4, roundP5]
+
+theorem roundP_high_eq_mul384Run
+    (a0 a1 a2 a3 a4 a5 excess : Word) :
+    roundHigh a0 a1 a2 a3 a4 a5 excess =
+      (mul384Run [a0, a1, a2, a3, a4, a5] excess 0).2 := by
+  simp [mul384Run, mulLimbStep, roundP0, roundP1, roundP2, roundP3,
+    roundP4, roundP5, roundHigh]
+
+theorem roundS_eq_add384Run
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) :
+    [roundS0 a0 s0, roundS1 a0 a1 s0 s1,
+      roundS2 a0 a1 a2 s0 s1 s2, roundS3 a0 a1 a2 a3 s0 s1 s2 s3,
+      roundS4 a0 a1 a2 a3 a4 s0 s1 s2 s3 s4,
+      roundS5 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5] =
+      (add384Run [a0, a1, a2, a3, a4, a5]
+        [s0, s1, s2, s3, s4, s5] 0).1 := by
+  simp [add384Run, addLimbStep, roundS0, roundS1, roundS2, roundS3,
+    roundS4, roundS5,
+    EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry]
+
+theorem roundS_carry_eq_add384Run
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) :
+    EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a5 s5
+      (EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a4 s4
+        (EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a3 s3
+          (EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a2 s2
+            (EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a1 s1
+              (EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry a0 s0 0))))) =
+      (add384Run [a0, a1, a2, a3, a4, a5]
+        [s0, s1, s2, s3, s4, s5] 0).2 := by
+  simp [EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec.rCry,
+    add384Run, addLimbStep]
+
 #print axioms taylor_round
+#print axioms roundP_eq_mul384Run
+#print axioms roundP_high_eq_mul384Run
+#print axioms roundS_eq_add384Run
+#print axioms roundS_carry_eq_add384Run
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.limbsToNat_natToLimbs
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.div384by64_spec
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.priceLoopFuel_done_taylor
