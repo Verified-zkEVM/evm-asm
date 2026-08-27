@@ -23,6 +23,7 @@ instantiation adds no new preconditions.
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
+import EvmAsm.Rv64.BitAux
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract
 
@@ -267,5 +268,91 @@ theorem k73_mul_status_branch_native_spec_within
   have hseq := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
     (fun _ hp => by sep_perm hp) hmul' hstatus
   simpa only [show 3851 + 1 = 3852 by decide] using hseq
+
+/-- Witness scratch lists for the constructed inhabitant below.  The initial
+windows are deliberately plain zeros: under the native shape that is legal
+(the caller only owns them pre-call), which is exactly the honesty payoff of
+the repair - the old symmetric contract would have forced these to be spelled
+as the computed final image instead. -/
+private def k73MulNatWBase : List (BitVec 8) := List.replicate 31 0 ++ [7]
+private def k73MulNatWAccWin : List (BitVec 8) := List.replicate 40 0
+private def k73MulNatWOutWin : List (BitVec 8) := List.replicate 32 0
+
+/-- CONSTRUCTED inhabitant of the native decrease-callsite stage (closed
+proposition, concrete values, no hypotheses): the same Arm4-family numbers as
+the increase witnesses (base value 7, target 5000, gasUsed 2500, delta 2500,
+product 17500) but discharged against the deployed flat triple through the
+native contract, not through any name-instantiation trick. -/
+theorem k73_mul_status_branch_native_inhabited :
+    cpsBranchWithin 3852 (K73 + 84) wholeCode
+      (((.x1 : Reg) ↦ᵣ (0 : Word)) **
+        k73MulPreNoRa (0xa0050000 : Word) (0xa0000000 : Word)
+          (0xa0000100 : Word) (5000 : Word) (2500 : Word) (0 : Word)
+          (0xa0000000 : Word) (2500 : Word) (0xa0000100 : Word)
+          (0xa0000100 : Word)
+          0 1 2 3 4 5
+          k73MulNatWBase k73MulNatWAccWin k73MulNatWOutWin
+          (frameSlotsSaved k73Frame (0xa0050000 : Word)
+            (k73Saved 0 0 0 0 0 0) **
+            regOwns [.x14, .x15, .x16, .x17] ** empAssertion))
+      (K73 + 272)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest (0xa0050000 : Word) 0
+            (0xa0000000 : Word) (0xa0000100 : Word) (5000 : Word)
+            (2500 : Word) 0 0 0 0 0
+            k73MulNatWBase
+            (EvmAsm.Codegen.U256MulU64Be.mulState k73MulNatWBase
+              (2500 : Word) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState k73MulNatWBase
+                (2500 : Word) 32) k73MulNatWOutWin 32)
+            (regOwns [.x14, .x15, .x16, .x17] ** empAssertion) **
+          regOwn .x10)
+      (K73 + 92)
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          k73DecreaseMulCarryRest (0xa0050000 : Word) 0
+            (0xa0000000 : Word) (0xa0000100 : Word) (5000 : Word)
+            (2500 : Word) 0 0 0 0 0
+            k73MulNatWBase
+            (EvmAsm.Codegen.U256MulU64Be.mulState k73MulNatWBase
+              (2500 : Word) 32)
+            (EvmAsm.Codegen.U256MulU64Be.copyState
+              (EvmAsm.Codegen.U256MulU64Be.mulState k73MulNatWBase
+                (2500 : Word) 32) k73MulNatWOutWin 32)
+            (regOwns [.x14, .x15, .x16, .x17] ** empAssertion) **
+          regOwn .x10) := by
+  exact k73_mul_status_branch_native_spec_within
+    (spH := (0xa0050000 : Word)) (raIn := (0 : Word))
+    (target := (5000 : Word)) (delta := (2500 : Word))
+    (basePtr := (0xa0000000 : Word)) (outPtr := (0xa0000100 : Word))
+    (v8 := 0) (v9 := 0) (v18 := 0) (v19Saved := 0) (v20Saved := 0)
+    (f0 := 0) (f1 := 1) (f2 := 2) (f3 := 3) (f4 := 4) (f5 := 5)
+    (baseBytes := k73MulNatWBase) (accWin := k73MulNatWAccWin)
+    (outWin := k73MulNatWOutWin)
+    (G := regOwns [.x14, .x15, .x16, .x17] ** empAssertion)
+    (hG := by pcf)
+    (hcallee := by
+      have hretCall :
+          ((K73 + 88 : Word) &&& ~~~(1 : Word)) = K73 + 88 :=
+        EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+      exact EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+        (F := frameSlotsSaved k73Frame (0xa0050000 : Word)
+            (k73Saved 0 0 0 0 0 0) **
+          regOwns [.x14, .x15, .x16, .x17] ** empAssertion)
+        (hF := by pcf)
+        (aBytes := k73MulNatWBase) (accBytes := k73MulNatWAccWin)
+        (outBytes := k73MulNatWOutWin)
+        (hlenA := by simp [k73MulNatWBase])
+        (hlenAcc := by simp [k73MulNatWAccWin])
+        (hout := by simp [k73MulNatWOutWin])
+        (spOld := (0xa0050000 : Word)) (vRa := (K73 + 88))
+        (v8 := (0xa0000000 : Word)) (v9 := (0xa0000100 : Word))
+        (v18 := (5000 : Word)) (v19 := (2500 : Word)) (v20 := (0 : Word))
+        (aPtr := (0xa0000000 : Word)) (b := (2500 : Word))
+        (outPtr := (0xa0000100 : Word)) (v13 := (0xa0000100 : Word))
+        (f0 := 0) (f1 := 1) (f2 := 2) (f3 := 3) (f4 := 4) (f5 := 5)
+        (halignA := by decide) (hoverA := by decide) (hvalidA := by decide)
+        (halignOut := by decide) (hoverOut := by decide)
+        (hvalidOut := by decide) (hret := hretCall))
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract

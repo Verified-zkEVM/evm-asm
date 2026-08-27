@@ -32,6 +32,7 @@ import EvmAsm.Progress
 import EvmAsm.Progress.Routines
 import EvmAsm.Progress.Correspondence
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 
 #print axioms EvmAsm.Codegen.AccountDecodeCompose.decoded_matches_specRef
 
@@ -356,6 +357,12 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 #print axioms EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_status_div_zero_spec_within_for_return
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_call_native_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_inhabited
 
 #print axioms EvmAsm.Codegen.HeaderDecodeNoPrefixTest.arity_check_has_no_subword_load
 
