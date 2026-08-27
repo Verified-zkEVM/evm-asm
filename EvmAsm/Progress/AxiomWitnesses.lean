@@ -1018,6 +1018,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_prologue_spec_within
 
+#print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_status0_inhabited
+
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_eq32_spec
 
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound

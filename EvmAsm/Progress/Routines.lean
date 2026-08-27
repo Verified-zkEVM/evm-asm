@@ -245,6 +245,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 -- axiom-gate witnesses for the top contract and its load-bearing composition
 -- lemmas; the Tier-A `RoutineEntry` row is recorded below.
 import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 -- #12799: the three full-premise cover witnesses for the hvph dispatcher were
 -- outside the axiom gate entirely — no witness abbrev, and this module did not
 -- import theirs. A `.proven` row whose satisfiability evidence no gate forces
@@ -4960,6 +4961,8 @@ private noncomputable abbrev _vphl_continuation_spec_witness :=
   @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_continuation_spec
 private noncomputable abbrev _vphl_whole_routine_witness :=
   @EvmAsm.Codegen.ValidateParentHashLinkSpec.validate_parent_hash_link_spec_within
+private noncomputable abbrev _vphl_status0_inhabited_witness :=
+  @EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_status0_inhabited
 -- #12799: the dispatcher's three full-premise covers. Each instantiates EVERY
 -- static premise simultaneously with live data and lands on a DIFFERENT arm
 -- (status 1 / status 0 / first-differing dword 2), so no arm of the three-way
