@@ -247,6 +247,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 -- and abbrev'd below.
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
 -- whole-routine triple's module has to be imported explicitly for its witness.
@@ -5094,6 +5095,12 @@ private noncomputable abbrev _k73_increase_second_add_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_add_branch_for_return
 private noncomputable abbrev _k73_increase_second_div_source_witness :=
   @EvmAsm.Codegen.HeaderBaseFeeSpec.k73_increase_second_div_source_branch_for_return
+-- #12346 residual 2b: Route-B repair of the `hk73`/`hvbfFinalAny` class-a
+-- premise defect. CONSTRUCTED inhabitance witness for the repaired
+-- (formerly-false) success clause, non-vacuous at the equal-route gas
+-- values.
+private noncomputable abbrev _k73_routeB_post_success_split_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
