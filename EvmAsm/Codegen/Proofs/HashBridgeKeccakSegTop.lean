@@ -406,7 +406,8 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
     (by simp only [Nat.zero_add]; exact hmsgL)
     halignZ hoverZ hvalidZb hsegs source
   -- ---- tail: KssB+164 → KssB+240 ----
-  have gTail := kssTail_spec outputBase STL L ATail hATailPc hSTLlen
+  have gTail := kssTail_spec outputBase STL out0 L (by simp [hout0])
+    ATail hATailPc hSTLlen
     (by omega) halignZ (by omega)
     (hvalidZb L (by omega)) (hvalidZb 135 (by omega)) hvalidZm
   -- glue outer → tail
@@ -434,7 +435,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
                   kssSegsIs segsBase segs source ** A))) h := by
           xperm_hyp hq
         have hq2 := kss_own3 h hq1
-        simp only [kssTailAmb, kssTailOwns_eq, regOwns_cons, hATail, ← hout0]
+        simp only [kssTailAmb, kssTailOwns_eq, regOwns_cons, hATail]
         xperm_hyp hq2)
       gOuter gTail
   -- glue setup → (outer ;; tail), then reshape into the caller post
@@ -757,7 +758,8 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
     (fun i _ => by rw [Nat.zero_add])
     (by simp only [Nat.zero_add]; exact Nat.le_refl _)
     halignZ hoverZ hvalidZb hvalidZm hsegs source
-  have gTail := kssTail_spec outputBase STL (kssFill L) ATail hATailPc hSTLlen
+  have gTail := kssTail_spec outputBase STL out0 (kssFill L) (by simp [hout0])
+    ATail hATailPc hSTLlen
     hfillL halignZ (by omega)
     (hvalidZb (kssFill L)
       (Nat.lt_trans (kssFill_lt L)
@@ -775,7 +777,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
         rw [Nat.zero_add] at hq
         simp only [hAOut] at hq
         rw [kssRateCsrsSans_eq_tail] at hq
-        simp only [kssTailAmb, hATail, ← hout0]
+        simp only [kssTailAmb, hATail]
         xperm_hyp hq)
       gOuter gTail
   have gAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => hp) gSetup gOT
