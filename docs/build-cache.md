@@ -1,13 +1,20 @@
 # Build cache: prebuilt oleans
 
-Two independent caches keep an EvmAsm build from starting cold. Neither is
-required — both only ever save time. If a fetch fails, Lake logs a warning and
-builds from source.
+Three independent caches keep an EvmAsm build from starting cold. None
+is required — they only ever save time. If a fetch fails, Lake logs a warning
+and builds from source.
 
 | What | Covers | How you get it |
 | --- | --- | --- |
 | Mathlib's cache | `mathlib` and its own dependencies | `lake exe cache get` |
+| riscv-zkvm release archive | the generated Sail `RiscvZkvm.Sail` dependency | automatic from the tagged dependency |
 | EvmAsm release archive | the `EvmAsm` library itself | automatic for consumers; see below for contributors |
+
+`riscv-zkvm` uses the same Lake release mechanism as EvmAsm. Because
+`lakefile.toml` pins its release tag, Lake downloads
+`riscv-zkvm-oleans.tar.gz`; no `RiscvZkvm.Sail.*` module should appear as a
+build job in a clean EvmAsm build. The package remains reproducible from source
+if the archive is unavailable.
 
 ## Consuming EvmAsm
 

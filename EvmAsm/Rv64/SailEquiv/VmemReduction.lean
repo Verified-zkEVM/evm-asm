@@ -31,8 +31,8 @@
 import EvmAsm.Rv64.SailEquiv.MemProofs
 import EvmAsm.Rv64.SailEquiv.SailStepAttr
 
-open Out
-open Out.Functions
+open RiscvZkvm.Sail
+open RiscvZkvm.Sail.Functions
 open Sail
 open PreSail
 

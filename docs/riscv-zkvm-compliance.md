@@ -5,10 +5,11 @@ CI-regenerated artifact (see [`sail-zkvm-integration-design.md`](sail-zkvm-integ
 **Audience:** Ethereum client developers and auditors — *no Lean expertise
 required to read this page.*
 **Sources of truth:** the zkVM standard
-[`eth-act/zkvm-standards`](https://github.com/eth-act/zkvm-standards)
+[`eth-act/zkevm-standards`](https://github.com/eth-act/zkevm-standards)
 (`standards/riscv-target/target.md` + siblings); the official Sail model
-[`riscv/sail-riscv`](https://github.com/riscv/sail-riscv); the vendored, scoped
-Lean export consumed at `vendor/sail-riscv-zkvm-lean/` (lib `Out`); and the deep review in
+[`riscv/sail-riscv`](https://github.com/riscv/sail-riscv); the release-pinned,
+scoped [`riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm) Lean export
+(lib `RiscvZkvm.Sail`); and the deep review in
 [`sail-zkvm-model-review.md`](sail-zkvm-model-review.md).
 
 ---
@@ -73,7 +74,7 @@ codebase.
 
 This is the heart of the correspondence. Each standard instruction maps to a
 Sail `instruction` AST constructor (executed by `execute_*` in
-`vendor/sail-riscv-zkvm-lean/.../InstsEnd.lean`) and, where present, to the `evm-asm` theorem
+`riscv-zkvm/RiscvZkvm/Sail/InstsEnd.lean`) and, where present, to the `evm-asm` theorem
 proving our model agrees with Sail.
 
 ### 2.1 RV64I — integer computation (register-register)
@@ -167,15 +168,17 @@ before bridging.
 
 ## 3. Drift gates (how "evident if something breaks" is enforced)
 
-All ⚪ planned (per design-doc §6.2); each seeded green on the current tree.
+The extraction-integrity and executable-emulator checks are owned by
+`riscv-zkvm`; EvmAsm pins the resulting release tag.
 
 | Gate | Guards | Detects |
 |---|---|---|
-| `check-sail-pin.sh` | the pinned Sail / sail-riscv / lean-sail commits + module list + config hash (`PROVENANCE.toml`) | dependency drift, the moving-`rev` problem |
+| `riscv-zkvm/scripts/check-model-pin.sh` | the pinned Sail / sail-riscv / lean-sail commits + module list + config and generated-tree hashes | extraction drift |
+| EvmAsm `lakefile.toml` + `lake-manifest.json` | an immutable `riscv-zkvm` release tag and resolved commit | dependency drift, the moving-`rev` problem |
 | `check-isa-scope.sh` | `toSailInstr?` / decode tie reference **only** in-target `instruction` constructors | accidental import of C/F/D/V/CSR surface |
 | `check-isa-coverage.sh` | our covered-instruction set **equals** the standard's RV64IM list | regressions *and* the §2.7 word-op gap |
 | `check-sail-config.sh` | the import config matches the §1 keys (xlen=64, M on, S/U off, Zicclsm on, misaligned≠AccessFault) | silent config drift away from the target |
-| differential-test CI | generated *executable* Lean model vs. Sail C sim / `riscv-tests` | unfaithful backend output (§4) |
+| `riscv-zkvm/scripts/validate-lean-emulator.sh` | the upstream Sail RISC-V executable Lean model and ELF tests | unfaithful or non-executable backend output (§4) |
 
 ---
 
@@ -188,8 +191,8 @@ Restated from design-doc §7 so this page stands alone:
 2. **🔴 The Sail→Lean backend is faithful — headline assumption.** It is
    *experimental* and carries no soundness claim (review §1). It fails loud
    (`failwith`) rather than mistranslating silently. **Mitigation:**
-   differential-test the generated executable model against the Sail C
-   reference on the RV64IM subset.
+   build and test the generated executable model using the Lean emulator added
+   by the [upstream Sail RISC-V Lean emulator](https://github.com/riscv/sail-riscv/tree/main/lean_emulator).
 3. **ECALL / termination is a deliberate divergence.** Sail traps environment
    calls to M-mode; `evm-asm` interprets ECALL as the zkVM **host interface**
    (input/output/halt/accelerators) per the `io-interface` and
@@ -209,8 +212,7 @@ Restated from design-doc §7 so this page stands alone:
 > kernel-checked per-instruction theorems covering all of RV64I + the
 > M-extension XLEN ops; ECALL is a deliberate host-interface divergence; the
 > RV64 word-op family is a known coverage gap; and the tie rests on an
-> experimental Sail→Lean backend whose output is not yet differential-tested.
-> *Planned* (design doc P0–P5b): a pinned/scoped import of exactly the
-> `riscv64im_zicclsm` modules, one consolidated simulation theorem, a decode
-> tie, differential testing of the backend output, and the drift gates above.
-</content>
+> experimental Sail→Lean backend. The model is now a release-pinned, scoped
+> `riscv-zkvm` dependency with reproducible extraction checks, prebuilt oleans,
+> and the upstream Lean-emulator ELF validation path. A consolidated simulation
+> theorem, decode tie, and fuller differential coverage remain planned.

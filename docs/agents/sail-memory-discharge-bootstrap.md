@@ -92,7 +92,7 @@ deliverable is `ld_sail_equiv` (etc.) re-stated WITHOUT `h_exec`, taking instead
    runs once.
 6. `[a, a+8) ⊆` a readable PMA region & `a` outside CLINT `[0x0200_0000,0x020C_0000)` /
    SIG `[0x0C00_0000,0x0C00_0020)` / HTIF (HTIF off when `htif_tohost_base = none`).
-   Default `sail_model_init` (`Out.lean:203`, writes `pma_regions` at `:244`) gives 3
+   Default `sail_model_init` (`RiscvZkvm/Sail.lean:203`, writes `pma_regions` at `:244`) gives 3
    regions; region 3 `[2^34, 2^35)` is MainMemory `readable=true`. (`pma_regions :
    List PMA_Region`, `matching_pma_region` at `Pma.lean:334`, `range_subset` at
    `RangeUtil.lean:189`.)
@@ -141,7 +141,7 @@ So build, bottom-up, reduction lemmas each consuming part of the bundle:
 3. **`pmpCheck_machine_off`**: 16 pmpcfg OFF + Machine ⇒ `none`. The 16-iteration loop needs an invariant or `decide`-style unfold over the concrete range `[0:15]`.
 4. **`pmaCheck_region`**: region membership + readable + aligned ⇒ `none`.
 5. **`phys_access_check`** ⇒ combine 3+4 ⇒ `none`; then `checked_mem_read` not-MMIO ⇒ `read_ram`.
-6. ✅ **DONE (commit `274dfa8e4`)** — `translateAddr_bare` in `VmemReduction.lean`: Machine + MPRV=0 ⇒ `.ok (Ok (Physaddr (zero_extend 64 vaddr), PBMT_PMA, ())) s`, no state change. EStateM `.ok` form. Recipe: `unfold translateAddr; simp +decide [SailME.run, PreSail.PreSailME.run, effectivePrivilege, translationMode, is_shadow_stack_access, PreSail.readReg, <reg hyps>, <EStateM/ExceptT/liftM plumbing — see runSail_jump_to set>]`. `+decide` is essential (derived-BEq `==` won't fire via `beq_self_eq_true`); `open Out` for the `physaddr.Physaddr`/`page_based_mem_type.PBMT_PMA` constructors.
+6. ✅ **DONE (commit `274dfa8e4`)** — `translateAddr_bare` in `VmemReduction.lean`: Machine + MPRV=0 ⇒ `.ok (Ok (Physaddr (zero_extend 64 vaddr), PBMT_PMA, ())) s`, no state change. EStateM `.ok` form. Recipe: `unfold translateAddr; simp +decide [SailME.run, PreSail.PreSailME.run, effectivePrivilege, translationMode, is_shadow_stack_access, PreSail.readReg, <reg hyps>, <EStateM/ExceptT/liftM plumbing — see runSail_jump_to set>]`. `+decide` is essential (derived-BEq `==` won't fire via `beq_self_eq_true`); `open RiscvZkvm.Sail` for the `physaddr.Physaddr`/`page_based_mem_type.PBMT_PMA` constructors.
    - ✅ **DONE (commit `41bf9ae0b`)** — generic `forIn'_noop` invariant in `VmemReduction.lean` (read-only no-op body ⇒ `IntRange.forIn'` returns init, state unchanged), proven via `IntRange.forIn'.loop.induct`. Axioms `{propext, Quot.sound}`. **Stated for the SailM monad.**
    - ⚠ **pmpCheck BLOCKER:** its loop is `forIn … inside ExceptT.run` = the **SailME** monad (`ExceptT _ SailM`), so `forIn'_noop` does not apply as-is. NEXT: a SailME/ExceptT variant of `forIn'_noop` (or reduce through `ExceptT.run`/`SailME.run` to expose the SailM loop first). pmpCheck body is a no-op when every cfg A-field is OFF (`pmpMatchAddr` → `PMP_NoMatch`; `pmpAddrMatchType_encdec_backwards (_get_Pmpcfg_ent_A ent) = .OFF`).
 7. **`untilFuelM` single-iteration**: `split_misaligned` = `(1,8)` ⇒ loop body runs once, `finished := true`.
