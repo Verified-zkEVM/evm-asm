@@ -236,7 +236,7 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderExtractLogsBloomBridge
-import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
@@ -352,7 +352,7 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
+import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
 -- #12018: whole-routine `zkvm_sha256_spec_within` (flat CodeReq.ofProg at the
 -- guest address; SpecRef post via `sha256BodyDigest_eq_specref`).
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Top

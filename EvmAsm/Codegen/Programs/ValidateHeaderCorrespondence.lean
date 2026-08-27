@@ -24,7 +24,6 @@
 
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
-import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthBridge
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.ValidateHeaderCorrespondence
