@@ -276,6 +276,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
+
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_excludes_only_zero
+
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_iff
+
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_upper_bound_is_free
+
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.padGate_is_load_bearing
+
+#print axioms EvmAsm.Codegen.DivisorAndPadGateCover.padGate_separates_the_pair
+
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authCallSite_ok_sample
 
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.authJal_target
