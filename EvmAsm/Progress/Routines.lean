@@ -206,6 +206,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.AccountWalkGateCover
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
 import EvmAsm.Codegen.Programs.AccountNonceGateCover
@@ -573,7 +574,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "correspondence registry, not from here. Two theorems share the "
         ++ "unqualified name; do not read either as the other"),
   routine "rlp_walk_init" .conditional (some "rlp_walk_init_long1_spec_within")
-      (gate := "`56 ≤ payload.length` — the long-form-1 arm specifically")
+      (gate := "`56 ≤ payload.length` — the long-form-1 arm. ⚠️ #12867: that is "
+        ++ "only the LOWER half. `lenB : BitVec 8` with `hlenB : lenB.toNat = "
+        ++ "payload.length` caps the payload at 255 with no further assumption "
+        ++ "(`walkInitLong1_upper_bound_is_implicit`), so the effective gate is "
+        ++ "the BAND `56 ≤ len ≤ 255` (`walkInitLong1_band`) — correct for "
+        ++ "one length byte, but arriving from the type of a different "
+        ++ "hypothesis than the stated one. Both ends inhabited "
+        ++ "(`walkInitLong1_band_ends_inhabited`); controls "
+        ++ "`walkInitLong1_excludes_55` and `walkInitLong1_excludes_256` (no "
+        ++ "`BitVec 8` witnesses 256, so the upper exclusion is structural)")
       (notes := "per-form companion to the account triple above"),
   -- #12799 ownership-table row 8: the OWN-ANCHORED contract. The two rows above
   -- are both unusable by a caller at `GuestAddrs.rlp_walk_init` — one is
@@ -605,7 +615,12 @@ def routineRegistry : List RoutineEntry := [
   routine "rlp_walk_next" .proven (some "account_rlp_walk_next_field1_spec_within")
       (notes := "field 1 (balance) of an `encodeAccount` list"),
   routine "rlp_walk_next" .conditional (some "rlp_walk_next_scalar_spec_within")
-      (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form")
+      (gate := "`(Nat.toBytesBE n).length ≤ 55` — scalar short form, a "
+        ++ "condition on the ENCODING. #12867: `scalarGate_iff` gives the "
+        ++ "equivalent condition on the VALUE, which is what a caller holds — "
+        ++ "`(Nat.toBytesBE n).length ≤ 55 ↔ n < 256 ^ 55`. instance "
+        ++ "`scalarGate_admits_ordinary`; boundary both sides "
+        ++ "`scalarGate_boundary` (`256 ^ 55` is the least excluded value)")
       (notes := "form-generic scalar arm, not tied to `encodeAccount`"),
   -- #12799 ownership-table row 3: a contract for the THUNK at
   -- `GuestAddrs.rlp_walk_next` itself. ⚠️ The three rows above cite theorems
@@ -4382,6 +4397,24 @@ private noncomputable abbrev _nonce_gate_middle_band_witness :=
   @EvmAsm.Codegen.AccountNonceGateCover.nonce_gate_middle_band_is_inhabited
 private noncomputable abbrev _nonce_regimes_witness :=
   @EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
+-- #12867: the two account-walk arm gates. Stating each exactly turned up an
+-- unstated upper bound on one and an encoding-vs-value mismatch on the other.
+private noncomputable abbrev _walk_init_upper_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_upper_bound_is_implicit
+private noncomputable abbrev _walk_init_band_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band
+private noncomputable abbrev _walk_init_ends_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band_ends_inhabited
+private noncomputable abbrev _walk_init_excl55_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_55
+private noncomputable abbrev _walk_init_excl256_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_256
+private noncomputable abbrev _walk_next_scalar_iff_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_iff
+private noncomputable abbrev _walk_next_scalar_instance_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_admits_ordinary
+private noncomputable abbrev _walk_next_scalar_boundary_witness :=
+  @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_boundary
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
