@@ -88,7 +88,7 @@ work.
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 198 | register | 212 |
+| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | register | 212 |
 | 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -334,11 +334,11 @@ spots. In rough order of how much they matter:
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 576 conversion rows, of
-which 101 have no entry symbol in the linker-facts table
+`scripts/asm-fixtures/MANIFEST.tsv` has 571 conversion rows, of
+which 96 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 576 as "converted symbols" is the easy error here.
+Quoting 571 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -364,7 +364,7 @@ bytes.
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 198 | register | 212 |
+| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | register | 212 |
 | 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
