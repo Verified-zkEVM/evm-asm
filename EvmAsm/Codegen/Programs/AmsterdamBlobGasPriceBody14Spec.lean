@@ -29,6 +29,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateEx
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody10Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody13Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPrice
 
 set_option maxRecDepth 8000
 
@@ -200,6 +201,90 @@ private theorem pure_drop1 {L1 L2 : Assertion} {P : Prop} :
     exact gu2.symm
   rw [gu'] at gd gu
   exact ⟨g1, g2, gd, gu, hL1, hL2⟩
+
+/-! ## Parity-aware outer-loop invariant
+
+The two six-limb work buffers are fixed in memory, but the linked loop swaps
+their roles at the end of every successful round.  Keeping the two physical
+bases as parameters and selecting the active one from the iteration parity
+makes that fact explicit; a caller can instantiate the same round theorem at
+either orientation without duplicating a second assertion by hand. -/
+
+@[reducible] def parityBuffer (j : Nat) (evenBase oddBase : Word) : Word :=
+  if j % 2 = 0 then evenBase else oddBase
+
+theorem parityBuffer_succ_swap (j : Nat) (evenBase oddBase : Word) :
+    parityBuffer (j + 1) evenBase oddBase = parityBuffer j oddBase evenBase := by
+  by_cases h_even : j % 2 = 0
+  · have h_odd : (j + 1) % 2 ≠ 0 := by omega
+    simp [parityBuffer, h_even, h_odd]
+  · have h_odd : (j + 1) % 2 = 0 := by omega
+    simp [parityBuffer, h_even, h_odd]
+
+theorem parityBuffer_succ_swap' (j : Nat) (evenBase oddBase : Word) :
+    parityBuffer (j + 1) oddBase evenBase = parityBuffer j evenBase oddBase := by
+  exact parityBuffer_succ_swap (j := j) (evenBase := oddBase) (oddBase := evenBase)
+
+@[reducible] def taylorLoopIndex (j : Nat) : Word := BitVec.ofNat 64 (j + 1)
+
+theorem taylorLoopIndex_zero : taylorLoopIndex 0 = (1 : Word) := by decide
+
+theorem taylorLoopIndex_succ (j : Nat) :
+    taylorLoopIndex (j + 1) = taylorLoopIndex j + (1 : Word) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [show taylorLoopIndex (j + 1) = BitVec.ofNat 64 ((j + 1) + 1) by rfl]
+  simp only [taylorLoopIndex, BitVec.toNat_ofNat, BitVec.toNat_add]
+  rw [show ((1 : Word)).toNat = 1 from rfl]
+  omega
+
+@[reducible] def taylorLoopInvParityAt
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (j : Nat) (iVal evenBase oddBase : Word)
+    (accC prodC sumC : List Word) (FR : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+  (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ iVal) **
+  (.x19 ↦ᵣ parityBuffer j evenBase oddBase) **
+  (.x20 ↦ᵣ parityBuffer j oddBase evenBase) ** (.x21 ↦ᵣ outPtr) **
+  (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+  frameSlotsSaved priceFrame newSp vals **
+  (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31) **
+  (cellsOf (parityBuffer j evenBase oddBase) accC **
+    cellsOf (parityBuffer j oddBase evenBase) prodC **
+    cellsOf (newSp + signExtend12 (160 : BitVec 12)) sumC ** FR)
+
+/-! The public invariant ties the machine's index register to the outer-loop
+    iteration.  The `At` form above is retained for one-round composition,
+    where a branch post supplies the concrete next index before this relation
+    is reintroduced. -/
+
+@[reducible] def taylorLoopInvParity
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (j : Nat) (evenBase oddBase : Word)
+    (accC prodC sumC : List Word) (FR : Assertion) : Assertion :=
+  taylorLoopInvParityAt newSp excess outPtr vals j (taylorLoopIndex j)
+    evenBase oddBase accC prodC sumC FR
+
+theorem taylorLoopInvParityAt_swap
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (j : Nat) (iVal evenBase oddBase : Word)
+    (accC prodC sumC : List Word) (FR : Assertion) :
+    taylorLoopInvParityAt newSp excess outPtr vals (j + 1) iVal
+        evenBase oddBase accC prodC sumC FR =
+      taylorLoopInvParityAt newSp excess outPtr vals j iVal
+        oddBase evenBase accC prodC sumC FR := by
+  simp only [taylorLoopInvParityAt, parityBuffer_succ_swap]
+
+theorem taylorLoopInvParity_index_step
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (j : Nat) (evenBase oddBase : Word)
+    (accC prodC sumC : List Word) (FR : Assertion) :
+    taylorLoopInvParity newSp excess outPtr vals (j + 1)
+        evenBase oddBase accC prodC sumC FR =
+      taylorLoopInvParityAt newSp excess outPtr vals j
+        (taylorLoopIndex j + (1 : Word)) oddBase evenBase accC prodC sumC FR := by
+  rw [taylorLoopInvParity, taylorLoopIndex_succ, taylorLoopInvParityAt_swap]
+
 
 
 /-- One full outer-loop round of the taylor recurrence, PriceK+144..: the
