@@ -363,6 +363,63 @@ does not expose what it calls — expect to chase the closure by one or two more
 rounds, and read each round's LHS heads rather than assuming the first set was
 complete.
 
+### ⛔ Neither `def` count NOR `.olean` size predicts the win — a negative result
+
+A fourth tranche took the 63 **top-level** `EvmAsm/Evm64/*.lean` files, which
+looked like the best remaining target by every available proxy: 11.4 MB of
+public `.olean` between them, and the handler files ranking near the top on
+bytes-per-source-line (~1 600–1 700). Thirteen build rounds later, 23 files were
+un-exposed and green. The measured result:
+
+| | |
+| --- | ---: |
+| public `.olean` over the 23 | 3 176 632 → 3 154 216 B (**−0.7 %**, 22 KB) |
+| the large handler files | **exactly 0** |
+| downstream cone-edges freed | 111 |
+
+`ComparisonHandlers` (315 888 B), `ArithmeticHandlers` (281 624), `BitwiseHandlers`
+(275 056), `ShiftHandlers` (243 728) each moved **not one byte**. The changes
+were reverted; only this finding was kept.
+
+**Why zero.** Their public `.olean` is dominated by *theorem statements*, which
+are interface no matter what, plus the handful of definitions that had to be
+exposed anyway. Once `binaryHandler`, each `*HandlerTable`, `dupHandler`,
+`swapHandler` and friends were exposed to keep the build green, nothing of
+substance was left to withhold.
+
+⇒ **Bytes-per-line is not a valid ranking either.** It cannot tell a large `def`
+body from a pile of large theorem statements, and in a proof-heavy repo the
+latter dominates. There is no cheap static proxy for this: the quantity that
+matters is the size of the definition bodies that are *not* value-reasoned, and
+you only learn it by un-exposing and measuring.
+
+⇒ Practical rule: **spend at most one or two rounds probing a new directory.** If
+the survivors are not showing a large delta by then, stop — the tail is
+worthless, and it is a long tail (this one ran to thirteen rounds).
+
+### The four failure shapes, in order of how much they cost you
+
+1. **`Invalid simp theorem \`f\`: Expected a definition with an exposed body`**
+   and **`` `unfold` failed to unfold `f` ``** — names `f`. Cheapest. Note `f`
+   may live in *another* file: expose it where it is DEFINED, not where the
+   error was reported.
+2. **`Not a definitional equality` + `Note: This theorem is exported from the
+   current module…`** — an exported in-file `rfl`/`decide` lemma. The LHS/RHS
+   head symbols name the culprits.
+3. **`Tactic \`introN\` failed: There are no additional binders…`** — a
+   `Prop`-valued definition that downstream `intro`s through, so it must unfold
+   to its pi-type (`InterpreterSimulation.HandlerMatchesSpec`). Names nothing;
+   read the goal.
+4. **`decide` failures and `maximum recursion depth`** — name nothing and reduce
+   through an entire closure. These are the ones that genuinely cost a whole
+   file; do not try to chase them declaration by declaration.
+
+⚠️ Shapes 1–3 all recur one round later via the **transitivity trap**: exposing a
+definition does not expose what it calls. Measured instances — `gasCost` →
+`complexity`/`iterations`; `ltHandler` → `binaryHandler`; `execSpecPushByte`
+named from a *different* file. Budget two or three extra rounds per batch, and
+re-read each round's named heads rather than assuming the first set was closed.
+
 ### Relationship to `@[irreducible]`
 
 `@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
