@@ -1145,4 +1145,78 @@ private theorem k73_incr_carry_routeB_fail
 
 
 
+/-- Ambient envelope for the increase adapter premise: everything the
+    wrapper world owns around the route (callee-saved frame, multiply
+    scratch window, the increase piggyback). -/
+private def k73_incr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
+    (accWin : List (BitVec 8)) (F : Assertion) : Assertion :=
+  regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 **
+    U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12))
+      f0 f1 f2 f3 f4 f5 ** bytesRegion U256MulU64Be.accBase accWin **
+    regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+    k73_incr_piggyback 0 0 0 [0] F
+
+/-- The increase route's taken leg is vacuous under `0 < target.toNat`
+    (the div-zero status exit is unreachable), so the two-leg branch with
+    `fun _ => False` as the taken post is exactly a single-exit triple. -/
+private theorem k73_incr_branch_to_triple
+    {n : Nat} {entry pt exitf : Word} {cr : CodeReq} {P Qf : Assertion}
+    (h : cpsBranchWithin n entry cr P pt (fun _ => False) exitf Qf) :
+    cpsTripleWithin n entry exitf cr P Qf := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k, hk, s', hstep, hbranch⟩ := h R hR s hcr hPR hpc
+  refine ⟨k, hk, s', hstep, ?_⟩
+  rcases hbranch with ⟨hpc', hQR⟩ | ⟨hpc', hQR⟩
+  · obtain ⟨hst, hcomp, hhold⟩ := hQR
+    obtain ⟨h1, h2, hd, hu, hl, hr⟩ := hhold
+    exact hl.elim
+  · obtain ⟨hst, hcomp, hhold⟩ := hQR
+    exact ⟨hpc', hst, hcomp, hhold⟩
+
+
+/-- Kill the window-index binder in the carry failure arm: the overflow
+    core's `k`-dependent register pins lift into ownerships, leaving the
+    `k`-free exit junk (exactly the `k73_incr_outj` body). -/
+private theorem k73_incr_arm_unify
+    (wspH wspK headerPtr parentPtr v9 old18 v19 v20 _gasLimit gasUsed target : Word)
+    (parentBytes A _outWin headerBytes : List (BitVec 8)) (Frest : Assertion) :
+    ∀ s : PartialState,
+      (((.x1 ↦ᵣ (H + 40)) ** (fun u => ∃ (status : Word)
+        (scratchBytes : List (BitVec 8)) (k : Nat),
+        status ≠ (0 : Word) ∧
+        k73FailurePost wspH wspK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status parentBytes scratchBytes headerBytes (H + 40) old8 (k73_incr_carry_junk wspK parentPtr gasUsed target A k Frest) u)) s) →
+      (((.x1 ↦ᵣ (H + 40)) ** (fun u => ∃ (status : Word)
+        (scratchBytes : List (BitVec 8)),
+        status ≠ (0 : Word) ∧
+        k73FailurePost wspH wspK headerPtr v9 old18 target v19 v20 gasUsed parentPtr status parentBytes scratchBytes headerBytes (H + 40) old8 ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word) ** (bytesRegion U256MulU64Be.accBase A ** Frest))) u)) s) := by
+  intro s hp
+  obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hp
+  obtain ⟨st, scr, k, hne, hFP⟩ := harm
+  refine ⟨sa, sb, had, hud, hx1, ⟨st, scr, hne, ?_⟩⟩
+  dsimp only [k73FailurePost, tailRest, tailRestScratch, tailRestCore,
+    k73_incr_carry_junk, k73MulOverflowCoreNoStatus] at hFP ⊢
+  have hR : ∀ q : PartialState,
+      ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word) ** (((.x5 ↦ᵣ (U256MulU64Be.accBase + BitVec.ofNat 64 (32 + k))) ** ((.x6 ↦ᵣ BitVec.ofNat 64 (8 - k)) ** (regOwn .x28 ** bytesRegion U256MulU64Be.accBase A))) ** (regOwn .x13 ** (regOwn .x7 ** (regOwn .x29 ** (regOwn .x30 ** (regOwn .x31 ** (regOwn .x14 ** (regOwn .x15 ** (regOwn .x16 ** (regOwn .x17 ** Frest)))))))))))) q →
+      (((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word) ** (bytesRegion U256MulU64Be.accBase A ** Frest)))) q := by
+    intro q hq
+    have t1 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id
+      (B := U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word))
+      (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pair_congr
+        (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x5)
+          (v := U256MulU64Be.accBase + BitVec.ofNat 64 (32 + k)))
+        (fun _ h => h)) q hq
+    have t2 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id
+      (B := U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word))
+      (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pair_congr
+        (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pair_congr (fun _ h => h)
+          (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x6) (v := BitVec.ofNat 64 (8 - k))))
+        (fun _ h => h)) q t1
+    have hE : ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word) ** ((regOwn .x5 ** (regOwn .x6 ** (regOwn .x28 ** bytesRegion U256MulU64Be.accBase A))) ** (regOwn .x13 ** (regOwn .x7 ** (regOwn .x29 ** (regOwn .x30 ** (regOwn .x31 ** (regOwn .x14 ** (regOwn .x15 ** (regOwn .x16 ** (regOwn .x17 ** Frest)))))))))))) =
+        (((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word) ** (bytesRegion U256MulU64Be.accBase A ** Frest)))) := by
+      simp only [EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch, regOwns_cons, regOwns_nil, sepConj_emp_right']
+      xperm_cert_eq
+    exact hE ▸ t2
+  have hc := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 ↦ᵣ wspH)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x8 ↦ᵣ headerPtr)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 ↦ᵣ st)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x11) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x0 ↦ᵣ (0 : Word))) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := frameSlotsSaved hvbfFrame wspH (hvbfSaved (H + 40) old8)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x9 ↦ᵣ v9)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x18 ↦ᵣ old18)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x19 ↦ᵣ v19)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x20 ↦ᵣ v20)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x12) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x13) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x5) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x6) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x7) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x28) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x29) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x30) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x31) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := bytesRegion headerPtr headerBytes) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := bytesRegion parentPtr parentBytes) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := bytesRegion Expected scr) (hR))))))))))))))))))))))) sb hFP
+  exact hc
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
