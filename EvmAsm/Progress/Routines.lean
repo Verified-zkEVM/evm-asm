@@ -243,7 +243,7 @@ import EvmAsm.Codegen.Programs.HeadersParentHashMain
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnified
 -- #12574: the completed `validate_parent_hash_link` proof family.  These are
 -- axiom-gate witnesses for the top contract and its load-bearing composition
--- lemmas; this PR does not add a `RoutineEntry` row for a new guest symbol.
+-- lemmas; the Tier-A `RoutineEntry` row is recorded below.
 import EvmAsm.Codegen.Programs.ValidateParentHashLinkTop
 -- #12799: the three full-premise cover witnesses for the hvph dispatcher were
 -- outside the axiom gate entirely — no witness abbrev, and this module did not
@@ -935,6 +935,18 @@ def routineRegistry : List RoutineEntry := [
         ++ "not the name shape). RLP list-header parse of the parent header, 32-byte "
         ++ "hash copy to `GuestAddrs.hvph_claimed`; discharges the `nH` premise of "
         ++ "`header_validate_parent_hash` conjunct 11"),
+  routine "validate_parent_hash_link" .proven
+      (some "validate_parent_hash_link_spec_within")
+      (notes := "Tier-A flat whole-routine triple (`cpsTripleWithin`) at "
+        ++ "`GuestAddrs.validate_parent_hash_link`, over the linked routine plus "
+        ++ "`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256` and "
+        ++ "the byte-copy helper. The three-way post covers decoder/field failure "
+        ++ "(status 1), a non-32-byte field (status 2), and the 32-byte hash "
+        ++ "comparison result (status 0), with static bounds and caller-owned "
+        ++ "regions only in the pre. The proof is direct `cpsTripleWithin` at the "
+        ++ "linked entry, not a structured-only SAsm spec, so it is registrable "
+        ++ "without a `Fn.retSpecFlat` lift; its axiom witness is "
+        ++ "`_vphl_whole_routine_witness` (#12574)."),
   -- #12461 arm 11: unified whole-routine triple over the hvph caller itself.
   -- Rounds 1-3 of the 32-byte compare were covered by NO landed arm (match/
   -- mismatch0 only); a unified claim over those arms alone would have been
@@ -4175,10 +4187,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 205 := by decide
+theorem routineCount_eq : routineCount = 206 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 159 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
 set_option maxRecDepth 16000 in
@@ -4198,7 +4210,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 167 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 168 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
