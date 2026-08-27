@@ -21,6 +21,8 @@
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
+import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Rv64.BitAux
@@ -33,6 +35,7 @@ open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
 open EvmAsm.Codegen.U256DivU64BeSAsm
 open EvmAsm.Codegen.U256SubBeSAsm
+open EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract
 
 /-- Overflow test of the in-place subtraction on the nonzero decrease arm:
     `bne a0, x0, +52` at K73 + 220 sends a nonzero borrow to the shared
@@ -317,19 +320,38 @@ theorem k73_decrease_mul_fall_to_sub_borrow_spec_within
     adapter (they are file-private there), plus the fall-through twin of
     `cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr`. -/
 
-private theorem decr_under_id {P P' B : Assertion}
+theorem decr_under_id {P P' B : Assertion}
     (hT : ∀ q, P q → P' q) :
     ∀ q : PartialState, ((B ** P) q) → ((B ** P') q) :=
   fun _ hp => by
     obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
     exact ⟨h1, h2, hd, hunion, hl, hT _ hr⟩
 
-private theorem decr_sep_pin_lift {r v Z} :
+theorem decr_sep_pin_lift {r v Z} :
     ∀ q : PartialState, (((r : Reg) ↦ᵣ v) ** Z) q → ((regOwn r) ** Z) q :=
   fun _ hp => by
     obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
     exact ⟨h1, h2, hd, hunion,
       regIs_implies_regOwn (r := r) (v := v) _ hl, hr⟩
+
+theorem decr_sep_pair_congr {A A' B B' : Assertion}
+    (hA : ∀ q, A q → A' q) (hB : ∀ q, B q → B' q) :
+    ∀ q : PartialState, ((A ** B) q) → ((A' ** B') q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, hA _ hl, hB _ hr⟩
+
+theorem decr_or_left_lift {A B R : Assertion} :
+    ∀ q : PartialState, ((A ** R) q) → (((fun s => A s ∨ B s) ** R) q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, Or.inl hl, hr⟩
+
+theorem decr_or_right_lift {A B R : Assertion} :
+    ∀ q : PartialState, ((B ** R) q) → (((fun s => A s ∨ B s) ** R) q) :=
+  fun _ hp => by
+    obtain ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    exact ⟨h1, h2, hd, hunion, Or.inr hl, hr⟩
 
 theorem cpsBranchWithin_seq_cpsTripleWithin_notTaken_same_cr
     {nSteps1 nSteps2 : Nat} {entry mid target exit_t : Word} {cr : CodeReq}
@@ -1129,5 +1151,4 @@ theorem k73_decrease_mul_fall_to_return_spec_within
     (decr_tailpre_unfold _ ▸ hfailT)
   exact cpsBranchWithin_seq_cpsTripleWithin_notTaken_same_cr hfext
     (decr_tailpre_unfold _ ▸ hsuccT)
-
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
