@@ -914,8 +914,8 @@ recorded the bug rather than fixed it.
 
 ## 8. The Sail boundary
 
-`EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import Out`, the vendored
-Sail-extracted model, which is not migrated (0 of 116 files) and whose own
+`EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import RiscvZkvm.Sail.InstsEnd` from the release-pinned
+`riscv-zkvm` dependency. That generated model is not migrated (0 of 116 files), and its own
 dependency — the upstream `Sail` runtime — is not ours to migrate. By
 downward-closure that blocks exactly **24 modules**: the 22 SailEquiv leaves,
 `StateRel` itself, plus `EvmAsm/Rv64.lean` and `EvmAsm.lean`.

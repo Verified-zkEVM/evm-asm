@@ -1,7 +1,7 @@
 # Remaining Dead Codegen Probe Programs (not yet removed)
 
 <!-- Tracked as an issue for batching: https://github.com/Verified-zkEVM/evm-asm/issues/12866 -->
-<!-- Latest scan count: 89 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
+<!-- Latest scan count: 77 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
 <!-- Keep the count line in sync when a batch below is completed. -->
 
 Registry of unverified `EvmAsm/Codegen/Programs/` modules that still define
@@ -23,7 +23,25 @@ cross-checked with the `git grep -l <Name>` method in the Reviewer playbook.
    they carry; no live `import`, no `GuestImageEntries` linkage, no guestAddrs
    pins. `Chain.lean` was *not* removed — it is a dead-code file with no
    probe-family `<stem-lc>Function` def (only `chainExtract*` converters) so the
-   committed `scan_deadprobes.py` correctly keeps it.
+       committed `scan_deadprobes.py` correctly keeps it.
+  * **WitnessHeaders\* probe family** (6 files, `WitnessHeadersAllChainLinksValidate` ... `WitnessHeadersStateRootAtIndex`).
+    All six import only shared, staying modules (`Rv64.Program`, `Layout`,
+    `RlpRead`, `HashBridge`, `HeaderFields`, `Mpt`, `State`, `Emit`, `AsmReloc`,
+    `GuestAddrs`) and are re-exported only by `Imports`/`Registry`/`RegistryMain`;
+    the six family imports were removed from each. Three members carry dead
+    converter fixtures (`witnessHeadersBlockHashAtIndexFunction`,
+    `witnessHeadersFindIndexByBlockHashFunction`,
+    `witnessHeadersStateRootAtIndexFunction`) — their `.s` fixtures + MANIFEST rows
+         went with the files; `scan_deadprobes.py` flags all six.
+  * **Account\* probe family** (6 files, `AccountExistsAtBlockHash` ... `AccountVerify`).
+    All six import only shared, staying modules (`Rv64.Program`, `Layout`,
+    `RlpRead`, `HashBridge`, `HeaderFields`, `Mpt`, `State`, `Emit`, `AsmReloc`,
+    `GuestAddrs`) and are re-exported only by `Imports`/`Registry`/`RegistryMain`;
+    the six family imports were removed from each. Unlike the WitnessHeaders batch,
+    none of the six carries dead converter fixtures — no `.s` files, no MANIFEST
+    rows, no `GuestImageEntries` linkage, and no guestAddrs pins defined (all pins
+    are consumed centrally), so they are pure dead probe-family files. Scan count
+    83 -> 77.
 
 In flight: a `State*` account/state-extractor batch (20 files, `StateBalanceProof` ... `StateWalkExtractSlot`) was filed as a dead-code PR. Move it into Completed batches once merged.
 
@@ -54,16 +72,10 @@ and files that are still live anywhere (for example `TxTotalBlobGas.lean`, whose
 `calculate_total_blob_gas` helper is referenced by the `Stateless/SpecRef` port)
 are correctly excluded even though their probe strings are self-contained.
 
-## Remaining 89 files
+## Remaining 77 files
 
 ```text
-  - AccountExistsAtBlockHash
-  - AccountExistsAtBlockNumber
-  - AccountIsEmptyAtBlockHash
-  - AccountIsEmptyAtBlockNumber
-  - AccountStorageWalkable
-  - AccountVerify
-  - B3CoinbaseFee
+   - B3CoinbaseFee
   - BaseFeePerGasAtBlockHash
   - BaseFeePerGasAtBlockNumber
   - BlobGasPairAtBlockHash
@@ -134,14 +146,8 @@ are correctly excluded even though their probe strings are self-contained.
   - WithdrawalsRootAtBlockHash
   - WithdrawalsRootAtBlockNumber
   - WitnessCodesKeccakAtIndex
-  - WitnessHeadersAccountAtIndex
-  - WitnessHeadersAllChainLinksValidate
-  - WitnessHeadersBlockHashAtIndex
-  - WitnessHeadersChainLink
-  - WitnessHeadersFindIndexByBlockHash
-  - WitnessHeadersSlotAtIndex
-  - WitnessHeadersStateRootAtIndex
-  - WitnessNodeKindDistribution
+   - WitnessHeadersAccountAtIndex
+   - WitnessNodeKindDistribution
   - WitnessStateKeccakAtIndex
   - WitnessStorageKeccakAtIndex
   - WitnessStorageNodeKindDistribution

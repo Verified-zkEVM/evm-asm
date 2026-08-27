@@ -444,22 +444,22 @@ Top-level Lake dependencies (declared in [`lakefile.toml`](lakefile.toml)):
 - **[Mathlib4](https://github.com/leanprover-community/mathlib4)** — Lean 4
   mathematics library. Used pervasively for `BitVec`, `Nat` arithmetic, `Fin`,
   decidability instances, and tactic infrastructure.
-- **Vendored Sail RISC-V model** (`vendor/sail-riscv-zkvm-lean/`) — a checked-in,
+- **[riscv-zkvm](https://github.com/Verified-zkEVM/riscv-zkvm)** — a
   release-pinned, *scoped* Lean export of the official
-  [Sail RISC-V model](https://github.com/riscv/sail-riscv), covering exactly the
-  RV64IM subset (`SAIL_MODULES = main I_insts M_insts`). Pulls in
+  [Sail RISC-V model](https://github.com/riscv/sail-riscv), covering the RV64IM
+  surface (`SAIL_MODULES = main I_insts M_insts Zicsr_insts`). Pulls in
   [`lean-sail`](https://github.com/sail-lean/lean-sail) (Sail's Lean monad
-  runtime) via a git-pinned `require` in the vendored package's lakefile.
+  runtime) via a git-pinned `require` in the dependency's lakefile.
 
-  Why vendored + scoped? The model is the project's trust anchor, so it is owned
-  and reproducible rather than fetched from a moving fork: every input — the
-  sail-riscv release tag, Sail compiler version, lean-sail rev, module scope,
-  config, and a content `model_sha256` — is recorded in
-  [`sail-import/PROVENANCE.toml`](sail-import/PROVENANCE.toml) and regenerable via
-  [`scripts/regen-sail-model.sh`](scripts/regen-sail-model.sh). (This replaced an
-  earlier dependency on the moving `dhsorens/sail-riscv-lean` fork.)
+  Why a separate tagged dependency? The model is a shared trust anchor with an
+  independent update cadence. `riscv-zkvm` records the Sail RISC-V release,
+  Sail compiler, lean-sail runtime, module scope, config, and generated-tree
+  digest, and publishes platform-independent `RiscvZkvm.Sail` oleans with every
+  release.
+  Lake therefore verifies a fixed revision without rebuilding the generated
+  model during ordinary EvmAsm builds.
 
-The vendored Sail model is the **trust anchor** for our RISC-V semantics:
+The pinned Sail model is the **trust anchor** for our RISC-V semantics:
 hand-written specs in [`EvmAsm/Rv64/Instructions.lean`](EvmAsm/Rv64/Instructions.lean)
 are tied to the Sail-generated decoder/executor via abstraction-relation
 proofs in [`EvmAsm/Rv64/SailEquiv/`](EvmAsm/Rv64/SailEquiv/) (`StateRel.lean`
@@ -621,5 +621,5 @@ Top-line invariants:
   not SP1's syscall table. Concrete syscall IDs are a host detail
   remapped in the ECALL handler and tracked per-bridge in beads
   parent `evm-asm-nr2sk`.
-- sail-riscv-lean: https://github.com/opencompl/sail-riscv-lean
+- riscv-zkvm: https://github.com/Verified-zkEVM/riscv-zkvm
 - RISC-V ISA specification: https://riscv.org/technical/specifications/

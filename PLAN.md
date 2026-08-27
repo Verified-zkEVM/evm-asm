@@ -102,6 +102,24 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 
 ## Current Status
 
+### RISC-V specification package split (2026-08-25)
+
+- ✅ The scoped Sail RISC-V Lean model now lives in the independent
+  [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm)
+  package. EvmAsm consumes a release tag; generated `RiscvZkvm.Sail` oleans are
+  attached to that release and fetched by Lake, eliminating the in-tree Sail
+  rebuild/cache.
+- ✅ The extraction was refreshed to `sail-riscv` 0.13.1 with Sail 0.20.2.
+  Source/compiler/runtime/config/module pins, generated-tree hashes,
+  regeneration instructions, and release procedure are maintained upstream.
+- ✅ The upstream Sail RISC-V Lean emulator is available there as a
+  validation workflow; the refreshed scoped model passes all 50 selected
+  upstream RV64I ELF tests under its documented executable-only
+  omitted-extension policy.
+- Follow-on: decide whether to expose a reusable interpreter library after the
+  validation CLI has accumulated coverage; keep it separate from the
+  theorem-facing proof extraction so executability does not weaken definitions.
+
 ### Recent (agent enablement: DCode porting playbook + byte-gate tool, 2026-08-23)
 
 - ✅ **`docs/dcode-porting-playbook.md`**: the end-to-end recipe for
@@ -1804,10 +1822,11 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
     per-address case splits.
   - **Initializer tie-in (BLOCKED — model regen needed, not proof work).**
     Deriving `BareModeInv` from the model's own boot routine is *provably
-    impossible* on the current vendored model: `sail_model_init` errors for
+    impossible* on the current scoped `riscv-zkvm` model: `sail_model_init` errors for
     every state (kernel-checked `sail_model_init_run_none`) because module
-    scoping `{main, I_insts, M_insts}` dropped the `currentlyEnabled` clauses
-    for Zicsr/Zkr/Zicbo/Zicntr/Zfh that `main`'s CSR postlude still calls. Full
+    scoping `{main, I_insts, M_insts, Zicsr_insts}` still drops the
+    `currentlyEnabled` clauses for Zkr/Zicbo/Zicntr/Zfh that `main`'s CSR
+    postlude calls. Full
     analysis + fix options in `docs/sail-init-scoping-defect.md`. Fix =
     re-scope/full-model regen (maintainer decision pending). No existing lemma
     is affected — all take `BareModeInv` as a hypothesis.

@@ -27,7 +27,7 @@
 import EvmAsm.Rv64.Execution
 import EvmAsm.Rv64.SailEquiv.MonadLemmas
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv
@@ -436,7 +436,7 @@ theorem mul_sail_equiv (sRv : MachineState) (sSail : SailState)
       PlatformFrame sSail sSail' := by
   unfold execute_MUL
   simp only [runSail_bind, runSail_rX_bits_of_stateRel hrel, runSail_pure,
-    mul_low_equiv, Out.Functions.xlen]
+    mul_low_equiv, RiscvZkvm.Sail.Functions.xlen]
   simp only [runSail_wX_bits_of_reg]
   exact ⟨_, rfl, ⟨
     fun r => by
