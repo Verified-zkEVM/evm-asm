@@ -665,7 +665,6 @@ import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsChainO
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
 import EvmAsm.Codegen.Programs.RlpWalkInitFlatSAsm
 import EvmAsm.Codegen.Programs.RlpWalkNextFlatSAsm
-import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmFrame
 import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmInit

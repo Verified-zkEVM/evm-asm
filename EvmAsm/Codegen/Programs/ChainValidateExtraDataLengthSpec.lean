@@ -39,7 +39,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.ChainValidate
-import EvmAsm.Codegen.Programs.RlpListNthItemSAsm
+import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.Tactics.RunBlock
 

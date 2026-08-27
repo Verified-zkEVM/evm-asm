@@ -15,7 +15,7 @@
 
 import EvmAsm.Evm64.MptAssertions
 import EvmAsm.Codegen.Programs.Mpt
-import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 
 namespace EvmAsm.Codegen.MptNodeKindSpec
