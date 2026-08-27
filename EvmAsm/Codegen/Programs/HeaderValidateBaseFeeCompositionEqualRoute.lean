@@ -433,4 +433,36 @@ theorem k73_equal_route_adapter {cr : CodeReq}
           hcur6
     exact hpt sb hbig
 
+/-- CONSTRUCTED inhabitant of the adapter premise set at concrete witness
+data (RefWitness §3 family: parent gas limit 100000, used 50000, three
+length-32 zero regions, #12762 frame layout addresses).  Every hypothesis
+is closed by kernel computation, so this equal-route Route-B instance is
+a construction of a point of the contract, not an inference from the
+callee's premise-freeness (#12346 residual 2b non-vacuity). -/
+theorem k73_equal_route_adapter_inhabited :
+    cpsTripleWithin 29 K73 (H + 40)
+      EvmAsm.Codegen.HeaderBaseFeeSpec.wholeCode
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PreRest (0x100000 : Word) (0xFFFC8 : Word) (0x200000 : Word)
+          (1 : Word) (2 : Word) (3 : Word) (4 : Word)
+          (100000 : Word) (50000 : Word) (0x200100 : Word)
+          (List.replicate 32 0) (List.replicate 32 0) (List.replicate 32 0)
+          (H + 40) (0x56780000 : Word) empAssertion)
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73RouteBCallPost (0x100000 : Word) (0xFFFC8 : Word) (H + 40)
+          (0x56780000 : Word) (0x200000 : Word)
+          (1 : Word) (2 : Word) ((100000 : Word) >>> 1) (3 : Word) (4 : Word)
+          (50000 : Word) (100000 : Word) (0x200100 : Word)
+          (List.replicate 32 0) (List.replicate 32 0) empAssertion) :=
+  k73_equal_route_adapter
+    (cr := EvmAsm.Codegen.HeaderBaseFeeSpec.wholeCode)
+    (0x100000 : Word) (0xFFFC8 : Word) (0x56780000 : Word) (0x200000 : Word)
+    (100000 : Word) (50000 : Word) (0x200100 : Word)
+    (1 : Word) (2 : Word) (3 : Word) (4 : Word)
+    (List.replicate 32 0) (List.replicate 32 0) (List.replicate 32 0)
+    empAssertion
+    (hspK := rfl) (heqWord := rfl) (hsrc := rfl) (hout := rfl)
+    (_hret := by unfold H; rfl) (hF := by pcf)
+    (hk73Mono := fun _ _ h => h)
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
