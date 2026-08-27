@@ -11,7 +11,7 @@
   non-degenerate entry layout already checked for Amsterdam.
 -/
 
-import EvmAsm.Codegen.Programs.Arm2Probe
+import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceU256Sat
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
