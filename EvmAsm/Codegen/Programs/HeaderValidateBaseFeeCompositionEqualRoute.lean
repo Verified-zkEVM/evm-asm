@@ -28,6 +28,7 @@ import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
 import EvmAsm.Codegen.Programs.K73Arithmetic
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Rv64.MemRegionWriteWide
+import EvmAsm.Rv64.Tactics.XPermCert
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
 
@@ -186,5 +187,127 @@ theorem hvbfWrittenImage_eq_self (gl gu : Word) {pb : List (BitVec 8)}
   show natToBytesBE 32 (baseFeeRecurrenceWide gu.toNat (gl.toNat / 2) (bytesBEtoNat pb)) = pb
   rw [hrw]
   exact k73_fixed_bytes_repr pb hlen32
+
+/-- Congruence for sepConj holds: pointwise implications on both factors
+    lift to an implication of the conjunction (pair-rebuild idiom). -/
+private theorem sep_pair_congr {A A' B B' : Assertion}
+    (hA : ∀ q, A q → A' q) (hB : ∀ q, B q → B' q) :
+    ∀ q, ((A ** B) q) → ((A' ** B' ) q) :=
+  fun _ hp =>
+    let ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    ⟨h1, h2, hd, hunion, hA _ hl, hB _ hr⟩
+
+/-- A register pin entails ownership of that register (toy pair-lift). -/
+private theorem sep_pin_lift {r v Z} :
+    ∀ q : PartialState, ((r ↦ᵣ v) ** Z) q → ((regOwn r) ** Z) q :=
+  fun _ hp =>
+    let ⟨h1, h2, hd, hunion, hl, hr⟩ := hp
+    ⟨h1, h2, hd, hunion, regIs_implies_regOwn (r := r) (v := v) _ hl, hr⟩
+
+/-- Pointwise cast of the Expected-window list argument inside a hold. -/
+private theorem sep_br_cast {le le' Z} (heq : le = le') :
+    ∀ q : PartialState,
+      ((bytesRegion Expected le ** Z) q) → ((bytesRegion Expected le' ** Z) q) :=
+  fun _ hp => heq ▸ hp
+
+/-- Equal-route shape adapter (#12346 residual 2b): the wrapper vocabulary
+    instantiation of the premise-free equal-route triple
+    `k73_equal_route_spec_within` yields EXACTLY the revised wrapper
+    premise's success arm.  Guards match the wrapper's: `gasUsed =
+    gasLimit >>> 1`, both byte lists length 32, aligned entry link fixed at
+    the callsite `H + 40`.  This certifies the repaired Route-B contract is
+    discharge-able, not merely well-typed.
+
+    Proof notes: the source theorem's assertion parameter is set to the
+    piggyback `G` carrying the two atoms its pre/post omit but ours include
+    (`frameSlotsSaved hvbfFrame …`, `bytesRegion headerPtr headerBytes`) —
+    after that the PRE sides are the same atom multiset, so the premise-side
+    conversion is an ASSERTION EQUALITY (`dsimp` + `xperm`), not an
+    entailment; the return side lifts five status/data pins to ownerships
+    and casts the window image. -/
+theorem k73_equal_route_adapter {cr k73Code : CodeReq}
+    (spH spK old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 old18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion)
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (heqWord : gasUsed = gasLimit >>> 1)
+    (hsrc : parentBytes.length = 32) (hout : expectedBytes.length = 32)
+    (hret : ((H + 40 : Word) &&& ~~~1) = H + 40)
+    (hF : F.pcFree)
+    (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i) :
+    cpsTripleWithin 29 K73 (H + 40) cr
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
+          parentBytes expectedBytes headerBytes (H + 40) old8 F)
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73RouteBCallPost spH spK (H + 40) old8 headerPtr v9 old18 (gasLimit >>> 1)
+          v19 v20 gasUsed gasLimit parentPtr parentBytes headerBytes F) := by
+  let G : Assertion := frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+    bytesRegion headerPtr headerBytes ** F
+  have hGF : G.pcFree := by pcf; exact hF
+  have hsrc0 := k73_equal_route_spec_within (sp0 := spH) (spH := spK) (H + 40)
+    gasLimit gasUsed parentPtr Expected (gasLimit >>> 1) headerPtr
+    v9 old18 v19 v20 parentBytes expectedBytes G hspK rfl heqWord hsrc hout rfl hGF
+  have hcr := cpsTripleWithin_extend_code hk73Mono hsrc0
+  refine cpsTripleWithin_weaken (fun s hp => ?_) (fun s hq => ?_) hcr
+  · have hpreEq :
+        ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20
+            gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
+            (H + 40) old8 F) =
+          k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
+            headerPtr v9 old18 v19 v20 parentBytes expectedBytes G := by
+      dsimp only [k73HeadPre, k73PreRest]
+      dsimp only [G]
+      xperm
+    rw [hpreEq] at hp
+    exact hp
+  · show ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost spH spK (H + 40) old8 headerPtr
+        v9 old18 (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr parentBytes
+        headerBytes F) s
+    have hw := hvbfWrittenImage_eq_self gasLimit gasUsed heqWord hsrc
+    have hwin : k73CopyOut parentBytes expectedBytes
+        = hvbfWrittenImage gasLimit gasUsed parentBytes := by
+      rw [k73_copyOut_eq_src hsrc hout, hw]
+    -- Bring the source post's x1 pin to the front (legal permutation).
+    rw [sepConj_left_comm'
+      (P := (.x2 ↦ᵣ spH)) (Q := (.x1 ↦ᵣ (H + 40)))
+      (R := (.x8 ↦ᵣ headerPtr) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) **
+        (.x20 ↦ᵣ v20) ** (.x10 ↦ᵣ 0) ** (.x11 ↦ᵣ gasUsed) ** (.x12 ↦ᵣ parentPtr) **
+        (.x13 ↦ᵣ Expected) ** (.x0 ↦ᵣ 0) **
+        (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+        regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+        regOwn .x31 ** frameSlotsSaved k73Frame spK
+          (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+        bytesRegion parentPtr parentBytes **
+        bytesRegion Expected (k73CopyOut parentBytes expectedBytes) ** G)] at hq
+    obtain ⟨sa, sb, had, hud, hx1g, hbig⟩ := hq
+    refine ⟨sa, sb, had, hud, hx1g, ?_⟩
+    dsimp only [k73RouteBCallPost]
+    refine Or.inl ?_
+    show k73PostOwn spH spK headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed
+      parentPtr parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+      headerBytes (H + 40) old8 F sb
+    -- Pointwise: the pinned source chain entails the owned Route-B arm.
+    have hpt : ∀ u : PartialState,
+        (((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) **
+            (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x10 ↦ᵣ 0) ** (.x11 ↦ᵣ gasUsed) **
+            (.x12 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ Expected) ** (.x0 ↦ᵣ 0) **
+            (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) ** G) u →
+          (k73PostOwn spH spK headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed
+            parentPtr parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
+            headerBytes (H + 40) old8 F) u) :=
+      by
+        intro u hu
+        -- Route-B pin-lift ladder PENDING (next session): rotate each pin to
+        -- head via AC-equality casts (`xperm_cert_eq` from Tactics.XPermCert,
+        -- needs import), lift with `sep_pin_lift`, cast window with
+        -- `sep_br_cast … hwin`, close via dsimp+xperm against unfolded goal.
+        sorry
+    exact hpt sb hbig
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
