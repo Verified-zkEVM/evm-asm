@@ -948,4 +948,87 @@ theorem k73_decr_route_adapter {cr : CodeReq}
     obtain ⟨sa, sb, had, hud, hx1, hPO⟩ := hS
     exact ⟨sa, sb, had, hud, hx1, Or.inl hPO⟩
 
+
+/-- CONSTRUCTED non-vacuity inhabitance of the decrease Route-B adapter
+    (adopted standard for #12346: a finished route does not count until a
+    closed-proposition witness exists - an unsatisfiable premise cannot admit
+    a constructed witness, so this check catches the vacuity class by
+    construction rather than by vigilance).  Concrete literals: the
+    corollary-family stack pair `spH - spK = 56`, decrease guard family
+    `gasLimit = 10000`, `gasUsed = 2500` (target `(10000 >>> 1) = 5000 >
+    2500`, nonzero), zero scratch windows, empty ambience, `cr = wholeCode`.
+    Discharged by direct application - no hypotheses, no sorry. -/
+theorem k73_decr_route_adapter_inhabited :
+    cpsTripleWithin
+      ((19 + 3852 + 9) +
+        (((((10 +
+              (u256DivU64BeInPlaceFn Expected ((10000 : Word) >>> 1)
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))).body.steps +
+            (u256DivU64BeInPlaceFn Expected 8
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                ((10000 : Word) >>> 1))).body.steps +
+          1) +
+          (1 + (5 + (u256SubBeInPlaceFn (0x200100 : Word) Expected (List.replicate 32 0)
+            (u256DivU64BeQuotBytes
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                ((10000 : Word) >>> 1))
+              (u256DivU64BeQuotBytes
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))
+                ((10000 : Word) >>> 1))
+              8)).body.steps))) + 1) + 9) + 10))
+      K73 (H + 40) wholeCode
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest (0xa0050038 : Word) (0xa0050000 : Word) (0x200000 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+        (10000 : Word) (2500 : Word) (0x200100 : Word) (List.replicate 32 0) (List.replicate 32 0) (List.replicate 32 0)
+        (H + 40) (0 : Word)
+        (k73_decr_env (0xa0050000 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (List.replicate 40 0) empAssertion))
+      ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost (0xa0050038 : Word) (0xa0050000 : Word) (H + 40) (0 : Word) (0x200000 : Word)
+        (0 : Word) (0 : Word) ((10000 : Word) >>> 1) (0 : Word) (0 : Word) (2500 : Word) (10000 : Word) (0x200100 : Word)
+        (List.replicate 32 0) (List.replicate 32 0)
+        (k73_decr_outj (0xa0050000 : Word) (0x200000 : Word) (0x200100 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (2500 : Word)
+          ((10000 : Word) >>> 1) (List.replicate 32 0) empAssertion)) :=
+  k73_decr_route_adapter (cr := wholeCode)
+    (0xa0050038 : Word) (0xa0050000 : Word) (0 : Word) (0x200000 : Word)
+    (10000 : Word) (2500 : Word) (0x200100 : Word)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    (List.replicate 32 0) (List.replicate 32 0) (List.replicate 32 0)
+    (List.replicate 40 0)
+    (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+    empAssertion
+    (hspK := by decide)
+    (hne := by decide)
+    (hnotlt := by decide)
+    (hnonzero := by decide)
+    (hret := by unfold H; rfl)
+    (hF := by pcf)
+    (htargetPos := by decide)
+    (hleTarget := by decide)
+    (hMulFit := by decide)
+    (hlenP := by simp)
+    (hExpectedLen := by simp)
+    (hlenAcc := by simp)
+    (halignA := by decide)
+    (hoverA := by decide)
+    (hvalidA := by intro j _; interval_cases j <;> decide)
+    (halignOut := by decide)
+    (hoverOut := by decide)
+    (hvalidOut := by intro j _; interval_cases j <;> decide)
+    (hdisj := by decide)
+    (hrw := by decide)
+    (hroBase := by
+      refine ⟨?_, ?_, ?_⟩
+      · decide
+      · decide
+      · intro k hk
+        have hk32 : k < 32 := by simpa using hk
+        interval_cases k <;> decide)
+    (hszDiv1 := by simp only [k73_decr_img2, u256DivU64BeInPlaceFn]; decide)
+    (hszDiv2 := by simp only [k73_decr_img2, u256DivU64BeInPlaceFn]; decide)
+    (hszSub := by simp only [k73_decr_img2, u256SubBeInPlaceFn]; decide)
+    (fun _ _ h => h)
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute

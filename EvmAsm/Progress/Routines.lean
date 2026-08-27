@@ -5301,6 +5301,8 @@ private noncomputable abbrev _k73_mul_status_branch_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_inhabited
 private noncomputable abbrev _k73_decr_entry_status_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
+private noncomputable abbrev _k73_decr_route_adapter_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
