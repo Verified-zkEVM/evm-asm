@@ -9,8 +9,12 @@
   (call j0 iter-bc — completes the j0 iter-bc layer).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitMod
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitMod
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
+
+public section
 
 namespace EvmAsm.Evm64
 

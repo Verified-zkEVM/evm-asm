@@ -16,9 +16,13 @@
   Bead `evm-asm-wbc4i.6.14.1` / `evm-asm-wbc4i.6.14.2` (V5.6.15a/b).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step1FullV5
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Step2FullV5
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

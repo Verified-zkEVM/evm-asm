@@ -1,12 +1,16 @@
 /- Shared declaration home for the n=2 MOD post bridges. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
-import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

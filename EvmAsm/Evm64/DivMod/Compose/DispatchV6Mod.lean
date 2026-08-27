@@ -9,9 +9,13 @@
   (`modV6V5Off` vs `v6V5Off`) differ.  Brick 7 of the MOD v6 fast arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
-import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
-import EvmAsm.Rv64.SyscallSpecs
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+public import EvmAsm.Rv64.SyscallSpecs
+
+public section
 
 namespace EvmAsm.Evm64
 

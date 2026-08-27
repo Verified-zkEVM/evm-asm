@@ -16,7 +16,11 @@
 -/
 
 -- `Shift.LimbSpec` transitively imports `Rv64.AddrNorm`.
-import EvmAsm.Evm64.Shift.LimbSpec
+module
+
+public import EvmAsm.Evm64.Shift.LimbSpec
+
+public section
 
 namespace EvmAsm.Evm64
 

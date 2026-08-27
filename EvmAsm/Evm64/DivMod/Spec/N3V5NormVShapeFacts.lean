@@ -10,7 +10,11 @@
   assembly (bead 9.3.3.3).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
+
+public section
 
 namespace EvmAsm.Evm64
 

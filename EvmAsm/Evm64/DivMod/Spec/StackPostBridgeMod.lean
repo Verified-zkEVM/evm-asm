@@ -9,9 +9,13 @@
   only the post bundle names + the `sp+32` result word differ.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -8,9 +8,16 @@
   equalities that recur in the SMOD bridge layer.
 -/
 
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Evm64.SMod.AddrNormAttr
-import EvmAsm.Evm64.SMod.Program
+module
+
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Evm64.SMod.AddrNormAttr
+public import EvmAsm.Evm64.SMod.Program
+meta import EvmAsm.Rv64.AddrNorm
+meta import EvmAsm.Evm64.SMod.AddrNormAttr
+meta import EvmAsm.Evm64.SMod.Program
+
+public section
 
 namespace EvmAsm.Evm64.SMod.AddrNorm
 

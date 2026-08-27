@@ -9,8 +9,12 @@
   Bead `evm-asm-wbc4i.9.3.3.6`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+
+public section
 
 namespace EvmAsm.Evm64
 

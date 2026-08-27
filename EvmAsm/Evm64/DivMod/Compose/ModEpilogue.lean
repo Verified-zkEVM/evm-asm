@@ -6,7 +6,11 @@
   Block 9 (denorm at base+904) is identical between divCode and modCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Epilogue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Epilogue
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

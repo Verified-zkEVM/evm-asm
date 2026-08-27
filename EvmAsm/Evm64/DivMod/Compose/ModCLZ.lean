@@ -6,8 +6,12 @@
   Block 2 (CLZ at base+116) is identical between divCode and modCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.V4Code
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

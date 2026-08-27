@@ -6,9 +6,13 @@
   over the Compose file-size cap.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
-import EvmAsm.Evm64.Exp.TwoMulCondShared
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+public import EvmAsm.Evm64.Exp.TwoMulCondShared
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

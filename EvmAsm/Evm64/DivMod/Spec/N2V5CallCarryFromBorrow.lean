@@ -12,7 +12,11 @@
   carry2nz unconditionally — false when a call digit's trial is exact, `c3 = 0`).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallAddbackOverestimate
+
+public section
 
 namespace EvmAsm.Evm64
 

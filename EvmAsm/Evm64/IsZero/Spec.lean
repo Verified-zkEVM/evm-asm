@@ -5,11 +5,15 @@
   12 instructions total. Unary: pops 1, pushes 1, sp unchanged.
 -/
 
-import EvmAsm.Evm64.IsZero.LimbSpec
-import EvmAsm.Evm64.IsZero.Program
-import EvmAsm.Evm64.EvmWordArith.IsZero
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.IsZero.LimbSpec
+public import EvmAsm.Evm64.IsZero.Program
+public import EvmAsm.Evm64.EvmWordArith.IsZero
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

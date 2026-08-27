@@ -16,7 +16,11 @@
   `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4Carry2OfBorrow
+
+public section
 
 namespace EvmAsm.Evm64
 

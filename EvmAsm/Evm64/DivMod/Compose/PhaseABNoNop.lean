@@ -4,8 +4,12 @@
   No-NOP DIV Phase A/B wrappers used by callable DIV/SDIV composition.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

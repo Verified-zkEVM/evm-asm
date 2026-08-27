@@ -15,8 +15,12 @@
   Bead `evm-asm-wbc4i.9.3.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
-import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
+public import EvmAsm.Evm64.DivMod.Spec.N3V5QuotientWord
+
+public section
 
 namespace EvmAsm.Evm64
 

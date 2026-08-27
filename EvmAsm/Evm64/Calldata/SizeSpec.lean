@@ -9,12 +9,16 @@
   (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Calldata.SizeProgram
-import EvmAsm.Evm64.Environment.Assertion
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Calldata.SizeProgram
+public import EvmAsm.Evm64.Environment.Assertion
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

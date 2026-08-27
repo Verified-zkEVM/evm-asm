@@ -5,7 +5,11 @@
   Prefix and BEQ gate wrappers live in SavedBitFullLoopCanonicalPrefix.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonicalPrefix
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonicalPrefix
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

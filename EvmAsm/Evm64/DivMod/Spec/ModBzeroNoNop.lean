@@ -7,9 +7,13 @@
   stack spec surface is near the file-size cap.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Base
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.Unified
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Base
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.Unified
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

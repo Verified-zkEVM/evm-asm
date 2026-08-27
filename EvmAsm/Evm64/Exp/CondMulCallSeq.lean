@@ -20,8 +20,12 @@
   (claude-c1).
 -/
 
-import EvmAsm.Evm64.Exp.CondMulMarshalPair
-import EvmAsm.Evm64.Exp.CondMulCall
+module
+
+public import EvmAsm.Evm64.Exp.CondMulMarshalPair
+public import EvmAsm.Evm64.Exp.CondMulCall
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

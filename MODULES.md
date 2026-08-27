@@ -119,40 +119,246 @@ file's own imports. The converter adds it.
 
 ## 5. `@[expose]` — the contract about what proofs may unfold
 
-`@[expose] public section` at the top of every file preserves today's behaviour:
-downstream proofs can see through definitions exactly as they can now. This tree
-depends on that heavily — roughly 1200 `@[irreducible]`, 8400 `unfold`, and
-13000 `simp only [<def>]` sites.
+`@[expose] public section` puts every definition **body** in the file into the
+module interface, so downstream proofs can see through it. That was the right
+default for the migration — it preserved pre-migration behaviour — but it is not
+the right default afterwards, and narrowing it is what the exposure pass does.
 
-**Do not remove `@[expose]` from a file in an ordinary PR.** It is a semantic
-change: an unexposed definition cannot be unfolded downstream, and proofs that
-relied on defeq will break. Tightening it is a deliberate, measured, later pass.
+⚠️ **The operation is `@[expose] public section` → `public section`.** Never
+delete the line: `public section` is what exports the declarations at all.
 
-When that pass runs, the rule of thumb will be:
+### What it actually costs, measured
 
-- A definition whose *value* downstream proofs reason about (`simp [f]`,
-  `unfold f`, `decide` on a concrete instance, `rfl`) needs `@[expose]`.
-- A definition that is only ever *applied*, with its behaviour characterised by
-  lemmas, does not — and is better off unexposed, because then changing its body
-  does not invalidate the cone.
+`Stateless/SpecRef/IncrementalMptWrite.lean` (50 `def`s), same
+semantics-preserving edit to one definition body, public `.olean.hash` (which is
+what Lake keys downstream invalidation on):
 
-Note the relationship to `@[irreducible]`, which this repo already uses to say
-"do not unfold this". `@[irreducible]` asks the elaborator not to unfold;
-*unexposed* means downstream cannot unfold it at all, because the body is not in
-the interface. They point the same way, and once a definition is unexposed its
-`@[irreducible]` is usually redundant.
+| exposure | body | public hash | downstream |
+| --- | --- | --- | --- |
+| `@[expose] public section` | original | `9209185754286df7` | — |
+| `@[expose] public section` | edited | `a2b0a9a51c9f7d99` | **whole cone rebuilds** |
+| `public section` | original | `dfbd7d1b90979cfb` | — |
+| `public section` | edited | `dfbd7d1b90979cfb` | **nothing rebuilds** |
+
+Un-exposing that one file also cut its public `.olean` from 555 080 to 197 432
+bytes — **−64 %** — and the public olean is what every downstream module loads.
+
+### The rule
+
+A definition needs `@[expose]` iff **another module reasons about its value**:
+`unfold f`, `simp only [f]`, `rw [f]`, `delta f`, or `rfl`/`decide` reduction
+that reaches it. A definition that is only ever *applied*, characterised by
+lemmas, does not.
+
+⛔ **Reduction is transitive and no grep sees it.** `rfl` and `decide` reduce
+through the whole call graph, not just the names written in the statement.
+`Codegen/Dispatch.lean:1600` pins `emitProgramR … := rfl`, which must reduce
+`laHi` and the `GuestAddrs` constants — **neither appears in the statement**. So
+a syntactic scan gives a lower bound on what must stay exposed, never the answer.
+Decide per file, then let `lake build` be the oracle.
+
+### What breaks, and what does not (all probed in this tree)
+
+| mechanism, on a non-exposed `def` | result |
+| --- | --- |
+| `rfl` | ✗ `Note: … not exposed: probeDef ↦ 1` |
+| `decide` | ✗ **but the message never says "exposed"** — see below |
+| `simp only [f]` | ✗ `Invalid simp theorem …: Expected a definition with an exposed body` |
+| `unfold f` / `delta f` | ✗ `Tactic 'unfold' failed to unfold` |
+| `#guard` | ✅ **passes** — interpreter-checked, see §7b |
+| `abbrev` (any tactic) | ✅ **passes — `abbrev` stays exposed regardless** |
+| per-declaration `@[expose] def f` | ✅ works inside a plain `public section` |
+| `#print axioms` / `axiomsweep` | ✅ clean — un-exposing adds no axiom taint |
+
+Two of those are traps worth stating outright:
+
+- ⚠️ **`decide`'s failure blames the wrong thing.** It reports *"its `Decidable`
+  instance … did not reduce to `isTrue` or `isFalse` … reduction got stuck"* and
+  never mentions exposure. Someone hitting it will go and audit their
+  `Decidable` instance. If a `decide` breaks in a file whose exposure you just
+  changed, suspect exposure first.
+- ✅ **`abbrev` is auto-exposed.** Reading the toolchain suggests otherwise —
+  there is no `reducible` carve-out at any `forceExpose` call site — but the
+  probe is decisive: an `abbrev` under a plain `public section` still reduces by
+  `rfl` and by `decide` from another module. So abbrev-dense files gain nothing
+  from un-exposing, and offset tables such as `DivMod/Compose/Offsets.lean` and
+  the generated `Codegen/RegionMapLinkPins.lean` are safe by construction.
+
+### The predictor: count plain `def`s, ignore `abbrev`s
+
+Because abbrevs stay exposed, the win tracks the number of plain `def`s and
+nothing else. Measured:
+
+| file | `def` | `abbrev` | public `.olean` |
+| --- | ---: | ---: | ---: |
+| `Stateless/SpecRef/IncrementalMptWrite.lean` | 50 | 0 | **−64 %** |
+| `Evm64/Accelerators/Types.lean` | 1 | 31 | −0.3 % |
+| `Evm64/EvmWordArith/Common.lean` (control) | 0 | 0 | **0, exactly** |
+
+⇒ A file with no plain `def`s gains **nothing** — there is no body to withhold.
+Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
+default, so a `def` added later is not silently exposed), but do not report it as
+a build-time improvement.
+
+### ⚠️ Where the win is NOT: `Evm64` leaf opcodes
+
+The `def`-count predictor tells you what a file *could* save. It does not tell
+you whether the file will survive the build, and in `Evm64` those two pull in
+opposite directions. Measured over one 82-file tranche across 15 leaf-opcode
+directories (`Calldata`, `Shift`, `MLoad`, `MStore`, `Code`, `Env`, `Push`,
+`Terminating`, `ReturnData`, `AddMod`, `Byte`, `And`, `Xor`, `Slt`, `Sgt`):
+
+| | |
+| --- | ---: |
+| files un-exposed and still building | **10 of 82 (12 %)** |
+| public `.olean` over those 10 | 704 672 → 677 208 B (**−3.9 %**) |
+| share of the ~131 MB migrated public total | **0.02 %** |
+| downstream modules freed from body-edit invalidation | 128 of 3045 (4.2 %) |
+| full builds spent converging | 5 |
+
+Two of the ten got **larger** (`Calldata/StageProgram` +240 B, `Env/Semantics`
++176 B): for a small body, the re-exported `.axiomInfo` costs more than the body
+did. Un-exposing is not monotone in bytes.
+
+**The mechanism, and why it generalises to the rest of `Evm64`.** Exposure mass
+and cross-module value-reasoning are *correlated here*. The big definitions in
+`Evm64` are big because they are RISC-V **programs** and **argument decoders**,
+and those are exactly what downstream `unfold`s — `Calldata/CopySpec.lean:247`
+does `unfold evm_calldatacopy` to split the program into preamble and loop. The
+files that survived un-exposure are `*Spec`-shaped, whose public half is mostly
+theorem *statements* — interface no matter what you do. So the files with
+something to save are the ones that cannot save it.
+
+⇒ Do **not** grind the remaining ~640 `Evm64` def-bearing files. Extrapolating
+this tranche gives ~78 sticking files for ~210 KB, at ~40 full builds of
+convergence. Spend the effort where large definitions are *not* value-reasoned —
+`Stateless/SpecRef` is the demonstrated case (`IncrementalMptWrite.lean`, −64 %
+on one file, more than 7× this entire tranche).
+
+### Where the win IS: `Stateless/SpecRef`
+
+The same loop, run over `Stateless/SpecRef`, gives the opposite answer — and the
+contrast is the useful part, because the two tranches differ by 33x on a
+directory a quarter the size:
+
+| | Evm64 leaves | `Stateless/SpecRef` |
+| --- | ---: | ---: |
+| files un-exposed, still building | 10 of 82 | **13 of 37** |
+| plain `def`s kept out of the interface | 40 | **268** |
+| public `.olean` | 704 672 → 677 208 B (−3.9 %) | 1 475 448 → **575 696 B (−61.0 %)** |
+
+Per file, the precompiles dominate: `PrecompilesBls` **−79.0 %**,
+`PrecompilesBlsMap` −77.6 %, `PrecompilesHash` −75.2 %, `ElExecute` −75.3 %,
+`Precompiles` −72.8 %, `PrecompilesCurve` −69.6 %, and `PrecompilesPairing`
+−59.0 % on the largest single file (262 896 → 107 656 B).
+
+**Why this directory and not that one.** `SpecRef` is the reference-implementation
+layer; downstream *characterises* these definitions through correspondence
+theorems rather than reducing through them, so the bodies leave the interface
+cleanly. `Evm64`'s large definitions are RISC-V programs and argument decoders,
+which is exactly what downstream `unfold`s. Same attribute, opposite outcome —
+so **classify a directory by how downstream reasons about it, not by how many
+`def`s it has.**
+
+⇒ When picking the next tranche, ask which one it resembles.
+
+### ⚠️ `Codegen` binds the ceiling from outside the batch
+
+Excluding `Codegen` from a batch does **not** protect it: it *consumes* `SpecRef`,
+and its `by decide` / `rfl` pins reduce transitively into these bodies.  Round 2
+of the `SpecRef` tranche failed almost entirely inside `Codegen`
+(`MemoryBudgetGuard`, `RequestsHashParams`,
+`BlockVerdictTxStateGasArrayModel`) with `decide` failures and `maxRecDepth`,
+and that alone forced back the five largest files in the directory —
+`InstructionsCore` (118 `def`s), `Ssz` (85), `Transactions` (60),
+`InstructionsEnv` (57), `Gas` (57): **377 `def`s**, well over the 268 that
+survived.
+
+So the remaining prize is not more un-exposing; it is those `Codegen` kernel
+pins. Re-stating them so they do not reduce through `SpecRef` is a *semantic*
+change to a kernel-checked proof, not a section-attribute edit — scope it as its
+own piece of work, never as collateral inside an exposure PR.
+
+### The surgical fallback: expose the declaration, not the file
+
+When a failure **names** a definition — `Expected a definition with an exposed
+body`, or ``unfold`` failed to unfold `f` — re-exposing the whole file
+overpays. Put `@[expose]` on that one declaration inside the plain
+`public section`, with the consumer named in a comment above it:
+
+```lean
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
+def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat := …
+```
+
+Six such lines in `SpecRef/Stateless.lean` kept its other 18 `def`s out of the
+interface (the file still measures **−41.7 %**), and one in
+`Evm64/Calldata/CopyProgram.lean` saved that file. Note the asymmetry that makes
+this worth trying: `decide`/`maxRecDepth` failures name nothing and reduce
+through a whole closure, so they are the ones that genuinely cost a file.
+
+### Relationship to `@[irreducible]`
+
+`@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
+**cannot**, because the body is not in the interface. They point the same way, so
+once a definition is unexposed its `@[irreducible]` is redundant — remove it in
+the same commit.
+
+### Measuring the pass
+
+⛔ `scripts/import-graph-metrics.py` **cannot see this change.** It computes
+cones from the import graph, which un-exposing does not touch, so
+`sum_private_cone` reads identical before and after. Do not read that flatness as
+failure. The meter is
+`.github/workflows/scripts/oleansize_collect.sh`, which reports
+`split_public_bytes` — the public half of modules that have a private half.
 
 ## 5a. `private` and `public` do not mix inside an exposed body
 
 **A public declaration cannot reference a `private` one** once its body is
-exposed, because the body *is* the interface. The symptom is misleading — an
-`Unknown constant` or `Unknown identifier` pointing at a helper defined a
-hundred lines above **in the same file**:
+exposed, because the body *is* the interface. The headline error looks like an
+ordinary typo — an `Unknown constant` or `Unknown identifier` pointing at a
+helper defined a hundred lines above **in the same file**:
 
 ```
 error: Unknown constant `EvmAsm.EL.RLP.RLPItem.decEq`      -- decEq is `private`
 error: Unknown identifier `modexpReadLengthAsm`            -- and so is this
 ```
+
+✅ **But Lean usually names the cause on the next line, and that note is the
+right thing to grep for:**
+
+```
+Note: A private declaration `warmStorageKey` (from the current module) exists
+but would need to be public to access here.
+```
+
+It appeared on 85 of wave EVM-1's errors and 40 of wave 10's. Keying a sweep on
+the note rather than on `Unknown identifier` is strictly better: it distinguishes
+this class from a genuine typo or a missing import, which the headline alone does
+not. ⚠️ It is not universal, though — some sites give only the headline, so a
+sweep should fall back to `Unknown identifier` and rely on the guards below.
+
+⚠️ **The name in the error is not always the declaration.** Generalized field
+notation reports the *whole dotted expression*, so a `private` table `s` used as
+`s.getD j 0` surfaces as
+
+```
+error: Unknown identifier `s.getD`      -- the decl is `s`, NOT `getD`
+```
+
+which reads exactly like the qualified-constant shape `EvmAsm.Foo.bar` — where
+the declaration is the **last** component — while pointing the opposite way. A
+sweep that splits on the final dot silently finds nothing and reports "no
+private references left", which is indistinguishable from being finished. EVM
+wave 2 stalled twice on this (`s.getD`, then `sigma.getD`) inside a single file.
+Try every component and prefer the one the file actually declares.
+
+⚠️ **Knock-on errors in the same file are not separate problems.** An
+unresolvable name leaves a hole in a term, so the elaborator then reports things
+like `failed to synthesize instance of type class Decidable __do_lift✝` at an
+unrelated line. Fix the private references and they disappear; do not chase them.
 
 **The fix is to drop `private` from the referenced helper**, not to work around
 it. That is the honest fix rather than merely the convenient one: if a public,
@@ -219,6 +425,108 @@ and re-check every line that names a declaration you just widened. Five sites
 here referenced `scalarItem`; one of them also carried an unrelated name on the
 same line and reported it as a spurious second error.
 
+### `open private` that SURVIVES still needs `import all`
+
+The names you leave on the `open private` line have a second, independent
+problem, and it does not appear until the *consumer* itself becomes a module. A
+migrated module's private declarations live in a separate `.olean.private`, and
+a plain or `public import` does not carry them:
+
+```
+error: Unknown constant
+  `_private.EvmAsm.Stateless.SpecRef.BlocksRlp.0.EvmAsm.Stateless.SpecRef.rlpTestHeader`
+```
+
+⚠️ Read that mangled name carefully — it says Lean *knows* the declaration is
+private in `BlocksRlp` and still cannot see it. This is not §5a (the name is
+genuinely private, and correctly so) and not §5b's rename (there is nothing to
+move off the line). It is a missing import **form**:
+
+```lean
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+import all EvmAsm.Stateless.SpecRef.BlocksRlp   -- ← reaches the private half
+```
+
+Keep the existing `public import`; `import all` is an addition, not a
+replacement. Both `EvmAsm/Stateless/SpecRef/HeaderRoundTrip.lean` and the
+`Codegen/Programs/ValidateHeaderWhole*Witness.lean` files need this, and it is
+the honest fix: a fixture like `rlpTestHeader` should stay private, and `import
+all` is precisely the module system's way to say "I am reaching into this
+module's private half on purpose."
+
+## 5c. `private` changes the identity of COMPILER-GENERATED auxiliaries
+
+§5a and §5b are about *referencing* a private declaration. This one is different
+and much quieter: the private declaration is referenced only inside a proof, so
+there is no visibility error at all — but the **auxiliary definitions Lean
+generates for it** are private too, and therefore are *different constants* from
+the ones generated for a public declaration.
+
+A `match` inside a declaration produces a `…match_1` auxiliary; inside a
+`private` declaration it produces `_private.….match_1`. Tactics that require
+**syntactic** identity — `rw` above all — then fail to match across the boundary:
+
+```
+error: Tactic `rewrite` failed: Did not find an occurrence of the pattern
+  fromLimbs fun i => match i with
+    | 0 => a.getLimbN 0
+    ...
+in the target expression
+```
+
+Observed in `Evm64/EvmWordArith/DivN4DoubleAddback.lean`, which carries a helper
+whose entire purpose is to make the match-auxiliary identities agree —
+
+> the auxiliary `match` function identity matches the one produced for our new
+> lemmas' … patterns. Needed because `rewrite` requires syntactic identity of
+> the match-auxiliary function, and Lean generates these per-file.
+
+— and which was `private`, while the lemmas it was aligning with were public. The
+two auxiliaries were the same constant before the migration and stopped being so
+after. **Dropping `private` fixed it.**
+
+⚠️ **What makes this hard to spot:** nothing reports a visibility problem. The
+error names a rewrite pattern, points into unrelated-looking arithmetic, and the
+declaration it blames is not the one that has to change. If a `rw` starts failing
+in a migrated file on a pattern containing a `match`, `fun`, or a `where`
+auxiliary, check whether either side is `private` **before** looking at the
+mathematics.
+
+⇒ **Rule of thumb: a helper that exists to align generated-definition identity
+must have the SAME visibility as the declarations it is aligning with.**
+
+## 5d. Duplicate declarations that `main` silently tolerates
+
+The module system's import merge is **stricter than the old one**, and it
+surfaces defects the migration did not create:
+
+```
+error: import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq failed,
+  environment already contains
+  'EvmAsm.Evm64.divK_mulsub_correction_addback_beq_v4_spec_within_noNop'
+  from EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
+```
+
+Two modules declared the **same full name** — same statement, two different
+tactic scripts, same namespace `EvmAsm.Evm64` — and both sit in `EvmAsm.Evm64`'s
+import closure. That was true on `main`, where it built green. The migration is
+only what made it visible.
+
+⚠️ **Do not treat this as a conversion bug and do not paper over it.** Before
+touching anything, establish which of the two the tree actually needs:
+
+1. Diff the two declarations. If the *statements* match and only the proofs
+   differ, it is an accidental duplication — the usual cause is two branches
+   proving the same lemma and merging without conflict, since the two live in
+   different files.
+2. Check for an import cycle in **both** directions before collapsing them.
+3. Keep the copy that sits with its thematic siblings, delete the other, and
+   leave the emptied module as a `public import` re-export so its importers do
+   not have to change. Say in the file why it is a shim.
+
+Grepping for a duplicate by *name* finds this class; grepping by statement finds
+the ones that have not collided yet.
+
 ## 6. Adding a new file
 
 1. Write it with the header from §2 (or run the converter on it).
@@ -270,12 +578,23 @@ same underlying reason.
 ## 7a. The `Rv64/Tactics` layer: migrate it by hand
 
 Waves up to level 6 automate cleanly. **Level 7 and above pull in
-`EvmAsm/Rv64/Tactics/*` (RunBlock, SeqFrame, XPerm, XPermPure, DropPure), and
-those must be migrated by hand, one file per PR.** A batch fixer driven by build
-errors gets them wrong in three ways, each of which was observed:
+`EvmAsm/Rv64/Tactics/*` (RunBlock, SeqFrame, XPerm, XPermPure, DropPure, XCancel),
+where marking one elab entry point `meta` forces every declaration it reaches to
+be `meta` too — a cascade the build reports ONE NAME AT A TIME.** Wave 10 needed
+115 `meta` marks across five files, `RunBlock.lean` alone taking 29 rounds.
 
-**1. ⛔ Marking `meta` on a declaration a COMPILED tactic uses at runtime is
-catastrophic, not a no-op.** Marking `SeqFrame.extractUnionChain` meta gives:
+⚠️ **This section used to say the layer must be migrated by hand, one file per
+PR. That is now too strong** — a loop that reads the build error, marks the one
+name it names, and rebuilds does converge, and it is the only sane way to
+service a 29-round cascade. What the loop needs is not manual driving but the
+*guards* below. Automate it; do not automate it naively.
+
+⛔ **The one hard stop that must remain a stop:** if the build exits **134**
+(SIGABRT), do not iterate through it. See hazard 1.
+
+Three hazards, each observed:
+
+**1. ⛔ A tactic chain that is PARTLY `meta` SIGABRTs at its call sites.**
 
 ```
 libc++abi: terminating due to uncaught exception of type lean::exception:
@@ -284,32 +603,107 @@ Could not find native implementation of external declaration
 ```
 
 `lean` **SIGABRTs (exit 134)**, and because the tactic is used everywhere the
-failure fans out — 115 errors across unrelated `Evm64/**` files that no reader
-would connect to a Tactics edit. The message suggests `supportInterpreter :=
+failure fans out — errors across unrelated `Evm64/**` files that no reader would
+connect to a `Rv64/Tactics` edit. The message suggests `supportInterpreter :=
 true`; that is a red herring here.
+
+⚠️ **This section previously said the cause was marking `extractUnionChain`
+`meta`, and told you not to. That is wrong, and following it is what produces the
+crash.** The cause is a **mix**: an interpreted (`meta`) caller reaching a
+declaration that has no native implementation because *its* callees are `meta`.
+`extractUnionChain` was a plain `partial def` calling into wave 10's `meta`
+chain, so it could not be compiled and had no native symbol left to offer.
+
+✅ **The fix was to mark `extractUnionChain` `meta` as well** — i.e. to make the
+chain *consistent*, not to pull it back out. Verified directly: with that one
+mark the failing `Evm64` modules build.
+
+⇒ **The rule is: once an elab entry point is `meta`, everything it transitively
+reaches must be `meta` too.** A partially-converted chain is the failure mode;
+`meta` is not the hazard, the boundary is.
+
+⚠️ **And the crash need not appear in the wave that causes it.** Wave 10 marked
+115 declarations `meta` and built completely clean — because *the modules that
+invoke those tactics were still unmigrated, so nothing exercised the boundary*.
+The SIGABRT surfaced only in the next wave, when the callers became `module`
+files. A green wave build is **not** evidence that its `meta` marks are safe;
+this is the same structural blind spot that motivates `--check-tree-closure`.
 
 **2. ⛔ Dropping `private` can create a duplicate declaration.** `getBvLitVal?`
 is defined privately in **both** `Tactics/SeqFrame.lean` and
 `Tactics/RunBlock.lean`, and the `private` is the only thing keeping them apart.
 Dropping it yields ``a non-private declaration `…getBvLitVal?` has already been
-declared``. Before dropping a `private`, check the name is not declared
-non-privately elsewhere.
+declared``.
+
+Two refinements, both learned by getting them wrong:
+
+* ⛔ **Visibility is not the discriminator — the NAMESPACE is.** Every
+  same-namespace sibling collides once one of them becomes public, whatever the
+  sibling's own visibility:
+  - a **public** sibling — `copyWordAsm`, private in `Programs/EIP7708Logs.lean`
+    and already public in `Programs/EvmStackHandlers.lean`, both under
+    `EvmAsm.Codegen`;
+  - a **still-private** sibling — `fourTimes`, private in *both*
+    `Proofs/ReloadHandler.lean` and `Proofs/HandlerSpecs.lean` under
+    `EvmAsm.Codegen.Proofs`. Widening only one of them still gives
+    ``a non-private declaration `EvmAsm.Codegen.Proofs.fourTimes` has already
+    been declared``.
+
+  ⚠️ It is tempting to reason that private names are mangled per module and so
+  two privates cannot clash. **That reasoning is wrong** — I tried it and the
+  build refuted it. Search for the name declared **at all** in the same
+  namespace. `ReloadHandler.lean` even carried a comment asserting *"the two
+  never collide — both are file-private"*, which is precisely the invariant
+  widening destroys.
+* ✅ **The clash is on the FULL name, so compare namespaces.** `plantedValidInput`
+  is private in two files, but under `…Correspondence.Transaction` and
+  `…Correspondence.Header` — different namespaces, no collision, widening is
+  fine. Comparing bare names refuses safe work.
+
+  ⚠️ **And "the namespace" means the stack open at the DECLARATION's line**, not
+  the last `namespace` in the file. `millerSchedule` is private in
+  `SpecRef/PrecompilesPairing.lean` under `…SpecRef.Bn128` and in
+  `SpecRef/PrecompilesBls.lean` under `…SpecRef.Bls12` — no collision — but both
+  files close with a trailing `namespace GasCosts … end GasCosts` block, so a
+  last-line reading calls them equal and refuses a safe widening. Sibling
+  namespace blocks in one file are common here; walk the `namespace`/`end` stack
+  and stop at the declaration.
+
+When two genuinely different functions do share a name in one namespace, the fix
+is to **rename** the one that must become public, not to abandon the widening.
 
 **3. Try `meta` FIRST; widen visibility only if that made no progress.**
 SeqFrame's `getBvLitVal?` needed only `meta` — dropping its `private` in the
 same pass caused hazard 2 for nothing. `private meta def` is a valid and often
 correct combination.
 
-### The four error shapes
+### The seven error shapes
 
-A fixer that knows only the first one stalls on the rest:
+A fixer that knows only the first one stalls on the rest. Wave 10 met all seven:
 
-| message | what to mark `meta` |
+| message | what to do |
 | --- | --- |
-| ``Invalid `meta` definition `f`, `g` not marked `meta`` | `g` |
-| ``Invalid definition `f`, may not access `g` marked as `meta`` | **`f`** — the *container* |
-| ``Cannot add attribute [tacticElabAttribute]: Declaration `f` must be marked as `meta`` | `f` |
-| a `where`-auxiliary, surfacing as `parent.aux` | the **parent** |
+| ``Invalid `meta` definition `f`, `g` not marked `meta`` | mark `g` |
+| ``Invalid definition `f`, may not access `g` marked as `meta`` | mark **`f`** — the *container*; this one **inverts** |
+| ``Cannot add attribute [tacticElabAttribute]: Declaration `f` must be marked as `meta`` | mark `f` |
+| a `where`-auxiliary, surfacing as `parent.aux` | mark the **parent** |
+| ``failed to compile definition, consider marking it as 'noncomputable' because it depends on 'g', which is 'noncomputable'`` | mark the **caller** — the declaration on the reported line. ⛔ Do **not** take the message's advice: `noncomputable` is the wrong fix; the caller belongs in the meta layer |
+| ``Unknown identifier `g`` where `g` **is** already `meta` | mark the **containing definition** — a non-`meta` body cannot see a `meta` name, and it says "unknown", not "may not access" |
+| ``Unknown attribute `[my_attr]`` | not a `meta` mark at all — the file **applies** an attribute and needs a `meta import` of the module declaring it |
+
+### Three traps in the fixer itself, not in Lean
+
+* ⛔ **Modifier order is `private meta partial def`.** Inserting `meta`
+  immediately before `def` gives `private partial meta def`, which is a parse
+  error (``unexpected token 'meta'``). `meta` goes after the visibility modifier
+  and *before* `partial`/`noncomputable`.
+* ⛔ **An identifier ending in `?` breaks a shell locator.** In ERE, the `?` in
+  `getAddrOffset?` is a **quantifier**, so `grep -E "def getAddrOffset?"` matches
+  the wrong thing and reports the declaration as missing. Locate in a language
+  where you can escape the name.
+* ⛔ **The reported name may be namespace-qualified.** `OwnershipKind.key` is
+  written `private def OwnershipKind.key`, so stripping to the bare `key` finds
+  nothing. Try the dotted name first, then the bare one.
 
 ## 7b. When a proof needs to unfold an UPSTREAM definition
 

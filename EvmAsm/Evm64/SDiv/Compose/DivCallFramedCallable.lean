@@ -5,7 +5,11 @@
   SDIV div-call sidecar proofs.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

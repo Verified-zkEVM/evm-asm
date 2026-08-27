@@ -56,7 +56,11 @@
   - **A4 wrapper**: `div128Quot_ge_q_true_normalized` (closed).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Un21Bridge
+
+public section
 
 namespace EvmAsm.Evm64
 

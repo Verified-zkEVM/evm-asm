@@ -5,10 +5,14 @@
   table (GH #106 / GH #107).
 -/
 
-import EvmAsm.Evm64.HandlerTableByte
-import EvmAsm.Evm64.SDiv.HandlerBridge
-import EvmAsm.Evm64.SMod.HandlerBridge
-import EvmAsm.Evm64.SupportedHandlers
+module
+
+public import EvmAsm.Evm64.HandlerTableByte
+public import EvmAsm.Evm64.SDiv.HandlerBridge
+public import EvmAsm.Evm64.SMod.HandlerBridge
+public import EvmAsm.Evm64.SupportedHandlers
+
+public section
 
 namespace EvmAsm.Evm64
 namespace SupportedHandlerByte

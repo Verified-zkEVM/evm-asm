@@ -43,10 +43,14 @@
   - This file: §B (val256 bridge) and final composition.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.CompensationCases
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
-import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.CompensationCases
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+public import EvmAsm.Evm64.EvmWordArith.DivLimbBridge
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+public section
 
 namespace EvmAsm.Evm64
 

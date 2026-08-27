@@ -22,7 +22,11 @@
     the final power).
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesBls
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesBls
+
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

@@ -13,7 +13,11 @@
   - val256_euclidean_to_div_mod: val256 Euclidean property → EvmWord.div/mod
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -10,10 +10,14 @@
   loop body (completes the per-jN layer).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5ExactX1NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5ExactX1NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallSkipV5ExactX1NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.CallAddbackV5ExactX1NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

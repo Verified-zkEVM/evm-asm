@@ -19,8 +19,12 @@
   Knuth-A v4 / Knuth Theorem A frontier (bead `7.1.4.1` and adjacent).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
-import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -5,8 +5,12 @@
   into the appended unsigned MOD callable.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
-import EvmAsm.Evm64.SMod.Compose.ModCallPost
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseTopLevel
+public import EvmAsm.Evm64.SMod.Compose.ModCallPost
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

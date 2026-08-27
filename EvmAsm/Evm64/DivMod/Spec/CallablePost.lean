@@ -5,7 +5,11 @@
   surfaces that frame exact x1/x9 separately.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

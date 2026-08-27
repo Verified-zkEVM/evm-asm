@@ -5,9 +5,13 @@
   callable.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.AbsComponents
-import EvmAsm.Evm64.SMod.Compose.Bridges
-import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
+module
+
+public import EvmAsm.Evm64.SMod.Compose.AbsComponents
+public import EvmAsm.Evm64.SMod.Compose.Bridges
+public import EvmAsm.Evm64.SMod.Compose.DispatchReadyPost
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

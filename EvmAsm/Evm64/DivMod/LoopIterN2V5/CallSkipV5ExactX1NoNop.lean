@@ -9,10 +9,14 @@
   iter-ready loop-back bodies that thread `.x1 ↦ᵣ raVal` through the loop.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
-import EvmAsm.Evm64.DivMod.LoopIterN2CallV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
+public import EvmAsm.Evm64.DivMod.LoopIterN2CallV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

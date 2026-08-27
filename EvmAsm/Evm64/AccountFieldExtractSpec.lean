@@ -66,7 +66,11 @@
   depends only on the three classical axioms.
 -/
 
-import EvmAsm.Evm64.AccountRlp
+module
+
+public import EvmAsm.Evm64.AccountRlp
+
+public section
 
 namespace EvmAsm.Evm64
 

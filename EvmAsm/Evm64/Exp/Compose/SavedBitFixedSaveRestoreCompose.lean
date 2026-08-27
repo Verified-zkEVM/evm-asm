@@ -12,7 +12,11 @@
   boundary-level spec.  Each lift is `cpsTripleWithin_extend_code` over
   `CodeReq.ofProg_mono_sub` with the block's contiguous slice of the program.
 -/
-import EvmAsm.Evm64.Exp.LimbSpec
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

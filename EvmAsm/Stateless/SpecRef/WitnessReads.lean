@@ -47,7 +47,12 @@
   addresses explicitly).
 -/
 
-import EvmAsm.Stateless.SpecRef.IncrementalMpt
+module
+
+public import EvmAsm.Stateless.SpecRef.IncrementalMpt
+meta import EvmAsm.Stateless.SpecRef.IncrementalMpt
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -80,7 +85,11 @@ def _get_decoded_secure_root (ws : WitnessPreState) (root_hash : Root) :
 
 /-- The state-trie leaf for an address (`keccak256(address)` secure key),
     shared by the account read and the storage-root recomputation. -/
-private def accountLeaf (ws : WitnessPreState) (address : Address) :
+-- `private` dropped: `get_account_optional`/`_storage_root_of` are exposed
+-- public bodies that reference this (MODULES.md §5a). Checked per §5a hazard 2
+-- and §5b first: the name is unique tree-wide and no `open private` site
+-- names it, so widening can neither collide nor break a consumer.
+def accountLeaf (ws : WitnessPreState) (address : Address) :
     Except SpecError (Option Bytes) := do
   trieLookup (← _get_decoded_secure_root ws ws.stateRoot) (keccak256 address)
 

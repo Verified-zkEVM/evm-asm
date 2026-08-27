@@ -11,7 +11,7 @@ public import Mathlib.Tactic.NormNum
 public import Mathlib.Tactic.Ring
 public import Mathlib.Tactic.Positivity
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Evm64
 

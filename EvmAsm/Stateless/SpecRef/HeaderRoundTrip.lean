@@ -39,16 +39,31 @@
   discharge: `decode_header_inv` already hands the canonicality facts over as its
   sixth conjunct, so accepting is the only hypothesis the final theorem carries.
 -/
-import EvmAsm.Stateless.SpecRef.Stateless
-import EvmAsm.Stateless.SpecRef.BlocksRlp
-import EvmAsm.EL.RLP.Properties
-import EvmAsm.EL.RLP.EncodeDecode
-import Batteries.Tactic.OpenPrivate
+module
+
+public import EvmAsm.Stateless.SpecRef.Stateless
+public import EvmAsm.Stateless.SpecRef.BlocksRlp
+public import EvmAsm.EL.RLP.Properties
+public import EvmAsm.EL.RLP.EncodeDecode
+public import Batteries.Tactic.OpenPrivate
+meta import EvmAsm.Stateless.SpecRef.Stateless
+meta import EvmAsm.Stateless.SpecRef.BlocksRlp
+meta import EvmAsm.EL.RLP.Properties
+meta import EvmAsm.EL.RLP.EncodeDecode
+meta import Batteries.Tactic.OpenPrivate
+-- `open private rlpTestHeader from BlocksRlp` (below) needs BlocksRlp's
+-- PRIVATE declarations, which a plain/public import does not carry --
+-- they live in the separate `.olean.private`. `import all` is the form
+-- that reaches them.
+import all EvmAsm.Stateless.SpecRef.BlocksRlp
+
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 open EvmAsm.EL.RLP
-open private getNChecked numericFieldsOk from EvmAsm.Stateless.SpecRef.Stateless
+open EvmAsm.Stateless.SpecRef (getNChecked)
+open EvmAsm.Stateless.SpecRef (numericFieldsOk)
 -- `scalarItem` is no longer `private`: `headerToRlpItem` is an exposed public
 -- body that references it, and under the module system a public body may not
 -- mention a private declaration. Only `rlpTestHeader` still needs opening.

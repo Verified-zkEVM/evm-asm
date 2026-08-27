@@ -25,12 +25,16 @@
   discharge under runtime conditions (v4 Knuth-A) is tracked separately
   by bead `evm-asm-9iqmw.7.1.3.1.1`.
 -/
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V4
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

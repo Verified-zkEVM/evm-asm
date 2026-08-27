@@ -16,9 +16,13 @@
   MAX-side `isAddbackCarry2NzN{2,3}Max_of_not_ult_c3_one_of_carry_zero`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivBltBridge
-import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivBltBridge
+public import EvmAsm.Evm64.DivMod.LoopIterN2AddbackV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+
+public section
 
 namespace EvmAsm.Evm64
 

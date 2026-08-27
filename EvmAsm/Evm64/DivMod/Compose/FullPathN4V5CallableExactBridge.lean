@@ -14,10 +14,14 @@
   each shift arm instantiate them.  Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridge
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+
+public section
 
 namespace EvmAsm.Evm64
 

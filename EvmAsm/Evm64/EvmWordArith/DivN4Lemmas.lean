@@ -9,7 +9,11 @@
   - val128 simplification when uHi = 0
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivBridge
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

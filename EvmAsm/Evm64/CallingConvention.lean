@@ -24,9 +24,13 @@
   Epilogue:                 LD ra, sp, 8 ;; ADDI sp, sp, 16 ;; JALR x0, ra, 0
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

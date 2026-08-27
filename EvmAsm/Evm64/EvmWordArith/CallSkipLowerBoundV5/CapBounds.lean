@@ -10,8 +10,12 @@
   V5.5.1, V5.5.2.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
-import EvmAsm.Rv64.AddrNorm
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
+public import EvmAsm.Rv64.AddrNorm
+
+public section
 
 namespace EvmAsm.Evm64
 

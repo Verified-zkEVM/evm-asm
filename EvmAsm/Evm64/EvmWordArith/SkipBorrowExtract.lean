@@ -7,8 +7,12 @@
   `output_slot_to_evmWordIs_mod_n4_max_skip_denorm`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
-import EvmAsm.Evm64.EvmWordArith.Common
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+public import EvmAsm.Evm64.EvmWordArith.Common
+
+public section
 
 namespace EvmAsm.Evm64
 

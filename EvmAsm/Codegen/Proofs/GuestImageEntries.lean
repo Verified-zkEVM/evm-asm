@@ -47,6 +47,7 @@ import EvmAsm.Codegen.Programs.BalSerializerTail
 import EvmAsm.Codegen.Programs.BalStorageChangeValues
 import EvmAsm.Codegen.Programs.Blake2f
 import EvmAsm.Codegen.Programs.BlockAccessListBuilder
+import EvmAsm.Codegen.Programs.BlockAccessListBuilderStorage
 import EvmAsm.Codegen.Programs.BlockAccessListHash
 import EvmAsm.Codegen.Programs.BlockGasRemaining
 import EvmAsm.Codegen.Programs.BlockHashPredicates
@@ -80,6 +81,7 @@ import EvmAsm.Codegen.Programs.CallFrameBase
 import EvmAsm.Codegen.Programs.CallFrameDescend
 import EvmAsm.Codegen.Programs.CallFrameSwitch
 import EvmAsm.Codegen.Programs.CodeReadLog
+import EvmAsm.Codegen.Programs.CommittedStorageLookup
 import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.DispatcherExecStateGas
 import EvmAsm.Codegen.Programs.EIP7708Logs
@@ -103,6 +105,7 @@ import EvmAsm.Codegen.Programs.MptBase
 import EvmAsm.Codegen.Programs.MptDeleteAcc
 import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 import EvmAsm.Codegen.Programs.MptEncode
+import EvmAsm.Codegen.Programs.MptEncodeLeafBranch
 import EvmAsm.Codegen.Programs.MptIndexedTrieRoot
 import EvmAsm.Codegen.Programs.MptInsertAcc
 import EvmAsm.Codegen.Programs.MptInsertWalkDb
@@ -121,6 +124,7 @@ import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.Receipt
 import EvmAsm.Codegen.Programs.ReceiptsRootIndexed
 import EvmAsm.Codegen.Programs.RequestsHash
+import EvmAsm.Codegen.Programs.RlpFieldToU64StrictProgram
 import EvmAsm.Codegen.Programs.RlpRead
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.RuntimeSameBlockCode
@@ -151,10 +155,12 @@ import EvmAsm.Codegen.Programs.TxDecode1559
 import EvmAsm.Codegen.Programs.TxDecode2930
 import EvmAsm.Codegen.Programs.TxDecode4844
 import EvmAsm.Codegen.Programs.TxDecode7702
-import EvmAsm.Codegen.Programs.TxExtract
+import EvmAsm.Codegen.Programs.TxExtractBase
+import EvmAsm.Codegen.Programs.TxExtractTail
 import EvmAsm.Codegen.Programs.TxGasSenderBalLookup
-import EvmAsm.Codegen.Programs.TxIntrinsicStateGas
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasBase
 import EvmAsm.Codegen.Programs.TxIntrinsicStateGasProg
+import EvmAsm.Codegen.Programs.TxIntrinsicStateGasTail
 import EvmAsm.Codegen.Programs.TxPubkey
 import EvmAsm.Codegen.Programs.TxRoot
 import EvmAsm.Codegen.Programs.TxSignature
@@ -214,6 +220,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.rlp_walk_next_shared, rlpWalkNextShared_prog),
   (GuestAddrs.rlp_validate_payload, rlpValidatePayload_prog),
   (GuestAddrs.rlp_walk_next_core, rlpWalkNextCore_prog),
+  (GuestAddrs.mpt_leaf_node_encode_from_nibbles, mptLeafNodeEncodeFromNibbles_prog),
   (GuestAddrs.mpt_node_slot_encode, mptNodeSlotEncode_prog),
   (GuestAddrs.bytes_to_nibbles, bytesToNibbles_prog),
   (GuestAddrs.u256_from_u64_be, u256FromU64Be_prog),
@@ -326,10 +333,14 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bloom_eq, bloomEq_prog),
   (GuestAddrs.simple_transfer_intrinsic_gas, simpleTransferIntrinsicGas_prog),
   (GuestAddrs.rlp_list_count_items, rlpListCountItems_prog),
+  (GuestAddrs.rlp_field_to_u64_strict, rlpFieldToU64Strict_prog),
   (GuestAddrs.tx_type_dispatch, txTypeDispatch_prog),
   (GuestAddrs.tx_eip4844_decode, txEip4844Decode_prog),
   (GuestAddrs.tx_eip4844_validate_blob_hashes, txEip4844ValidateBlobHashes_prog),
   (GuestAddrs.ssz_tx_list_versioned_hashes_match, sszTxListVersionedHashesMatch_prog),
+  (GuestAddrs.tx_extract_to_address, txExtractToAddress_prog),
+  (GuestAddrs.tx_extract_value, txExtractValue_prog),
+  (GuestAddrs.tx_extract_data_section, txExtractDataSection_prog),
   (GuestAddrs.bgv_u32le, bgvU32le_prog),
   (GuestAddrs.bgv_u64le, bgvU64le_prog),
   (GuestAddrs.headers_keccak_array, headersKeccakArray_prog),
@@ -377,6 +388,8 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.secp256k1_recover_r, secp256k1RecoverR_prog),
   (GuestAddrs.secp256k1_recover_pubkey_staged, secp256k1RecoverPubkeyStaged_prog),
   (GuestAddrs.bal_storage_change_values, balStorageChangeValues_prog),
+  (GuestAddrs.storage_writes_block_latest_value, storageWritesBlockLatestValue_prog),
+  (GuestAddrs.exec_log_addr_to_bal_canonical, execLogAddrToBalCanonical_prog),
   (GuestAddrs.storage_read_record, storageReadRecord_prog),
   (GuestAddrs.storage_read_record_block, storageReadRecordBlock_prog),
   (GuestAddrs.storage_write_record, storageWriteRecord_prog),
@@ -395,19 +408,27 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.account_writes_created_contains, accountWritesCreatedContains_prog),
   (GuestAddrs.account_writes_lookup_current, accountWritesLookupCurrent_prog),
   (GuestAddrs.account_writes_tombstone_balance_zero, accountWritesTombstoneBalanceZero_prog),
+  (GuestAddrs.account_writes_block_upsert, accountWritesBlockUpsert_prog),
+  (GuestAddrs.account_writes_apply_deletes, accountWritesApplyDeletes_prog),
   (GuestAddrs.account_writes_commit_pending, accountWritesCommitPending_prog),
   (GuestAddrs.account_writes_is_absent, accountWritesIsAbsent_prog),
   (GuestAddrs.account_writes_emit_builder_tx, accountWritesEmitBuilderTx_prog),
   (GuestAddrs.account_writes_incorporate_tx, accountWritesIncorporateTx_prog),
+  (GuestAddrs.account_writes_undo_push, accountWritesUndoPush_prog),
   (GuestAddrs.account_writes_restore_frame, accountWritesRestoreFrame_prog),
   (GuestAddrs.account_resolve_pre_state, accountResolvePreState_prog),
   (GuestAddrs.account_resolve_execution_state, accountResolveExecutionState_prog),
   (GuestAddrs.bal_map_final_value_matches, balMapFinalValueMatches_prog),
   (GuestAddrs.bal_map_builder_consistent, balMapBuilderConsistent_prog),
   (GuestAddrs.bal_canonical_sort, balCanonicalSort_prog),
+  (GuestAddrs.bal_rlp_measure_into_throwaway, balRlpMeasureIntoThrowaway_prog),
   (GuestAddrs.bal_rlp_emit_bytes, balRlpEmitBytes_prog),
+  (GuestAddrs.bal_serializer_addr_matches, balSerializerAddrMatches_prog),
+  (GuestAddrs.bal_serializer_addr_matches_be, balSerializerAddrMatchesBe_prog),
+  (GuestAddrs.bal_serializer_slot_eq, balSerializerSlotEq_prog),
   (GuestAddrs.bal_serializer_slot_written, balSerializerSlotWritten_prog),
   (GuestAddrs.bal_serializer_slot_seen_before, balSerializerSlotSeenBefore_prog),
+  (GuestAddrs.bal_serializer_u64_to_field, balSerializerU64ToField_prog),
   (GuestAddrs.bal_serializer_measure_reads, balSerializerMeasureReads_prog),
   (GuestAddrs.bal_serializer_slot_to_le, balSerializerSlotToLe_prog),
   (GuestAddrs.bal_serializer_balance_to_le, balSerializerBalanceToLe_prog),
@@ -425,21 +446,33 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.bal_serializer_emit_account, balSerializerEmitAccount_prog),
   (GuestAddrs.bal_serializer_measure_outer, balSerializerMeasureOuter_prog),
   (GuestAddrs.bal_serializer_emit_outer, balSerializerEmitOuter_prog),
+  (GuestAddrs.bal_serializer_rebuild_hash, balSerializerRebuildHash_prog),
   (GuestAddrs.bal_serializer_verify, balSerializerVerify_prog),
+  (GuestAddrs.bal_builder_ensure_account, balBuilderEnsureAccount_prog),
   (GuestAddrs.bal_builder_incorporate_touched_accounts, balBuilderIncorporateTouchedAccounts_prog),
+  (GuestAddrs.bal_builder_record_storage_change, balBuilderRecordStorageChange_prog),
+  (GuestAddrs.bal_emit_storage_changes, balEmitStorageChanges_prog),
+  (GuestAddrs.bal_builder_append_balance, balBuilderAppendBalance_prog),
+  (GuestAddrs.bal_builder_append_nonce, balBuilderAppendNonce_prog),
+  (GuestAddrs.bal_builder_append_code, balBuilderAppendCode_prog),
   (GuestAddrs.account_read_record, accountReadRecord_prog),
   (GuestAddrs.account_at_header_state_root_tracked, accountAtHeaderStateRootTracked_prog),
   (GuestAddrs.code_read_record, codeReadRecord_prog),
   (GuestAddrs.code_read_fetch, codeReadFetch_prog),
+  (GuestAddrs.read_sets_merge_one, readSetsMergeOne_prog),
+  (GuestAddrs.read_sets_incorporate_tx, readSetsIncorporateTx_prog),
   (GuestAddrs.read_sets_discard_tx, readSetsDiscardTx_prog),
   (GuestAddrs.stage_blockhash_m29, stageBlockhashM29_prog),
   (GuestAddrs.blockhash_from_witness_headers, blockhashFromWitnessHeaders_prog),
   (GuestAddrs.header_extract_number, headerExtractNumber_prog),
   (GuestAddrs.bal_account_nonstorage_finals, balAccountNonstorageFinals_prog),
   (GuestAddrs.multi_tx_nth_context, multiTxNthContext_prog),
+  (GuestAddrs.eip8037_tx_state_gas, eip8037TxStateGas_prog),
   (GuestAddrs.tx_intrinsic_state_gas, txIntrinsicStateGas_prog),
   (GuestAddrs.block_verdict_eip8037_tx_state_gas_net_array, blockVerdictEip8037TxStateGasNetArray_prog),
   (GuestAddrs.eip8037_block_gas_used, eip8037BlockGasUsed_prog),
+  (GuestAddrs.tx_extract_nonce_and_gas, txExtractNonceAndGas_prog),
+  (GuestAddrs.tx_extract_gas_pricing, txExtractGasPricing_prog),
   (GuestAddrs.u256_min, u256Min_prog),
   (GuestAddrs.priority_fee_per_gas_eip1559, priorityFeePerGasEip1559_prog),
   (GuestAddrs.tx_effective_gas_pricing, txEffectiveGasPricing_prog),
@@ -454,6 +487,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.multi_tx_running_sender_balance_step, multiTxRunningSenderBalanceStep_prog),
   (GuestAddrs.sender_debit_from_gas, senderDebitFromGas_prog),
   (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
+  (GuestAddrs.eip7778_remaining_block_gas_check, eip7778RemainingBlockGasCheck_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
   (GuestAddrs.eip7702_authorization_extract_signature, eip7702AuthorizationExtractSignature_prog),
@@ -461,6 +495,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.eip7702_authorization_recover_address, eip7702AuthorizationRecoverAddress_prog),
   (GuestAddrs.eip7702_warm_recovered_authorities, eip7702WarmRecoveredAuthorities_prog),
   (GuestAddrs.eip7702_authority_asof, eip7702AuthorityAsof_prog),
+  (GuestAddrs.eip7702_auth_state_prepare, eip7702AuthStatePrepare_prog),
   (GuestAddrs.block_verdict_tx_state_gas_inline_prepare, blockVerdictTxStateGasInlinePrepare_prog),
   (GuestAddrs.block_verdict_tx_state_gas_inline_finalize, blockVerdictTxStateGasInlineFinalize_prog),
   (GuestAddrs.block_verdict_gas_result_arena_prepare, blockVerdictGasResultArenaPrepare_prog),
@@ -497,6 +532,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.create_execute_initcode_frame, createExecuteInitcodeFrame_prog),
   (GuestAddrs.find_code_effect_by_address, findCodeEffectByAddress_prog),
   (GuestAddrs.find_code_effect_by_hash, findCodeEffectByHash_prog),
+  (GuestAddrs.account_state_created_contains, accountStateCreatedContains_prog),
   (GuestAddrs.dispatcher_tx_gas_settle, dispatcherTxGasSettle_prog),
   (GuestAddrs.selfdestruct_balance_transfer, selfdestructBalanceTransfer_prog),
   (GuestAddrs.record_message_value_transfer, recordMessageValueTransfer_prog),
@@ -608,6 +644,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.frame_load_regs, frameLoadRegs_prog),
   (GuestAddrs.call_frame_enter, callFrameEnter_prog),
   (GuestAddrs.call_frame_set_calldata, callFrameSetCalldata_prog),
+  (GuestAddrs.call_frame_forward_gas, callFrameForwardGas_prog),
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.nonstorage_effect_latest_nonce, nonstorageEffectLatestNonce_prog),
   (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
@@ -615,11 +652,12 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.derive_builder_deposit_requests, deriveBuilderDepositRequests_prog),
   (GuestAddrs.derive_builder_exit_requests, deriveBuilderExitRequests_prog),
   (GuestAddrs.stage_system_call, stageSystemCall_prog),
+  (GuestAddrs.stage_system_call_payload, stageSystemCallPayload_prog),
   (GuestAddrs.process_block_start_system_transactions, processBlockStartSystemTransactions_prog),
   (GuestAddrs.parse_deposit_requests, parseDepositRequests_prog),
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 443
+#guard guestImageEntries.length = 475
 
 end EvmAsm.Codegen

@@ -5,9 +5,13 @@
   simulation surface (GH #107 / GH #109).
 -/
 
-import EvmAsm.Evm64.HandlerLoopBridge
-import EvmAsm.Evm64.InterpreterLoopSimulation
-import EvmAsm.Evm64.InterpreterTraceSimulation
+module
+
+public import EvmAsm.Evm64.HandlerLoopBridge
+public import EvmAsm.Evm64.InterpreterLoopSimulation
+public import EvmAsm.Evm64.InterpreterTraceSimulation
+
+public section
 
 namespace EvmAsm.Evm64
 

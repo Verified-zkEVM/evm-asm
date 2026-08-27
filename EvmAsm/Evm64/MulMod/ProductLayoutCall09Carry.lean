@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.MulMod.ProductLayoutCall05Carry
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutCall05Carry
+
+public section
 
 namespace EvmAsm.Evm64
 

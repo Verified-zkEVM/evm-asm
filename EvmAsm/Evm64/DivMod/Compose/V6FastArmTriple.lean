@@ -18,8 +18,12 @@
   each lane's body pre with `xperm`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.BodyV6
-import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnect
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.BodyV6
+public import EvmAsm.Evm64.DivMod.Compose.V6FastArmConnect
+
+public section
 
 namespace EvmAsm.Evm64
 

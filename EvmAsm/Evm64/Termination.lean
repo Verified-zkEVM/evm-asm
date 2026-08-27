@@ -4,7 +4,11 @@
   Pure terminating-status helpers for GH #113.
 -/
 
-import EvmAsm.Evm64.EvmState
+module
+
+public import EvmAsm.Evm64.EvmState
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace EvmState

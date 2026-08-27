@@ -4,8 +4,12 @@
   Per-limb OR spec.
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

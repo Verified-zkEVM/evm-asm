@@ -4,8 +4,12 @@
   SMOD-shaped wrappers around the generic memory-quad to `evmWordIs` bridges.
 -/
 
-import EvmAsm.Evm64.SMod.AddrNorm
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.SMod.AddrNorm
+public import EvmAsm.Evm64.Stack
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

@@ -7,9 +7,13 @@
   (satisfiable from shape).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePost
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopFullBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5FamiliesMod
+
+public section
 
 namespace EvmAsm.Evm64
 

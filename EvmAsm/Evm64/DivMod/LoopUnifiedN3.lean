@@ -16,7 +16,11 @@
   wrappers instead of this raw-carry route.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopComposeN3
+module
+
+public import EvmAsm.Evm64.DivMod.LoopComposeN3
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

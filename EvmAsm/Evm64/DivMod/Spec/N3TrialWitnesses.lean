@@ -10,8 +10,12 @@
   which consume selected per-iteration carry evidence for the reachable path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

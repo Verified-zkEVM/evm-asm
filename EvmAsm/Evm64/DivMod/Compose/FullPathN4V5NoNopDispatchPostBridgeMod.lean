@@ -11,8 +11,12 @@
   both the call-skip and call-addback lanes reuse it.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

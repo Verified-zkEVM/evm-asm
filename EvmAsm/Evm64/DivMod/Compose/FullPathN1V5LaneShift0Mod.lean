@@ -10,9 +10,13 @@
   halves into one lane theorem over `modCode_noNop_v5` → `modStackDispatchPostV5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNzMod
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNzMod
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0ModRemainder
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -9,8 +9,12 @@
   bltu pair without going through an existential indirection.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
-import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
+public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+
+public section
 
 namespace EvmAsm.Evm64
 

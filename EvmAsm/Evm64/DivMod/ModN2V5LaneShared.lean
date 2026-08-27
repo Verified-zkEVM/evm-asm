@@ -1,12 +1,16 @@
 /- Shared declaration home for the MOD n=2 V5 lane and shape path. -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallablePostSelectedBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5R2R1Dispatch
+
+public section
 
 namespace EvmAsm.Evm64
 

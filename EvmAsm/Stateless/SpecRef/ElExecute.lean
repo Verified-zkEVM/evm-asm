@@ -22,20 +22,24 @@
   (`build_mpt`/`mpt_root`).
 -/
 
-import EvmAsm.Stateless.SpecRef.Fork
-import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+module
+
+public import EvmAsm.Stateless.SpecRef.Fork
+public import EvmAsm.Stateless.SpecRef.WitnessStateRoot
+
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
 /-- The unsecured `root(trie)` over collected key→value assoc data
     (`Trie(secured=False, default=None)`). -/
-private def collectedTrieRoot (data : List (Bytes × Bytes)) :
+def collectedTrieRoot (data : List (Bytes × Bytes)) :
     Except SpecError Root := do
   mpt_root (← build_mpt (data.map (fun (k, v) => (k, MptValue.bytes v))) false none)
 
 /-- A placeholder frame for machine initialization; every real frame
     is swapped in by `process_message` before any instruction runs. -/
-private def dummyEvm (blockEnv : BlockEnvironment) : Evm :=
+def dummyEvm (blockEnv : BlockEnvironment) : Evm :=
   let txEnv : TransactionEnvironment :=
     { origin := NULL_ADDRESS, recipient := none, value := 0, gasPrice := 0,
       gas := 0, stateGasReservoir := 0, accessListAddresses := [],
@@ -134,7 +138,7 @@ def execute_block_interior (pre : PrecompileMap) (ws : WitnessPreState)
 
 /-- Shared `execute_new_payload_request` pre-checks + `_payload_block` used by
     both the production seam and the gas-dimension diagnostic. -/
-private def elPrepareBlock (input : ExecutionSeamInput) : Except SpecError Block := do
+def elPrepareBlock (input : ExecutionSeamInput) : Except SpecError Block := do
   let npr := input.newPayloadRequest
   let payload := npr.executionPayload
   if payload.transactions.any (·.isEmpty) then

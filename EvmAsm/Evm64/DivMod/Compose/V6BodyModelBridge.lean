@@ -15,9 +15,13 @@
   assembles into `EvmWord.div a b`.  Bead `evm-asm-dr466.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.BodyV6
-import EvmAsm.Evm64.DivMod.Compose.V6ChainModelBridge
-import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.BodyV6
+public import EvmAsm.Evm64.DivMod.Compose.V6ChainModelBridge
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
+
+public section
 
 namespace EvmAsm.Evm64
 

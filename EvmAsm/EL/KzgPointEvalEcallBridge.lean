@@ -4,9 +4,13 @@
   Pure zkVM KZG point-evaluation accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.KzgPointEvalInputBridge
-import EvmAsm.EL.KzgPointEvalResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.KzgPointEvalInputBridge
+public import EvmAsm.EL.KzgPointEvalResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

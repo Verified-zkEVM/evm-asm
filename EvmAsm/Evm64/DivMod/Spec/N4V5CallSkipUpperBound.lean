@@ -20,8 +20,12 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallSkip
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+
+public section
 
 namespace EvmAsm.Evm64
 

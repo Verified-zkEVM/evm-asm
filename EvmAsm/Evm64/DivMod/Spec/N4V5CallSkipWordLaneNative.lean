@@ -18,10 +18,14 @@
   the shape, bypassing the v4 no-wrap blocker.  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
-import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+public section
 
 namespace EvmAsm.Evm64
 

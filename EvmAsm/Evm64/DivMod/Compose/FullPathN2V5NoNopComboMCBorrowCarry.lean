@@ -8,8 +8,12 @@
   body borrowCarry (#7433).  Last of the four two-digit prefixes.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallIterBorrowCarry
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

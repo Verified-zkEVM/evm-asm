@@ -5,10 +5,18 @@
   generic CPS specs for LBU (load byte unsigned) and SB (store byte).
 -/
 -- `CPSSpec` transitively imports `Basic`, `SepLogic`, and `Execution`.
-import EvmAsm.Rv64.CPSSpec
-import Mathlib.Tactic.IntervalCases
-import Mathlib.Tactic.FinCases
-import Mathlib.Data.Fintype.Basic
+module
+
+public import EvmAsm.Rv64.CPSSpec
+public import Mathlib.Tactic.IntervalCases
+public import Mathlib.Tactic.FinCases
+public import Mathlib.Data.Fintype.Basic
+meta import EvmAsm.Rv64.CPSSpec
+meta import Mathlib.Tactic.IntervalCases
+meta import Mathlib.Tactic.FinCases
+meta import Mathlib.Data.Fintype.Basic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

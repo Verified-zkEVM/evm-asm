@@ -6,9 +6,13 @@
   Mirrors `FullPathN3V4.lean:374-640` and `N3V4StackPre.lean:496-619` for n=2.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+public section
 
 namespace EvmAsm.Evm64
 

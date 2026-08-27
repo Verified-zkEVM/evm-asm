@@ -9,10 +9,18 @@
   GASPRICE.
 -/
 
-import EvmAsm.EL.RLP.VariableUint
-import EvmAsm.Stateless.SpecRef.Gas
-import EvmAsm.Stateless.SpecRef.SeamShell
-import Mathlib.Tactic.NormNum
+module
+
+public import EvmAsm.EL.RLP.VariableUint
+public import EvmAsm.Stateless.SpecRef.Gas
+public import EvmAsm.Stateless.SpecRef.SeamShell
+public import Mathlib.Tactic.NormNum
+meta import EvmAsm.EL.RLP.VariableUint
+meta import EvmAsm.Stateless.SpecRef.Gas
+meta import EvmAsm.Stateless.SpecRef.SeamShell
+meta import Mathlib.Tactic.NormNum
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

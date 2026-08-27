@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
+
+public section
 
 open EvmAsm.Rv64
 open EvmAsm.Rv64.Tactics

@@ -10,10 +10,14 @@
   4095`).  Feeds the callable 5-lane MOD scaffold `lane_n2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactMod
-import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
-import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactMod
+public import EvmAsm.Evm64.DivMod.ModN2V5LaneShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5QuotientLaneShapeMod
+public import EvmAsm.Evm64.DivMod.ModN2V5ShiftShared
+
+public section
 
 namespace EvmAsm.Evm64
 

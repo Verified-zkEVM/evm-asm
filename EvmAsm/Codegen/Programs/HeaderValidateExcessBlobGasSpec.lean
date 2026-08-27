@@ -41,6 +41,30 @@ def priceOutputOwn (outPtr : Word) : Assertion :=
   memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) **
     memOwn (outPtr + 24)
 
+/-- The three 48-byte work windows used by the inlined Amsterdam price loop.
+    These are ownership tokens, not value assertions: the setup window writes
+    all eighteen dwords before the first loop test, so callers need to provide
+    writable memory without pre-initialising its contents. -/
+def priceWorkspaceOwn (newSp : Word) : Assertion :=
+  (memOwn (newSp + signExtend12 (64 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (72 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (80 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (88 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (96 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (104 : BitVec 12))) **
+  (memOwn (newSp + signExtend12 (112 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (120 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (128 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (136 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (144 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (152 : BitVec 12))) **
+  (memOwn (newSp + signExtend12 (160 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (168 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (176 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (184 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (192 : BitVec 12)) **
+    memOwn (newSp + signExtend12 (200 : BitVec 12)))
+
 def priceOutputPost (status outPtr : Word)
     (outBytes : List (BitVec 8)) : Assertion :=
   if status = (0 : Word) then bytesRegion outPtr outBytes
@@ -51,6 +75,7 @@ def priceEntryRest
     (excess outPtr : Word) (scratch : Assertion) : Assertion :=
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
   frameSlotsOwn priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) **
+  priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
   regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
   regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch
 
@@ -61,6 +86,7 @@ def priceCalleePost
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
   frameSlotsSaved priceFrame (sp0 + signExtend12 (-208 : BitVec 12))
     (priceFrameVals ret vals) ** regsAt priceSavedFrame vals **
+  priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
   (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
   regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
   priceOutputPost status outPtr outBytes ** scratchPost
@@ -82,19 +108,100 @@ def priceContract
       (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes scratchPost) ]
 
 def priceScratch : Assertion :=
-  bytesRegion sampleStackA zero48 ** bytesRegion sampleStackB zero48 **
-  bytesRegion sampleStackC zero48 ** bytesRegion sampleOutPtr zero32
+  bytesRegion sampleOutPtr zero32
 
-theorem priceEntryRest_sample_eq :
-    priceEntryRest sampleSp0 sampleRet sampleSaved
-      (0 : Word) sampleOutPtr priceScratch = entryPre := by
-  funext h
-  simp [priceEntryRest, priceScratch, entryPre, priceFrame, priceSavedFrame,
-    sampleFrame, sampleSaved, sampleSp0, sampleNewSp,
+private theorem zero48_to_memOwn6 (base : Word) :
+    ∀ h, bytesRegion base zero48 h →
+      (memOwn base ** memOwn (base + 8) ** memOwn (base + 16) **
+        memOwn (base + 24) ** memOwn (base + 32) ** memOwn (base + 40)) h := by
+  intro h hp
+  rw [zero48_region_expands base] at hp
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)))) h hp
+
+private theorem sample_stacks_to_workspace :
+    ∀ h, (bytesRegion sampleStackA zero48 **
+      bytesRegion sampleStackB zero48 ** bytesRegion sampleStackC zero48) h →
+      priceWorkspaceOwn sampleNewSp h := by
+  intro h hp
+  have hown := sepConj_mono (zero48_to_memOwn6 sampleStackA)
+    (sepConj_mono (zero48_to_memOwn6 sampleStackB)
+      (zero48_to_memOwn6 sampleStackC)) h hp
+  have hown' :
+      ((memOwn sampleStackA ** memOwn (sampleStackA + 8) **
+        memOwn (sampleStackA + 16) ** memOwn (sampleStackA + 24) **
+        memOwn (sampleStackA + 32) ** memOwn (sampleStackA + 40)) **
+        ((memOwn sampleStackB ** memOwn (sampleStackB + 8) **
+          memOwn (sampleStackB + 16) ** memOwn (sampleStackB + 24) **
+          memOwn (sampleStackB + 32) ** memOwn (sampleStackB + 40)) **
+          (memOwn sampleStackC ** memOwn (sampleStackC + 8) **
+            memOwn (sampleStackC + 16) ** memOwn (sampleStackC + 24) **
+            memOwn (sampleStackC + 32) ** memOwn (sampleStackC + 40)))) h := by
+    simpa only [sepConj_assoc'] using hown
+  have h64 : sampleNewSp + signExtend12 (64 : BitVec 12) = sampleStackA := by decide
+  have h72 : sampleNewSp + signExtend12 (72 : BitVec 12) = sampleStackA + 8 := by decide
+  have h80 : sampleNewSp + signExtend12 (80 : BitVec 12) = sampleStackA + 16 := by decide
+  have h88 : sampleNewSp + signExtend12 (88 : BitVec 12) = sampleStackA + 24 := by decide
+  have h96 : sampleNewSp + signExtend12 (96 : BitVec 12) = sampleStackA + 32 := by decide
+  have h104 : sampleNewSp + signExtend12 (104 : BitVec 12) = sampleStackA + 40 := by decide
+  have h112 : sampleNewSp + signExtend12 (112 : BitVec 12) = sampleStackB := by decide
+  have h120 : sampleNewSp + signExtend12 (120 : BitVec 12) = sampleStackB + 8 := by decide
+  have h128 : sampleNewSp + signExtend12 (128 : BitVec 12) = sampleStackB + 16 := by decide
+  have h136 : sampleNewSp + signExtend12 (136 : BitVec 12) = sampleStackB + 24 := by decide
+  have h144 : sampleNewSp + signExtend12 (144 : BitVec 12) = sampleStackB + 32 := by decide
+  have h152 : sampleNewSp + signExtend12 (152 : BitVec 12) = sampleStackB + 40 := by decide
+  have h160 : sampleNewSp + signExtend12 (160 : BitVec 12) = sampleStackC := by decide
+  have h168 : sampleNewSp + signExtend12 (168 : BitVec 12) = sampleStackC + 8 := by decide
+  have h176 : sampleNewSp + signExtend12 (176 : BitVec 12) = sampleStackC + 16 := by decide
+  have h184 : sampleNewSp + signExtend12 (184 : BitVec 12) = sampleStackC + 24 := by decide
+  have h192 : sampleNewSp + signExtend12 (192 : BitVec 12) = sampleStackC + 32 := by decide
+  have h200 : sampleNewSp + signExtend12 (200 : BitVec 12) = sampleStackC + 40 := by decide
+  simpa only [priceWorkspaceOwn, sepConj_assoc', h64, h72, h80, h88, h96, h104,
+    h112, h120, h128, h136, h144, h152, h160, h168, h176, h184, h192, h200] using hown'
+
+private def priceSamplePrefix : Assertion :=
+  (.x1 ↦ᵣ sampleRet) ** (.x2 ↦ᵣ sampleSp0) **
+  frameSlotsOwn priceFrame sampleNewSp
+
+private def priceSampleSuffix : Assertion :=
+  regsAt priceSavedFrame sampleSaved ** (.x10 ↦ᵣ (0 : Word)) **
+  (.x11 ↦ᵣ sampleOutPtr) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  bytesRegion sampleOutPtr zero32
+
+private theorem entryPre_sample_shape :
+    ∀ h, entryPre h →
+      (priceSamplePrefix **
+        ((bytesRegion sampleStackA zero48 ** bytesRegion sampleStackB zero48 **
+          bytesRegion sampleStackC zero48) ** priceSampleSuffix)) h := by
+  intro h hp
+  simp [entryPre, priceSamplePrefix, priceSampleSuffix, priceFrame,
+    priceSavedFrame, sampleFrame, sampleSaved, sampleSp0, sampleNewSp,
     sampleStackA, sampleStackB, sampleStackC, sampleOutPtr,
-    frameSlotsOwn, regsAt, regOwns, sepConj_emp_right']
+    frameSlotsOwn, regsAt, regOwns, sepConj_emp_right'] at hp ⊢
   simp only [sepConj_assoc']
-  constructor <;> intro hq <;> xperm_hyp hq
+  xperm_hyp hp
+
+private theorem priceEntryRest_sample_from_entryPre :
+    ∀ h, entryPre h →
+      priceEntryRest sampleSp0 sampleRet sampleSaved
+        (0 : Word) sampleOutPtr priceScratch h := by
+  intro h hp
+  have hshape := entryPre_sample_shape h hp
+  have hown :
+      (priceSamplePrefix **
+        (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix)) h := by
+    exact sepConj_mono (fun _ hp' => hp')
+      (sepConj_mono sample_stacks_to_workspace (fun _ hp' => hp')) h hshape
+  have hown' :
+      (priceSamplePrefix **
+        (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix)) h := by
+    simpa only [sepConj_assoc'] using hown
+  simpa [priceEntryRest, priceScratch, priceSamplePrefix, priceSampleSuffix,
+    sampleNewSp, sepConj_assoc'] using hown'
 
 /-- The price premise is not an uninhabited symbolic shape: it has the
     concrete non-overlapping layout used by the existing Amsterdam witness.
@@ -103,17 +210,17 @@ theorem priceEntryRest_sample_eq :
 theorem priceEntryRest_inhabited :
     (priceEntryRest sampleSp0 sampleRet sampleSaved
       (0 : Word) sampleOutPtr priceScratch).holdsFor sampleState := by
-  rw [priceEntryRest_sample_eq]
-  exact entryState_exists.2.2
+  obtain ⟨h, hcompat, hp⟩ := entryState_exists.2.2
+  exact ⟨h, hcompat, priceEntryRest_sample_from_entryPre h hp⟩
 
 /-! ## ABI shell
 
 The wrapper's prologue and epilogue are already an ordinary `abiFrame_spec`
 instance.  Keeping this shell separate makes the remaining route obligation
-visible: the body theorem below is a continuation from `K + 32` to `K + 248`,
+visible: the body theorem below is a continuation from `K + 32` to `K + 260`,
 not a renamed copy of the final whole-routine statement. -/
 
-def k70Body : Program := headerValidateExcessBlobGas_prog.drop 8 |>.take 54
+def k70Body : Program := headerValidateExcessBlobGas_prog.drop 8 |>.take 57
 
 def k70BodyPre
     (spC : Word) (vals : Reg → Word)
@@ -275,7 +382,7 @@ theorem k70_status1_tail_spec
     (hsub : ∀ a i,
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i) :
-    cpsTripleWithin 2 (K + 236) (K + 248) cr
+    cpsTripleWithin 2 (K + 248) (K + 260) cr
       (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ old10))
       (k70StatusTailRest spC vals scratch ** (.x10 ↦ᵣ (1 : Word))) := by
   let rest := k70StatusTailRest spC vals scratch
@@ -283,12 +390,12 @@ theorem k70_status1_tail_spec
     dsimp [rest, k70StatusTailRest]
     pcf
     exact hscratch
-  have hliAny : ∀ v, cpsTripleWithin 1 (K + 236) (K + 240) cr
+  have hliAny : ∀ v, cpsTripleWithin 1 (K + 248) (K + 252) cr
       (rest ** (.x10 ↦ᵣ v)) (rest ** (.x10 ↦ᵣ (1 : Word))) := by
     intro v
-    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 236) (by decide)
-    have hliMem := CodeReq.ofProg_mem_at K (K + 236)
-      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 59
+    have hli := li_spec_gen_within .x10 v (1 : Word) (K + 248) (by decide)
+    have hliMem := CodeReq.ofProg_mem_at K (K + 248)
+      (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 62
       (.LI .x10 (1 : Word)) (by decide) (by decide) rfl (by decide)
     have hliC := cpsTripleWithin_extend_code
       (fun a i hi => hsub a i (hliMem a i hi)) hli
@@ -297,10 +404,10 @@ theorem k70_status1_tail_spec
       (fun _ hq => by xperm_hyp hq) hliF
   have hliOwn := cpsTripleWithin_of_forall_regIs_to_regOwn
     (r := .x10) (P := rest) (Q := rest ** (.x10 ↦ᵣ (1 : Word))) hliAny
-  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 240)
-  rw [show (K + 240) + signExtend21 (8 : BitVec 21) = K + 248 from by decide] at hj
-  have hjMem := CodeReq.ofProg_mem_at K (K + 240)
-    (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 60
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K + 252)
+  rw [show (K + 252) + signExtend21 (8 : BitVec 21) = K + 260 from by decide] at hj
+  have hjMem := CodeReq.ofProg_mem_at K (K + 252)
+    (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) excessFrame k70Body) 63
     (.JAL .x0 (8 : BitVec 21)) (by decide) (by decide) rfl (by decide)
   have hjC := cpsTripleWithin_extend_code
     (fun a i hi => hsub a i (hjMem a i hi)) hj
@@ -310,7 +417,7 @@ theorem k70_status1_tail_spec
       dsimp [rest, k70StatusTailRest]
       pcf
       exact hscratch) hjC
-  have hjump : cpsTripleWithin 1 (K + 240) (K + 248) cr
+  have hjump : cpsTripleWithin 1 (K + 252) (K + 260) cr
       (rest ** (.x10 ↦ᵣ (1 : Word)))
       (rest ** (.x10 ↦ᵣ (1 : Word))) := by
     simpa [rest, sepConj_assoc', sepConj_comm', sepConj_left_comm',
@@ -335,7 +442,7 @@ theorem k70_tail_spec
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i) :
     cpsTripleWithin (excessFrame.length + 1 + 1)
-      (K + 248) ret cr
+      (K + 260) ret cr
       (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
         status scratchPost)
       (excessCalleePost sp0 vals status ret scratchPost) := by
@@ -371,15 +478,15 @@ theorem k70_tail_spec
   have mDealloc := k70_piece_mem hfullDealloc hbound hsub
   have mRet := k70_piece_mem hfullRet hbound hsub
   have hpcFrame := pcFree_frameSlotsSaved excessFrame newSp vals
-  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 248)
+  have hload := loadSeq_spec excessFrame newSp vals bodyVals (K + 260)
     (by decide) (by decide)
-  rw [show (K + 248 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
-      K + 276 from by decide] at hload
+  rw [show (K + 260 : Word) + BitVec.ofNat 64 (4 * excessFrame.length) =
+      K + 288 from by decide] at hload
   have hloadF := cpsTripleWithin_frameR callerPost
     (by dsimp [callerPost]; pcf; exact hscratchPost) hload
   have hloadC := cpsTripleWithin_extend_code mLoad hloadF
   have hdealloc := addi_spec_gen_same_within .x2 newSp
-    (64 : BitVec 12) (K + 276) (by decide)
+    (64 : BitVec 12) (K + 288) (by decide)
   have hrestore : newSp + signExtend12 (64 : BitVec 12) = sp0 := by
     dsimp [newSp]
     rw [BitVec.add_assoc]
@@ -403,7 +510,7 @@ theorem k70_tail_spec
       frameSlotsSaved excessFrame newSp vals =
         frameSlotsSaved excessFrame newSp (excessFrameVals ret vals) := by
     simp [excessFrame, excessFrameVals, hret]
-  have hret0 := Fn.jalr_ret_spec (K + 280) ret hretAlign
+  have hret0 := Fn.jalr_ret_spec (K + 292) ret hretAlign
     (P := (.x2 ↦ᵣ sp0) ** regsAt excessSavedFrame vals **
       frameSlotsSaved excessFrame newSp vals ** callerPost)
     (pcFree_sepConj pcFree_regIs
@@ -494,7 +601,7 @@ theorem k70_abi_from_body
     (hsub : ∀ a i,
       CodeReq.ofProg K (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
         excessFrame k70Body) a = some i → cr a = some i)
-    (hbody : cpsTripleWithin bodySteps (K + 32) (K + 248) cr
+    (hbody : cpsTripleWithin bodySteps (K + 32) (K + 260) cr
       (k70BodyPre (sp0 + signExtend12 (-64 : BitVec 12)) vals
         a0 a1 a2 a3 scratch)
       (k70BodyPost (sp0 + signExtend12 (-64 : BitVec 12)) vals bodyVals
@@ -530,7 +637,7 @@ theorem k70_abi_from_body
       have hentry : K + BitVec.ofNat 64 (4 * (1 + excessFrame.length)) = K + 32 := by
         decide
       have hexit : K + BitVec.ofNat 64
-          (4 * (1 + excessFrame.length + k70Body.length)) = K + 248 := by
+          (4 * (1 + excessFrame.length + k70Body.length)) = K + 260 := by
         decide
       rw [hentry, hexit]
       simpa [k70BodyPre, k70BodyPost] using hbody)

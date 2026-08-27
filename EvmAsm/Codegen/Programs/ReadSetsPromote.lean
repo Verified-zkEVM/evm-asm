@@ -78,91 +78,191 @@ open EvmAsm.Rv64
     Byte-wise compare and copy (`lbu`/`sb`) so no arena needs an alignment argument;
     the entry widths differ per kind and the address slots are zero-padded. Overflow
     sets the flag rather than dropping silently, matching the recorders. -/
-def readSetsMergeOneFunction : String :=
-  "read_sets_merge_one:\n" ++
-  "  addi sp, sp, -80\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp); sd s2, 24(sp)\n" ++
-  "  sd s3, 32(sp); sd s4, 40(sp); sd s5, 48(sp); sd s6, 56(sp); sd s7, 64(sp)\n" ++
-  "  mv s0, a0\n" ++                                    -- tx base
-  "  mv s1, a2\n" ++                                    -- block base
-  "  mv s2, a4\n" ++                                    -- stride
-  "  mv s3, a5\n" ++                                    -- compare length
-  "  mv s4, a3\n" ++                                    -- block count ptr
-  "  mv s5, a6\n" ++                                    -- block capacity
-  "  mv s6, a7\n" ++                                    -- block overflow ptr
-  "  ld s7, 0(a1)\n" ++                                 -- tx count
-  "  li t0, 0\n" ++                                     -- i = 0
-  ".Lrsm_tx:\n" ++
-  "  bgeu t0, s7, .Lrsm_done\n" ++
-  "  mul t1, t0, s2; add t1, s0, t1\n" ++                -- &tx[i]
-  -- scan the block arena for an equal entry (set semantics)
-  "  ld t2, 0(s4)\n" ++                                  -- block count
-  "  li t3, 0\n" ++                                      -- j = 0
-  ".Lrsm_blk:\n" ++
-  "  bgeu t3, t2, .Lrsm_append\n" ++
-  "  mul t4, t3, s2; add t4, s1, t4\n" ++                -- &block[j]
-  "  li t5, 0\n" ++
-  ".Lrsm_cmp:\n" ++
-  "  bgeu t5, s3, .Lrsm_next_tx\n" ++                    -- all compared equal -> present
-  "  add t6, t1, t5; lbu t6, 0(t6)\n" ++
-  "  add a0, t4, t5; lbu a0, 0(a0)\n" ++
-  "  bne t6, a0, .Lrsm_next_blk\n" ++
-  "  addi t5, t5, 1; j .Lrsm_cmp\n" ++
-  ".Lrsm_next_blk:\n" ++
-  "  addi t3, t3, 1; j .Lrsm_blk\n" ++
-  ".Lrsm_append:\n" ++
-  "  bgeu t2, s5, .Lrsm_overflow\n" ++
-  "  mul t4, t2, s2; add t4, s1, t4\n" ++                -- &block[count]
-  -- zero the destination slot first, so padding is written rather than inherited
-  "  li t5, 0\n" ++
-  ".Lrsm_zero:\n" ++
-  "  bgeu t5, s2, .Lrsm_copy_init\n" ++
-  "  add t6, t4, t5; sb zero, 0(t6)\n" ++
-  "  addi t5, t5, 1; j .Lrsm_zero\n" ++
-  ".Lrsm_copy_init:\n" ++
-  "  li t5, 0\n" ++
-  ".Lrsm_copy:\n" ++
-  "  bgeu t5, s2, .Lrsm_bump\n" ++
-  "  add t6, t1, t5; lbu t6, 0(t6)\n" ++
-  "  add a0, t4, t5; sb t6, 0(a0)\n" ++
-  "  addi t5, t5, 1; j .Lrsm_copy\n" ++
-  ".Lrsm_bump:\n" ++
-  "  addi t2, t2, 1; sd t2, 0(s4)\n" ++
-  "  j .Lrsm_next_tx\n" ++
-  ".Lrsm_overflow:\n" ++
-  "  li t5, 1; sd t5, 0(s6)\n" ++
-  ".Lrsm_next_tx:\n" ++
-  "  addi t0, t0, 1; j .Lrsm_tx\n" ++
-  ".Lrsm_done:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp); ld s2, 24(sp)\n" ++
-  "  ld s3, 32(sp); ld s4, 40(sp); ld s5, 48(sp); ld s6, 56(sp); ld s7, 64(sp)\n" ++
-  "  addi sp, sp, 80\n" ++
-  "  ret\n"
+def readSetsMergeOne_prog : Program :=
+  [ .ADDI .x2 .x2 (-80 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .SD .x2 .x18 (24 : BitVec 12),
+    .SD .x2 .x19 (32 : BitVec 12),
+    .SD .x2 .x20 (40 : BitVec 12),
+    .SD .x2 .x21 (48 : BitVec 12),
+    .SD .x2 .x22 (56 : BitVec 12),
+    .SD .x2 .x23 (64 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .MV .x18 .x14,
+    .MV .x19 .x15,
+    .MV .x20 .x13,
+    .MV .x21 .x16,
+    .MV .x22 .x17,
+    .LD .x23 .x11 (0 : BitVec 12),
+    .LI .x5 (0 : Word),
+    .BGEU .x5 .x23 (brOff (GuestAddrs.read_sets_merge_one + 248) (GuestAddrs.read_sets_merge_one + 76)),
+    .MUL .x6 .x5 .x18,
+    .ADD .x6 .x8 .x6,
+    .LD .x7 .x20 (0 : BitVec 12),
+    .LI .x28 (0 : Word),
+    .BGEU .x28 .x7 (56 : BitVec 13),
+    .MUL .x29 .x28 .x18,
+    .ADD .x29 .x9 .x29,
+    .LI .x30 (0 : Word),
+    .BGEU .x30 .x19 (brOff (GuestAddrs.read_sets_merge_one + 240) (GuestAddrs.read_sets_merge_one + 112)),
+    .ADD .x31 .x6 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x10 .x29 .x30,
+    .LBU .x10 .x10 (0 : BitVec 12),
+    .BNE .x31 .x10 (12 : BitVec 13),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-28 : BitVec 21),
+    .ADDI .x28 .x28 (1 : BitVec 12),
+    .JAL .x0 (-52 : BitVec 21),
+    .BGEU .x7 .x21 (brOff (GuestAddrs.read_sets_merge_one + 232) (GuestAddrs.read_sets_merge_one + 152)),
+    .MUL .x29 .x7 .x18,
+    .ADD .x29 .x9 .x29,
+    .LI .x30 (0 : Word),
+    .BGEU .x30 .x18 (20 : BitVec 13),
+    .ADD .x31 .x29 .x30,
+    .SB .x31 .x0 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-16 : BitVec 21),
+    .LI .x30 (0 : Word),
+    .BGEU .x30 .x18 (28 : BitVec 13),
+    .ADD .x31 .x6 .x30,
+    .LBU .x31 .x31 (0 : BitVec 12),
+    .ADD .x10 .x29 .x30,
+    .SB .x10 .x31 (0 : BitVec 12),
+    .ADDI .x30 .x30 (1 : BitVec 12),
+    .JAL .x0 (-24 : BitVec 21),
+    .ADDI .x7 .x7 (1 : BitVec 12),
+    .SD .x20 .x7 (0 : BitVec 12),
+    .JAL .x0 (12 : BitVec 21),
+    .LI .x30 (1 : Word),
+    .SD .x22 .x30 (0 : BitVec 12),
+    .ADDI .x5 .x5 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.read_sets_merge_one + 76) (GuestAddrs.read_sets_merge_one + 244)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .LD .x18 .x2 (24 : BitVec 12),
+    .LD .x19 .x2 (32 : BitVec 12),
+    .LD .x20 .x2 (40 : BitVec 12),
+    .LD .x21 .x2 (48 : BitVec 12),
+    .LD .x22 .x2 (56 : BitVec 12),
+    .LD .x23 .x2 (64 : BitVec 12),
+    .ADDI .x2 .x2 (80 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def readSetsMergeOneFunction : String :=
+  "read_sets_merge_one:\n" ++ emitProgram readSetsMergeOne_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `readSetsMergeOne_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem readSetsMergeOneFunction_eq_prog :
+    readSetsMergeOneFunction = "read_sets_merge_one:\n" ++ emitProgram readSetsMergeOne_prog := rfl
+
+#guard readSetsMergeOneFunction.startsWith "read_sets_merge_one:\n"
+#guard readSetsMergeOne_prog.length = 73
 /-- `read_sets_incorporate_tx` — the guest's `incorporate_tx_into_block` for the read
     side: merge all three tx sets upward, then CLEAR them (`:858-861`, `:879-881`).
     No arguments; call where a transaction is incorporated. -/
-def readSetsIncorporateTxFunction : String :=
-  "read_sets_incorporate_tx:\n" ++
-  "  addi sp, sp, -16; sd ra, 0(sp)\n" ++
-  -- storage_reads: 64 B stride, 64 B compared (addrHash ++ slotKey), cap 16384
-  "  li a0, 0xa23349c0; la a1, tx_storage_reads_count; li a2, 0xa1908780\n" ++
-  "  la a3, storage_reads_count; li a4, 64; li a5, 64; li a6, " ++
-  toString balBuilderStorageReadsCapacity ++ "\n" ++
-  "  la a7, storage_reads_overflow; jal ra, read_sets_merge_one\n" ++
-  -- account_reads: 32 B stride, 20 B compared (the address; bytes 20..31 are padding)
-  "  li a0, 0xa24349c0; la a1, tx_account_reads_count; li a2, 0xa1d1a200\n" ++
-  "  la a3, account_reads_count; li a4, 32; li a5, 20; li a6, 66666\n" ++
-  "  la a7, account_reads_overflow; jal ra, read_sets_merge_one\n" ++
-  -- code_reads: 64 B stride; compare the 20-byte address AND the 32-byte hash, so
-  -- compare the whole 64-byte slot (padding is zeroed on both sides)
-  "  li a0, 0xa24b49c0; la a1, tx_code_reads_count; li a2, 0xa1f22f40\n" ++
-  "  la a3, code_reads_count; li a4, 64; li a5, 64; li a6, 66666\n" ++
-  "  la a7, code_reads_overflow; jal ra, read_sets_merge_one\n" ++
-  "  ld ra, 0(sp); addi sp, sp, 16\n" ++
-  "  j read_sets_discard_tx\n" ++                        -- the CLEAR at :879-881
-  ""
+def readSetsIncorporateTx_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .LUI .x10 (162 : BitVec 20),
+    .ADDIW .x10 .x10 (821 : BitVec 12),
+    .SLLI .x10 .x10 (12 : BitVec 6),
+    .ADDI .x10 .x10 (-1600 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tx_storage_reads_count (GuestAddrs.read_sets_incorporate_tx + 24)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tx_storage_reads_count (GuestAddrs.read_sets_incorporate_tx + 24)),
+    .LUI .x12 (20 : BitVec 20),
+    .ADDIW .x12 .x12 (801 : BitVec 12),
+    .SLLI .x12 .x12 (15 : BitVec 6),
+    .ADDI .x12 .x12 (1920 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.storage_reads_count (GuestAddrs.read_sets_incorporate_tx + 48)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.storage_reads_count (GuestAddrs.read_sets_incorporate_tx + 48)),
+    .LI .x14 (64 : Word),
+    .LI .x15 (64 : Word),
+    .LUI .x16 (16 : BitVec 20),
+    .ADDIW .x16 .x16 (1130 : BitVec 12),
+    .AUIPC .x17 (laHi GuestAddrs.storage_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 72)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.storage_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 72)),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_merge_one (GuestAddrs.read_sets_incorporate_tx + 80)),
+    .LUI .x10 (162 : BitVec 20),
+    .ADDIW .x10 .x10 (1077 : BitVec 12),
+    .SLLI .x10 .x10 (12 : BitVec 6),
+    .ADDI .x10 .x10 (-1600 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tx_account_reads_count (GuestAddrs.read_sets_incorporate_tx + 100)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tx_account_reads_count (GuestAddrs.read_sets_incorporate_tx + 100)),
+    .LUI .x12 (81 : BitVec 20),
+    .ADDIW .x12 .x12 (-371 : BitVec 12),
+    .SLLI .x12 .x12 (13 : BitVec 6),
+    .ADDI .x12 .x12 (512 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.account_reads_count (GuestAddrs.read_sets_incorporate_tx + 124)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.account_reads_count (GuestAddrs.read_sets_incorporate_tx + 124)),
+    .LI .x14 (32 : Word),
+    .LI .x15 (20 : Word),
+    .LUI .x16 (16 : BitVec 20),
+    .ADDIW .x16 .x16 (1130 : BitVec 12),
+    .AUIPC .x17 (laHi GuestAddrs.account_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 148)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.account_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 148)),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_merge_one (GuestAddrs.read_sets_incorporate_tx + 156)),
+    .LUI .x10 (162 : BitVec 20),
+    .ADDIW .x10 .x10 (1205 : BitVec 12),
+    .SLLI .x10 .x10 (12 : BitVec 6),
+    .ADDI .x10 .x10 (-1600 : BitVec 12),
+    .AUIPC .x11 (laHi GuestAddrs.tx_code_reads_count (GuestAddrs.read_sets_incorporate_tx + 176)),
+    .ADDI .x11 .x11 (laLo GuestAddrs.tx_code_reads_count (GuestAddrs.read_sets_incorporate_tx + 176)),
+    .LUI .x12 (162 : BitVec 20),
+    .ADDIW .x12 .x12 (-221 : BitVec 12),
+    .SLLI .x12 .x12 (12 : BitVec 6),
+    .ADDI .x12 .x12 (-192 : BitVec 12),
+    .AUIPC .x13 (laHi GuestAddrs.code_reads_count (GuestAddrs.read_sets_incorporate_tx + 200)),
+    .ADDI .x13 .x13 (laLo GuestAddrs.code_reads_count (GuestAddrs.read_sets_incorporate_tx + 200)),
+    .LI .x14 (64 : Word),
+    .LI .x15 (64 : Word),
+    .LUI .x16 (16 : BitVec 20),
+    .ADDIW .x16 .x16 (1130 : BitVec 12),
+    .AUIPC .x17 (laHi GuestAddrs.code_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 224)),
+    .ADDI .x17 .x17 (laLo GuestAddrs.code_reads_overflow (GuestAddrs.read_sets_incorporate_tx + 224)),
+    .JAL .x1 (jalOff GuestAddrs.read_sets_merge_one (GuestAddrs.read_sets_incorporate_tx + 232)),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JAL .x0 (jalOff GuestAddrs.read_sets_discard_tx (GuestAddrs.read_sets_incorporate_tx + 244)) ]
 
+/-- Reloc side-table for `readSetsIncorporateTx_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def readSetsIncorporateTx_relocs : RelocTable :=
+  [ (6, .la .x11 "tx_storage_reads_count"),
+    (12, .la .x13 "storage_reads_count"),
+    (18, .la .x17 "storage_reads_overflow"),
+    (20, .jal .x1 "read_sets_merge_one"),
+    (25, .la .x11 "tx_account_reads_count"),
+    (31, .la .x13 "account_reads_count"),
+    (37, .la .x17 "account_reads_overflow"),
+    (39, .jal .x1 "read_sets_merge_one"),
+    (44, .la .x11 "tx_code_reads_count"),
+    (50, .la .x13 "code_reads_count"),
+    (56, .la .x17 "code_reads_overflow"),
+    (58, .jal .x1 "read_sets_merge_one"),
+    (61, .jal .x0 "read_sets_discard_tx") ]
+
+def readSetsIncorporateTxFunction : String :=
+  "read_sets_incorporate_tx:\n" ++ emitProgramR readSetsIncorporateTx_prog readSetsIncorporateTx_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `readSetsIncorporateTx_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem readSetsIncorporateTxFunction_eq_prog :
+    readSetsIncorporateTxFunction = "read_sets_incorporate_tx:\n" ++ emitProgramR readSetsIncorporateTx_prog readSetsIncorporateTx_relocs := rfl
+
+#guard readSetsIncorporateTxFunction.startsWith "read_sets_incorporate_tx:\n"
+#guard readSetsIncorporateTx_prog.length = 62
 /-- `read_sets_discard_tx` — zero the three tx cursors WITHOUT merging.
 
     Two callers by design: the tail of `read_sets_incorporate_tx` (the spec's clear at

@@ -14,10 +14,14 @@
   c3≤1 / carry-from-overestimate lemmas.  Call branch of bead 9.3.3.3.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
-import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
-import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
+module
+
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+public import EvmAsm.Evm64.DivMod.Spec.N2V5C3LeOne
+public import EvmAsm.Evm64.DivMod.Spec.N3V5HvSmall
+
+public section
 
 namespace EvmAsm.Evm64
 

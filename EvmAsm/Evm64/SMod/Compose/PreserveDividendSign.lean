@@ -5,7 +5,11 @@
   nested MOD callable.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCode
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

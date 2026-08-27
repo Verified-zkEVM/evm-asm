@@ -4,7 +4,11 @@
   Selected-if-borrow input hypotheses for the n=1 v4 call/max/max/max path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelected
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

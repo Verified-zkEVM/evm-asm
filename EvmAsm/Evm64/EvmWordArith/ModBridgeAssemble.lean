@@ -23,8 +23,12 @@
   (to be supplied by a future CLZ correctness lemma).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.EvmWordArith.ModBridgeUtop
+public import EvmAsm.Evm64.Stack
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -17,8 +17,12 @@
   is the identity.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceOuterHorner
-import EvmAsm.Evm64.MulMod.ProductAlgebra
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceOuterHorner
+public import EvmAsm.Evm64.MulMod.ProductAlgebra
+
+public section
 
 namespace EvmAsm.Evm64
 

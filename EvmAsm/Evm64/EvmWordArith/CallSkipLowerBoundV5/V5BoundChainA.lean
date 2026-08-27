@@ -4,10 +4,14 @@
   Shared declaration home for the V5 lower-bound proof chain.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Phase1bNoFireBound
-import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Phase1bNoFireBound
+public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
+
+public section
 
 /-
   EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1dNoFire

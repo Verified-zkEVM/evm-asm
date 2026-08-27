@@ -12,12 +12,16 @@
   remainder correctness (`n3_shift0_remainder_word_eq_mod_lane`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShiftNzMod
-import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Shift0Shared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShiftNzMod
+public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0ModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

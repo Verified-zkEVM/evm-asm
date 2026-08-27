@@ -11,15 +11,19 @@
   x9In/x2In are free (dead), x1 preserved.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridgeMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLaneNative
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackMod
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipModWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackModWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullExactX1Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactBridgeMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExact
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipModWordLaneNative
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModGetLimb
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallAddbackMod
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipModWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackModWordLane
+
+public section
 
 namespace EvmAsm.Evm64
 

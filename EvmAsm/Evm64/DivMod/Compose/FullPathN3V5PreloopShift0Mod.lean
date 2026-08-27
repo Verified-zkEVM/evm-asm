@@ -10,9 +10,13 @@
   `divK_copyAU_loopSetup_shift0_spec_v5_noNop_mod`).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.PhaseC2V5Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

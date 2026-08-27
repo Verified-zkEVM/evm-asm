@@ -10,8 +10,12 @@
   under no-wrap).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientExact
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+
+public section
 
 namespace EvmAsm.Evm64
 

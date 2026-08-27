@@ -18,10 +18,14 @@
   See `memory/project_max_trial_vacuous_discovery.md` for the full discovery.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.EvmWordArith.Common
-import EvmAsm.Evm64.DivMod.TrialPredicatesN4
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+public import EvmAsm.Evm64.EvmWordArith.Common
+public import EvmAsm.Evm64.DivMod.TrialPredicatesN4
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+
+public section
 
 namespace EvmAsm.Evm64
 

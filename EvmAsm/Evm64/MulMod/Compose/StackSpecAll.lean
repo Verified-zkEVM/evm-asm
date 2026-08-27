@@ -15,9 +15,13 @@
   exit `base + 2160` leaving `(a · b) mod n` on the stack top.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.DispatchAll
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.DispatchAll
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

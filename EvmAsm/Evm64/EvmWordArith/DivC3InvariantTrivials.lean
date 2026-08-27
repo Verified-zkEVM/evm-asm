@@ -10,8 +10,12 @@
   certain stack/value conditions.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
+
+public section
 
 namespace EvmAsm.Evm64
 

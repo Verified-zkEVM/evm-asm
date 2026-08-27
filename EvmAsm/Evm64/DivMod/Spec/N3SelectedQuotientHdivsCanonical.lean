@@ -10,8 +10,12 @@
   Mirrors `N2SelectedQuotientHdivsCanonical` for the n=3 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
-import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3SelectedQuotientHdivs
+public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidenceCanonical
+
+public section
 
 namespace EvmAsm.Evm64
 

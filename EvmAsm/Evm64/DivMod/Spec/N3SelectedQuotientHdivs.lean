@@ -5,7 +5,11 @@
   Mirrors `N2SelectedQuotientHdivs` for the n=3 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidence
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3CallableSelectedShapeEvidence
+
+public section
 
 namespace EvmAsm.Evm64
 

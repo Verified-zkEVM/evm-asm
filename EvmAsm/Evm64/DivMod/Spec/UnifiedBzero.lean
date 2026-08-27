@@ -17,12 +17,16 @@
   `evm-asm-pb40`).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
-import EvmAsm.Evm64.DivMod.Spec.N2ModStackSpec
-import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
-import EvmAsm.Evm64.DivMod.Spec.N3ModBridge
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.N2DivStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N2ModStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N3DivStackSpec
+public import EvmAsm.Evm64.DivMod.Spec.N3ModBridge
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

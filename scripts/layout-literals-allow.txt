@@ -45,16 +45,10 @@ literal	EvmAsm/Codegen/Programs/RlpValidatePayloadProductionAdapter.lean	0xbf5e2
 # interpolation from MemoryLayout.* is the burn-down follow-up.
 literal	EvmAsm/Codegen/Probes/BalOrderDumpProbe.lean	0xa1908780	2	emitted `li` asm string + probe doc comment describing the row base
 literal	EvmAsm/Codegen/Probes/BalSerializerMeasureProbe.lean	0xa1908780	2	emitted `li` asm string + probe doc comment describing the row base
-literal	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	2	emitted `li` asm string (line ~988) + prose comment on the read-row base (line ~196)
+literal	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	1	emitted `li` asm string (line ~988)
 literal	EvmAsm/Codegen/Programs/BlockVerdictReceiptsTail.lean	0xa1f22f40	1	emitted `li` asm string
 literal	EvmAsm/Codegen/Programs/BlockVerdictRuntimePayload.lean	0xa0020000	3	emitted `li` asm strings (input/witness staging bases)
 literal	EvmAsm/Codegen/Programs/BlockVerdictRuntimePayload.lean	0xa0030000	2	emitted `li` asm strings (witness staging base)
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1908780	1	emitted `li` asm string
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1d1a200	1	emitted `li` asm string
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1f22f40	1	emitted `li` asm string
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa23349c0	1	emitted `li` asm string
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24349c0	1	emitted `li` asm string
-literal	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24b49c0	1	emitted `li` asm string
 literal	EvmAsm/Codegen/Programs/SelfdestructDescriptors.lean	0xa0020000	1	emitted `li` asm string
 literal	EvmAsm/Codegen/Programs/StorageMultiContract.lean	0xa0630000	2	emitted `li` asm string (line ~57) + prose comment on the storage-log base (line ~11)
 
@@ -79,12 +73,26 @@ literal	EvmAsm/Codegen/RegionPredicates.lean	0xa1908780	2	human-readable region 
 
 # --- Arithmetically open-coded copies of CANONICAL constants (#12595;
 # --- fix per the #12588 derived-immediate shape) ---
-arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	2	correct value; TX-tier phase-1 scans (12595 hygiene class)
+# The following exact-value arithmetic forms are retained by the direct-jal
+# registration conversion in #12705 to preserve the linked instruction bytes;
+# replace with derived immediates under the #12588 burn-down convention.
+arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbd562000	2	byte-preserving #12705 conversion; ACCOUNT_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbe1e2000	1	byte-preserving #12705 conversion; ACCOUNT_WRITES_UNDO_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/AccountWriteUndo.lean	0xbf780000	1	byte-preserving #12705 conversion; TX_ACCOUNT_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/BlockAccessListBuilderStorage.lean	0xa2d57ec0	1	byte-preserving #12705 conversion; TX_STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/BlockAccessListBuilderStorage.lean	0xa25349c0	1	byte-preserving #12705 conversion; STORAGE_WRITES_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa23349c0	1	byte-preserving #12705 conversion; TX_STORAGE_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1908780	1	byte-preserving #12705 conversion; STORAGE_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24349c0	1	byte-preserving #12705 conversion; TX_ACCOUNT_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1d1a200	1	byte-preserving #12705 conversion; ACCOUNT_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa24b49c0	1	byte-preserving #12705 conversion; TX_CODE_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/ReadSetsPromote.lean	0xa1f22f40	1	byte-preserving #12705 conversion; CODE_READS_AREA value verified; burn down via #12595/#12588
+arith	EvmAsm/Codegen/Programs/AccountWriteMapTail.lean	0xbf780000	6	correct value; TX-tier phase-1 scans (12595 hygiene class)
 arith	EvmAsm/Codegen/Programs/AccountWriteMapResolvers.lean	0xbf780000	1	correct value; TX-tier phase-1 scan (12595 hygiene class)
 arith	EvmAsm/Codegen/Programs/AccountReadLog.lean	0xa24349c0	1	LUI/ADDIW/SLLI/ADDI reconstructs TX_ACCOUNT_READS_AREA from bare immediates
 arith	EvmAsm/Codegen/Programs/BalGasValid.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
 arith	EvmAsm/Codegen/Programs/BalSerializer.lean	0xa1908780	4	LUI chain reconstructs STORAGE_READS_AREA
-arith	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
+arith	EvmAsm/Codegen/Programs/BalSerializerTail.lean	0xa1908780	2	LUI chain reconstructs STORAGE_READS_AREA
 arith	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa1d1a200	1	LUI chain reconstructs ACCOUNT_READS_AREA
 arith	EvmAsm/Codegen/Programs/CodeReadLog.lean	0xa24b49c0	1	LUI chain reconstructs TX_CODE_READS_AREA
 arith	EvmAsm/Codegen/Programs/StorageReadLog.lean	0xa1908780	1	LUI chain reconstructs STORAGE_READS_AREA
@@ -99,13 +107,13 @@ arith	EvmAsm/Codegen/Programs/StorageWriteMap.lean	0xa2d57ec0	3	LUI chain recons
 fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xa0000000	1	RAM start bound; no MemoryLayout constant exists (RAM_MEM_START is prose-only) — GH #12621.
 fixliteral	scripts/asm-fixtures/mptExtensionNodeEncodeFunction.s	0xbffffff8	1	RAM end-8 bound; no MemoryLayout constant exists (RAM_MEM_END is prose-only) — GH #12621.
 fixarith	scripts/asm-fixtures/accountResolvePreStateFunction.s	0xbd562000	1	fenced #12519 (file in PR file list); correct value from codex2's #12610 fix — anchor with a naming comment when the fence lifts.
+fixliteral	scripts/asm-fixtures/mptLeafNodeEncodeFromNibblesFunction.s	0xa0000000	1	RAM start bound; no MemoryLayout constant exists (RAM_MEM_START is prose-only) — GH #12705.
+fixliteral	scripts/asm-fixtures/mptLeafNodeEncodeFromNibblesFunction.s	0xbffffff8	1	RAM end-8 bound; no MemoryLayout constant exists (RAM_MEM_END is prose-only) — GH #12705.
 
 literal	EvmAsm/Codegen/CallFrameLayout.lean	0xa0b00000	3	GH #12648 census: migration-prose pin (12593 residue)
 literal	EvmAsm/Codegen/Driver.lean	0xa0b00000	2	GH #12648 census: import-free IO glue literals (tied by gate cross-checks where applicable)
 literal	EvmAsm/Codegen/Programs/AccountBalanceHelperSpec.lean	0xa0b00000	1	GH #12648 census: helper-spec literal
 literal	EvmAsm/Codegen/Programs/AccountIsEip161EmptyClose4.lean	0xa0b00c80	3	GH #12648 census: decimal spellings of pin values (0xa0b00c80 family)
-literal	EvmAsm/Codegen/Programs/BalAccountAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
-literal	EvmAsm/Codegen/Programs/BalStorageAccessDescriptors.lean	0xa0b00000	2	GH #12648 census: descriptor table literal
 literal	EvmAsm/Codegen/Programs/BlockAccessListBuilder.lean	0xa2e07000	1	GH #12648 census: builder scratch literal
 literal	EvmAsm/Codegen/Programs/BlockVerdictDataSection.lean	0xa0b00000	1	GH #12648 census: data-section literal
 literal	EvmAsm/Codegen/Programs/Bls12G1LtPSAsm.lean	0xa0b01070	1	GH #12648 census: blsg comparison vocabulary; symbolization tracked in #12648

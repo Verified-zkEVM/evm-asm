@@ -1,6 +1,10 @@
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreAnyX9
+module
+
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreAnyX9
+
+public section
 
 namespace EvmAsm.Evm64
 

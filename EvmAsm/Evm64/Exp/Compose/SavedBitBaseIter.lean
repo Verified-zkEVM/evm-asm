@@ -4,7 +4,11 @@
   Single-offset saved-bit EXP iteration CodeReq decomposition.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseDefs
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseDefs
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

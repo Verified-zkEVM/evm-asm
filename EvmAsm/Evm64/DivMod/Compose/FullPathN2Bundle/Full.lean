@@ -5,8 +5,12 @@
   preserved frame.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Bridge
-import EvmAsm.Evm64.DivMod.Compose.FullPath
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Bridge
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

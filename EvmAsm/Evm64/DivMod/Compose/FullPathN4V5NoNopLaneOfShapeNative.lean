@@ -17,8 +17,12 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CertOfShape
+
+public section
 
 namespace EvmAsm.Evm64
 

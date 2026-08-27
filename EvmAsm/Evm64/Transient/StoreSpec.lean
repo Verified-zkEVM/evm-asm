@@ -20,12 +20,16 @@
   named abbrev, not `CodeReq.ofProg` bare.
 -/
 
-import EvmAsm.Evm64.Transient.StoreProgram
-import EvmAsm.Evm64.StorageAssertions
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Transient.StoreProgram
+public import EvmAsm.Evm64.StorageAssertions
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -22,7 +22,11 @@
   `Nat.add_mod`/`Nat.mod_mul_mod` modular laws rather than `omega`.
 -/
 
-import EvmAsm.Evm64.MulMod.ReducePerLimb
+module
+
+public import EvmAsm.Evm64.MulMod.ReducePerLimb
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

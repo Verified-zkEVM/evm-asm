@@ -5,8 +5,12 @@
   Split from LoopIterN1.lean for faster builds.
 -/
 
-import EvmAsm.Evm64.DivMod.N1CallBase
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+module
+
+public import EvmAsm.Evm64.DivMod.N1CallBase
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeq
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

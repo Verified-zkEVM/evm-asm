@@ -12,9 +12,13 @@
   The op-agnostic loop-body post `preloopCallAddbackShift0PostN4V5` is reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallAddback
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddbackMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5ToDenormShift0CallAddback
+
+public section
 
 namespace EvmAsm.Evm64
 

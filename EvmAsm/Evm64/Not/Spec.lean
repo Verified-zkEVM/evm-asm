@@ -4,10 +4,14 @@
   Full 256-bit EVM NOT spec composed from per-limb specs.
 -/
 
-import EvmAsm.Evm64.Not.LimbSpec
-import EvmAsm.Evm64.Not.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Not.LimbSpec
+public import EvmAsm.Evm64.Not.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

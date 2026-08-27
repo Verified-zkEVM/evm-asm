@@ -4,14 +4,26 @@
   Top-level contract-creation payload staging for block_verdict.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BlockVerdictContractStage
-import EvmAsm.Codegen.Programs.BlockVerdictParams
-import EvmAsm.Codegen.ArenaCapacities
-import EvmAsm.Codegen.GasConstants
-import EvmAsm.Codegen.Programs.EIP7708Logs
-import EvmAsm.Codegen.Programs.AccountWriteMap
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+public import EvmAsm.Codegen.Programs.BlockVerdictParams
+public import EvmAsm.Codegen.ArenaCapacities
+public import EvmAsm.Codegen.GasConstants
+public import EvmAsm.Codegen.Programs.EIP7708Logs
+public import EvmAsm.Codegen.Programs.AccountWriteMap
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Programs.BlockVerdictContractStage
+meta import EvmAsm.Codegen.Programs.BlockVerdictParams
+meta import EvmAsm.Codegen.ArenaCapacities
+meta import EvmAsm.Codegen.GasConstants
+meta import EvmAsm.Codegen.Programs.EIP7708Logs
+meta import EvmAsm.Codegen.Programs.AccountWriteMap
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

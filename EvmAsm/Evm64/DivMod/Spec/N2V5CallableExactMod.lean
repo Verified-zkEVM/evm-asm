@@ -9,8 +9,12 @@
   `x9In`/`x2In` (both dead — overwritten by loopSetup/phaseC2).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ModPostShared
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+public section
 
 namespace EvmAsm.Evm64
 

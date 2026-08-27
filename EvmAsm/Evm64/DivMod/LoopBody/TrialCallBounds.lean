@@ -1,5 +1,9 @@
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
-import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCall
+public import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
+
+public section
 
 namespace EvmAsm.Evm64
 

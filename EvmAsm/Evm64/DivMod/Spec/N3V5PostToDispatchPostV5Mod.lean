@@ -7,9 +7,13 @@
   (`N3V5ConcretePostBridgeMod`).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5ConcretePostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -7,7 +7,11 @@
   cases.
 -/
 
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.Stack
+
+public section
 
 namespace EvmAsm.Evm64
 

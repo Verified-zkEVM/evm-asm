@@ -4,7 +4,11 @@
   CodeReq handles and sub-block inclusion lemmas for the SMOD wrapper.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.CodeHandles
+module
+
+public import EvmAsm.Evm64.SMod.Compose.CodeHandles
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

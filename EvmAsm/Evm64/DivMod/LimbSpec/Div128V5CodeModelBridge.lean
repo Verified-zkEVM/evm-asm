@@ -22,9 +22,13 @@
   Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
-import Mathlib.Tactic.Ring
-import Mathlib.Data.BitVec
+module
+
+public import EvmAsm.Evm64.DivMod.LoopDefs.IterV5
+public import Mathlib.Tactic.Ring
+public import Mathlib.Data.BitVec
+
+public section
 
 namespace EvmAsm.Evm64
 

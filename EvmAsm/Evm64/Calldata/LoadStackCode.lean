@@ -5,9 +5,13 @@
   reusable MLOAD stack-code surface.
 -/
 
-import EvmAsm.Evm64.Calldata.LoadProgram
-import EvmAsm.Evm64.Calldata.LoadArgs
-import EvmAsm.Evm64.MLoad.StackSpec
+module
+
+public import EvmAsm.Evm64.Calldata.LoadProgram
+public import EvmAsm.Evm64.Calldata.LoadArgs
+public import EvmAsm.Evm64.MLoad.StackSpec
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

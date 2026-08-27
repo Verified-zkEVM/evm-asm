@@ -11,9 +11,13 @@
   Bead `evm-asm-wbc4i.10.3.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

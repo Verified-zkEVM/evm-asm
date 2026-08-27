@@ -18,8 +18,12 @@
      Full four-iteration -- dispatches via cases on bltu_3.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopComposeN1
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.DivMod.LoopComposeN1
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

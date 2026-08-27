@@ -5,11 +5,15 @@
   Mirrors FullPath.lean but with Phase B n=3 and CLZ on b2.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
-import EvmAsm.Evm64.DivMod.Compose.CLZ
-import EvmAsm.Evm64.DivMod.Compose.Norm
-import EvmAsm.Evm64.DivMod.Compose.NormA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABNoNop
+public import EvmAsm.Evm64.DivMod.Compose.CLZ
+public import EvmAsm.Evm64.DivMod.Compose.Norm
+public import EvmAsm.Evm64.DivMod.Compose.NormA
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

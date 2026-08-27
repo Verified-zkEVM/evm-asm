@@ -4,9 +4,13 @@
   CodeReq handles for the SMOD wrapper and its sub-blocks.
 -/
 
-import EvmAsm.Evm64.SMod.LimbSpec
-import EvmAsm.Evm64.SMod.AddrNorm
-import EvmAsm.Evm64.SMod.Compose.BaseOffsets
+module
+
+public import EvmAsm.Evm64.SMod.LimbSpec
+public import EvmAsm.Evm64.SMod.AddrNorm
+public import EvmAsm.Evm64.SMod.Compose.BaseOffsets
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

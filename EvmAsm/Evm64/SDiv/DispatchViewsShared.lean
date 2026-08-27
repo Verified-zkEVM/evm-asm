@@ -2,16 +2,20 @@
   Shared declaration home for the SDIV dispatch views and B2 view chain.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
-import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
-import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
-import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.Bridges
-import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Evm64.SDiv.Compose.QuadMemBridges
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixZeroWordView
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+public import EvmAsm.Evm64.SDiv.Compose.BaseFinalBlockSpecs
+public import EvmAsm.Evm64.SDiv.Compose.DivCallCallable
+public import EvmAsm.Evm64.SDiv.Compose.Base
+public import EvmAsm.Evm64.SDiv.Compose.Bridges
+public import EvmAsm.Evm64.SDiv.Compose.DispatchReadyPost
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Evm64.SDiv.Compose.QuadMemBridges
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixZeroWordView
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

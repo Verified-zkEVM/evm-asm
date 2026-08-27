@@ -5,8 +5,12 @@
   MOD callable.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCode
-import EvmAsm.Evm64.SDiv.LimbSpec
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+public import EvmAsm.Evm64.SDiv.LimbSpec
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

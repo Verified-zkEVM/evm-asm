@@ -5,8 +5,12 @@
   precondition and preserved frame.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeFalse
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeTrue
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeFalse
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.BridgeTrue
+
+public section
 
 namespace EvmAsm.Evm64
 

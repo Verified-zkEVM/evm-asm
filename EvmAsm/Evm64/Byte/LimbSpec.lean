@@ -12,11 +12,15 @@
   - zero_path: pop index word, write all zeros (5 instrs)
 -/
 
-import EvmAsm.Evm64.Byte.Program
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Byte.Program
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

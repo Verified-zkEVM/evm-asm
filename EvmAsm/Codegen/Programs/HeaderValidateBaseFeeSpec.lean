@@ -222,12 +222,12 @@ theorem cpsBranchWithin_merge_two_bounds_same_cr
 
 /-! ## Complete K74 wrapper
 
-The two callee triples remain explicit premises.  The K73 premise is the
-wrapper's only production seam; the equality helper is treated the same way
-until its linked routine receives a corresponding whole-routine proof. -/
+The K73 callee triple remains the wrapper's production seam.  The equality
+call is discharged locally from the verified `u256EqBody` adapter; its code
+subsumption and concrete 32-byte region premises are explicit static inputs. -/
 
 theorem header_validate_base_fee_spec_within
-    {cr k73Code eqCode : CodeReq} {n73 nEq : Nat}
+    {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8)) (G : Assertion)
@@ -235,6 +235,12 @@ theorem header_validate_base_fee_spec_within
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hG : G.pcFree)
+    (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
+    (hExpectedWf : (Region.mk Expected expectedBytes).wf)
+    (hHeaderLen : headerBytes.length = 32)
+    (hExpectedLen : expectedBytes.length = 32)
+    (hDisj : headerPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ headerPtr.toNat)
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
     (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
@@ -242,36 +248,42 @@ theorem header_validate_base_fee_spec_within
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
           parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
-          gasUsed parentPtr parentBytes expectedBytes headerBytes (k74FlatFrame G)))
-    (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
-    (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPre spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes (k74FlatFrame G))
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPostOwn spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes (k74FlatFrame G))) :
-    cpsTripleWithin (27 + n73 + nEq) H raIn cr
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+          gasUsed gasLimit parentPtr parentBytes headerBytes (k74FlatFrame G)))
+    (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
+    cpsTripleWithin
+      (27 + n73 +
+        (U256EqSAsm.u256EqBody headerPtr Expected headerBytes
+          (hvbfWrittenImage gasLimit gasUsed parentBytes)).steps) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20 parentBytes expectedBytes headerBytes (k74FlatFrame G))
-      (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes (k74FlatFrame G)) := by
+      (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+        gasLimit gasUsed parentPtr
+        parentBytes headerBytes (k74FlatFrame G)) := by
   let F : Assertion := k74FlatFrame G
+  let W : List (BitVec 8) := hvbfWrittenImage gasLimit gasUsed parentBytes
+  let nEq : Nat :=
+    (U256EqSAsm.u256EqBody headerPtr Expected headerBytes W).steps
   have hF : G.pcFree := hG
+  have hlenW : W.length = 32 :=
+    hvbfWrittenImage_length gasLimit gasUsed parentBytes
+  have hwfW : (Region.mk Expected W).wf :=
+    hvbfWrittenImage_wf hExpectedWf hExpectedLen
   let v18 : Word := gasLimit >>> 1
-  have hk73' := header_validate_base_fee_k73_call_spec_within
+  have hk73' := header_validate_base_fee_k73_call_gen_spec_within
     (cr := cr) (calleeCode := k73Code) (n := n73)
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK
     (by dsimp [F, k74FlatFrame]; pcf; exact hF) hcode
+    (k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+      gasUsed gasLimit parentPtr parentBytes headerBytes F)
     hk73Mono hk73
   have hcall : cpsTripleWithin (10 + n73) H (H + 40) cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20 parentBytes expectedBytes headerBytes F)
       ((.x1 ↦ᵣ (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F) := by
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+          gasUsed gasLimit parentPtr parentBytes headerBytes F) := by
     simpa only [F] using hk73'
 
   have hmem10 : ∀ a i,
@@ -317,16 +329,16 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       regOwn .x11 ** tailRest spH spK raIn old8 headerPtr
         v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) hbneOwn
+        parentBytes W headerBytes F) (by pcf; exact hF) hbneOwn
   have hbne : cpsBranchWithin 1 (H + 40) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (H + 80)
         (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-          v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+          v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (H + 44)
         (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-          v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+          v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsBranchWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_)
       (fun _ hq => ?_) hbneFrame
     · unfold hvbfDispatchPost at hp
@@ -349,12 +361,12 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       regOwn .x11 ** (.x0 ↦ᵣ (0 : Word)) **
       tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h20'
+        parentBytes W headerBytes F) (by pcf; exact hF) h20'
   have h20Epi : cpsTripleWithin 1 (H + 80) (H + 84) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEpiPreScratch spH spK raIn old8 headerPtr (H + 40) (2 : Word) gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h20F
     · unfold hvbfDispatchPost at hp
       xperm_hyp hp
@@ -363,13 +375,13 @@ theorem header_validate_base_fee_spec_within
       xperm_hyp hq
   have h20Full := hvbfEpilogueScratchOwn (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
-    spK v9 old18 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
+    spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
     hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hFailPin : cpsTripleWithin 5 (H + 80) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalScratch sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        (2 : Word) gasUsed parentBytes expectedBytes headerBytes F) := by
+        (2 : Word) gasUsed parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       unfold hvbfEpiPreScratch at hp
       xperm_hyp hp)
@@ -377,12 +389,12 @@ theorem header_validate_base_fee_spec_within
     simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
   have hFail : cpsTripleWithin 5 (H + 80) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hFailPin
     unfold hvbfFinalAny
-    exact Or.inl ⟨expectedBytes, hq⟩
+    exact Or.inl ⟨W, hq⟩
 
   have hFailScratch : ∀ (status : Word) (scratchBytes : List (BitVec 8)),
       status ≠ (0 : Word) →
@@ -441,8 +453,9 @@ theorem header_validate_base_fee_spec_within
         ((.x1 ↦ᵣ (H + 40)) **
           k73FailurePost spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
             status parentBytes scratchBytes headerBytes raIn old8 F)
-        (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F) := by
+        (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+          gasLimit gasUsed parentPtr
+          parentBytes headerBytes F) := by
     intro status scratchBytes hstatus
     have hbneRaw := bne_spec_gen_within .x10 .x0 (40 : BitVec 13) status
       (0 : Word) (H + 40)
@@ -496,9 +509,11 @@ theorem header_validate_base_fee_spec_within
         ((regIs .x1 (H + 40)) **
           k73FailurePost spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
             status parentBytes scratchBytes headerBytes raIn old8 F)
-        (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F) := by
+        (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+          gasLimit gasUsed parentPtr
+          parentBytes headerBytes F) := by
       refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) hseq
+      unfold hvbfFinalRouteB
       exact Or.inl ⟨scratchBytes, hq⟩
     simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using hseq'
 
@@ -523,15 +538,15 @@ theorem header_validate_base_fee_spec_within
       (P := (.x8 ↦ᵣ headerPtr)) (exit_ := H + 48)
       (Q := (.x8 ↦ᵣ headerPtr) ** (.x10 ↦ᵣ headerPtr)) h11_values
   have h11F := cpsTripleWithin_frameR
-    ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** regOwn .x11 **
-      (.x0 ↦ᵣ (0 : Word)) **
-      tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h11Own
+      ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** regOwn .x11 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+          parentBytes W headerBytes F) (by pcf; exact hF) h11Own
   have h11Done : cpsTripleWithin 1 (H + 44) (H + 48) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEqPrefixPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h11F
     · unfold hvbfDispatchPost at hp
       xperm_hyp hp
@@ -577,16 +592,16 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       (.x10 ↦ᵣ headerPtr) ** (.x0 ↦ᵣ (0 : Word)) **
       tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) hlaOwn
+        parentBytes W headerBytes F) (by pcf; exact hF) hlaOwn
   have hprefixRaw := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     unfold hvbfEqPrefixPost at hp
     xperm_hyp hp) h11Done hlaF
   have hprefix : cpsTripleWithin 3 (H + 44) (H + 56) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       ((.x1 ↦ᵣ (H + 40)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
         eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F) := by
+          parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) hprefixRaw
     unfold eqPre
     xperm_hyp hq
@@ -602,32 +617,57 @@ theorem header_validate_base_fee_spec_within
       (.JAL .x1 (jalOff GuestAddrs.u256_eq
         (GuestAddrs.header_validate_base_fee + 56))) (by bv_omega)
       (by rw [hvbf_length]; decide) rfl (by rw [hvbf_length]; decide) a i hi
-  have heqCr := cpsTripleWithin_extend_code heqMono heq
+  have heq0 := header_validate_base_fee_eq_call_spec_within (cr := cr)
+    spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+    parentBytes W headerBytes G hG hHeaderWf hwfW
+    hHeaderLen hlenW hDisj heqMono
   have heqFramedRaw := cpsTripleWithin_frameR
-    ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) heqCr
+    ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) (by
+      simpa [F, nEq] using heq0)
   have heqFramed : cpsTripleWithin nEq EqK (H + 56 + 4) cr
       ((.x1 ↦ᵣ (H + 56 + 4)) **
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
           eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-            parentBytes expectedBytes headerBytes F))
+            parentBytes W headerBytes F))
       ((.x1 ↦ᵣ (H + 56 + 4)) **
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
           eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-            parentBytes expectedBytes headerBytes F)) := by
-    rw [show H + 60 = H + 56 + 4 by bv_omega] at heqFramedRaw
+            parentBytes W headerBytes F)) := by
+    have hretRaw :
+        (BitVec.ofNat 64 GuestAddrs.header_validate_base_fee + 60#64) =
+          (H + 56 + 4) := by
+      dsimp [H]
+      bv_omega
+    have hExpectedRaw :
+        (BitVec.ofNat 64 GuestAddrs.hvbf_expected : Word) = Expected := by
+      rfl
+    have hEqKRaw :
+        (BitVec.ofNat 64 GuestAddrs.u256_eq : Word) = EqK := by
+      rfl
+    rw [hretRaw, hExpectedRaw, hEqKRaw] at heqFramedRaw
+    have heqFramedRaw' : cpsTripleWithin nEq EqK (H + 56 + 4) cr
+        (((.x1 ↦ᵣ (H + 56 + 4)) **
+            eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+              parentBytes W headerBytes F) **
+          ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)))
+        (((.x1 ↦ᵣ (H + 56 + 4)) **
+            eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+              parentBytes W headerBytes F) **
+          ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr))) := by
+      simpa only [nEq, F] using heqFramedRaw
     refine cpsTripleWithin_weaken (fun _ hp => by
         unfold eqPre tailRest at hp ⊢
         xperm_hyp hp)
       (fun _ hq => by
         unfold eqPostOwn tailRest at hq ⊢
-        xperm_hyp hq) heqFramedRaw
+        xperm_hyp hq) heqFramedRaw'
   have heqCallRaw := callWithin_spec (cr := cr)
     (P := (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       eqPre spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F)
+        parentBytes W headerBytes F)
     (Q := (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F)
+        parentBytes W headerBytes F)
     (H + 56) EqK (H + 40)
       (jalOff GuestAddrs.u256_eq
         (GuestAddrs.header_validate_base_fee + 56)) nEq
@@ -639,19 +679,19 @@ theorem header_validate_base_fee_spec_within
     xperm_hyp hp) hprefix heqCallRaw
   have heqAt0 : cpsTripleWithin (4 + nEq) (H + 44) (H + 60) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       ((.x1 ↦ᵣ (H + 60)) **
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
           eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-            parentBytes expectedBytes headerBytes F)) := by
+            parentBytes W headerBytes F)) := by
     have hretEq : H + 56 + 4 = H + 60 := by bv_omega
     have hsteps : 3 + (1 + nEq) = 4 + nEq := by omega
     simpa only [Nat.add_assoc, hretEq, hsteps] using heqAtRaw
   have heqAt : cpsTripleWithin (4 + nEq) (H + 44) (H + 60) cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => ?_) heqAt0
     unfold eqPostOwn tailRest at hq
     unfold hvbfEqDispatchPost tailRest at ⊢
@@ -700,16 +740,16 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 60)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       (.x11 ↦ᵣ Expected) **
       tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) hbeqOwn
+        parentBytes W headerBytes F) (by pcf; exact hF) hbeqOwn
   have hbeq : cpsBranchWithin 1 (H + 60) cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (H + 72)
         (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-          v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+          v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (H + 64)
         (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-          v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+          v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsBranchWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_)
       (fun _ hq => ?_) hbeqFrame
     · simp only [hvbfEqDispatchPost, tailRest] at hp ⊢
@@ -732,12 +772,12 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 60)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       (.x11 ↦ᵣ Expected) ** (.x0 ↦ᵣ (0 : Word)) **
       tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h18'
+        parentBytes W headerBytes F) (by pcf; exact hF) h18'
   have h18Epi : cpsTripleWithin 1 (H + 72) (H + 76) cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (1 : Word) Expected parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h18F
     · simp only [hvbfEqDispatchPost, tailRest] at hp ⊢
       xperm_hyp hp
@@ -755,12 +795,12 @@ theorem header_validate_base_fee_spec_within
   have h19' := cpsTripleWithin_extend_code hmem19 h19
   have h19F := cpsTripleWithin_frameR
     (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (1 : Word) Expected parentPtr
-      v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h19'
+      v9 old18 v18 v19 v20 parentBytes W headerBytes F) (by pcf; exact hF) h19'
   have hThenEpi : cpsTripleWithin 2 (H + 72) (H + 84) cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (1 : Word) Expected parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       simpa only [sepConj_emp_left'] using hp) h18Epi h19F
     have hpc : H + 76 + signExtend21 (8 : BitVec 21) = H + 84 := by
@@ -772,22 +812,22 @@ theorem header_validate_base_fee_spec_within
     simpa only [sepConj_emp_left'] using hq
   have hEpi1 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (1 : Word) Expected gasUsed
-    spK v9 old18 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
+    spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
     hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hThenPin : cpsTripleWithin 6 (H + 72) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        (1 : Word) Expected parentBytes expectedBytes headerBytes F) := by
+        (1 : Word) Expected parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       unfold hvbfEpiPre at hp
       xperm_hyp hp) hThenEpi hEpi1
     simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
   have hThen : cpsTripleWithin 6 (H + 72) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hThenPin
     unfold hvbfFinalAny
     exact Or.inr (Or.inr hq)
@@ -805,12 +845,12 @@ theorem header_validate_base_fee_spec_within
     ((.x1 ↦ᵣ (H + 60)) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
       (.x11 ↦ᵣ Expected) ** (.x0 ↦ᵣ (0 : Word)) **
       tailRest spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h16'
+        parentBytes W headerBytes F) (by pcf; exact hF) h16'
   have h16Epi : cpsTripleWithin 1 (H + 64) (H + 68) cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (0 : Word) Expected parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h16F
     · simp only [hvbfEqDispatchPost, tailRest] at hp ⊢
       xperm_hyp hp
@@ -828,12 +868,12 @@ theorem header_validate_base_fee_spec_within
   have h17' := cpsTripleWithin_extend_code hmem17 h17
   have h17F := cpsTripleWithin_frameR
     (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (0 : Word) Expected parentPtr
-      v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) (by pcf; exact hF) h17'
+      v9 old18 v18 v19 v20 parentBytes W headerBytes F) (by pcf; exact hF) h17'
   have hElseEpi : cpsTripleWithin 2 (H + 64) (H + 84) cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfEpiPre spH spK raIn old8 headerPtr (H + 60) (0 : Word) Expected parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F) := by
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       simpa only [sepConj_emp_left'] using hp) h16Epi h17F
     have hpc : H + 68 + signExtend21 (16 : BitVec 21) = H + 84 := by
@@ -845,86 +885,95 @@ theorem header_validate_base_fee_spec_within
     simpa only [sepConj_emp_left'] using hq
   have hEpi0 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (0 : Word) Expected gasUsed
-    spK v9 old18 v18 v19 v20 parentPtr parentBytes expectedBytes headerBytes F
+    spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
     hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
   have hElsePin : cpsTripleWithin 6 (H + 64) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinal sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        (0 : Word) Expected parentBytes expectedBytes headerBytes F) := by
+        (0 : Word) Expected parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       unfold hvbfEpiPre at hp
       xperm_hyp hp) hElseEpi hEpi0
     simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
   have hElse : cpsTripleWithin 6 (H + 64) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hElsePin
     unfold hvbfFinalAny
     exact Or.inr (Or.inl hq)
 
   have hEqFull : cpsTripleWithin 7 (H + 60) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     have h := cpsBranchWithin_merge_same_cr hbeq hThen hElse
     simpa only [Nat.add_comm, Nat.add_left_comm, Nat.add_assoc] using h
   have hEqFullAt : cpsTripleWithin (11 + nEq) (H + 44) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
       heqAt hEqFull
     have hs : (4 + nEq) + 7 = 11 + nEq := by omega
     simpa only [hs] using h
   have hMerge : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
-        v9 old18 v18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v18 v19 v20 parentBytes W headerBytes F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes W headerBytes F) := by
     have h := cpsBranchWithin_merge_two_bounds_same_cr hbne hFail hEqFullAt
     have hs : 1 + 5 + (11 + nEq) = 17 + nEq := by omega
     simpa only [hs] using h
-  have hSuccessMerge : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
+  have hs' : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
       ((regIs .x1 (H + 40)) **
         k73PostOwn spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 F)
+          parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes raIn old8 F)
       (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes F) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => hq) hMerge
     unfold hvbfDispatchPost at ⊢
     dsimp [k73PostOwn] at hp ⊢
     xperm_chunked hp
-  have hMergeAny : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
+  have hSuccessMerge : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
       ((regIs .x1 (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-          parentBytes expectedBytes headerBytes F)
-      (hvbfFinalAny sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-        parentBytes expectedBytes headerBytes F) := by
+        k73PostOwn spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
+          parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes raIn old8 F)
+      (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+        gasLimit gasUsed parentPtr
+        parentBytes headerBytes F) :=
+    cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => hq) hs'
+  have hMergeRB : cpsTripleWithin (17 + nEq) (H + 40) raIn cr
+      ((regIs .x1 (H + 40)) **
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+          gasUsed gasLimit parentPtr parentBytes headerBytes F)
+      (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
+        gasLimit gasUsed parentPtr
+        parentBytes headerBytes F) := by
     intro R hR s hcr hPR hpc
     obtain ⟨h, hcompat, hP_R⟩ := hPR
     obtain ⟨h1, h2, hd, hunion, hP, hR_⟩ := hP_R
     obtain ⟨h1P, h2P, hdP, hunionP, hx1, hK⟩ := hP
-    unfold k73CallPost at hK
+    unfold k73RouteBCallPost at hK
     rcases hK with hsuccess | ⟨status, scratchBytes, hstatus, hfailure⟩
     · have hP' :
           ((regIs .x1 (H + 40)) **
             k73PostOwn spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-              parentBytes expectedBytes headerBytes raIn old8 F) h1 := by
+              parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes raIn old8 F) h1 := by
         exact ⟨h1P, h2P, hdP, hunionP, hx1, hsuccess⟩
       have hpre :
           (((regIs .x1 (H + 40)) **
             k73PostOwn spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-              parentBytes expectedBytes headerBytes raIn old8 F) ** R) h := by
+              parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes raIn old8 F) ** R) h := by
         exact ⟨h1, h2, hd, hunion, hP', hR_⟩
       have hpreS :
           (((regIs .x1 (H + 40)) **
             k73PostOwn spH spK headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-              parentBytes expectedBytes headerBytes raIn old8 F) ** R).holdsFor s := by
+              parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes raIn old8 F) ** R).holdsFor s := by
         exact ⟨h, hcompat, hpre⟩
       exact hSuccessMerge R hR s hcr hpreS hpc
     · have hP' :
@@ -945,8 +994,8 @@ theorem header_validate_base_fee_spec_within
       obtain ⟨k, hk, s', hstep, hpc', hQR⟩ :=
         hFailureBranch status scratchBytes hstatus R hR s hcr hpreS hpc
       exact ⟨k, by omega, s', hstep, hpc', hQR⟩
-  have hAll := cpsTripleWithin_seq_same_cr hcall hMergeAny
+  have hAll := cpsTripleWithin_seq_same_cr hcall hMergeRB
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
-  simpa only [F, k74FlatFrame, hs] using hAll
+  simpa only [F, W, k74FlatFrame, hs] using hAll
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpec

@@ -32,6 +32,8 @@ open EvmAsm.Codegen.Proofs
 open private hcoreWitnessHeap hcoreWitnessSat hcoreWitnessAssertion
   hcoreWitnessRegHeapFold
   from EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
+open private item8S4 item8ChildSp
+  from EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 
 noncomputable section
 
@@ -269,6 +271,65 @@ def step2ParentHashRouteAmbient
   bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state) os **
   bytesRegion Computed out0 ** F
 
+/-! The parent-hash route's *input* obligations are pure facts.  They are
+    deliberately kept separate from the spatial carrier above: the caller
+    supplies these facts at `validate_header` entry, and the core may carry
+    them through every status arm without acquiring any ownership.  In
+    particular, this predicate contains no status/result or digest-equality
+    claim; those belong to the route postcondition, not to the entry contract.
+
+    The fields are exactly the static hypotheses consumed by
+    `postMerge_status0_to_parent_hash_unified_call_from_spec`. -/
+def step2ParentHashEntryFacts
+    (header headerLen s4 s5 : Word)
+    (thisBytes parentBytes C0 : List (BitVec 8)) (N rem : Nat)
+    (os : List (BitVec 8)) (n : Nat) : Prop :=
+  thisBytes.length = headerLen.toNat ∧
+  3 ≤ thisBytes.length ∧
+  C0.length = 32 ∧
+  header.toNat % 8 = 0 ∧
+  header.toNat + thisBytes.length ≤ 2 ^ 64 ∧
+  (∀ k, k < thisBytes.length →
+    isValidByteAccess (header + BitVec.ofNat 64 k) = true) ∧
+  (headersParentHash_out thisBytes C0).length = 32 ∧
+  s5 = BitVec.ofNat 64
+    (EvmAsm.Codegen.Proofs.keccakAbsorbStep * N + rem) ∧
+  parentBytes.length = EvmAsm.Codegen.Proofs.keccakAbsorbStep * N + rem ∧
+  rem ≤ 135 ∧
+  os.length = 200 ∧
+  (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat % 8 = 0 ∧
+  (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + 200 < 2 ^ 64 ∧
+  EvmAsm.Codegen.Proofs.keccakAbsorbStep * N + rem < 2 ^ 63 ∧
+  rem < 2 ^ 64 ∧
+  (EvmAsm.Codegen.Proofs.keccakAbsorbCursor s4 N).toNat % 8 = 0 ∧
+  (∀ k, k < rem →
+    (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat +
+      (rem - (k + 1)) < 2 ^ 64) ∧
+  (∀ k, k < rem →
+    (EvmAsm.Codegen.Proofs.keccakAbsorbCursor s4 N).toNat +
+      (rem - (k + 1)) < 2 ^ 64) ∧
+  (∀ k, k < rem →
+    isValidByteAccess
+      (BitVec.ofNat 64 GuestAddrs.zk3_state +
+        BitVec.ofNat 64 (rem - (k + 1))) = true) ∧
+  (∀ k, k < rem →
+    isValidByteAccess
+      (EvmAsm.Codegen.Proofs.keccakAbsorbCursor s4 N +
+        BitVec.ofNat 64 (rem - (k + 1))) = true) ∧
+  isValidByteAccess
+    (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 rem) = true ∧
+  isValidByteAccess
+    (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 135) = true ∧
+  (∀ j, j < 200 →
+    isValidMemAddr
+      (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 j) = true) ∧
+  40 + 312 + nKeccak N rem ≤ n
+
+def step2ParentHashAmbientWithEntry
+    (sp0 : Word) (C0 os out0 : List (BitVec 8))
+    (entry : Prop) (F : Assertion) : Assertion :=
+  step2ParentHashAmbient sp0 C0 os out0 (pure entry ** F)
+
 theorem step2ParentHashAmbient_pcFree
     (_sp0 : Word) (C0 os out0 : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree) : (step2ParentHashAmbient _sp0 C0 os out0 F).pcFree := by
@@ -319,6 +380,24 @@ def step2ParentHashProloguePost
   ((spC + 40) ↦ₘ o20) ** ((spC + 48) ↦ₘ o21) **
   step2ParentHashAmbient sp2 C0 os out0 F
 
+def step2ParentHashProloguePreWithEntry
+    (sp0 spC raIn a0 a1 a2 a3 a4 a5 o8 o9 o18 o19 o20 o21 : Word)
+    (sp2 : Word) (C0 os out0 : List (BitVec 8)) (n : Nat)
+    (thisBytes parentBytes : List (BitVec 8)) (N rem : Nat) (F : Assertion) : Assertion :=
+  step2ParentHashProloguePre sp0 spC raIn a0 a1 a2 a3 a4 a5
+    o8 o9 o18 o19 o20 o21 sp2 C0 os out0
+    (pure (step2ParentHashEntryFacts a0 a1 a4 a5 thisBytes parentBytes
+      C0 N rem os n) ** F)
+
+def step2ParentHashProloguePostWithEntry
+    (sp0 spC raIn a0 a1 a2 a3 a4 a5 o8 o9 o18 o19 o20 o21 : Word)
+    (sp2 : Word) (C0 os out0 : List (BitVec 8)) (n : Nat)
+    (thisBytes parentBytes : List (BitVec 8)) (N rem : Nat) (F : Assertion) : Assertion :=
+  step2ParentHashProloguePost sp0 spC raIn a0 a1 a2 a3 a4 a5
+    o8 o9 o18 o19 o20 o21 sp2 C0 os out0
+    (pure (step2ParentHashEntryFacts a0 a1 a4 a5 thisBytes parentBytes
+      C0 N rem os n) ** F)
+
 /-! The ambient is carried unchanged by the actual 14-step prologue.  The
     theorem is intentionally stated at the same boundary as hcore (H+56),
     rather than claiming that x20 existed at the entry point. -/
@@ -340,6 +419,33 @@ theorem validate_header_prologue_preserves_step2_parent_hash_ambient
     sp0 spC raIn a0 a1 a2 a3 a4 a5 o8 o9 o18 o19 o20 o21
     (step2ParentHashAmbient sp0 C0 os out0 F) hA hspC
   simpa only [step2ParentHashProloguePre, step2ParentHashProloguePost] using hpro
+
+/-! The pure entry envelope is carried by the same prologue theorem.  This is
+    a frame-only statement: no register or memory atom is added for the
+    envelope, so the proof is just the existing prologue plus a framed pure
+    assertion. -/
+theorem validate_header_prologue_preserves_step2_parent_hash_entry
+    (sp0 spC raIn a0 a1 a2 a3 a4 a5 o8 o9 o18 o19 o20 o21 : Word)
+    (sp2 : Word) (C0 os out0 : List (BitVec 8)) (n : Nat)
+    (thisBytes parentBytes : List (BitVec 8)) (N rem : Nat) (F : Assertion)
+    (hF : F.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hsp2 : sp2 = sp0) :
+    cpsTripleWithin 14 ValidateHeaderWhole.H (ValidateHeaderWhole.H + 56)
+      ValidateHeaderWhole.callerCode
+      (step2ParentHashProloguePreWithEntry sp0 spC raIn a0 a1 a2 a3 a4 a5
+        o8 o9 o18 o19 o20 o21 sp2 C0 os out0 n thisBytes parentBytes N rem F)
+      (step2ParentHashProloguePostWithEntry sp0 spC raIn a0 a1 a2 a3 a4 a5
+        o8 o9 o18 o19 o20 o21 sp2 C0 os out0 n thisBytes parentBytes N rem F) := by
+  let entry := step2ParentHashEntryFacts a0 a1 a4 a5 thisBytes parentBytes
+    C0 N rem os n
+  have hEF : (pure entry ** F).pcFree := by
+    exact pcFree_sepConj pcFree_pure hF
+  have hpro := validate_header_prologue_preserves_step2_parent_hash_ambient
+    sp0 spC raIn a0 a1 a2 a3 a4 a5 o8 o9 o18 o19 o20 o21 sp2 C0 os out0
+    (pure entry ** F) hEF hspC hsp2
+  simpa [step2ParentHashProloguePreWithEntry,
+    step2ParentHashProloguePostWithEntry, entry] using hpro
 
 /-- The status-0 handoff needs a stronger, *specific* post than the generic
     all-exit contract: the parent-hash route consumes x14/x15 scratch and the
@@ -749,6 +855,133 @@ theorem validateHeaderCoreStatus0SeamPost_inhabited :
   rw [item4Atoms_assertion_eq] at hs
   simpa [validateHeaderCoreStatus0SeamPost, item4Out0, item4Os, item4C0] using hs
 
+
+/-! ## Item 13: pure entry envelope at the H+196 seam
+
+The status-0 producer is now paired with a caller-supplied pure envelope.
+Unlike the route's spatial carrier, this envelope can be carried through the
+all-exit core without changing ownership or disjointness obligations for the
+other twelve exits.  The consuming adapter below discharges the concrete
+`...from_spec` callee premise from that envelope at the real H+196 seam. -/
+
+def validateHeaderCoreStatus0SeamPostWithEntry
+    (entry : Prop)
+    (spC childSp header headerLen s4 s5 oldRa : Word)
+    (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8))
+    (os : List (BitVec 8)) (G : Assertion) : Assertion :=
+  ((.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+    (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) **
+    (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+    (.x11 ↦ᵣ (0 : Word)) ** (.x12 ↦ᵣ (0 : Word)) **
+    (.x13 ↦ᵣ (0 : Word)) **
+    parentHashRouteFrame spC oldRa header s4 vals thisBytes parentBytes **
+    claimedOwn C0 **
+    hvphSuccKeccakTail childSp os (List.replicate 32 0)
+      (pure entry ** G))
+
+abbrev validateHeaderCoreStatus0SeamContractWithEntry
+    (nCore : Nat) (cr : CodeReq)
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC raIn header headerLen thisStruct parentStructPtr s4 s5 : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o8 o9 o18 o19 o20 o21 : Word)
+    (childSp oldRa : Word) (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8))
+    (os : List (BitVec 8)) (N rem n : Nat) (G : Assertion) : Prop :=
+  cpsTripleWithin nCore (ValidateHeaderWhole.H + 56)
+    (ValidateHeaderWhole.H + 196) cr
+    (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+      rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+      headerStruct parentStruct o8 o9 o18 o19 o20 o21
+      (step2ParentHashAmbientWithEntry spC C0 os (List.replicate 32 0)
+      (step2ParentHashEntryFacts header headerLen s4 s5 thisBytes parentBytes
+          C0 N rem os n) G))
+    (validateHeaderCoreStatus0SeamPostWithEntry
+      (step2ParentHashEntryFacts header headerLen s4 s5 thisBytes parentBytes
+        C0 N rem os n)
+      spC childSp header headerLen s4 s5 oldRa vals thisBytes parentBytes C0 os G)
+
+set_option maxRecDepth 8000 in
+theorem validateHeaderCoreStatus0_consuming_adapter_from_spec
+    {cr : CodeReq} {nCore n N rem : Nat}
+    (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
+    (spC childSp header headerLen s4 s5 oldRa : Word)
+    (raIn thisStruct parentStructPtr : Word)
+    (rawBytes parentRawBytes : List (BitVec 8))
+    (headerStruct parentStruct : List (BitVec 8))
+    (o8 o9 o18 o19 o20 o21 : Word)
+    (vals : Reg → Word)
+    (thisBytes parentBytes C0 : List (BitVec 8))
+    (os : List (BitVec 8)) (G : Assertion)
+    (hG : G.pcFree)
+    (hchild : childSp = spC + signExtend12 (-32 : BitVec 12))
+    (hvals8 : vals .x8 = header)
+    (hvals9 : vals .x9 = headerLen)
+    (hvals18 : vals .x18 = s4)
+    (hentry : step2ParentHashEntryFacts header headerLen s4 s5
+      thisBytes parentBytes C0 N rem os n)
+    (hseam : validateHeaderCoreStatus0SeamContractWithEntry nCore cr
+      parentSpec headerSpec spC raIn header headerLen thisStruct parentStructPtr s4 s5
+      rawBytes parentRawBytes headerStruct parentStruct o8 o9 o18 o19 o20 o21
+      childSp oldRa vals thisBytes parentBytes C0 os N rem n G)
+    (hdisj : (CodeReq.singleton
+      ValidateHeaderParentHashCorrespondence.A
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_parent_hash
+        (GuestAddrs.validate_header + 244)))).Disjoint
+      HeaderValidateParentHashSpec.fullCode)
+    (hcallerDisj : parentHashRouteFrameCaller.Disjoint
+      HeaderValidateParentHashSpec.fullCode)
+    (hcode : ∀ a i,
+      (parentHashRouteFrameCaller.union HeaderValidateParentHashSpec.fullCode) a = some i →
+      cr a = some i) :
+    cpsTripleWithin (nCore + (5 + (1 + n)))
+      (ValidateHeaderWhole.H + 56)
+      ValidateHeaderParentHashCorrespondence.Ret cr
+      (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+        rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+        headerStruct parentStruct o8 o9 o18 o19 o20 o21
+        (step2ParentHashAmbientWithEntry spC C0 os (List.replicate 32 0)
+          (step2ParentHashEntryFacts header headerLen s4 s5 thisBytes parentBytes
+            C0 N rem os n) G))
+      ((.x21 ↦ᵣ s5) **
+        hvphUnifiedPost spC childSp
+          ValidateHeaderParentHashCorrespondence.Ret header s4 s5 vals s4
+          thisBytes parentBytes C0 N rem os
+          (pure (step2ParentHashEntryFacts header headerLen s4 s5
+            thisBytes parentBytes C0 N rem os n) ** G)) := by
+  rcases hentry with ⟨hlenW, hlen3, hclaim0, hHeaderAlign, hsover,
+    hsvalid, hOutLen, hplen, hlen, hrem_le, hos, halign_zk, hover,
+    hNbound, hrem64, hb8i, hovers, hoveri, hvalids, hvalidi, hvalidRem,
+    hvalid135, hvalidMem, hbound⟩
+  let entry := step2ParentHashEntryFacts header headerLen s4 s5
+    thisBytes parentBytes C0 N rem os n
+  let G' : Assertion := pure entry ** G
+  have hG' : G'.pcFree := by
+    dsimp [G']
+    exact pcFree_sepConj pcFree_pure hG
+  have hroute := postMerge_status0_to_parent_hash_unified_call_from_spec
+    (cr := cr) (n := n) spC childSp header headerLen s4 s5 oldRa vals
+    thisBytes parentBytes C0 N rem os G' hG' hchild hvals8 hvals9 hvals18
+    hlenW hlen3 hclaim0 hHeaderAlign hsover hsvalid hplen hlen hrem_le
+    hos halign_zk hover hNbound hrem64 hb8i hovers hoveri hvalids hvalidi
+    hvalidRem hvalid135 hvalidMem hbound hdisj hcallerDisj hcode
+  have hseam' : cpsTripleWithin nCore (ValidateHeaderWhole.H + 56)
+      (ValidateHeaderWhole.H + 196) cr
+      (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
+        rawBytes parentRawBytes thisStruct parentStructPtr s4 s5
+        headerStruct parentStruct o8 o9 o18 o19 o20 o21
+        (step2ParentHashAmbientWithEntry spC C0 os (List.replicate 32 0)
+          entry G))
+      (validateHeaderCoreStatus0SeamPostWithEntry entry spC childSp header
+        headerLen s4 s5 oldRa vals thisBytes parentBytes C0 os G) := by
+    change cpsTripleWithin nCore (ValidateHeaderWhole.H + 56)
+      (ValidateHeaderWhole.H + 196) cr _ _ at hseam
+    simpa [entry] using hseam
+  have hseq := cpsTripleWithin_seq_same_cr hseam' hroute
+  simpa [entry, G', validateHeaderCoreStatus0SeamPostWithEntry] using hseq
+
 /-! At the post-prologue seam the separately established `x20` cell and this
     carrier are exactly the ambient consumed by the stacked item-8 route.  The
     equality is intentionally stated as an assertion equality: it prevents a
@@ -842,18 +1075,83 @@ theorem step2ParentHashEnvelope_inhabited :
     narrower all-exit core carrier. -/
 theorem step2ParentHashAmbient_route_inhabited :
     ∃ h : PartialState,
-      ((.x20 ↦ᵣ (0x3000 : Word)) **
-        step2ParentHashRouteAmbient (0x1020 : Word)
+      ((.x20 ↦ᵣ item8S4) **
+        step2ParentHashRouteAmbient
+          (item8ChildSp - signExtend12 (-88 : BitVec 12))
           (List.replicate 32 0) (List.replicate 200 0)
           (List.replicate 32 0) empAssertion) h := by
   rcases parentHashUnifiedAmbient_inhabited with ⟨h, hh⟩
   refine ⟨h, ?_⟩
   have heq := step2ParentHashRouteAmbient_as_unified_route_carrier
-    (0x1020 : Word) (0xFC8 : Word) (0x3000 : Word)
+    (item8ChildSp - signExtend12 (-88 : BitVec 12)) item8ChildSp item8S4
     (List.replicate 32 0) (List.replicate 200 0) (List.replicate 32 0)
     empAssertion (by decide)
   rw [heq]
   exact hh
+
+/-! The pure envelope is jointly satisfiable with the concrete route carrier,
+    using real (nonempty) lengths rather than an empty-list placeholder. -/
+set_option maxRecDepth 8000 in
+theorem step2ParentHashEntryAmbient_inhabited :
+    ∃ h : PartialState,
+      (((.x20 ↦ᵣ item8S4) **
+        step2ParentHashRouteAmbient
+          (item8ChildSp - signExtend12 (-88 : BitVec 12))
+          (List.replicate 32 0) (List.replicate 200 0)
+          (List.replicate 32 0) empAssertion) **
+        pure (step2ParentHashEntryFacts
+          hcoreWitnessHeader (4 : Word) item8S4
+          (BitVec.ofNat 64 (keccakAbsorbStep * 1 + 4))
+          (List.replicate 4 0)
+          (List.replicate (keccakAbsorbStep * 1 + 4) 0)
+          (List.replicate 32 0) 1 4 (List.replicate 200 0) 1000)) h := by
+  rcases step2ParentHashAmbient_route_inhabited with ⟨h, hroute⟩
+  refine ⟨h, (sepConj_pure_right _).2 ⟨?_, ?_⟩⟩
+  · exact hroute
+  · simp only [step2ParentHashEntryFacts]
+    refine ⟨by decide, by decide, by decide, by decide, by decide, ?_, by decide,
+      by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+      by decide, by decide, ?_, ?_, ?_, ?_, by decide, by decide, ?_, by decide⟩
+    · intro k hk
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
+    · intro k hk
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
+    · intro k hk
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
+    · intro k hk
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
+    · intro k hk
+      have hk' : k < 4 := by simpa using hk
+      interval_cases k <;> decide
+    · intro j hj
+      have hnb : j % 2 ^ 64 = j := Nat.mod_eq_of_lt (by omega)
+      have hmod : (GuestAddrs.zk3_state + j) % 2 ^ 64 =
+          GuestAddrs.zk3_state + j := by
+        apply Nat.mod_eq_of_lt
+        simp only [GuestAddrs.zk3_state]
+        omega
+      have hzk :
+          (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat = GuestAddrs.zk3_state := by
+        simp only [BitVec.toNat_ofNat, GuestAddrs.zk3_state]
+      have hj' :
+          (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 j).toNat =
+            GuestAddrs.zk3_state + j := by
+        rw [BitVec.toNat_add, hzk, BitVec.toNat_ofNat, hnb, hmod]
+      simp only [isValidMemAddr, hj', Bool.or_eq_true, Bool.and_eq_true,
+        decide_eq_true_eq]
+      show ((MEM_START ≤ GuestAddrs.zk3_state + j ∧
+          GuestAddrs.zk3_state + j ≤ MEM_END) ∨
+          (INPUT_MEM_START ≤ GuestAddrs.zk3_state + j ∧
+            GuestAddrs.zk3_state + j ≤ INPUT_MEM_END)) ∨
+        (RAM_MEM_START ≤ GuestAddrs.zk3_state + j ∧
+          GuestAddrs.zk3_state + j ≤ RAM_MEM_END)
+      simp only [MEM_START, MEM_END, INPUT_MEM_START, INPUT_MEM_END,
+        RAM_MEM_START, RAM_MEM_END, GuestAddrs.zk3_state]
+      omega
 
 end
 end EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient

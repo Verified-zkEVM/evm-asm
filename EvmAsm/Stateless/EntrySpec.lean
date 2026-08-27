@@ -50,11 +50,20 @@
   triple is THE run, so the postcondition constrains the actual outcome).
 -/
 
-import EvmAsm.Stateless.Entry
-import EvmAsm.Stateless.Constants
-import EvmAsm.Stateless.SpecRef.Guest
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.Stateless.Entry
+public import EvmAsm.Stateless.Constants
+public import EvmAsm.Stateless.SpecRef.Guest
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Stateless.Entry
+meta import EvmAsm.Stateless.Constants
+meta import EvmAsm.Stateless.SpecRef.Guest
+meta import EvmAsm.Rv64.CPSSpec
+meta import EvmAsm.Rv64.MemRegion
+
+public section
 
 namespace EvmAsm.Stateless
 

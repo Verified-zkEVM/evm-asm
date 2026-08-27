@@ -7,8 +7,12 @@
   (#7434) with the max body (#7438) and the `¬ult` regime.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+
+public section
 
 namespace EvmAsm.Evm64
 

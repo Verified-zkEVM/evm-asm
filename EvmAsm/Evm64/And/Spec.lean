@@ -5,10 +5,14 @@
 -/
 
 -- `And.LimbSpec → And.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.And.LimbSpec
-import EvmAsm.Evm64.And.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.And.LimbSpec
+public import EvmAsm.Evm64.And.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 namespace EvmAsm.Evm64
 

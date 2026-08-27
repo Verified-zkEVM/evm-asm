@@ -10,8 +10,12 @@
   no-wrap conditions in the lane).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
-import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5TrialQuotientV4Bridge
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipV4
+
+public section
 
 namespace EvmAsm.Evm64
 

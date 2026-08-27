@@ -19,8 +19,12 @@
   return post carries no x9).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Bzero
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+public section
 
 namespace EvmAsm.Evm64
 

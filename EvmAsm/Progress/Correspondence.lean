@@ -698,7 +698,7 @@ pin, never SpecRef alone -- citing our own Lean to justify spec alignment is cir
     reference := "logs_bloom's pointwise-OR decomposition \
 (SpecRef/BloomAlgebra.lean: bloomOr, logs_bloom_append)",
     note := "⭐ THE COUNTERPART HAD TO BE CONSTRUCTED, which is the whole content of \
-this row. The reference `logs_bloom` (Fork.lean:128) never ORs two blooms: it folds \
+this row. The reference `logs_bloom` (Fork.lean:133) never ORs two blooms: it folds \
 *bit-sets* into one accumulator via `add_to_bloom`'s three `List.set`s, over the \
 block's logs as one flat list. The guest instead materialises a bloom per receipt and \
 ORs them pairwise. So before #11348 there was no reference term for this routine's post \
@@ -792,7 +792,7 @@ reference genuinely differ in KIND rather than in bound (#11615)" },
   { family := "header", routine := "header_extract_logs_bloom",
     spec := some "header_logs_bloom_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:219, \
+    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:235, \
 stateless.py:244)",
     note := "#11575 row 1, the first fork of #11351's pattern -- and it lands CLEANER than \
 its representative, which is the point worth recording. \
@@ -843,7 +843,7 @@ assumed. ⚠️ CITATION KIND: the `FixedBytes` clause cites an EXTERNAL package
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:219, \
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:235, \
 stateless.py:244)",
     note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
 different reason than before and the reason is the whole content of this row. The previous note \
@@ -931,7 +931,7 @@ docs/agents/spec-correspondence.md 6a. The RLP rows above use the same package-q
   { family := "header", routine := "block_hash_from_header",
     spec := some "block_hash_from_header_headerHash_within",
     verdict := .domainRestricted, basis := .ported,
-    reference := "`headerHash` (SpecRef/BlocksRlp.lean:84), the port of \
+    reference := "`headerHash` (SpecRef/BlocksRlp.lean:90), the port of \
 `keccak256(rlp.encode(header))` — the block-hash expression at \
 amsterdam/stateless_host.py:91 and fork.py:244/511",
     note := "#12223. WHAT IS GRADED: the 32-byte cell this routine writes, against the \
@@ -948,7 +948,7 @@ them (`header_extended_decode`). So the seam `the bytes at inputBase are the hea
 encoding` is discharged from the DECODE, by canonicality, not from a construction proof. Two \
 cited and consumed bridge lemmas: `keccakBodyDigest_eq_specref` (#12037/#12104) turns the \
 sponge model into `SpecRef.keccak256`, and `SpecRef.encode_headerToRlpItem_of_decode` (#12647, \
-SpecRef/HeaderRoundTrip.lean:213) turns `_decode_header hb = .ok hdr` into \
+SpecRef/HeaderRoundTrip.lean:231) turns `_decode_header hb = .ok hdr` into \
 `encode (headerToRlpItem hdr) = hb`. `keccakBodyDigest_eq_headerHash_of_decode` composes them. \
 DOMAIN RESTRICTION -- taxonomy row 1 (a proof/statement limit) PLUS row 2 (ABI \
 precondition), and per that table's requirement this note says which is which. Row 1: \
@@ -1008,10 +1008,10 @@ here — this file deliberately does not import Codegen" },
     spec := some "bgv_u32le_offset_spec_within",
     verdict := .domainRestricted, basis := .ported,
     reference := "the fixed-width LE reads of deserialize_stateless_input \
-(SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:38)",
+(SpecRef/Guest.lean:29), which reduce to bytesLEtoNat (SpecRef/Crypto.lean:44)",
     note := "PORT-FIDELITY CLAUSE TABLE (required by `.ported`). Reference: the \
 fixed-width LE reads in `deserialize_stateless_input` reduce to `bytesLEtoNat` \
-(SpecRef/Crypto.lean:38), a port of the SSZ uint decoder. ONE clause: `bytesLEtoNat` \
+(SpecRef/Crypto.lean:44), a port of the SSZ uint decoder. ONE clause: `bytesLEtoNat` \
 accumulates `b + 256 * rest` where the guest ORs four shifted bytes. That restatement is \
 NOT syntactic and is PROVED, not assumed, by `leU32_eq_bytesLEtoNat` via `toNat_or_shift` \
 (OR past the accumulated width is addition). No other clause differs. \
@@ -1142,7 +1142,7 @@ tree — read, not machine-checked. See #11574" },
     spec := some "txTypeDispatch_spec_within",
     verdict := .agrees, basis := .machineOnly,
     reference := "the first-byte envelope dispatch of `decode_transaction` \
-(SpecRef/Transactions.lean:386), a port of amsterdam/transactions.py:575-577 -- \
+(SpecRef/Transactions.lean:394), a port of amsterdam/transactions.py:575-577 -- \
 0x01..0x04 typed, 0xC0..0xFE legacy, anything else (including 0xFF) rejected",
     note := "⭐ THE AGREEMENT ON THE 0xFF BOUNDARY IS ENGINEERED, NOT INCIDENTAL, and a \
 reader must not take it for a coincidence. #11901 found the guest MODEL treating `0xff` as \
@@ -1171,7 +1171,7 @@ because four rows were graded as though a local restatement were the spec: when 
 to our own Lean model rather than to SpecRef, the honest rung is the weaker one. \
 WHAT WOULD LIFT IT: the target already exists and is byte-for-byte the guest's range -- \
 the port renders the boundary in its legacy arm (`decode_transaction`, \
-SpecRef/Transactions.lean:386-402) as `0xC0 ≤ b0.toNat && b0.toNat ≤ 0xFE`, with 0x01..0x04 \
+SpecRef/Transactions.lean:394-415) as `0xC0 ≤ b0.toNat && b0.toNat ≤ 0xFE`, with 0x01..0x04 \
 above it and a `txErr` fallthrough. Nobody has stated the tie. \
 ⚠️ THE SUBJECT IS THE DISPATCH CLAUSE, NOT `decode_transaction` AS A WHOLE. That function \
 also decodes the envelope payload (`decodeFully` plus the per-type field decoders) and can \

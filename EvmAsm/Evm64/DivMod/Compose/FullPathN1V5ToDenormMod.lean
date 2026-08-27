@@ -12,8 +12,12 @@
   (`FullPathN1V5ToDenorm`).  Step 2 of the n=1 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

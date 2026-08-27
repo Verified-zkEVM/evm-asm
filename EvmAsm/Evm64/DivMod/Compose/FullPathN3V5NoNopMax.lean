@@ -9,9 +9,13 @@
   Bead `evm-asm-wbc4i.9.3.3.2.1` (n=3 v5 max loop-body-jN norm wrappers).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3V5.MaxSkipV5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3V5.MaxSkipV5NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

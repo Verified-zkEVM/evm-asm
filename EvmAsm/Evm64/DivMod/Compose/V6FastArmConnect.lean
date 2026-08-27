@@ -18,8 +18,12 @@
   triple use site (`evm-asm-35xs4`), where the body-post type is inferred.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+
+public section
 
 namespace EvmAsm.Evm64
 

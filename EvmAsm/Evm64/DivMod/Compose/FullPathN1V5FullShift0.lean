@@ -9,8 +9,12 @@
   (`R0.1, R1.1, R2.1, R3.1` = the four shift=0 loop digits).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5BridgeShift0
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5
+
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

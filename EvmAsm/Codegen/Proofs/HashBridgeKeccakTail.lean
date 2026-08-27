@@ -79,10 +79,88 @@ theorem keccakDigestCopy_length (st : List (BitVec 8)) :
     (keccakDigestCopy st).length = 32 := by
   simp only [keccakDigestCopy, length_setBytes, List.length_replicate]
 
-/-- Compose 4× LD/SD digest pairs into full 32-byte copy from zeroed out. -/
+private theorem tail_setBytes_at0_full (bs ns : List (BitVec 8))
+    (h : ns.length = bs.length) :
+    setBytes bs 0 ns = ns := by
+  have hslot := setBytes_slot bs ns 0 (by omega)
+  simp only [List.drop_zero] at hslot
+  have hlen : (setBytes bs 0 ns).length = ns.length := by
+    rw [length_setBytes, h]
+  have htake : (setBytes bs 0 ns).take ns.length = setBytes bs 0 ns :=
+    List.take_of_length_le (Nat.le_of_eq hlen)
+  rwa [htake] at hslot
+
+private theorem tail_take_add_eq (l : List (BitVec 8)) (m n : Nat) :
+    l.take (m + n) = l.take m ++ (l.drop m).take n := by
+  induction m generalizing l with
+  | zero => simp
+  | succ m ih =>
+    cases l with
+    | nil => simp
+    | cons x xs =>
+      simp only [List.take_succ_cons, List.drop_succ_cons, List.cons_append]
+      rw [show m + 1 + n = (m + n) + 1 from by omega, List.take_succ_cons]
+      exact congrArg (List.cons x) (ih xs)
+
+private theorem tail_take32_chunks (st : List (BitVec 8))
+    (_hst : 32 ≤ st.length) :
+    st.take 8 ++ (st.drop 8).take 8 ++ (st.drop 16).take 8 ++
+        (st.drop 24).take 8 = st.take 32 := by
+  have h16 : st.take 8 ++ (st.drop 8).take 8 = st.take 16 := by
+    rw [show 16 = 8 + 8 from rfl, tail_take_add_eq]
+  have h24 : st.take 8 ++ (st.drop 8).take 8 ++ (st.drop 16).take 8
+      = st.take 24 := by
+    rw [h16, show 24 = 16 + 8 from rfl, tail_take_add_eq]
+  rw [h24, show 32 = 24 + 8 from rfl, tail_take_add_eq]
+
+/-- Four successive dword splices cover all 32 output bytes, so the result
+    is `st.take 32` regardless of the initial buffer contents — the fact
+    that lets the digest spec take an ARBITRARY caller buffer (#12896). -/
+theorem digestChain_eq_take32 (out0 st : List (BitVec 8))
+    (hout0 : out0.length = 32) (hst : 32 ≤ st.length) :
+    setBytes (setBytes (setBytes (setBytes out0 0 (st.take 8)) 8
+        ((st.drop 8).take 8)) 16 ((st.drop 16).take 8)) 24
+        ((st.drop 24).take 8)
+      = st.take 32 := by
+  have h0 : (st.take 8).length = 8 := by
+    rw [List.length_take, min_eq_left (by omega)]
+  have h8 : ((st.drop 8).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop, min_eq_left (by omega)]
+  have h16l : ((st.drop 16).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop, min_eq_left (by omega)]
+  have hchain :
+      setBytes out0 0
+          (st.take 8 ++ (st.drop 8).take 8 ++ (st.drop 16).take 8 ++
+            (st.drop 24).take 8) =
+        setBytes (setBytes (setBytes (setBytes out0 0 (st.take 8)) 8
+          ((st.drop 8).take 8)) 16 ((st.drop 16).take 8)) 24
+          ((st.drop 24).take 8) := by
+    rw [setBytes_append, setBytes_append, setBytes_append]
+    simp only [List.length_append, h0, h8, h16l, Nat.zero_add]
+  rw [← hchain, tail_take32_chunks st hst, tail_setBytes_at0_full]
+  rw [List.length_take, hout0, min_eq_left hst]
+
+/-- The zero-buffer splice chain (`keccakDigestCopy`) is the same
+    `st.take 32` — so the digest value is independent of the buffer the
+    caller passed in. -/
+theorem keccakDigestCopy_eq_chain (out0 st : List (BitVec 8))
+    (hout0 : out0.length = 32) (hst : 32 ≤ st.length) :
+    setBytes (setBytes (setBytes (setBytes out0 0 (st.take 8)) 8
+        ((st.drop 8).take 8)) 16 ((st.drop 16).take 8)) 24
+        ((st.drop 24).take 8)
+      = keccakDigestCopy st := by
+  rw [digestChain_eq_take32 out0 st hout0 hst]
+  unfold keccakDigestCopy
+  simp only [List.drop_zero]
+  rw [digestChain_eq_take32 (List.replicate 32 (0 : BitVec 8)) st
+    (by simp) hst]
+
+/-- Compose 4× LD/SD digest pairs into full 32-byte copy.  The output
+    buffer `out0` is ARBITRARY 32-byte caller memory (#12896): every byte
+    is overwritten, so no initial-contents assumption is needed. -/
 theorem keccakDigestAll_spec (cr : CodeReq) (entry : Word)
-    (scratchBase outputBase : Word) (st : List (BitVec 8))
-    (hst : st.length = 200)
+    (scratchBase outputBase : Word) (st out0 : List (BitVec 8))
+    (hst : st.length = 200) (hout0 : out0.length = 32)
     (v5 : Word)
     (hmemLd0 : ∀ a i, CodeReq.singleton entry
         (.LD .x5 .x8 (BitVec.ofNat 12 (8 * 0))) a = some i → cr a = some i)
@@ -103,12 +181,10 @@ theorem keccakDigestAll_spec (cr : CodeReq) (entry : Word)
     cpsTripleWithin 8 entry (entry + 32) cr
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (.x5 ↦ᵣ v5) **
         bytesRegion scratchBase st **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)))
+        bytesRegion outputBase out0)
       ((.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
         bytesRegion scratchBase st **
         bytesRegion outputBase (keccakDigestCopy st)) := by
-  let out0 := List.replicate 32 (0 : BitVec 8)
-  have hout0 : out0.length = 32 := by simp only [out0, List.length_replicate]
   -- lane 0
   have c0k := keccakDigestDword_spec cr entry scratchBase outputBase st out0 0 v5
     hst hout0 (by omega) hmemLd0 hmemSd0
@@ -165,15 +241,20 @@ theorem keccakDigestAll_spec (cr : CodeReq) (entry : Word)
     rw [hpc24_8] at c3raw; exact c3raw
   have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
     simp only [out2] at hp ⊢; xperm_hyp hp) c012 c3'
-  -- drop x5 to own + fold keccakDigestCopy
-  refine cpsTripleWithin_weaken (fun _ hp => by simpa [out0] using hp)
+  -- drop x5 to own + fold the splice chain to keccakDigestCopy
+  have hfold : setBytes (setBytes (setBytes (setBytes out0 0
+        (st.take 8)) 8 ((st.drop 8).take 8)) 16
+        ((st.drop 16).take 8)) 24 ((st.drop 24).take 8)
+      = keccakDigestCopy st :=
+    keccakDigestCopy_eq_chain out0 st hout0 (by omega)
+  refine cpsTripleWithin_weaken (fun _ hp => hp)
     (fun h hq => by
       have hq1 : (
           (.x8 ↦ᵣ scratchBase) ** (.x18 ↦ᵣ outputBase) **
             (.x5 ↦ᵣ packBytes ((st.drop 24).take 8)) **
             bytesRegion scratchBase st **
             bytesRegion outputBase (keccakDigestCopy st)) h := by
-        simpa [out0, out1, out2, out3, keccakDigestCopy] using hq
+        simpa [out1, out2, out3, ← hfold] using hq
       -- mono x5 value → own
       refine sepConj_mono (fun _ => id)
         (sepConj_mono (fun _ => id)

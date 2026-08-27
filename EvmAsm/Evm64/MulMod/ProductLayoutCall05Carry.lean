@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutPublicAlgebra
+
+public section
 
 namespace EvmAsm.Evm64
 

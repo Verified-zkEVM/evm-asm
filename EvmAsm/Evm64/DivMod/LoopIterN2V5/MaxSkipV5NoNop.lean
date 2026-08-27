@@ -7,10 +7,14 @@
   `sharedDivModCodeNoNop_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopIterN2
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.LoopIterN2
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

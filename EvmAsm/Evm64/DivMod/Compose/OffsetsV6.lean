@@ -25,8 +25,12 @@
   the MOD epilogue / div128 copy / v5 down by 7 instructions (28 bytes).
 -/
 
-import EvmAsm.Evm64.DivMod.FastN1Program
-import EvmAsm.Evm64.DivMod.Compose.V5Code2
+module
+
+public import EvmAsm.Evm64.DivMod.FastN1Program
+public import EvmAsm.Evm64.DivMod.Compose.V5Code2
+
+public section
 
 namespace EvmAsm.Evm64
 

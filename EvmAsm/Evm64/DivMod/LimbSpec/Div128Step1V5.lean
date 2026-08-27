@@ -19,9 +19,13 @@
   Bead `evm-asm-wbc4i.6.4` (V5.6.4), part of `div128_v5_spec` (bead `.6`).
 -/
 
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128CapV5
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
-import EvmAsm.Rv64.Tactics.DropPure
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128CapV5
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck1b
+public import EvmAsm.Rv64.Tactics.DropPure
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -480,17 +480,16 @@ theorem kssDigestDword_spec (entry : Word) (outputBase : Word)
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
 
 /-- All four lane copies: `KssB+204 → KssB+236`. -/
-theorem kssDigestAll_spec (outputBase : Word) (st : List (BitVec 8)) (v5 : Word)
-    (hst : st.length = 200) :
+theorem kssDigestAll_spec (outputBase : Word) (st out0 : List (BitVec 8))
+    (v5 : Word)
+    (hst : st.length = 200) (hout0 : out0.length = 32) :
     cpsTripleWithin 8 (KssB + 204) (KssB + 236) kssCr
       ((.x19 ↦ᵣ KssZk3) ** (.x18 ↦ᵣ outputBase) ** (.x5 ↦ᵣ v5) **
         bytesRegion KssZk3 st **
-        bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)))
+        bytesRegion outputBase out0)
       ((.x19 ↦ᵣ KssZk3) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
         bytesRegion KssZk3 st **
         bytesRegion outputBase (keccakDigestCopy st)) := by
-  let out0 := List.replicate 32 (0 : BitVec 8)
-  have hout0 : out0.length = 32 := by simp only [out0, List.length_replicate]
   have c0 := kssDigestDword_spec (KssB + 204) outputBase st out0 0 v5
     hst hout0 (by omega)
     (kss_mem_at 51 (.LD .x5 .x19 (BitVec.ofNat 12 (8 * 0))) (KssB + 204)
@@ -536,7 +535,12 @@ theorem kssDigestAll_spec (outputBase : Word) (st : List (BitVec 8)) (v5 : Word)
       rwa [show (KssB + 228 : Word) + 4 = KssB + 232 from by decide])
   rw [show (KssB + 228 : Word) + 8 = KssB + 236 from by decide] at c3
   have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 c3
-  refine cpsTripleWithin_weaken (fun _ hp => by simpa [out0] using hp)
+  have hfold : setBytes (setBytes (setBytes (setBytes out0 0
+        (st.take 8)) 8 ((st.drop 8).take 8)) 16
+        ((st.drop 16).take 8)) 24 ((st.drop 24).take 8)
+      = keccakDigestCopy st :=
+    keccakDigestCopy_eq_chain out0 st hout0 (by omega)
+  refine cpsTripleWithin_weaken (fun _ hp => hp)
     (fun hSt hq => ?_) cAll
   have hq1 :
       ((.x19 ↦ᵣ KssZk3) ** (.x18 ↦ᵣ outputBase) **
@@ -546,7 +550,7 @@ theorem kssDigestAll_spec (outputBase : Word) (st : List (BitVec 8)) (v5 : Word)
           (setBytes out3 (8 * 3) ((st.drop (8 * 3)).take 8))) hSt := by
     refine (sepConj_mono_right (sepConj_mono_right
       (sepConj_mono_left (regIs_implies_regOwn .x5)))) _ hq
-  simpa [keccakDigestCopy, out0, out1, out2, out3] using hq1
+  simpa [out1, out2, out3, ← hfold] using hq1
 
 /-! ## The assembled tail -/
 
@@ -625,7 +629,8 @@ private theorem kssTail_split_csrsRest (R : Assertion) :
     Both regions the tail writes are named in the pre AND the post: the 200-byte
     sponge arena (`bytesRegion KssZk3 …`) and the 32-byte output buffer, so no
     frame can own a cell the routine touches. -/
-theorem kssTail_spec (outputBase : Word) (st : List (BitVec 8)) (fill : Nat)
+theorem kssTail_spec (outputBase : Word) (st out0 : List (BitVec 8))
+    (fill : Nat) (hout0 : out0.length = 32)
     (A : Assertion) (hA : A.pcFree)
     (hst : st.length = 200) (hfill : fill ≤ 135)
     (halign : KssZk3.toNat % 8 = 0)
@@ -638,12 +643,11 @@ theorem kssTail_spec (outputBase : Word) (st : List (BitVec 8)) (fill : Nat)
       ((.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (regOwn .x5) ** (regOwn .x6) **
         (regOwn .x7) ** (regOwn .x10) **
         bytesRegion KssZk3 st **
-        kssTailAmb outputBase (List.replicate 32 (0 : BitVec 8)) A)
+        kssTailAmb outputBase out0 A)
       ((.x20 ↦ᵣ BitVec.ofNat 64 fill) ** (regOwn .x5) ** (regOwn .x6) **
         (regOwn .x7) ** (.x10 ↦ᵣ (0 : Word)) **
         bytesRegion KssZk3 (kssFinalState st fill) **
         kssTailAmb outputBase (keccakDigestCopy (kssFinalState st fill)) A) := by
-  let out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8)
   let stPad : List (BitVec 8) := keccakGuestPad st fill
   have hstPad : stPad.length = 200 := by
     simp only [stPad, keccakGuestPad, length_setBytes, hst]
@@ -782,7 +786,7 @@ theorem kssTail_spec (outputBase : Word) (st : List (BitVec 8)) (fill : Nat)
           bytesRegion outputBase (keccakDigestCopy stFin)) := by
       refine of_forall1 (fun v5 => ?_)
       refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-        (fun _ hq => hq) (kssDigestAll_spec outputBase stFin v5 hstFin)
+        (fun _ hq => hq) (kssDigestAll_spec outputBase stFin out0 v5 hstFin hout0)
     have hcore : cpsTripleWithin 8 (KssB + 204) (KssB + 236) kssCr
         ((.x19 ↦ᵣ KssZk3) ** (.x18 ↦ᵣ outputBase) ** (regOwn .x5) **
           bytesRegion KssZk3 stFin ** bytesRegion outputBase out0)
@@ -831,7 +835,7 @@ theorem kssTail_spec (outputBase : Word) (st : List (BitVec 8)) (fill : Nat)
     refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hliF
   have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c012 cLi
-  have cFinal := cpsTripleWithin_weaken (fun _ hp => by simpa [out0] using hp)
+  have cFinal := cpsTripleWithin_weaken (fun _ hp => hp)
     (fun _ hq => by simpa [kssFinalState, stPad, stFin] using hq) cAll
   exact cpsTripleWithin_mono_nSteps (by omega) cFinal
 

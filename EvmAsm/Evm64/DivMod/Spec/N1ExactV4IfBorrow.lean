@@ -4,8 +4,12 @@
   Selected-if-borrow evidence packages for exact N1 DIV v4 stack specs.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1ExactV4
-import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactV4
+public import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
+
+public section
 
 namespace EvmAsm.Evm64
 

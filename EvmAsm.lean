@@ -23,6 +23,8 @@ import EvmAsm.Codegen.Programs.Arm2Probe
 import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec
+import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.Secp256k1PointDoubleBridge
 import EvmAsm.Codegen.Programs.RlpValidatePayloadProductionAdapter
@@ -65,7 +67,6 @@ import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Bridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Outer
 import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
@@ -118,6 +119,7 @@ import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionPredicates
 import EvmAsm.Codegen.RoundTripTests
 import EvmAsm.Stateless
+import EvmAsm.SLHDSA
 import EvmAsm.Progress
 import EvmAsm.Progress.CycleBounds
 import EvmAsm.Progress.Routines

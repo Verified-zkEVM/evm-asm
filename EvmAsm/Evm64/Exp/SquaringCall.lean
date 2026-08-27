@@ -28,10 +28,14 @@
   normalization). Authored by @pirapira; implemented by Hermes-bot.
 -/
 
-import EvmAsm.Evm64.Exp.MarshalPair
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Exp.LimbSpec
+module
+
+public import EvmAsm.Evm64.Exp.MarshalPair
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Exp.LimbSpec
+
+public section
 
 namespace EvmAsm.Evm64
 

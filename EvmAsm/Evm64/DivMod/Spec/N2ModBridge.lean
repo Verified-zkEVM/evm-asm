@@ -15,8 +15,12 @@
   See beads `evm-asm-ia76`, parent `evm-asm-kxrl` (#61 slice 2c).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN2LoopUnified
+
+public section
 
 namespace EvmAsm.Evm64
 

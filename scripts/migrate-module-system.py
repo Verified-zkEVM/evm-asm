@@ -102,6 +102,15 @@ META_TRIGGERS = [
     r"^\s*(scoped\s+|local\s+)?(syntax|macro|macro_rules|elab|elab_rules)\b",
     r"\bregister_simp_attr\b", r"\bregisterSimpAttr\b",
     r"\brun_cmd\b", r"\bQq\b", r"\bmkSimpAttr\b",
+    # Applying a user-defined attribute needs it at META level, exactly like a
+    # meta definition does. Missed at wave 10 by
+    # `EvmAsm/Rv64/RLP/ValidatingExactArity.lean`, which carries
+    # `attribute [rv64_wp_cert] ...` and imported its declaring module
+    # (`Rv64.Tactics.WPAttr`) publicly but not at meta level:
+    #     error: Unknown attribute `[rv64_wp_cert]`
+    # The symptom names the attribute, not the import, so it does not read as a
+    # missing `meta import` at all.
+    r"^\s*attribute\s*\[",
 ]
 META_RE = re.compile("|".join(META_TRIGGERS), re.MULTILINE)
 
@@ -191,6 +200,21 @@ def classify_lines(lines: list[str]) -> tuple[list[int], int]:
     return imports, module_at
 
 
+# `open private A B from M`, with the names free to wrap across lines.
+OPEN_PRIVATE_RE = re.compile(
+    r"^[ \t]*open private (?:[A-Za-z0-9_.'?!]+|\s)+?\s+from\s+([A-Za-z0-9_.'?!]+)\s*$",
+    re.MULTILINE)
+
+
+def open_private_sources(text: str) -> list[str]:
+    """Modules this file reads the private half of, in first-seen order."""
+    seen: list[str] = []
+    for m in OPEN_PRIVATE_RE.findall(text):
+        if m not in seen:
+            seen.append(m)
+    return seen
+
+
 def convert(text: str) -> tuple[str, dict]:
     """Return (new_text, stats).  Idempotent: an already-migrated file is
     returned byte-identical, so re-running the script IS the merge strategy."""
@@ -237,6 +261,27 @@ def convert(text: str) -> tuple[str, dict]:
             # `initialize registerSimpAttr` cannot see the attribute machinery
             # through an ordinary import.
             extra.append(f"public meta import {SIMP_ATTR_MODULE}")
+    # `open private f from M` reaches M's PRIVATE half, which lives in a separate
+    # `.olean.private` that a plain or `public import` does not carry.  Without
+    # `import all M` the command fails with a mangled name that looks like a
+    # missing declaration rather than a missing import form:
+    #
+    #   Unknown constant `_private.….BlocksRlp.0.….rlpTestHeader`
+    #
+    # M is necessarily already a dependency (you cannot open private from a
+    # module you do not import), so this adds an import FORM, not an edge to
+    # anywhere new.  Emitting it here rather than fixing it per build keeps the
+    # failure out of waves entirely -- it is invisible until the *consumer* is
+    # migrated, which is one wave later than the module whose privates it reads.
+    indirect_private: list[str] = []
+    for t in open_private_sources(text):
+        if t in targets:
+            extra.append(f"import all {t}")
+        else:
+            # M reaches this file only TRANSITIVELY.  `import all M` would work
+            # but adds a direct edge that was not there before, so the converter
+            # will not invent it silently -- it is reported for a human instead.
+            indirect_private.append(t)
     if last_import_out is not None:
         extra.append("")
     # With no imports the converter has already emitted a blank after `module`,
@@ -275,7 +320,107 @@ def convert(text: str) -> tuple[str, dict]:
         "imports": len(targets),
         "meta": meta,
         "simp_attr": bool(meta and SIMP_ATTR_RE.search(text)),
+        "indirect_private": indirect_private,
     }
+
+
+# --------------------------------------------------- `@[expose]` narrowing
+#
+# Phase 4a.  `@[expose] public section` puts every definition BODY in the file
+# into the module interface; `public section` alone does not.  Dropping the
+# attribute is what stops a definition-body edit from invalidating the whole
+# downstream cone.
+#
+# ⛔ The operation is a REPLACEMENT, never a deletion.  `public section` is what
+# exports the declarations at all -- delete the whole line and the file stops
+# exporting anything.
+#
+# Measured on `Stateless/SpecRef/IncrementalMptWrite.lean` (50 defs), public
+# `.olean.hash` before/after one semantics-preserving body edit:
+#
+#   @[expose] public section   9209185754286df7 -> a2b0a9a51c9f7d99   cone rebuilds
+#   public section             dfbd7d1b90979cfb -> dfbd7d1b90979cfb   nothing rebuilds
+#
+# and its public `.olean` fell 555_080 -> 197_432 bytes (-64%).
+BLANKET = "@[expose] public section"
+PLAIN = "public section"
+
+# A plain `def` at column 0, with the modifiers this tree actually uses.
+# `abbrev` is deliberately EXCLUDED: an `abbrev` stays exposed regardless of the
+# enclosing section (probed -- it still reduces by `rfl` and `decide` from
+# another module under a plain `public section`), so abbrevs neither gain from
+# un-exposing nor are put at risk by it.  Counting them would misreport
+# abbrev-dense files as targets; `Evm64/Accelerators/Types.lean` is 31 abbrevs
+# to 1 def and moved 0.3%.
+DEF_RE = re.compile(
+    r"^(?:@\[[^\]]*\]\s*)?(?:private |public |protected |noncomputable |partial |unsafe )*"
+    r"def ", re.MULTILINE)
+
+
+def unexpose(text: str) -> tuple[str, dict]:
+    """`@[expose] public section` -> `public section`.  Idempotent."""
+    if BLANKET not in text:
+        return text, {"skipped": "not blanket-exposed"}
+    return text.replace(BLANKET, PLAIN, 1), {}
+
+
+def plain_def_count(text: str) -> int:
+    """Plain `def`s at column 0 -- the measured predictor of the un-exposure win."""
+    return len(DEF_RE.findall(text))
+
+
+# Files whose definitions ARE reasoned about by value from other modules, so
+# they must keep `@[expose]`.  Counts are cross-module named value-level uses
+# (`unfold` / `delta` / `simp only [f]` / `rw [f]`) measured over the tree.
+# Un-exposing any of these breaks hundreds of downstream proofs at once, so they
+# are excluded up front rather than discovered by a 40-minute failed build.
+EXPOSE_ANCHORS = {
+    "EvmAsm/Evm64/DivMod/LoopDefs/Post.lean",        # 858 cross-module uses
+    "EvmAsm/Evm64/DivMod/LoopDefs/Iter.lean",        # 533
+    "EvmAsm/Evm64/MulMod/LimbSpec.lean",             # 471
+    "EvmAsm/EL/RLP/Decode.lean",                     # 369
+    "EvmAsm/Evm64/DivMod/Compose/Base.lean",         # 196
+    "EvmAsm/EL/RLP/Basic.lean",                      # 182
+    "EvmAsm/Evm64/EvmWordArith/MultiLimb.lean",      # 181
+    "EvmAsm/Evm64/Stack.lean",                       # 114
+    "EvmAsm/Evm64/EvmWord.lean",                     # 83 (+ reduced in 83 files)
+    "EvmAsm/EL/RLP/Prefix.lean",                     # classifyPrefix, 17 files
+    "EvmAsm/Evm64/DivMod/Compose/Offsets.lean",      # offset table; drift checks
+    "EvmAsm/Evm64/DivMod/Compose/OffsetsV6.lean",    # ditto
+    "EvmAsm/Evm64/DivMod/LoopDefs/Bundle.lean",      # 19/20 defs value-used
+    "EvmAsm/Evm64/DivMod/LoopBody/TrialCall.lean",   # 16/19
+}
+
+
+def unexpose_candidates(zero_def_only: bool = True,
+                        dirs: tuple[str, ...] = ("EvmAsm/Evm64", "EvmAsm/EL",
+                                                 "EvmAsm/Stateless",
+                                                 "EvmAsm/Crypto")) -> list[str]:
+    """In-scope files still carrying the blanket, ordered largest-first by def count.
+
+    `Rv64` and `Codegen` are out of scope for the EVM pass: Rv64 is deferred to
+    the #12900 interpreter refactor, and Codegen holds the generated constant
+    files plus the `emitProgram ... := rfl` pins, whose consumers are largely the
+    UNMIGRATED half of that tree.
+    """
+    out = []
+    for d in dirs:
+        base = os.path.join(REPO, d)
+        for root, _dn, files in os.walk(base):
+            for f in sorted(files):
+                if not f.endswith(".lean"):
+                    continue
+                fp = os.path.join(root, f)
+                with open(fp, encoding="utf-8") as fh:
+                    src = fh.read()
+                if BLANKET not in src:
+                    continue
+                n = plain_def_count(src)
+                if zero_def_only and n != 0:
+                    continue
+                out.append((n, os.path.relpath(fp, REPO)))
+    out.sort(key=lambda t: (-t[0], t[1]))
+    return [p for _n, p in out]
 
 
 def verify(before: str, after: str) -> list[str]:
@@ -487,6 +632,53 @@ def tree_closure_violations() -> list[str]:
     return bad
 
 
+def frontier_wave(limit: int, skip_prefixes: tuple[str, ...] = ()) -> list[str]:
+    """Up to `limit` modules that can migrate NOW, skipping `skip_prefixes`.
+
+    `wave(level)` selects by longest dependency chain, which is the right shape
+    when migrating the whole tree bottom-up. It is the WRONG shape when a subtree
+    is deliberately deferred: levels interleave, so a level-`k` cut drags in the
+    deferred subtree's peers and stalls on them.
+
+    This selects by REACHABILITY instead -- repeatedly take every module whose
+    dependencies are all already migrated or already chosen -- so the result is
+    downward closed by construction while never naming a skipped module. Used for
+    the EVM-first order while `EvmAsm.Rv64.*` is held back for the interpreter /
+    Sail refactor (GH #12900).
+
+    `limit` caps the wave for merge cadence, not for correctness. Modules are
+    taken in dependency order, so a truncated wave is still downward closed.
+    """
+    graph = li.ImportGraph(REPO, ROOT_DIRS)
+    blocked, _why = blocked_modules(graph)
+    migrated = {m for m in graph.modules if graph.module_header.get(m)}
+
+    def skipped(m: str) -> bool:
+        return any(m == p or m.startswith(p + ".") for p in skip_prefixes)
+
+    eligible = {m for m in graph.modules
+                if m not in migrated and m not in blocked and not skipped(m)}
+    chosen: list[str] = []
+    chosen_set: set[str] = set()
+    while len(chosen) < limit:
+        # A module is ready when every in-tree dependency is migrated or chosen.
+        ready = sorted(
+            m for m in eligible
+            if m not in chosen_set
+            and all(e.target not in graph.modules
+                    or e.target in migrated or e.target in chosen_set
+                    for e in graph.edges.get(m, ()))
+        )
+        if not ready:
+            break
+        for m in ready:
+            if len(chosen) >= limit:
+                break
+            chosen.append(m)
+            chosen_set.add(m)
+    return chosen
+
+
 def wave(level: int) -> list[str]:
     """Every module whose longest dependency chain is <= `level`.  Downward
     closed by construction: a module's dependencies all have strictly lower
@@ -597,6 +789,28 @@ def self_test() -> int:
           "/- b -/\nimport all EvmAsm.A\nimport EvmAsm.B -- shake: keep\n\ndef d := 1\n",
           ["public import all EvmAsm.A", "public import EvmAsm.B -- shake: keep"])
 
+    # 4b. `open private … from M` must add `import all M`, because M's private
+    #     half lives in a separate `.olean.private` a public import does not
+    #     carry.  Names may wrap across lines before `from`, so the multi-line
+    #     shape is pinned too.
+    check("open private -> import all",
+          "/- b -/\nimport EvmAsm.A\nimport EvmAsm.B\n\n"
+          "open private f from EvmAsm.A\n\ndef d := 1\n",
+          ["import all EvmAsm.A", "public import EvmAsm.A"])
+    check("open private, wrapped names",
+          "/- b -/\nimport EvmAsm.A\n\n"
+          "open private f g\n  h from EvmAsm.A\n\ndef d := 1\n",
+          ["import all EvmAsm.A"])
+    #     NEGATIVE CONTROL: a file with no `open private` must gain no
+    #     `import all` -- otherwise the pin above passes for the wrong reason.
+    got = check("no open private", "/- b -/\nimport EvmAsm.A\n\ndef d := 1\n",
+                ["public import EvmAsm.A"], ["import all"])
+    #     NEGATIVE CONTROL: `from` a module this file does NOT import is left
+    #     alone; inventing an edge is worse than the error it would prevent.
+    check("open private from a non-dependency",
+          "/- b -/\nimport EvmAsm.A\n\nopen private f from EvmAsm.Z\n\ndef d := 1\n",
+          ["public import EvmAsm.A"], ["import all"])
+
     # 5. No imports at all.
     got = check("no imports", "/- b -/\n\ndef d := 1\n",
                 ["module", "@[expose] public section"])
@@ -653,7 +867,11 @@ def self_test() -> int:
         fail.append("  meta detector: fired on an ordinary proof file")
     for trig in ["#guard 1 = 1", "#eval 2", "initialize x : Nat := pure 1",
                  "open Lean in", "def f : MetaM Unit := pure ()",
-                 "syntax \"foo\" : term", "register_simp_attr my_set"]:
+                 "syntax \"foo\" : term", "register_simp_attr my_set",
+                 # Applying a user-defined attribute needs it at meta level.
+                 # Wave 10 hit this as `Unknown attribute [rv64_wp_cert]`,
+                 # which names the attribute and not the missing import.
+                 "attribute [rv64_wp_cert] foo"]:
         if not needs_meta(f"/- b -/\nimport EvmAsm.A\n{trig}\n"):
             fail.append(f"  meta detector: MISSED {trig!r}")
 
@@ -738,13 +956,55 @@ def self_test() -> int:
     if not any("follows" in x for x in verify(PLAIN_IN, real)):
         fail.append("  verify: a real import after the section was not reported")
 
+    # ---- Phase 4a: `@[expose]` narrowing -------------------------------
+    # The operation is a REPLACEMENT. The failure mode that matters is deleting
+    # the whole line, which un-exports every declaration in the file, so the
+    # pin below checks `public section` SURVIVES rather than just that
+    # `@[expose]` is gone.
+    src = ("/- b -/\n\nmodule\n\npublic import EvmAsm.A\n\n"
+           "@[expose] public section\n\ndef d := 1\n")
+    out, _st = unexpose(src)
+    if "@[expose]" in out:
+        fail.append("  unexpose: the attribute survived")
+    if "\npublic section\n" not in out:
+        fail.append("  unexpose: `public section` was NOT preserved -- this "
+                    "would un-export the whole file")
+    if out.count("\n") != src.count("\n"):
+        fail.append("  unexpose: line count changed (breaks the size gate)")
+
+    # NEGATIVE CONTROL: idempotent. Re-running on an already-narrowed file is a
+    # no-op and is REPORTED as skipped, so a wave cannot double-count.
+    twice, st2 = unexpose(out)
+    if twice != out or not st2.get("skipped"):
+        fail.append("  unexpose: not idempotent on an already-narrowed file")
+
+    # NEGATIVE CONTROL: a file with no blanket at all is untouched.
+    plain = "/- b -/\n\nmodule\n\npublic section\n\ndef d := 1\n"
+    if unexpose(plain)[0] != plain:
+        fail.append("  unexpose: touched a file that had no blanket")
+
+    # The predictor counts plain `def`s and must NOT count `abbrev`s: an
+    # `abbrev` stays exposed regardless of the section (probed), so counting it
+    # would misreport abbrev-dense files as targets. `Accelerators/Types.lean`
+    # is 31 abbrev to 1 def and moved 0.3%.
+    mixed = ("def a := 1\nabbrev b := 2\nprivate def c := 3\n"
+             "noncomputable def e := 4\ntheorem t : True := trivial\n"
+             "  def indented := 5\n")
+    if plain_def_count(mixed) != 3:
+        fail.append(f"  plain_def_count: expected 3 (a, c, e), got "
+                    f"{plain_def_count(mixed)}")
+    if plain_def_count("abbrev x := 1\n") != 0:
+        fail.append("  plain_def_count: counted an `abbrev` as a def")
+
     if fail:
         print("migrate-module-system --self-test: FAIL")
         print("\n".join(fail))
         return 1
-    print("migrate-module-system --self-test: OK (8 shape cases incl. the "
-          "emit-position pin, idempotence, 1 meta negative control + 7 trigger "
-          "pins, simp-attr case, 7 size-invariant shapes, 1 blocked-module "
+    print("migrate-module-system --self-test: OK (12 shape cases incl. the "
+          "emit-position pin, 5 un-exposure pins incl. the delete-the-whole-line "
+          "control + 2 predictor pins (`abbrev` must not count), idempotence, 1 meta negative control + 7 trigger "
+          "pins, simp-attr case, 2 `open private` -> `import all` pins + 2 "
+          "negative controls, 7 size-invariant shapes, 1 blocked-module "
           "case with a negative control, 2 verifier non-vacuity pins)")
     return 0
 
@@ -763,11 +1023,26 @@ def main() -> int:
     ap.add_argument("--check-size-invariant", action="store_true",
                     help="verify over the WHOLE tree that conversion leaves "
                          "every file's effective line count unchanged")
+    ap.add_argument("--evm-wave", type=int, metavar="N",
+                    help="up to N modules that can migrate now, SKIPPING "
+                         "EvmAsm.Rv64.* (held back for the interpreter/Sail "
+                         "refactor, GH #12900). Selects by reachability, not by "
+                         "level, so it stays downward closed while the Rv64 "
+                         "subtree is deferred")
     ap.add_argument("--check-tree-closure", action="store_true",
                     help="verify NO migrated module imports an unmigrated one, "
                          "as the tree stands (run before every wave PR)")
     ap.add_argument("--blocked", action="store_true",
                     help="list modules that cannot migrate, and why")
+    ap.add_argument("--unexpose-wave", type=int, metavar="N",
+                    help="drop the blanket `@[expose]` from N in-scope files "
+                         "that declare ZERO plain defs (Phase 4a canary)")
+    ap.add_argument("--unexpose-defs-wave", type=int, metavar="N",
+                    help="drop the blanket `@[expose]` from N def-bearing "
+                         "in-scope files, smallest def-count first, skipping "
+                         "EXPOSE_ANCHORS (Phase 4a; the build is the oracle)")
+    ap.add_argument("--unexpose-report", action="store_true",
+                    help="size the un-exposure work without changing anything")
     ap.add_argument("--self-test", action="store_true")
     args = ap.parse_args()
 
@@ -796,6 +1071,67 @@ def main() -> int:
             print(f"  {m}  -- {why[m]}")
         return 0
 
+    if args.unexpose_report:
+        zero = unexpose_candidates(zero_def_only=True)
+        alll = unexpose_candidates(zero_def_only=False)
+        bearing = [f for f in alll if f not in set(zero)]
+        print(f"in-scope files still carrying `{BLANKET}`: {len(alll)}")
+        print(f"  zero plain defs (hygiene only, NO build-time gain): {len(zero)}")
+        print(f"  def-bearing (where the win is):                     {len(bearing)}")
+        print(f"\ntop 15 def-bearing targets:")
+        for f in bearing[:15]:
+            with open(os.path.join(REPO, f), encoding="utf-8") as fh:
+                print(f"  {plain_def_count(fh.read()):>4} def  {f}")
+        return 0
+
+    if args.unexpose_defs_wave is not None:
+        # Smallest def-count FIRST. A file with few defs has a small blast
+        # radius if it turns out to be value-reasoned downstream, so an early
+        # wave that is wrong costs one cheap revert rather than a broken cone.
+        cands = [f for f in reversed(unexpose_candidates(zero_def_only=False))
+                 if f not in EXPOSE_ANCHORS
+                 and plain_def_count(open(os.path.join(REPO, f),
+                                          encoding="utf-8").read()) > 0]
+        cands = cands[:args.unexpose_defs_wave]
+        changed = 0
+        for rel in cands:
+            fp = os.path.join(REPO, rel)
+            with open(fp, encoding="utf-8") as fh:
+                src = fh.read()
+            out, st = unexpose(src)
+            if st.get("skipped") or out == src:
+                continue
+            assert PLAIN in out and BLANKET not in out, rel
+            if args.apply:
+                with open(fp, "w", encoding="utf-8") as fh:
+                    fh.write(out)
+            changed += 1
+        verb = "un-exposed" if args.apply else "would un-expose"
+        print(f"{verb} {changed} def-bearing file(s); "
+              f"{len(EXPOSE_ANCHORS)} anchors skipped")
+        return 0
+
+    if args.unexpose_wave is not None:
+        cands = unexpose_candidates(zero_def_only=True)[:args.unexpose_wave]
+        changed = 0
+        for rel in cands:
+            fp = os.path.join(REPO, rel)
+            with open(fp, encoding="utf-8") as fh:
+                src = fh.read()
+            out, st = unexpose(src)
+            if st.get("skipped") or out == src:
+                continue
+            # A file with no plain defs must not change size for the file-size
+            # gate, and must not lose `public section`.
+            assert PLAIN in out and BLANKET not in out, rel
+            if args.apply:
+                with open(fp, "w", encoding="utf-8") as fh:
+                    fh.write(out)
+            changed += 1
+        verb = "un-exposed" if args.apply else "would un-expose"
+        print(f"{verb} {changed} zero-def file(s)")
+        return 0
+
     if args.check_size_invariant:
         bad = []
         n = 0
@@ -818,6 +1154,23 @@ def main() -> int:
         return 1 if bad else 0
 
     paths = list(args.paths)
+    if args.evm_wave is not None:
+        mods = frontier_wave(args.evm_wave, skip_prefixes=("EvmAsm.Rv64",))
+        if args.check_closed:
+            bad = check_closed(set(mods))
+            if bad:
+                print(f"NOT downward-closed ({len(bad)} violations):")
+                for b in bad[:20]:
+                    print(f"  {b}")
+                return 1
+            print(f"evm-wave {args.evm_wave}: {len(mods)} modules, "
+                  f"downward-closed OK (EvmAsm.Rv64.* skipped)")
+            return 0
+        for m in mods:
+            q = li.module_to_path(m, REPO)
+            if q:
+                paths.append(os.path.join(REPO, q))
+
     if args.wave is not None:
         mods = wave(args.wave)
         if args.check_closed:
@@ -835,14 +1188,17 @@ def main() -> int:
                 paths.append(os.path.join(REPO, p))
 
     if not paths:
-        ap.error("nothing to do: pass paths, --wave, or --self-test")
+        ap.error("nothing to do: pass paths, --wave, --evm-wave, or --self-test")
 
     changed = skipped = 0
     problems = []
+    indirect: list[str] = []
     for p in paths:
         with open(p, encoding="utf-8") as fh:
             before = fh.read()
         after, stats = convert(before)
+        for t in stats.get("indirect_private", ()):
+            indirect.append(f"{p}: open private … from {t}")
         if stats.get("skipped"):
             skipped += 1
             continue
@@ -855,6 +1211,12 @@ def main() -> int:
 
     verb = "converted" if args.apply else "would convert"
     print(f"{verb} {changed} file(s), skipped {skipped} already migrated")
+    if indirect:
+        print(f"\n⚠️  {len(indirect)} `open private … from M` site(s) where M is only a "
+              f"TRANSITIVE dependency.\n    These need `import all M` as a NEW direct "
+              f"edge; the converter will not add an edge on its own.")
+        for x in indirect:
+            print(f"    {x}")
     if problems:
         print(f"\n{len(problems)} VERIFY PROBLEM(S) -- nothing was trusted:")
         for x in problems[:20]:

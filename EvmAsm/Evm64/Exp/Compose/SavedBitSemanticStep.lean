@@ -15,8 +15,12 @@
   Bead evm-asm-6snn.4.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseDefs
-import EvmAsm.Evm64.EvmWordArith.Exp
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseDefs
+public import EvmAsm.Evm64.EvmWordArith.Exp
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

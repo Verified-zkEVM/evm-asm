@@ -1,6 +1,10 @@
-import EvmAsm.Evm64.DivMod.CallableV4Div
-import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
-import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactR1
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV4Div
+public import EvmAsm.Evm64.DivMod.Spec.N2V4CallableExactSelected
+public import EvmAsm.Evm64.DivMod.Spec.N3V4CallableExactR1
+
+public section
 
 namespace EvmAsm.Evm64
 

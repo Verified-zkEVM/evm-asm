@@ -7,9 +7,13 @@
   borrowCarry (#7432).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

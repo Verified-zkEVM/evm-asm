@@ -5,8 +5,12 @@
   surface (GH #109).
 -/
 
-import EvmAsm.Evm64.ExecutableSpecOpcodeBridge
-import EvmAsm.Evm64.InterpreterLoop
+module
+
+public import EvmAsm.Evm64.ExecutableSpecOpcodeBridge
+public import EvmAsm.Evm64.InterpreterLoop
+
+public section
 
 namespace EvmAsm.Evm64
 

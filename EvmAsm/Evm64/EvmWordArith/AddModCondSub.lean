@@ -17,9 +17,13 @@
     take-flag equivalence that lets `masked_sub_eq_modAdd` apply.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.AddMod
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
-import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.AddMod
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+public import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+
+public section
 
 namespace EvmAsm.Evm64
 

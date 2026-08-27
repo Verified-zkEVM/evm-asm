@@ -25,8 +25,12 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
+
+public section
 
 namespace EvmAsm.Evm64
 

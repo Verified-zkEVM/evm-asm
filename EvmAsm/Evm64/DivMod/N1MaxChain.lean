@@ -4,8 +4,12 @@
   Shared declaration home for the n=1 max-path loop specs.
 -/
 
-import EvmAsm.Evm64.DivMod.N1CallBase
-import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.N1CallBase
+public import EvmAsm.Evm64.DivMod.LoopBody.CorrectionAddbackBeqV4NoNop
+
+public section
 
 /-
   EvmAsm.Evm64.DivMod.LoopIterN1.Max

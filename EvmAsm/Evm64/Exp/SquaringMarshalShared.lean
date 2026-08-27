@@ -1,10 +1,14 @@
 /- Shared declaration home for the EXP squaring code bundle and marshal blocks. -/
 
-import EvmAsm.Evm64.Exp.TopPipelineShared
-import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
-import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
-import EvmAsm.Evm64.Multiply.Callable
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.TopPipelineShared
+public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+public import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+public import EvmAsm.Evm64.Multiply.Callable
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

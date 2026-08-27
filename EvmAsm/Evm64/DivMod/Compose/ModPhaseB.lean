@@ -6,10 +6,14 @@
   Blocks 0-1 are identical between divCode and modCode.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.DivMod.AddrNorm
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.DivMod.AddrNorm
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

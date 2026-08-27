@@ -12,9 +12,13 @@
   MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
-import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+public import EvmAsm.Evm64.DivMod.Compose.DenormEpilogueV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmAsm.Rv64.Tactics

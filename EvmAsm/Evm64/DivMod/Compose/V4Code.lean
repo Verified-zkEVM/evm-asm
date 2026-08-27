@@ -4,8 +4,12 @@
   Full DIV/MOD CodeReq bundles for the v4 div128 migration.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Rv64.CPSSpec
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Rv64.CPSSpec
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

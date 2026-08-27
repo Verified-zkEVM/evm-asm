@@ -11,9 +11,13 @@
   shift=0 arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
-import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5PreloopShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5ToDenormShift0
+public import EvmAsm.Evm64.DivMod.LoopIterN1.LoopAtShapeShift0V5
+
+public section
 
 namespace EvmAsm.Evm64
 

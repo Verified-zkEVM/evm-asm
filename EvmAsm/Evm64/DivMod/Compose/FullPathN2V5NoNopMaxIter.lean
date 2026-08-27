@@ -10,7 +10,11 @@
   for the loop-back digits.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMax
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

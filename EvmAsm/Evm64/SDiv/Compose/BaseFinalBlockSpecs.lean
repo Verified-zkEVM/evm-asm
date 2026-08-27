@@ -5,8 +5,12 @@
   the near DIV call, result-sign XOR, and saved-`ra` return.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
-import EvmAsm.Evm64.SDiv.LimbSpec
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+public import EvmAsm.Evm64.SDiv.LimbSpec
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

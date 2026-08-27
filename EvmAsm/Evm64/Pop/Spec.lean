@@ -4,10 +4,14 @@
   256-bit EVM POP specs.
 -/
 
-import EvmAsm.Evm64.Pop.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.Pop.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

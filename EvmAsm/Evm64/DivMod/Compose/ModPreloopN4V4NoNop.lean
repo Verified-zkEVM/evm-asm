@@ -4,10 +4,14 @@
   v4/no-NOP MOD n=4 preloop compositions.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4BeqV4NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

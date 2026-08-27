@@ -17,7 +17,11 @@
   - `divK_save_trial_load_spec_within`, `divK_trial_max_spec`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

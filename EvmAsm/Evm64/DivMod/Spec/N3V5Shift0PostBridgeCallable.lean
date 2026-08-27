@@ -12,7 +12,11 @@
   (N2V5ConcretePostBridge).
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5Shift0PostBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

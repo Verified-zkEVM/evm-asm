@@ -1,5 +1,11 @@
-import EvmAsm.Evm64.MulMod.Compose.Base
-import EvmAsm.Evm64.MulMod.ReduceOuterInduction
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Base
+public import EvmAsm.Evm64.MulMod.ReduceOuterInduction
+meta import EvmAsm.Evm64.MulMod.Compose.Base
+meta import EvmAsm.Evm64.MulMod.ReduceOuterInduction
+
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

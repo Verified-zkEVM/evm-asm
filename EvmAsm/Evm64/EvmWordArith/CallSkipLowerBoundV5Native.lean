@@ -24,9 +24,13 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+
+public section
 
 namespace EvmAsm.Evm64
 

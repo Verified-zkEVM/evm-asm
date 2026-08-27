@@ -9,8 +9,12 @@
   product `a * b`, laid out from `sp - 104` down to `sp - 160`.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceOuterInduction
-import EvmAsm.Evm64.MulMod.ProductAlgebra
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceOuterInduction
+public import EvmAsm.Evm64.MulMod.ProductAlgebra
+
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64

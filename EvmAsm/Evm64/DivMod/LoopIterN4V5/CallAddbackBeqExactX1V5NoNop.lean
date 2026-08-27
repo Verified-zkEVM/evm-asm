@@ -10,11 +10,15 @@
   body.  Toward `evm_div_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
-import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5NamedExactX1
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5ExactX1
+public import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipExactX1V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4AddbackV4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -8,8 +8,12 @@
   of the call×call prefix borrowCarry (#7435) with max digits.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarry
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

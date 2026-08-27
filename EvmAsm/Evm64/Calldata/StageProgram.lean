@@ -66,10 +66,18 @@
     [25] JAL  −32  : 68 − 100 = −32   (back to loop_top)
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Evm64.Calldata.LoadProgram
-import EvmAsm.Evm64.Environment.Layout
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Evm64.Calldata.LoadProgram
+public import EvmAsm.Evm64.Environment.Layout
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Evm64.Calldata.LoadProgram
+meta import EvmAsm.Evm64.Environment.Layout
+
+public section
 
 namespace EvmAsm.Evm64
 namespace Calldata

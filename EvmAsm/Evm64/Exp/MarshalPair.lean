@@ -20,8 +20,12 @@
   slice of evm-asm-nrfpf). Authored by @pirapira; implemented by Hermes-bot.
 -/
 
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

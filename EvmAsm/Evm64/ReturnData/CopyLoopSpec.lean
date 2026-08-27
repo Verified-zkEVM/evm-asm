@@ -27,8 +27,14 @@
   remaining count (`size ≥ 1`; size = 0 is the handler's glue `beqz` skip).
 -/
 
-import EvmAsm.Evm64.ReturnData.CopyProgram
-import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+module
+
+public import EvmAsm.Evm64.ReturnData.CopyProgram
+public import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+meta import EvmAsm.Evm64.ReturnData.CopyProgram
+meta import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -13,10 +13,14 @@
   the `hmod0..hmod3` the n=4 shift=0 MOD addback lane feeds to its post bridge.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialBounds
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModRemainder
-import EvmAsm.Evm64.DivMod.SpecCallShift0
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0TrialBounds
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModRemainder
+public import EvmAsm.Evm64.DivMod.SpecCallShift0
+
+public section
 
 namespace EvmAsm.Evm64
 

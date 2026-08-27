@@ -18,8 +18,12 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Exp.MarshalPair
-import EvmAsm.Evm64.Exp.SquaringCall
+module
+
+public import EvmAsm.Evm64.Exp.MarshalPair
+public import EvmAsm.Evm64.Exp.SquaringCall
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -4,8 +4,12 @@
   Connects the pure SDIV opcode handler to the SDIV stack-execution bridge.
 -/
 
-import EvmAsm.Evm64.ArithmeticHandlers
-import EvmAsm.Evm64.SDiv.StackExecutionBridge
+module
+
+public import EvmAsm.Evm64.ArithmeticHandlers
+public import EvmAsm.Evm64.SDiv.StackExecutionBridge
+
+public section
 
 namespace EvmAsm.Evm64
 namespace SDivStackExecutionBridge

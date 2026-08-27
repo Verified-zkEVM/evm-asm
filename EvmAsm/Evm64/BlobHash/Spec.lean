@@ -34,12 +34,22 @@
     `2^64` unconditionally).
 -/
 
-import EvmAsm.Evm64.BlobHash.Program
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
+module
+
+public import EvmAsm.Evm64.BlobHash.Program
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Evm64.BlobHash.Program
+meta import EvmAsm.Evm64.Stack
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.ControlFlow
+meta import EvmAsm.Rv64.Tactics.XSimp
+meta import EvmAsm.Rv64.Tactics.RunBlock
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -11,7 +11,11 @@
   - mod_of_nat_euclidean: Nat Euclidean property → r = EvmWord.mod a b
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Normalization
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Normalization
+
+public section
 
 namespace EvmAsm.Evm64
 

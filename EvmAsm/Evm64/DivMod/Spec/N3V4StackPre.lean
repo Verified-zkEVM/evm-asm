@@ -4,14 +4,18 @@
   Legacy stack-level wrappers for n=3 DIV v4 preloop+loop paths with raw carry.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNopPreloop
-import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN3V4NoNopPreloop
+public import EvmAsm.Evm64.DivMod.Spec.N3RemainderWordV4
+
+public section
 
 namespace EvmAsm.Evm64
 

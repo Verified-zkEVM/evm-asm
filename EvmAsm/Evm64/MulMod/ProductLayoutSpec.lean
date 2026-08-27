@@ -4,8 +4,12 @@
   Public product-layout spec for MULMOD.
 -/
 
-import EvmAsm.Evm64.MulMod.ProductLayoutCall15
-import EvmAsm.Evm64.MulMod.ProductLayoutHighTargets
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+public import EvmAsm.Evm64.MulMod.ProductLayoutHighTargets
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

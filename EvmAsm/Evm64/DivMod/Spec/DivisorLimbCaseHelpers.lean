@@ -5,7 +5,11 @@
   top-level public DIV wrapper assembly.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedDivisorCases
+
+public section
 
 namespace EvmAsm.Evm64
 

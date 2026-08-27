@@ -4,11 +4,15 @@
   v4/no-NOP MOD full-path preloop wrappers for the n=3 case.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
-import EvmAsm.Evm64.DivMod.LoopIterN3MaxV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNopMaxCall
+public import EvmAsm.Evm64.DivMod.LoopIterN3MaxV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN3AddbackV4NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

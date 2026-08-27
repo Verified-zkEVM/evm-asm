@@ -1,9 +1,13 @@
 /- Shared declaration home for the n=3 MOD shape-discharge and full-to-nop path. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BorrowPreloopShared
-import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5BorrowPreloopShared
+public import EvmAsm.Evm64.DivMod.Spec.N3V5BundleOfShape
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

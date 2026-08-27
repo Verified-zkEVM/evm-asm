@@ -4,7 +4,11 @@
   Low-level SMOD wrapper spec for the final saved-`ra` return instruction.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.BaseCode
+module
+
+public import EvmAsm.Evm64.SMod.Compose.BaseCode
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

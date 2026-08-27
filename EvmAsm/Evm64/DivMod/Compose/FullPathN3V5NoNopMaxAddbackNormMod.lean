@@ -9,7 +9,11 @@
   `sharedDivModCodeNoNop_v5`) + code-agnostic NormPre/Post defs reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNorm
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNorm
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

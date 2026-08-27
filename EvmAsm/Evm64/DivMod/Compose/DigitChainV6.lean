@@ -9,7 +9,11 @@
   Bead `evm-asm-7wbf8.3.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.DigitOwnV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.DigitOwnV6
+
+public section
 
 namespace EvmAsm.Evm64
 

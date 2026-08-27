@@ -5,7 +5,18 @@
   the 1500-line cap. The parent module supplies the measure helpers.
 -/
 
-import EvmAsm.Codegen.Programs.BalSerializer
+module
+
+public import EvmAsm.Codegen.Programs.BalSerializer
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.BalSerializer
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.GuestAddrs
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -957,83 +968,183 @@ theorem balSerializerEmitOuterFunction_eq_prog :
     contract here, not that routine). Writing 0x1400
     instead declares a big-endian address little-endian; it does not sort wrongly and
     carry on, it faults on a bad pointer inside the sort. -/
-def balSerializerRebuildHashFunction : String :=
-  "bal_serializer_rebuild_hash:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0; mv s1, a1\n" ++
-  -- `_build_from_builder` first folds the block account-read set into the
-  -- builder as empty touched-account entries.  This must precede every sort:
-  -- the account walk below is the single source of outer BAL rows.
-  "  jal ra, bal_builder_incorporate_touched_accounts\n" ++
-  -- SEVEN ORDERING RULES (block_access_lists.py:539-579), all of them here so the
-  -- emitters can stay order-free. Every stride below is 8-ALIGNED, per the rule on
-  -- `balBuilderAccountRowBytes` -- the sort swaps rows with ld/sd.
-  --
-  -- The storage sort carries TWO rules in one pass: sorting the change rows by
-  -- (address, slot, block_access_index) makes slots ascend within an account AND
-  -- changes ascend by index within a slot, because the emitter walks rows in order and
-  -- takes each slot at its first occurrence. `balSortBuilderStorageSegments` is exactly
-  -- that key and already exists -- offset 0 width 20 BE, offset 32 width 32 BE, offset
-  -- 24 width 8 LE.
-  "  la a0, bal_builder_storage_changes\n" ++
-  "  la t0, bal_builder_storage_change_count; ld a1, 0(t0)\n" ++
-  "  li a2, 96; li a3, 0x0818a0209400; li a4, 3; li a5, " ++
-  toString balBuilderStorageChangeCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  -- storage_reads by slot value. The read row's slot is an LE stack word at +32, so the
-  -- segment carries no BE flag: offset 0x20, width 0x20.
-  "  li a0, 0xa1908780\n" ++
-  "  la t0, storage_reads_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x2020; li a4, 1; li a5, " ++
-  toString balBuilderStorageReadsCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  -- balance, nonce and code each by (address, block_access_index): segment 0 is the
-  -- BE20 address, segment 1 the native-LE u64 index at +24 -> 0x08189400.
-  "  la a0, bal_builder_balance_changes\n" ++
-  "  la t0, bal_builder_balance_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderBalanceCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_nonce_changes\n" ++
-  "  la t0, bal_builder_nonce_count; ld a1, 0(t0)\n" ++
-  "  li a2, 40; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderNonceCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_code_changes\n" ++
-  "  la t0, bal_builder_code_count; ld a1, 0(t0)\n" ++
-  "  li a2, 64; li a3, 0x08189400; li a4, 2; li a5, " ++
-  toString balBuilderCodeCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  bnez a0, .Lbsrh_ret\n" ++
-  "  la a0, bal_builder_accounts\n" ++
-  "  la t0, bal_builder_account_count; ld a1, 0(t0)\n" ++
-  "  li a2, 24; li a3, 0x9400; li a4, 1; li a5, " ++
-  toString balBuilderAccountCapacity ++ "\n" ++
-  "  jal ra, bal_canonical_sort\n" ++
-  "  la t0, bal_serializer_sort_status; sd a0, 0(t0)\n" ++
-  "  beqz a0, .Lbsrh_sorted\n" ++
-  "  j .Lbsrh_ret\n" ++
-  ".Lbsrh_sorted:\n" ++
-  -- Streaming: nothing is buffered, so no size bound applies to the rebuilt BAL.
-  "  la a0, bal_serializer_rebuilt_ctx; jal ra, keccak_init\n" ++
-  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s0; jal ra, bal_serializer_emit_outer\n" ++
-  "  la a0, bal_serializer_rebuilt_ctx; mv a1, s1; jal ra, keccak_final\n" ++
-  "  li a0, 0\n" ++
-  ".Lbsrh_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n"
+def balSerializerRebuildHash_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x11,
+    .JAL .x1 (jalOff GuestAddrs.bal_builder_incorporate_touched_accounts (GuestAddrs.bal_serializer_rebuild_hash + 24)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_rebuild_hash + 28)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_builder_storage_changes (GuestAddrs.bal_serializer_rebuild_hash + 28)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_rebuild_hash + 36)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_storage_change_count (GuestAddrs.bal_serializer_rebuild_hash + 36)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (96 : Word),
+    .LUI .x13 (4 : BitVec 20),
+    .ADDIW .x13 .x13 (197 : BitVec 12),
+    .SLLI .x13 .x13 (17 : BitVec 6),
+    .ADDI .x13 .x13 (521 : BitVec 12),
+    .SLLI .x13 .x13 (12 : BitVec 6),
+    .ADDI .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (3 : Word),
+    .LUI .x15 (12 : BitVec 20),
+    .ADDIW .x15 .x15 (-1630 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 88)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 92)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 92)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_serializer_rebuild_hash + 488) (GuestAddrs.bal_serializer_rebuild_hash + 104)),
+    .LUI .x10 (20 : BitVec 20),
+    .ADDIW .x10 .x10 (801 : BitVec 12),
+    .SLLI .x10 .x10 (15 : BitVec 6),
+    .ADDI .x10 .x10 (1920 : BitVec 12),
+    .AUIPC .x5 (laHi GuestAddrs.storage_reads_count (GuestAddrs.bal_serializer_rebuild_hash + 124)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.storage_reads_count (GuestAddrs.bal_serializer_rebuild_hash + 124)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (64 : Word),
+    .LUI .x13 (2 : BitVec 20),
+    .ADDIW .x13 .x13 (32 : BitVec 12),
+    .LI .x14 (1 : Word),
+    .LUI .x15 (16 : BitVec 20),
+    .ADDIW .x15 .x15 (1130 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 160)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 164)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 164)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_serializer_rebuild_hash + 488) (GuestAddrs.bal_serializer_rebuild_hash + 176)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_serializer_rebuild_hash + 180)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_builder_balance_changes (GuestAddrs.bal_serializer_rebuild_hash + 180)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_serializer_rebuild_hash + 188)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_balance_count (GuestAddrs.bal_serializer_rebuild_hash + 188)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (64 : Word),
+    .LUI .x13 (33161 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (2 : Word),
+    .LUI .x15 (26 : BitVec 20),
+    .ADDIW .x15 .x15 (-1496 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 224)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 228)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 228)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_serializer_rebuild_hash + 488) (GuestAddrs.bal_serializer_rebuild_hash + 240)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_serializer_rebuild_hash + 244)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_builder_nonce_changes (GuestAddrs.bal_serializer_rebuild_hash + 244)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_serializer_rebuild_hash + 252)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_nonce_count (GuestAddrs.bal_serializer_rebuild_hash + 252)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (40 : Word),
+    .LUI .x13 (33161 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (2 : Word),
+    .LUI .x15 (9 : BitVec 20),
+    .ADDIW .x15 .x15 (-1864 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 288)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 292)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 292)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_serializer_rebuild_hash + 488) (GuestAddrs.bal_serializer_rebuild_hash + 304)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_serializer_rebuild_hash + 308)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_builder_code_changes (GuestAddrs.bal_serializer_rebuild_hash + 308)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_code_count (GuestAddrs.bal_serializer_rebuild_hash + 316)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_code_count (GuestAddrs.bal_serializer_rebuild_hash + 316)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (64 : Word),
+    .LUI .x13 (33161 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (2 : Word),
+    .LUI .x15 (3 : BitVec 20),
+    .ADDIW .x15 .x15 (837 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 352)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 356)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 356)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BNE .x10 .x0 (brOff (GuestAddrs.bal_serializer_rebuild_hash + 488) (GuestAddrs.bal_serializer_rebuild_hash + 368)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_builder_accounts (GuestAddrs.bal_serializer_rebuild_hash + 372)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_builder_accounts (GuestAddrs.bal_serializer_rebuild_hash + 372)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_builder_account_count (GuestAddrs.bal_serializer_rebuild_hash + 380)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_builder_account_count (GuestAddrs.bal_serializer_rebuild_hash + 380)),
+    .LD .x11 .x5 (0 : BitVec 12),
+    .LI .x12 (24 : Word),
+    .LUI .x13 (9 : BitVec 20),
+    .ADDIW .x13 .x13 (1024 : BitVec 12),
+    .LI .x14 (1 : Word),
+    .LUI .x15 (34 : BitVec 20),
+    .ADDIW .x15 .x15 (736 : BitVec 12),
+    .JAL .x1 (jalOff GuestAddrs.bal_canonical_sort (GuestAddrs.bal_serializer_rebuild_hash + 416)),
+    .AUIPC .x5 (laHi GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 420)),
+    .ADDI .x5 .x5 (laLo GuestAddrs.bal_serializer_sort_status (GuestAddrs.bal_serializer_rebuild_hash + 420)),
+    .SD .x5 .x10 (0 : BitVec 12),
+    .BEQ .x10 .x0 (8 : BitVec 13),
+    .JAL .x0 (52 : BitVec 21),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 440)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 440)),
+    .JAL .x1 (jalOff GuestAddrs.keccak_init (GuestAddrs.bal_serializer_rebuild_hash + 448)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 452)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 452)),
+    .MV .x11 .x8,
+    .JAL .x1 (jalOff GuestAddrs.bal_serializer_emit_outer (GuestAddrs.bal_serializer_rebuild_hash + 464)),
+    .AUIPC .x10 (laHi GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 468)),
+    .ADDI .x10 .x10 (laLo GuestAddrs.bal_serializer_rebuilt_ctx (GuestAddrs.bal_serializer_rebuild_hash + 468)),
+    .MV .x11 .x9,
+    .JAL .x1 (jalOff GuestAddrs.keccak_final (GuestAddrs.bal_serializer_rebuild_hash + 480)),
+    .LI .x10 (0 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-- Reloc side-table for `balSerializerRebuildHash_prog`: the `la`/cross-`jal` instruction indices
+    kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
+    above carries the concrete guest-linked immediates for verification. -/
+def balSerializerRebuildHash_relocs : RelocTable :=
+  [ (6, .jal .x1 "bal_builder_incorporate_touched_accounts"),
+    (7, .la .x10 "bal_builder_storage_changes"),
+    (9, .la .x5 "bal_builder_storage_change_count"),
+    (22, .jal .x1 "bal_canonical_sort"),
+    (23, .la .x5 "bal_serializer_sort_status"),
+    (31, .la .x5 "storage_reads_count"),
+    (40, .jal .x1 "bal_canonical_sort"),
+    (41, .la .x5 "bal_serializer_sort_status"),
+    (45, .la .x10 "bal_builder_balance_changes"),
+    (47, .la .x5 "bal_builder_balance_count"),
+    (56, .jal .x1 "bal_canonical_sort"),
+    (57, .la .x5 "bal_serializer_sort_status"),
+    (61, .la .x10 "bal_builder_nonce_changes"),
+    (63, .la .x5 "bal_builder_nonce_count"),
+    (72, .jal .x1 "bal_canonical_sort"),
+    (73, .la .x5 "bal_serializer_sort_status"),
+    (77, .la .x10 "bal_builder_code_changes"),
+    (79, .la .x5 "bal_builder_code_count"),
+    (88, .jal .x1 "bal_canonical_sort"),
+    (89, .la .x5 "bal_serializer_sort_status"),
+    (93, .la .x10 "bal_builder_accounts"),
+    (95, .la .x5 "bal_builder_account_count"),
+    (104, .jal .x1 "bal_canonical_sort"),
+    (105, .la .x5 "bal_serializer_sort_status"),
+    (110, .la .x10 "bal_serializer_rebuilt_ctx"),
+    (112, .jal .x1 "keccak_init"),
+    (113, .la .x10 "bal_serializer_rebuilt_ctx"),
+    (116, .jal .x1 "bal_serializer_emit_outer"),
+    (117, .la .x10 "bal_serializer_rebuilt_ctx"),
+    (120, .jal .x1 "keccak_final") ]
+
+def balSerializerRebuildHashFunction : String :=
+  "bal_serializer_rebuild_hash:\n" ++ emitProgramR balSerializerRebuildHash_prog balSerializerRebuildHash_relocs
+
+/-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
+    string is exactly `balSerializerRebuildHash_prog` rendered under its label with the `la`/`jal`
+    relocs kept symbolic (bead evm-asm-4ch8f.9.3, mechanical conversion by
+    `scripts/asm_to_program.py`). Guest binary byte-identity + guest-linked
+    consistency of the concrete Program verified offline by assemble/link+cmp. -/
+theorem balSerializerRebuildHashFunction_eq_prog :
+    balSerializerRebuildHashFunction = "bal_serializer_rebuild_hash:\n" ++ emitProgramR balSerializerRebuildHash_prog balSerializerRebuildHash_relocs := rfl
+
+#guard balSerializerRebuildHashFunction.startsWith "bal_serializer_rebuild_hash:\n"
+#guard balSerializerRebuildHash_prog.length = 127
 /-- Rebuild the block access list and compare its hash against the supplied one.
     a0 = SSZ_BASE, a1 = scratch (>= 33 bytes).
     `bal_serializer_verify` returns 0 if the rebuilt BAL hashes to the supplied BAL's

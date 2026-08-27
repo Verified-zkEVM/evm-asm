@@ -12,7 +12,11 @@
   non-trivial dividend tails and divisor tails.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+
+public section
 
 namespace EvmAsm.Evm64
 

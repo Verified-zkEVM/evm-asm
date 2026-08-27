@@ -6,7 +6,11 @@
   used by `evmExpMsbSavedBitTwoMulCanonicalWithMulCode`.
 -/
 
-import EvmAsm.Evm64.Exp.FullLoopShared
+module
+
+public import EvmAsm.Evm64.Exp.FullLoopShared
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

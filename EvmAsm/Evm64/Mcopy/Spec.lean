@@ -21,8 +21,14 @@
   CALLDATACOPY / CODECOPY already carry.
 -/
 
-import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
-import EvmAsm.Evm64.Mcopy.BackwardLoopSpec
+module
+
+public import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+public import EvmAsm.Evm64.Mcopy.BackwardLoopSpec
+meta import EvmAsm.Evm64.Mcopy.ForwardLoopSpec
+meta import EvmAsm.Evm64.Mcopy.BackwardLoopSpec
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

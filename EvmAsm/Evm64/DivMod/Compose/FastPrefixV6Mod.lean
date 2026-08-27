@@ -12,9 +12,16 @@
   `clz_addr_v6_*` address lemmas are shared verbatim (offsets identical).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZV6
-import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
-import EvmAsm.Evm64.DivMod.Compose.NormAV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZV6
+public import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
+public import EvmAsm.Evm64.DivMod.Compose.NormAV6
+meta import EvmAsm.Evm64.DivMod.Compose.CLZV6
+meta import EvmAsm.Evm64.DivMod.Compose.FastSetupV6
+meta import EvmAsm.Evm64.DivMod.Compose.NormAV6
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

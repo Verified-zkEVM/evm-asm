@@ -4,8 +4,12 @@
   CodeReq decomposition for the base EXP squaring call block.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.BaseLengths
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.Compose.BaseLengths
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

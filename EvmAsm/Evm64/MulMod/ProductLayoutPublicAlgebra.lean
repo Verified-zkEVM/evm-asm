@@ -5,9 +5,13 @@
   low-limb postcondition cells.
 -/
 
-import EvmAsm.Evm64.MulMod.ProductLayoutCall15
-import EvmAsm.Evm64.MulMod.ProductLayoutCarryChain
-import EvmAsm.Evm64.MulMod.ProductAlgebra
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLayoutCall15
+public import EvmAsm.Evm64.MulMod.ProductLayoutCarryChain
+public import EvmAsm.Evm64.MulMod.ProductAlgebra
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

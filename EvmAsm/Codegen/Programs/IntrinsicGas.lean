@@ -13,12 +13,22 @@
   No proofs yet -- these are codegen `String` defs only.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.Programs.AmsterdamSystemTx
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
@@ -247,20 +257,23 @@ theorem intrinsicGasAmsterdamCountsFunction_eq_prog :
 /-- 4-instr leaf: `*a5 = a0 + a1; a0 = 0; ret`.
     a2–a4 are retired v0.5 args (ignored; kept so `tx_intrinsic_state_gas` ABI stands). -/
 def eip8037TxStateGas_prog : Program :=
-  [ .ADD .x5 .x10 .x11
-  , .SD .x15 .x5 (0 : BitVec 12)
-  , .LI .x10 (0 : Word)
-  , .JALR .x0 .x1 (0 : BitVec 12) ]
+  [ .ADD .x5 .x10 .x11,
+    .SD .x15 .x5 (0 : BitVec 12),
+    .LI .x10 (0 : Word),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def eip8037TxStateGasFunction : String :=
   "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `eip8037TxStateGas_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem eip8037TxStateGasFunction_eq_prog :
-    eip8037TxStateGasFunction =
-      "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
+    eip8037TxStateGasFunction = "eip8037_tx_state_gas:\n" ++ emitProgram eip8037TxStateGas_prog := rfl
 
 #guard eip8037TxStateGasFunction.startsWith "eip8037_tx_state_gas:\n"
-
+#guard eip8037TxStateGas_prog.length = 4
 /-! ## block_verdict_eip8037_tx_state_gas_net_array
 
     Materialize execution-spec `tx_state_gas` per transaction from arrays that

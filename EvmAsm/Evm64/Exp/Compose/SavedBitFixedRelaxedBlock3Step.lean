@@ -19,9 +19,13 @@
   `…_pointer_frame_…` variant (`:211`) frames the pointer frame.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3StepBase
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3StepBase
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

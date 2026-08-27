@@ -13,12 +13,16 @@
   scaffold hypothesis frames the cell on explicitly; the nonzero lanes carry it.
 -/
 
-import EvmAsm.Evm64.DivMod.CallableV5Mod
-import EvmAsm.Evm64.DivMod.Spec.ModBzeroV5CallableExact
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShapeMod
-import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExactMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactMod
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.ModBzeroV5CallableExact
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallableExactOfShapeMod
+public import EvmAsm.Evm64.DivMod.Spec.N3V5CallableExactMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5CallableExactShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5CallableExactMod
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

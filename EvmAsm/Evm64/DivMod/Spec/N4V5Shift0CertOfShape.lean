@@ -15,10 +15,14 @@
   feeding `hcert0` of `evm_div_n4_lane_v5_of_certs` (#7628).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallSkipWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
+
+public section
 
 namespace EvmAsm.Evm64
 

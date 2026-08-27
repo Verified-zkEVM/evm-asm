@@ -9,7 +9,11 @@
   loop body (max j0 iter-bc).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitMod
+
+public section
 
 namespace EvmAsm.Evm64
 

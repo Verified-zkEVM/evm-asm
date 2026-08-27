@@ -12,7 +12,11 @@
     trial-witness predicates.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidenceCanonical
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidenceCanonical
+
+public section
 
 namespace EvmAsm.Evm64
 

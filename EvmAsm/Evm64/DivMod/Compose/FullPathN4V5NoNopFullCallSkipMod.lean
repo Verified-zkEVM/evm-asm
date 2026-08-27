@@ -8,7 +8,11 @@
   (`evm_mod_n4_call_skip_denorm_epilogue_spec_v5_noNop`, denormOff→nopOff).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallSkipMod
+
+public section
 
 namespace EvmAsm.Evm64
 

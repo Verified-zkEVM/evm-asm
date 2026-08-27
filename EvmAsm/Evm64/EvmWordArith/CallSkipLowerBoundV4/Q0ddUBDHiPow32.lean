@@ -20,8 +20,12 @@
   one step closer to the unconditional discharge of bead `7.1.4.1`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21BoundDHiPow32
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21BoundDHiPow32
+
+public section
 
 namespace EvmAsm.Evm64
 

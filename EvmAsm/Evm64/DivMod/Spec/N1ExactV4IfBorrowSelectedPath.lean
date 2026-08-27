@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowPathWord
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1ExactV4IfBorrowPathWord
+
+public section
 
 namespace EvmAsm.Evm64
 

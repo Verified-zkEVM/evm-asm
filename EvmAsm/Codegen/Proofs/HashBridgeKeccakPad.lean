@@ -7,6 +7,7 @@
   signedCountdownLoop BLT-hdr mismatch (coord decision pending).
 -/
 
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakRem
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
 import EvmAsm.Rv64.MemRegionStore

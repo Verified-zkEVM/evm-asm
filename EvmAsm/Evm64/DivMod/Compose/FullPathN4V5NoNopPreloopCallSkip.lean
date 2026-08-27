@@ -12,9 +12,13 @@
   `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCall
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCall
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

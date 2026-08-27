@@ -15,8 +15,12 @@
   trial-call-full v5 (#7237) + mulsub-correction-skip v5 (#7238) + these.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoop
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+public section
 
 namespace EvmAsm.Evm64
 

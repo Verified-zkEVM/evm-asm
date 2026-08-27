@@ -9,9 +9,13 @@
   Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCC
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCC
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -5,7 +5,11 @@
   reducer inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceSemantics
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceSemantics
+
+public section
 
 namespace EvmAsm.Evm64
 

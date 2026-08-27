@@ -30,10 +30,14 @@
   See bead `evm-asm-20z6.13.7`.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

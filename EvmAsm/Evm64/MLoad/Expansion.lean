@@ -4,13 +4,17 @@
   Small executable helpers for MLOAD memory-size bookkeeping.
 -/
 
-import EvmAsm.Evm64.Memory
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.AddrNorm
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.ExtractPure
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Memory
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.AddrNorm
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.ExtractPure
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 namespace EvmAsm.Evm64
 

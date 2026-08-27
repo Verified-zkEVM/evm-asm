@@ -2,12 +2,16 @@
   Shared declaration home for the n=4 v5/no-NOP dispatch and call-skip lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkip
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Full
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopFullCallSkip
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDispatchPostBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLaneNative
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -4,8 +4,12 @@
   Semantic quotient-word bridge for the n=1 DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+public section
 
 namespace EvmAsm.Evm64
 

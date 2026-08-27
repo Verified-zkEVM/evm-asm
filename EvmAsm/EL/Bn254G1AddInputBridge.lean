@@ -15,7 +15,11 @@
   execution boundary live in the sibling `Result`/`Ecall` bridges.
 -/
 
-import EvmAsm.EL.KeccakInputBridge
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

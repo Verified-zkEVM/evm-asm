@@ -10,8 +10,12 @@
   lemmas, then matches the peeled post cells.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Digits
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Digits
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+
+public section
 
 namespace EvmAsm.Evm64
 

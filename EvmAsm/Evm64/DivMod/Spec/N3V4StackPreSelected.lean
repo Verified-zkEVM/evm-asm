@@ -4,8 +4,12 @@
   Selected-carry stack-level wrappers for n=3 DIV v4 preloop+loop paths.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreR1
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPreR1
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -4,8 +4,12 @@
   PUSH1..PUSH32 width-validity bridge for GH #101.
 -/
 
-import EvmAsm.Evm64.Dispatch
-import EvmAsm.Evm64.Push.Immediate
+module
+
+public import EvmAsm.Evm64.Dispatch
+public import EvmAsm.Evm64.Push.Immediate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace PushWidth

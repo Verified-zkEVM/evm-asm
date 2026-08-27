@@ -30,8 +30,12 @@
   See `memory/project_knuth_theorem_b_plan.md` for the full roadmap.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
-import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+module
+
+public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+public import EvmAsm.Evm64.EvmWordArith.Div128Lemmas
+
+public section
 
 namespace EvmAsm.Evm64
 

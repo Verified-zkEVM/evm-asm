@@ -14,8 +14,12 @@
   `Guest.lean`) points here.
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesKzg
-import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesKzg
+public import EvmAsm.Stateless.SpecRef.PrecompilesBlsMap
+
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

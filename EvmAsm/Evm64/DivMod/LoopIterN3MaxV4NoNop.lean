@@ -4,7 +4,11 @@
   No-NOP/v4 replays for n=3 max+skip loop-body specs.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN3
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN3
+
+public section
 
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Evm64.DivMod.AddrNorm (slt_jpos_1)

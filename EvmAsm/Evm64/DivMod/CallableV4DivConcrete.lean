@@ -1,4 +1,8 @@
-import EvmAsm.Evm64.DivMod.CallableV4Div
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV4Div
+
+public section
 
 namespace EvmAsm.Evm64
 

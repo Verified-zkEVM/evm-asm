@@ -5,9 +5,13 @@
   div-call path.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
-import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnPre
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.BzeroCallablePost
+public import EvmAsm.Evm64.SDiv.Compose.BzeroFrames
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwnPre
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

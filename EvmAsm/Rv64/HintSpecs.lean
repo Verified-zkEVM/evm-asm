@@ -10,8 +10,12 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

@@ -23,9 +23,13 @@
   and `CallableV4DivSelected` instead.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.N3QuotientWord
+
+public section
 
 namespace EvmAsm.Evm64
 

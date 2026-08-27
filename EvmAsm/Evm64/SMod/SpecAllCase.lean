@@ -7,8 +7,12 @@
   GH #90 (bead evm-asm-9iqmw.9.2).
 -/
 
-import EvmAsm.Evm64.SMod.Spec
-import EvmAsm.Evm64.SMod.SpecBzero
+module
+
+public import EvmAsm.Evm64.SMod.Spec
+public import EvmAsm.Evm64.SMod.SpecBzero
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -16,9 +16,13 @@
 -- Each of the three `Div128*` sub-file imports below transitively brings
 -- `DivMod.Program`, `Rv64.SyscallSpecs`, `Rv64.ControlFlow`,
 -- `Rv64.Tactics.XSimp`, `Rv64.Tactics.RunBlock`.
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Clamp
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128Tail
+module
+
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Clamp
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128ProdCheck2
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128Tail
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

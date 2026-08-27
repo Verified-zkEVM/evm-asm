@@ -5,8 +5,12 @@
   to keep the base module under the Compose file-size guardrail.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.Base
-import EvmAsm.Evm64.Exp.Compose.EvmExpCode
+module
+
+public import EvmAsm.Evm64.Exp.Compose.Base
+public import EvmAsm.Evm64.Exp.Compose.EvmExpCode
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

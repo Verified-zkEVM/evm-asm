@@ -24,7 +24,11 @@
   in `UpperBound.lean` and `ExactQuotient.lean` exclude.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q0ddUBDHiPow32
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q0ddUBDHiPow32
+
+public section
 
 namespace EvmAsm.Evm64
 

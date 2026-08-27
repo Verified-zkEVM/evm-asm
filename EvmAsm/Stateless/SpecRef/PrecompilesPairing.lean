@@ -27,7 +27,12 @@
   the cheap field-algebra identities are `#guard`-pinned below.
 -/
 
-import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+module
+
+public import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+meta import EvmAsm.Stateless.SpecRef.PrecompilesCurve
+
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -71,7 +76,7 @@ def fqpZero (deg : Nat) : FQP := List.replicate deg 0
 def fqpOne (deg : Nat) : FQP := 1 :: List.replicate (deg - 1) 0
 
 /-- Degree of an `Int` polynomial (`deg`). -/
-private def polyDeg (l : List Int) : Nat := Id.run do
+def polyDeg (l : List Int) : Nat := Id.run do
   let mut d := l.length - 1
   for _ in [0:l.length] do
     if d > 0 && l.getD d 0 == 0 then d := d - 1
@@ -236,8 +241,8 @@ def curveOrder : Nat :=
   21888242871839275222246405745257275088548364400416034343698204186575808495617
 
 /-- `w = FQ12([0, 1, 0, …])` and its powers used by `twist`. -/
-private def w2 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 2
-private def w3 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 3
+def w2 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 2
+def w3 : FQP := fqpPow bnP 12 fq12MC (0 :: 1 :: List.replicate 10 0) 3
 
 /-- `twist(pt)`: `E(FQ2) → E(FQ12)` via the field isomorphism
     `x² + 1 → x² − 18x + 82` embedding. -/
@@ -278,14 +283,14 @@ def linefunc (F : FieldOps α) (P1 P2 T : Proj α) : α × α :=
 
 /-- `pseudo_binary_encoding[63::-1]` — the Miller-loop schedule, most
     significant first (the list literal reversed, last entry dropped). -/
-private def millerSchedule : List Int :=
+def millerSchedule : List Int :=
   [0, 0, 0, 1, 0, 1, 0, -1, 0, 0, 1, -1, 0, 0, 1, 0,
    0, 1, 1, 0, -1, 0, 0, 1, 0, -1, 0, 0, 0, 0, 1, 1,
    1, 0, 0, -1, 0, 0, 1, 0, 0, 0, 0, 0, -1, 0, 0, 1,
    1, 0, 0, -1, 0, 0, 0, 1, 1, 0, -1, 0, 0, 1, 0, 1].take 64 |>.reverse
 
 /-- `neg(pt)` over FQ12. -/
-private def pNeg12 (pt : Proj FQP) : Proj FQP :=
+def pNeg12 (pt : Proj FQP) : Proj FQP :=
   (pt.1, fqpSub bnP 12 (fqpZero 12) pt.2.1, pt.2.2)
 
 /-- `miller_loop(Q, P, final_exponentiate=True)`. -/

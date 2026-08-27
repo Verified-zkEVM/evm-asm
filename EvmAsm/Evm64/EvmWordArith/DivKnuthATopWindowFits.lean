@@ -26,8 +26,12 @@
   by the BLT-path bridges, under the same structural conditions.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+
+public section
 
 namespace EvmAsm.Evm64
 

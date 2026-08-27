@@ -7,12 +7,16 @@
   and Phase AB n=4 composition.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V4NoNop
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
-import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
-import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V4NoNop
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseA
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBInit
+public import EvmAsm.Evm64.DivMod.LimbSpec.PhaseBTail
+public import EvmAsm.Evm64.DivMod.LimbSpec.ZeroPath
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

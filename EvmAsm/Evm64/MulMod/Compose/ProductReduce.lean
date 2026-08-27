@@ -16,8 +16,12 @@
   the same `**` multiset and `xperm_hyp` closes the midpoint coercion.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Reducer
-import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Reducer
+public import EvmAsm.Evm64.MulMod.Compose.ProductReduceBridge
+
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

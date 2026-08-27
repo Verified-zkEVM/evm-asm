@@ -12,8 +12,12 @@
   Mirrors the v4 `evm_div_n1_preloop_loop_unified_spec`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Preloop
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

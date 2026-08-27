@@ -5,7 +5,12 @@
   add-partial core+finish spec onto concrete slices of the top-level program.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.Base
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.Base
+meta import EvmAsm.Evm64.MulMod.Compose.Base
+
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

@@ -15,9 +15,13 @@
   the alignment side condition) alone.  This completes all five n=4 MOD lanes.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNativeMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShiftNzNativeMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneShift0Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopShiftNzCertOfShape
+
+public section
 
 namespace EvmAsm.Evm64
 

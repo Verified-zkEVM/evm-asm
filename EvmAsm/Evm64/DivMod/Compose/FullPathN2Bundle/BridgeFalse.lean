@@ -5,9 +5,13 @@
   the bundled denorm precondition and preserved frame.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Branches
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.State
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+
+public section
 
 namespace EvmAsm.Evm64
 

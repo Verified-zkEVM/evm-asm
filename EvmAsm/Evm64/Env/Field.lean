@@ -6,7 +6,11 @@
   instead of duplicating one opcode-specific setup for each environment field.
 -/
 
-import EvmAsm.Evm64.Environment.Assertion
+module
+
+public import EvmAsm.Evm64.Environment.Assertion
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace Env

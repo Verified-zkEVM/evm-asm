@@ -9,7 +9,11 @@
   (`evm_div_stack_spec_unconditional_of_lanes_v5_div`) consumes.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5LaneShiftNz
+
+public section
 
 namespace EvmAsm.Evm64
 

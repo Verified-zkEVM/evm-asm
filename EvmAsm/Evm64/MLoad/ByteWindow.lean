@@ -7,7 +7,11 @@
   no alignment premise is needed at this pure layer.
 -/
 
-import EvmAsm.Evm64.MLoad.Spec
+module
+
+public import EvmAsm.Evm64.MLoad.Spec
+
+public section
 
 namespace EvmAsm.Evm64
 

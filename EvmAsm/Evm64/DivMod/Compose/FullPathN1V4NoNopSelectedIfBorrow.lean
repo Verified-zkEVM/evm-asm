@@ -4,9 +4,13 @@
   No-NOP selected-if-borrow wrappers for the n=1 v4 call/max/max/max path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelectedIfBorrow
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4CallMaxSelectedIfBorrow
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNopCallMaxInput
+
+public section
 
 namespace EvmAsm.Evm64
 

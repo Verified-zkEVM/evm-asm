@@ -540,7 +540,9 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # sites leave the fixture corpus, so the ratchet moves with the live manifest.
 # #12632 (384-bit Taylor blob-gas fix) drops one bare local-J site.
 # #12812 (u256 restoring divider) adds two local-J sites.
-EXPECTED_BARE_J_SITES = 153
+# #12960 retires 7 dead balance-account field-comparator probe files
+# (unlinked, unreferenced); their two bare local-J sites leave the corpus.
+EXPECTED_BARE_J_SITES = 151
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -557,7 +559,9 @@ EXPECTED_BARE_J_SITES = 153
 # #12779's derived fixture regeneration brings accountAtHeaderStateRootFunction
 # in line with its current StateCompose source, removing one bare long-B site
 # from the pre-existing 710-site population.
-EXPECTED_BARE_B_SITES = 709
+# #12960 retires 7 dead balance-account field-comparator probe files
+# (unlinked, unreferenced); their 33 bare local-B sites leave the corpus.
+EXPECTED_BARE_B_SITES = 672
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).
@@ -1681,13 +1685,21 @@ def rewrite_file(path, funcs):
     _save_manifest(man)
     return len(funcs)
 
+# Any top-level import line, in every module-system form. An anchored
+# `^import ` misses `public import` / `meta import` / `import all` entirely,
+# which under the module system means "no imports found" on a file full of
+# them -- the insert then lands before the `module` header and does not parse.
+IMPORT_LINE_RE = re.compile(r'(?m)^(?:public |meta )?import (?:all )?\S+.*\n')
+
+
 def _import_insert_pos(text):
     """Char index at which to insert a top-level `import`. After the last
-    real `^import …` line if any; otherwise after a leading `/- … -/` block
-    comment and any `--` line comments (never inside prose — the old regex
-    matched a stray "import" WORD in the module doc comment)."""
+    real import line if any -- in ANY module-system form -- otherwise after a
+    leading `/- … -/` block comment and any `--` line comments (never inside
+    prose — the old regex matched a stray "import" WORD in the module doc
+    comment)."""
     last=None
-    for m in re.finditer(r'(?m)^import\s+\S+.*\n', text):
+    for m in IMPORT_LINE_RE.finditer(text):
         last=m.end()
     if last is not None: return last
     i=0; n=len(text)
@@ -1705,14 +1717,35 @@ def _import_insert_pos(text):
     return i
 
 def _ensure_import(text, mod):
-    if re.search(r'(?m)^import\s+'+re.escape(mod)+r'\s*$', text): return text
+    """Add `mod` to `text`'s import block if it is not already there.
+
+    Module-system aware in three ways, each of which the anchored `^import`
+    version got wrong on a migrated file:
+      * an existing `public import mod` counts as present (otherwise this adds a
+        DUPLICATE);
+      * the insert position is after the last import of ANY form (otherwise it
+        lands before the `module` header, which does not parse);
+      * on a `module` file the new line is emitted as `public import`, matching
+        what `migrate-module-system.py` writes -- plus a `meta import` when the
+        file already carries meta imports, mirroring the converter's dual form.
+    """
+    if re.search(r'(?m)^(?:public |meta )?import (?:all )?'+re.escape(mod)+r'\s*$', text):
+        return text
+    is_module = re.search(r'(?m)^module\s*$', text) is not None
+    has_meta  = re.search(r'(?m)^meta import ', text) is not None
     p=_import_insert_pos(text)
-    had_import = re.search(r'(?m)^import\s', text) is not None
+    had_import = IMPORT_LINE_RE.search(text) is not None
     lead='' if (p==0 or text[p-1]=='\n') else '\n'
     # If this is the FIRST import (inserted before code, no prior imports), add a
     # blank line after it to separate the import block from the following code.
     trail='' if had_import else '\n'
-    return text[:p]+lead+'import '+mod+'\n'+trail+text[p:]
+    if is_module:
+        block = 'public import '+mod+'\n'
+        if has_meta:
+            block += 'meta import '+mod+'\n'
+    else:
+        block = 'import '+mod+'\n'
+    return text[:p]+lead+block+trail+text[p:]
 
 def _ensure_emit_import(text):
     return _ensure_import(text, 'EvmAsm.Codegen.Emit')
@@ -1870,6 +1903,14 @@ def gen_guest_addrs():
 # fixture/Lean-render assemble checks still guard their emitted bytes; only the
 # verbatim generated-block source check is skipped.
 SOURCE_DRIFT_ALLOW = {
+    # #12853: these verified-first oracle rows expose Programs derived from
+    # SAsm/DCode (or a wrapper alias) rather than a pasted gen_lean literal.
+    # The kernel-checked Function_eq_prog ties plus fixture/assembly identity
+    # remain the drift guard; the source walk must not demand a duplicate
+    # constructor list in the manifest-facing module.
+    'callFrameForwardGasFunction',
+    'execLogAddrToBalCanonicalFunction',
+    'rlpFieldToU64StrictFunction',
     'bls12G1Eq48Function',
     'bls12G2EqNFunction',
     'p256Eq32Function',

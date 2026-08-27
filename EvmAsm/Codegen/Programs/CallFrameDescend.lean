@@ -38,6 +38,13 @@ import EvmAsm.Codegen.GuestAddrs
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
+open CallFrameForwardGasSAsm
+
+/-! The forwarding-gas leaf is declared in its proof-first SAsm namespace.  Keep
+    a plain Codegen alias here so image-coverage rows can name the actual
+    Program without carrying a qualified identifier through generated ledgers. -/
+abbrev callFrameForwardGas_prog : Program :=
+  CallFrameForwardGasSAsm.callFrameForwardGas_prog
 
 /-- `call_frame_enter(a0 = child depth d >= 1)`: rebase the per-frame registers
     onto child `frame[d]` and select its shared-pool EVM memory. Returns
@@ -226,7 +233,7 @@ theorem callFrameSetCalldataFunction_eq_prog :
     charged to the caller (a gift). Clobbers t0/t1. -/
 def callFrameForwardGasFunction : String :=
   "call_frame_forward_gas:\n" ++
-  emitProgram CallFrameForwardGasSAsm.callFrameForwardGas_prog
+  emitProgram callFrameForwardGas_prog
 
 /-- Drift guard: the emitted routine IS the render of the verified,
     proof-first-generated program (`callFrameForwardGasFn_spec` in
@@ -234,9 +241,10 @@ def callFrameForwardGasFunction : String :=
     hand-written body (bltu/j diamond, beqz-guarded stipend). -/
 theorem callFrameForwardGasFunction_eq_prog :
     callFrameForwardGasFunction = "call_frame_forward_gas:\n" ++
-      emitProgram CallFrameForwardGasSAsm.callFrameForwardGas_prog := rfl
+      emitProgram callFrameForwardGas_prog := rfl
 
 #guard callFrameForwardGasFunction.startsWith "call_frame_forward_gas:\n"
+#guard callFrameForwardGas_prog.length = 12
 
 /-- `call_frame_descend(a1 = &desc)`: orchestrate one CALL/STATICCALL descent
     (depth d → d+1). `&desc` is passed in a1 (x11) so it does not alias the live

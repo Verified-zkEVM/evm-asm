@@ -8,9 +8,13 @@
   in N3V4StackPre.lean:721–836 for the n=2 case.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4Families
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+public section
 
 namespace EvmAsm.Evm64
 

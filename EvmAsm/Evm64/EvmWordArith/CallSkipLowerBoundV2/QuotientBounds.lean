@@ -22,8 +22,12 @@
     narrow_u4 when dHi > 2^31).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Algorithm
-import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.Div128KnuthLower
+
+public section
 
 namespace EvmAsm.Evm64
 

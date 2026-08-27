@@ -12,7 +12,11 @@
   Compose files (slice 4 micro evm-asm-d5lxr).
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.QuadMemBridges
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.QuadMemBridges
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

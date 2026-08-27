@@ -12,12 +12,16 @@
   `divN4StackPreCall` sits next to `divN4StackPre` in `Spec.Base`; this
   file adds the MOD-side counterpart `modN4StackPreCall`.
 -/
-import EvmAsm.Evm64.DivMod.Spec.Base
-import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4Shift0
-import EvmAsm.Evm64.EvmWordArith.Div128Shift0
-import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
-import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.Base
+public import EvmAsm.Evm64.DivMod.Compose.ModFullPathN4Shift0
+public import EvmAsm.Evm64.EvmWordArith.Div128Shift0
+public import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

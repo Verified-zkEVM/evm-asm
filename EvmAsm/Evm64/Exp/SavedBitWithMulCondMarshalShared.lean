@@ -1,10 +1,14 @@
 /- Shared declaration home for the EXP conditional multiply, skip, marshal, and saved-bit loop helpers. -/
 
-import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Evm64.Exp.SquaringMarshalShared
-import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
-import EvmAsm.Evm64.Multiply.Callable
+module
+
+public import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Evm64.Exp.SquaringMarshalShared
+public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+public import EvmAsm.Evm64.Multiply.Callable
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

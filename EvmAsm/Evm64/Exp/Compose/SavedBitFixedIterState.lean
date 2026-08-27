@@ -4,8 +4,12 @@
   Bundled fixed-loop iteration state for the Nat-induction EXP path.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

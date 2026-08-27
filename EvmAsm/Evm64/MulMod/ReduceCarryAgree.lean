@@ -20,7 +20,11 @@
   inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.ProductLimbsValue
+module
+
+public import EvmAsm.Evm64.MulMod.ProductLimbsValue
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -12,8 +12,12 @@
   Bead `evm-asm-7wbf8.3.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.CLZV6
-import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.CLZV6
+public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+
+public section
 
 namespace EvmAsm.Evm64
 

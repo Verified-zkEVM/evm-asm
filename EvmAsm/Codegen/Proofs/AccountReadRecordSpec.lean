@@ -58,11 +58,20 @@
   (audited by the `#print axioms` at the end of this file).
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.CallingConvention
-import EvmAsm.Codegen.Programs.AccountReadLog
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.CallingConvention
+public import EvmAsm.Codegen.Programs.AccountReadLog
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.ControlFlow
+meta import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Evm64.CallingConvention
+meta import EvmAsm.Codegen.Programs.AccountReadLog
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

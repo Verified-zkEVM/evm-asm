@@ -38,7 +38,11 @@
   (`Terminating/ReturnHaltResolved.lean` retires RETURN's).
 -/
 
-import EvmAsm.Rv64.InstructionSpecs
+module
+
+public import EvmAsm.Rv64.InstructionSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

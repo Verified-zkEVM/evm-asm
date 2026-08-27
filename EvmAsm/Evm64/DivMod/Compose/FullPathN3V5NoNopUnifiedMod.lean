@@ -1,8 +1,12 @@
 /- n=3 MOD unified loop dispatcher over modCode_noNop_v5. Reuses the code-agnostic
    defs from FullPathN3V5NoNopUnified; only the modCode theorem differs. -/
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombosMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxCombosMod
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

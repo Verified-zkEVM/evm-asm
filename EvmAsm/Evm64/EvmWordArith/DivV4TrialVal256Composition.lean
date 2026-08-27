@@ -11,8 +11,12 @@
   arithmetic frontiers, parallel to the MAX-path side.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivAccumulate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

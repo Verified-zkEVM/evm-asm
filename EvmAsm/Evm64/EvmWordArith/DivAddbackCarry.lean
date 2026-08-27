@@ -11,7 +11,11 @@
   - addback_register_4limb_val256: 4-limb addback → val256 equation
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivAddbackLimb
+
+public section
 
 namespace EvmAsm.Evm64
 

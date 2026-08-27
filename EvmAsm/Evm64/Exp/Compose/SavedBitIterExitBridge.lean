@@ -22,7 +22,11 @@
   Bead: evm-asm-w5mk.1.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

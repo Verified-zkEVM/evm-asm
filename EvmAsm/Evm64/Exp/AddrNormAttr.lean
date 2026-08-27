@@ -15,7 +15,7 @@ public import Lean.Meta.Tactic.Simp.RegisterCommand
 meta import Lean.Meta.Tactic.Simp.RegisterCommand
 public meta import Lean.Meta.Tactic.Simp.Attr
 
-@[expose] public section
+public section
 
 /-- Simp set for EXP address arithmetic: atomic evaluations of `signExtend12`,
     `signExtend13`, shifts, and `BitVec.toNat` on concrete literals that arise

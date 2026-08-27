@@ -5,10 +5,14 @@
   the full SDIV code region.
 -/
 
-import EvmAsm.Evm64.DivMod.CallableV1Legacy
-import EvmAsm.Evm64.DivMod.CallableV4Div
-import EvmAsm.Evm64.SDiv.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+module
+
+public import EvmAsm.Evm64.DivMod.CallableV1Legacy
+public import EvmAsm.Evm64.DivMod.CallableV4Div
+public import EvmAsm.Evm64.SDiv.Compose.Base
+public import EvmAsm.Evm64.SDiv.Compose.SDivViewChainC
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

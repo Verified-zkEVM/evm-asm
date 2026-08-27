@@ -9,8 +9,12 @@
   body (combo layer — max×max 2-combo).  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarryMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxSourceBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIterBorrowCarryMod
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

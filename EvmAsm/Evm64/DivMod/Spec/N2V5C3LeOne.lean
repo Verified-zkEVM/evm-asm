@@ -14,7 +14,11 @@
   the over-strong unconditional carry2nz hypothesis.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+
+public section
 
 namespace EvmAsm.Evm64
 

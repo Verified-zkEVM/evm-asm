@@ -33,3 +33,7 @@ EvmAsm/Rv64/SailEquiv/ALUProofs.lean     4000000
 EvmAsm/Evm64/Dispatch/EntrySpec.lean                          -
 EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean                 -
 EvmAsm/Evm64/DivMod/Compose/FullPathN2V4NoNopFinalPost.lean   -
+EvmAsm/SLHDSA/DemoCorrect.lean 1000000
+EvmAsm/SLHDSA/VerifyProof.lean 1000000
+EvmAsm/SLHDSA/VerifyProof.lean 2000000
+EvmAsm/SLHDSA/VerifyProof.lean 4000000

@@ -4,7 +4,11 @@
   Whole-code two-MUL and canonical saved-bit EXP CodeReq decomposition.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulIter
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulIter
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

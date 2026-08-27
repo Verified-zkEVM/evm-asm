@@ -4,7 +4,11 @@
   Branch-specialized unfold equations for the n=2 full-path intermediates.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -4,10 +4,14 @@
   CPS specs for the subtract-and-store path of the MULMOD reducer inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceInnerStepCompare
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

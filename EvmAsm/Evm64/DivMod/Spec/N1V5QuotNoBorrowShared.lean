@@ -2,9 +2,13 @@
   Shared declaration home for the n=1 v5 quotient/no-borrow facts.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
-import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5Defs
+public import EvmAsm.Evm64.DivMod.LimbSpec.Div128V5DigitBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

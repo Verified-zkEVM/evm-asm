@@ -14,8 +14,12 @@
   Bead: evm-asm-20z6.13.7 (exit bridge / step 3).
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

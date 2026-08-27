@@ -18,13 +18,17 @@
   `EvmAsm/Evm64/Calldata/SizeSpec.lean`.
 -/
 
-import EvmAsm.Evm64.Env.Program
-import EvmAsm.Evm64.Env.Field
-import EvmAsm.Evm64.Environment.Assertion
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Env.Program
+public import EvmAsm.Evm64.Env.Field
+public import EvmAsm.Evm64.Environment.Assertion
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

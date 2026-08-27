@@ -12,10 +12,14 @@
   `ab` via `n4_shift0_call_addback_first_carry_nz`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
-import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5FullShift0CallAddbackMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopLaneCallSkipShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5Shift0PostBridgeMod
+public import EvmAsm.Evm64.DivMod.Spec.N4V5Shift0CallAddbackCarry
+
+public section
 
 namespace EvmAsm.Evm64
 

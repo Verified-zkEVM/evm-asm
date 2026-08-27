@@ -11,8 +11,12 @@
   read as a byte offset into a region whose base is the aligned input buffer).
 -/
 
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

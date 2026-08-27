@@ -10,7 +10,11 @@
   - `expTwoMulIterLoopPost_to_iterPre` (combined: both paths)
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -15,8 +15,12 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackRuntimeV5
+
+public section
 
 namespace EvmAsm.Evm64
 

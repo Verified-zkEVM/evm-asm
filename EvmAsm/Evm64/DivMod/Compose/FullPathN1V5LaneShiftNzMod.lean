@@ -10,10 +10,14 @@
   from `fullModN1RemainderWordV5_eq_mod_lane_of_shape`).  Step 6 of the n=1 MOD lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
-import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullMod
+public import EvmAsm.Evm64.DivMod.Spec.N1V5ModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+public section
 
 namespace EvmAsm.Evm64
 

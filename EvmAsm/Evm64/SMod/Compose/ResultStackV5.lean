@@ -15,9 +15,13 @@
   `(regOwn .x9)`/`memOwn (sp+3936)` frame through.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.StackSpecV5
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
-import EvmAsm.Evm64.SMod.SpecSemantic
+module
+
+public import EvmAsm.Evm64.SMod.Compose.StackSpecV5
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixView
+public import EvmAsm.Evm64.SMod.SpecSemantic
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

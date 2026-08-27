@@ -21,8 +21,12 @@
   This file lifts the individual block specs onto the full headroom program's
   code requirement, mirroring `SavedBitFixedSaveRestoreCompose.lean`.
 -/
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

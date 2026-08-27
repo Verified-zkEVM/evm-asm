@@ -15,9 +15,13 @@
   and reused verbatim.  Brick 5 of the MOD v6 fast arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridgeMod
-import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridgeMod
+public import EvmAsm.Evm64.DivMod.Compose.V6FastResultBridge
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

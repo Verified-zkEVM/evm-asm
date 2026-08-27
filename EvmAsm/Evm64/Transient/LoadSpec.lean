@@ -29,15 +29,19 @@
     witness `evm_tload_stack_spec_within`.
 -/
 
-import EvmAsm.Evm64.Transient.LoadProgram
-import EvmAsm.Evm64.Transient.StoreSpec
-import EvmAsm.Evm64.StorageAssertions
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Evm64.Transient.LoadLoopSpec
+module
+
+public import EvmAsm.Evm64.Transient.LoadProgram
+public import EvmAsm.Evm64.Transient.StoreSpec
+public import EvmAsm.Evm64.StorageAssertions
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Evm64.Transient.LoadLoopSpec
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

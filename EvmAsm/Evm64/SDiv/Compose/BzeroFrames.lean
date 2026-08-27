@@ -5,9 +5,13 @@
   returns.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.Base
-import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.Base
+public import EvmAsm.Evm64.SDiv.Compose.BaseOffsets
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

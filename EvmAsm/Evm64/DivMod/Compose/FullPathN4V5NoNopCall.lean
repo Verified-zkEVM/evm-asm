@@ -11,9 +11,13 @@
   (identity post map).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipV5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN4V5.CallSkipV5NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

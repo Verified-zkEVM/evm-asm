@@ -10,9 +10,13 @@
   stack-spec.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.DivisorCasesNamedElim
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.DivisorCasesNamedElim
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+public section
 
 namespace EvmAsm.Evm64
 

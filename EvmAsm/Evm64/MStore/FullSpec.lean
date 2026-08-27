@@ -4,7 +4,11 @@
   Concrete full-program MSTORE stack specification.
 -/
 
-import EvmAsm.Evm64.MStore.Spec
+module
+
+public import EvmAsm.Evm64.MStore.Spec
+
+public section
 
 namespace EvmAsm.Evm64
 

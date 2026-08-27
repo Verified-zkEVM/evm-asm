@@ -19,10 +19,14 @@
   Exit address: `(base + 1816) + 344 = base + 2160`, the program exit.
 -/
 
-import EvmAsm.Evm64.MulMod.Compose.ProductReduceValue
-import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
-import EvmAsm.Evm64.MulMod.MulModResultWord
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.Compose.ProductReduceValue
+public import EvmAsm.Evm64.MulMod.Compose.ZeroPathTail
+public import EvmAsm.Evm64.MulMod.MulModResultWord
+public import EvmAsm.Rv64.Tactics.XSimp
+
+public section
 
 namespace EvmAsm.Evm64.MulMod.Compose
 

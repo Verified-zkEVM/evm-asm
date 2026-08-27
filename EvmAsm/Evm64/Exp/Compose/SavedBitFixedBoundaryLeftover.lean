@@ -10,8 +10,12 @@
   epilogue automatically.  This is the missing reconciliation that lets a real loop
   induction (whose exit genuinely leaves `L` live) feed the boundary.
 -/
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

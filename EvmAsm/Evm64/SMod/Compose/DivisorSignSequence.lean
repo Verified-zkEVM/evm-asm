@@ -5,8 +5,12 @@
   divisor sign.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.PreserveDividendSignSequence
-import EvmAsm.Evm64.SMod.Compose.SignBlockSpecs
+module
+
+public import EvmAsm.Evm64.SMod.Compose.PreserveDividendSignSequence
+public import EvmAsm.Evm64.SMod.Compose.SignBlockSpecs
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

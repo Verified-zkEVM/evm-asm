@@ -11,8 +11,12 @@
   Phase F plan) for the max+addback stack spec, Issue #61.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
-import EvmAsm.Evm64.EvmWordArith.Common
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4Beq
+public import EvmAsm.Evm64.EvmWordArith.Common
+
+public section
 
 namespace EvmAsm.Evm64
 

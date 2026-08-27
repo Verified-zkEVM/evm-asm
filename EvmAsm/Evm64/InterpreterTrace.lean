@@ -4,7 +4,11 @@
   Decoded-opcode trace bridge for the pure interpreter loop (GH #108).
 -/
 
-import EvmAsm.Evm64.InterpreterLoop
+module
+
+public import EvmAsm.Evm64.InterpreterLoop
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

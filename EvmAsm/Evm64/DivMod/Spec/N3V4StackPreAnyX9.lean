@@ -9,7 +9,11 @@
   Split out from N3V4StackPre.lean to stay within the 1500-line file-size cap.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V4StackPre
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -12,8 +12,12 @@
   Second brick of the v6 n=1 fast-path body. Bead `evm-asm-7wbf8.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.NormA
-import EvmAsm.Evm64.DivMod.Compose.CLZV6
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.NormA
+public import EvmAsm.Evm64.DivMod.Compose.CLZV6
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

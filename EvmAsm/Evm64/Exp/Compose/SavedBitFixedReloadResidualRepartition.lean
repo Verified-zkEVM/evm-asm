@@ -10,10 +10,14 @@
   (expose the `ptr-8` look-ahead cell) + the proven reload→IterPre assembler.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

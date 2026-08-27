@@ -49,16 +49,13 @@
   combinators (`countdownLoop_spec` hard-codes `beq ctr, x0`; `upLoop_spec`
   hard-codes `bgeu`), and `afpCopyLoop_spec` below instantiates it at this
   routine's real addresses, guard and step count.
-  * ⚠️ `zkvm_keccak256_spec_within` fixes its output buffer to
-    `List.replicate 32 0`, and this routine never zeroes `afp_digest` —
-    so that becomes a precondition of the eventual whole-routine triple
-    unless the keccak contract is first generalised over `out0`.
-    The precondition is HONEST rather than vacuous: the data section declares
-    `afp_digest: .zero 32`, so it holds 32 zero bytes at image load and the
-    FIRST call satisfies it — while any later call does not, since the buffer
-    then holds a digest.  (The probe prologue zeroes the OUTPUT at `a1`, not
-    `afp_digest`.)  So carrying it as a stated domain restriction is cheaper
-    and more accurate than generalising the keccak contract.
+  * `zkvm_keccak256_spec_within` used to fix its output buffer to
+    `List.replicate 32 0`, which made the whole-routine triple's
+    precondition demand an all-zero `afp_digest` — true only on the FIRST
+    call after image load and measured false on every later call
+    (#12896).  The keccak contract is now generalised over the initial
+    output bytes (`out0` with `out0.length = 32`), and this file threads
+    an arbitrary `digest0` through, so the triple covers every call.
 -/
 
 import EvmAsm.Codegen.Programs.Address
@@ -970,9 +967,10 @@ set_option maxRecDepth 100000 in
     public key is in `afp_digest`, which is precisely the precondition
     `afp_after_keccak_spec` needs. -/
 theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
-    (input : List (BitVec 8)) (v8 v9 v18 v20 v28 v29 : Word)
+    (input digest0 : List (BitVec 8)) (v8 v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
-    (hinput : input.length = 64) (hos : os.length = 200)
+    (hinput : input.length = 64) (hdigest0 : digest0.length = 32)
+    (hos : os.length = 200)
     (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
     (hoveri : ∀ n, n < 64 →
       (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
@@ -986,7 +984,7 @@ theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
         regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
         frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
         keccakCallerPre inputBase (64 : Word) afpDigestPtr
-          v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
+          v28 v29 os input digest0 A)
       (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) **
         ((.x2 : Reg) ↦ᵣ sp0) **
         regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
@@ -998,8 +996,9 @@ theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
   have hlen : input.length = keccakAbsorbStep * 0 + 64 := by
     rw [hinput]; decide
   have hcallee := zkvm_keccak256_spec_within sp0 (afpAt afpB 8)
-    inputBase afpDigestPtr input 0 64 v8 v9 v18 v20 v28 v29 os A hA
-    (by decide) hlen (by decide) hos (by decide) (by decide) (by decide) (by decide)
+    inputBase afpDigestPtr input 0 64 digest0 v8 v9 v18 v20 v28 v29 os A hA
+    (by decide) hlen (by decide) hdigest0 hos
+    (by decide) (by decide) (by decide) (by decide)
     hb8i (by decide) hoveri (by decide) hvalidi (by decide) (by decide) (by decide)
   have hcalleeFull := cpsTripleWithin_extend_code afp_keccak_mem hcallee
   have hmem : ∀ a i, CodeReq.singleton (afpAt afpB 7) (.JAL .x1
@@ -1014,7 +1013,7 @@ theorem afp_keccak_call_spec (sp0 vRa inputBase : Word)
       regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
       frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
       keccakCallerPre inputBase (64 : Word) afpDigestPtr
-        v28 v29 os input (List.replicate 32 (0 : BitVec 8)) A)
+        v28 v29 os input digest0 A)
     (Q := ((.x2 : Reg) ↦ᵣ sp0) **
       regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
       frameSlotsSaved keccakFrame (sp0 + signExtend12 (-32 : BitVec 12))
@@ -1118,9 +1117,10 @@ theorem afp_after_keccak_own (oPtr : Word) (digest orig : List (BitVec 8))
 
 set_option maxRecDepth 100000 in
 theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
-    (input orig : List (BitVec 8)) (v9 v18 v20 v28 v29 : Word)
+    (input orig digest0 : List (BitVec 8)) (v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8))
-    (hinput : input.length = 64) (hos : os.length = 200)
+    (hinput : input.length = 64) (hdigest0 : digest0.length = 32)
+    (hos : os.length = 200)
     (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
     (hoveri : ∀ n, n < 64 →
       (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
@@ -1139,7 +1139,7 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
         regsAt keccakFrame (keccakEntryVals oPtr v9 v18 v20) **
         frameSlotsOwn keccakFrame (sp0 + signExtend12 (-32 : BitVec 12)) **
         keccakCallerPre inputBase (64 : Word) afpDigestPtr
-          v28 v29 os input (List.replicate 32 (0 : BitVec 8))
+          v28 v29 os input digest0
           (bytesRegion oPtr orig))
       (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
         ((.x5 : Reg) ↦ᵣ afpDigestPtr) ** ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 20) **
@@ -1165,8 +1165,10 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
     rw [hinput]; decide
   have hdigLen : (EvmAsm.Stateless.SpecRef.keccak256 input).length = 32 :=
     EvmAsm.Stateless.SpecRef.keccak256_length input
-  have hcall := afp_keccak_call_spec sp0 vRa inputBase input oPtr v9 v18 v20 v28 v29
-    os (bytesRegion oPtr orig) (bytesRegion_pcFree _ _) hinput hos hb8i hoveri hvalidi
+  have hcall := afp_keccak_call_spec sp0 vRa inputBase input digest0 oPtr
+    v9 v18 v20 v28 v29
+    os (bytesRegion oPtr orig) (bytesRegion_pcFree _ _) hinput hdigest0 hos
+    hb8i hoveri hvalidi
   have hafter := afp_after_keccak_own oPtr (EvmAsm.Stateless.SpecRef.keccak256 input)
     orig hdigLen horig hdalign hoalign hdover hoover hdvalid hovalid
   -- Everything the copy loop does not touch, framed across it.
@@ -1215,9 +1217,10 @@ theorem afp_call_and_copy_spec (sp0 vRa inputBase oPtr : Word)
 
 set_option maxRecDepth 100000 in
 theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
-    (input orig : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
+    (input orig digest0 : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8))
-    (hinput : input.length = 64) (hos : os.length = 200)
+    (hinput : input.length = 64) (hdigest0 : digest0.length = 32)
+    (hos : os.length = 200)
     (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
     (hoveri : ∀ n, n < 64 →
       (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
@@ -1241,7 +1244,7 @@ theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
         regOwns keccakBodyFreeTemps **
         bytesRegion Zk3 os **
         bytesRegion inputBase input **
-        bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion afpDigestPtr digest0 **
         bytesRegion oPtr orig)
       (((.x1 : Reg) ↦ᵣ (afpAt afpB 8)) ** ((.x2 : Reg) ↦ᵣ sp0) **
         ((.x10 : Reg) ↦ᵣ (0 : Word)) **
@@ -1271,7 +1274,7 @@ theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
         regOwns keccakBodyFreeTemps **
         bytesRegion Zk3 os **
         bytesRegion inputBase input **
-        bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion afpDigestPtr digest0 **
         bytesRegion oPtr orig)
       (by
         refine pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
@@ -1285,8 +1288,8 @@ theorem afp_body_spec (sp0 vRa inputBase oPtr : Word)
           (pcFree_sepConj (bytesRegion_pcFree _ _)
             (bytesRegion_pcFree _ _))))))))))))))))
   -- The call and the copy (7-20).
-  have hjoin := afp_call_and_copy_spec sp0 vRa inputBase oPtr input orig
-    v9 v18 v20 v28 v29 os hinput hos hb8i hoveri hvalidi horig
+  have hjoin := afp_call_and_copy_spec sp0 vRa inputBase oPtr input orig digest0
+    v9 v18 v20 v28 v29 os hinput hdigest0 hos hb8i hoveri hvalidi horig
     hdalign hoalign hdover hoover hdvalid hovalid
   -- `li a0, 0` (20), the routine's return value.
   have hli := cpsTripleWithin_extend_code afp_wrapper_mem
@@ -1350,7 +1353,7 @@ private theorem afpVals_ra (ret v8 : Word) : afpVals ret v8 .x1 = ret := rfl
     `a1` still holds the OUTPUT pointer here and `a2` is arbitrary — the body's
     first four instructions are what turn them into keccak's arguments. -/
 def afpCallerPre (newSp inputBase oPtr v9 v12 v18 v20 v28 v29 : Word)
-    (input orig os : List (BitVec 8)) : Assertion :=
+    (input orig os digest0 : List (BitVec 8)) : Assertion :=
   ((.x11 : Reg) ↦ᵣ oPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
   ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x20 : Reg) ↦ᵣ v20) **
   frameSlotsOwn keccakFrame (newSp + signExtend12 (-32 : BitVec 12)) **
@@ -1359,7 +1362,7 @@ def afpCallerPre (newSp inputBase oPtr v9 v12 v18 v20 v28 v29 : Word)
   regOwns keccakBodyFreeTemps **
   bytesRegion Zk3 os **
   bytesRegion inputBase input **
-  bytesRegion afpDigestPtr (List.replicate 32 (0 : BitVec 8)) **
+  bytesRegion afpDigestPtr digest0 **
   bytesRegion oPtr orig
 
 /-- Caller-visible footprint on return. The line that matters is
@@ -1384,8 +1387,9 @@ def afpCallerPost (newSp inputBase oPtr v9 v18 v20 : Word)
   bytesRegion inputBase (input.take (keccakAbsorbStep * 0))
 
 theorem afpCallerPre_pcFree (newSp inputBase oPtr v9 v12 v18 v20 v28 v29 : Word)
-    (input orig os : List (BitVec 8)) :
-    (afpCallerPre newSp inputBase oPtr v9 v12 v18 v20 v28 v29 input orig os).pcFree := by
+    (input orig os digest0 : List (BitVec 8)) :
+    (afpCallerPre newSp inputBase oPtr v9 v12 v18 v20 v28 v29
+      input orig os digest0).pcFree := by
   unfold afpCallerPre
   pcFree
 
@@ -1410,16 +1414,17 @@ theorem afpCallerPost_pcFree (newSp inputBase oPtr v9 v18 v20 : Word)
     public key at `a0` is the right one is the secp256k1 recover rung, a separate
     obligation, and must not be read as covered here.
 
-    ⚠️ DOMAIN, stated not hidden: the callee's contract fixes its output buffer to
-    32 zero bytes, and this routine never zeroes `afp_digest`. The data section
-    declares `afp_digest: .zero 32`, so the FIRST call satisfies it and a second
-    would not. Generalising `zkvm_keccak256_spec_within` over `out0` is the fix if
-    a caller ever needs to hash twice. -/
+    The `afp_digest` scratch contents on entry are ARBITRARY (`digest0`,
+    any 32 bytes): the keccak callee overwrites all of them, so the triple
+    covers every invocation, not just the first after image load — the
+    #12896 fix.  Only the buffer's length, alignment and validity remain
+    hypotheses. -/
 theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
-    (input orig : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
+    (input orig digest0 : List (BitVec 8)) (v8 v9 v12 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8))
     (halign : (ret &&& ~~~(1 : Word)) = ret)
-    (hinput : input.length = 64) (hos : os.length = 200)
+    (hinput : input.length = 64) (hdigest0 : digest0.length = 32)
+    (hos : os.length = 200)
     (hb8i : (keccakAbsorbCursor inputBase 0).toNat % 8 = 0)
     (hoveri : ∀ n, n < 64 →
       (keccakAbsorbCursor inputBase 0).toNat + (64 - (n + 1)) < 2 ^ 64)
@@ -1440,7 +1445,7 @@ theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
       (((.x2 : Reg) ↦ᵣ sp0) ** regsAt afpFrame (afpVals ret v8) **
         frameSlotsOwn afpFrame (sp0 + signExtend12 (-16 : BitVec 12)) **
         afpCallerPre (sp0 + signExtend12 (-16 : BitVec 12)) inputBase oPtr
-          v9 v12 v18 v20 v28 v29 input orig os)
+          v9 v12 v18 v20 v28 v29 input orig os digest0)
       (((.x2 : Reg) ↦ᵣ sp0) ** regsAt afpFrame (afpVals ret v8) **
         frameSlotsSaved afpFrame (sp0 + signExtend12 (-16 : BitVec 12))
           (afpVals ret v8) **
@@ -1451,7 +1456,7 @@ theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
     afpBody _ _ _ afpFullCode
     afpFrame_cons afpFrame_ne_zero (by decide) ?_ (afpVals_ra ret v8) halign
     (afpFrame_restore sp0)
-    (afpCallerPre_pcFree _ _ _ _ _ _ _ _ _ _ _ _)
+    (afpCallerPre_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _)
     (afpCallerPost_pcFree _ _ _ _ _ _ _)
     ?_ ?_
   · rw [← addressFromPubkey_prog_eq_abiFrame, addressFromPubkey_prog_length]
@@ -1460,8 +1465,8 @@ theorem addressFromPubkey_spec_within (sp0 ret inputBase oPtr : Word)
     exact afp_wrapper_mem a i (by rwa [← addressFromPubkey_prog_eq_abiFrame] at h)
   · -- The body, with the frame's own saved slots framed across it.
     have hbody := afp_body_spec (sp0 + signExtend12 (-16 : BitVec 12)) ret inputBase
-      oPtr input orig v8 v9 v12 v18 v20 v28 v29 os hinput hos hb8i hoveri hvalidi
-      horig hdalign hoalign hdover hoover hdvalid hovalid
+      oPtr input orig digest0 v8 v9 v12 v18 v20 v28 v29 os hinput hdigest0 hos
+      hb8i hoveri hvalidi horig hdalign hoalign hdover hoover hdvalid hovalid
     have hbodyF := cpsTripleWithin_frameR
       (frameSlotsSaved afpFrame (sp0 + signExtend12 (-16 : BitVec 12))
         (afpVals ret v8)) (by pcFree) hbody

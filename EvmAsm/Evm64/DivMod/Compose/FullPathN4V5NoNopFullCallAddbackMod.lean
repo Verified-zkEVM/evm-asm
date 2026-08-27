@@ -8,7 +8,11 @@
   (`evm_mod_n4_call_addback_denorm_epilogue_spec_v5_noNop`, denormOff→nopOff).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallAddbackMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallAddbackMod
+
+public section
 
 namespace EvmAsm.Evm64
 

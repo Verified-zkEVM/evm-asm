@@ -9,8 +9,12 @@
   dependency change v4 → v5.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
-import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpecV5
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+public import EvmAsm.Evm64.SDiv.Compose.BaseResultSignFixBlockSpecV5
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

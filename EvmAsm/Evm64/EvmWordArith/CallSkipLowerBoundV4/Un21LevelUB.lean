@@ -23,7 +23,11 @@
   symmetric to the LB closure `div128Quot_q0_prime_ge_q_true_0_un21_level`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.WideRhatcUB
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.WideRhatcUB
+
+public section
 
 namespace EvmAsm.Evm64
 

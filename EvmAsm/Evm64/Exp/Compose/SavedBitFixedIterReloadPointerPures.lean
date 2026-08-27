@@ -4,7 +4,11 @@
   Pure extractors for fixed x19 reload-pointer framed case splits.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

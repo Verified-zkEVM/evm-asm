@@ -31,8 +31,12 @@
   `_three_eq_evmWordIs` definitional.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Stack
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Stack
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

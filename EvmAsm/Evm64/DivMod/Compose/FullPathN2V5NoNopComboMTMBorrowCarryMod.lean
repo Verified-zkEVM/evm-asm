@@ -8,9 +8,13 @@
   Brick 19 of the n=2 MOD loop body.  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMCBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMCBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxJ0BorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainB
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

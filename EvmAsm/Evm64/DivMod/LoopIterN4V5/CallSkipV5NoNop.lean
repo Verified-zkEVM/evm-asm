@@ -12,10 +12,14 @@
   Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN4CallV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialCallFullV5Named
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

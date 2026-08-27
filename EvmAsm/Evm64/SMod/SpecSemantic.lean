@@ -4,9 +4,13 @@
   Pure semantic result bridge for the top-level SMOD stack spec.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.Words
-import EvmAsm.Evm64.EvmWordArith.Div
-import EvmAsm.Evm64.EvmWordArith.SMod
+module
+
+public import EvmAsm.Evm64.SMod.Compose.Words
+public import EvmAsm.Evm64.EvmWordArith.Div
+public import EvmAsm.Evm64.EvmWordArith.SMod
+
+public section
 
 namespace EvmAsm.Evm64
 

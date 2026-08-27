@@ -4,8 +4,12 @@
   SMOD-offset-shaped expansions for generic DivMod dispatch assertions.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.QuadMemBridges
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.SMod.Compose.QuadMemBridges
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

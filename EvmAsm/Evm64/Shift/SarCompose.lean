@@ -10,10 +10,18 @@
 -/
 
 -- `Shift.ComposeBase → Shift.LimbSpec → Shift.Program → Evm64.Stack → SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.Shift.SarSpec
-import EvmAsm.Evm64.Shift.ComposeBase
-import Mathlib.Tactic.Set
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.Shift.SarSpec
+public import EvmAsm.Evm64.Shift.ComposeBase
+public import Mathlib.Tactic.Set
+meta import EvmAsm.Evm64.Stack
+meta import EvmAsm.Evm64.Shift.SarSpec
+meta import EvmAsm.Evm64.Shift.ComposeBase
+meta import Mathlib.Tactic.Set
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

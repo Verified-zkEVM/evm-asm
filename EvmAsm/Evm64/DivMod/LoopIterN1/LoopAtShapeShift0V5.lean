@@ -13,8 +13,12 @@
   `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneRest
+module
+
+public import EvmAsm.Evm64.DivMod.LoopIterN1.N1V5IterChainShared
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0LaneRest
+
+public section
 
 namespace EvmAsm.Evm64
 

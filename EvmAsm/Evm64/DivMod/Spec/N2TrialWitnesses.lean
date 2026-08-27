@@ -10,8 +10,12 @@
   which consume selected per-iteration carry evidence for the reachable path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2LoopUnified
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

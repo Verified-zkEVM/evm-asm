@@ -39,8 +39,9 @@
   lifts once the machine layer separates pre/post scratch content.
   (2) #12762's post does not expose the `u256_eq` byte-relation (which
   status corresponds to which byte outcome), so the status-0/1 pure
-  conjuncts are implications indexed by that relation — the relation itself
-  is the `heq` premise's semantic content.  Both implications are proved
+  conjuncts are implications indexed by that relation.  The machine layer
+  constructs it from the verified `u256EqBody` adapter rather than carrying
+  an unproved whole-routine equality premise.  Both implications are proved
   here from `hvbfSpecRefBaseFeeCheck_ok` / `_mismatch`, so the attribution
   content is fully carried.
 -/
@@ -146,8 +147,9 @@ theorem k73RouteB_adapt
           parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           raIn old8 (k74FlatFrame F))
       ((.x1 ↦ᵣ (H + 40)) **
-        k73CallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+          gasUsed gasLimit parentPtr
+          parentBytes headerBytes
           (k74FlatFrame F)) := by
   intro hsrc
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_)
@@ -223,16 +225,16 @@ theorem k73RouteB_adapt
     xperm_hyp h2
   unfold k73RouteBPost k73RouteBArmPost at hq
   rcases hq with h_arm | h_arm | h_arm | ⟨status, scratchOutBytes, hstatus, h_arm⟩
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right (fun _ h => Or.inl h) h
       (arm_to_own (0 : Word) _ h_arm)
-  · unfold k73CallPost
+  · unfold k73RouteBCallPost
     exact sepConj_mono_right
       (fun _ h => Or.inr ⟨status, scratchOutBytes, hstatus, h⟩) h
       (arm_to_failure status scratchOutBytes _ h_arm)
@@ -248,8 +250,8 @@ theorem k73RouteB_adapt
       different guest routine's status), so this outcome has no reference
       counterpart.
     * status 0 — match: if the header fee bytes ARE the recurrence encoding
-      (the `u256_eq` outcome the status selects, per the `heq` premise's
-      semantics), then under a passing gas-limit check the reference's
+      (the `u256_eq` adapter's status-1 outcome), then under a passing
+      gas-limit check the reference's
       isolated base-fee check `hvbfSpecRefBaseFeeCheck` accepts — i.e.
       `validate_header`'s `calculate_base_fee_per_gas`-equality test passes.
     * status 1 — mismatch: if the header fee bytes differ from the
@@ -290,13 +292,11 @@ def hvbfSpecRefRetPost (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentP
     caller `ra`, with the arm-indexed post `k73RouteBPost` (equal / increase
     / decrease arms each asserting the scratch holds `hvbfExpectedBytes`,
     plus a failure arm).  codex2's forthcoming whole-routine K73 theorem
-    discharges this hypothesis directly.  The `heq` premise is #12762's
-    `u256_eq` call contract verbatim (at the recurrence-encoding scratch
-    content), kept as a named premise because the existing general
-    `u256Eq_spec` does not expose the `x12`/`x13` preservation
-    #12762's `eqPostOwn` requires. -/
+    discharges this hypothesis directly.  The equality call is discharged
+    by the machine-layer `u256EqBody` adapter, which supplies the explicit
+    scratch pointers, owns the body temporaries, and preserves x11. -/
 theorem header_validate_base_fee_specref_within
-    {cr k73Code eqCode : CodeReq} {n73 nEq : Nat}
+    {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
     (parentBytes headerBytes : List (BitVec 8)) (F : Assertion)
@@ -304,6 +304,13 @@ theorem header_validate_base_fee_specref_within
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
     (hF : F.pcFree)
+    (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
+    (hExpectedWf :
+      (Region.mk Expected (hvbfExpectedBytes gasLimit gasUsed parentBytes)).wf)
+    (hHeaderLen : headerBytes.length = 32)
+    (hExpectedLen : (hvbfExpectedBytes gasLimit gasUsed parentBytes).length = 32)
+    (hDisj : headerPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ headerPtr.toNat)
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
     (hk73RouteB : ∀ (raRet : Word) (initBytes : List (BitVec 8)),
@@ -316,18 +323,13 @@ theorem header_validate_base_fee_specref_within
             parentBytes initBytes headerBytes raIn old8 (k74FlatFrame F))
         (k73RouteBPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
           v9 old18 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F)))
-    (heqMono : ∀ a i, eqCode a = some i → cr a = some i)
-    (heq : cpsTripleWithin nEq EqK (H + 60) eqCode
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPre spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
-            (k74FlatFrame F))
-      ((.x1 ↦ᵣ (H + 60)) **
-        eqPostOwn spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed parentPtr
-          parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
-            (k74FlatFrame F))) :
+    (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
     parentBytes.length = 32 →
-    cpsTripleWithin (27 + n73 + nEq) H raIn cr
+    cpsTripleWithin
+      (27 + n73 +
+        (U256EqSAsm.u256EqBody headerPtr Expected
+          headerBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes)).steps)
+      H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20
         parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
@@ -340,9 +342,10 @@ theorem header_validate_base_fee_specref_within
   have hmachine := HeaderValidateBaseFeeSpec.header_validate_base_fee_spec_within
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr v9 old18 v19 v20
     parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes F
-    hspH hspK hret hF hcode hk73Mono hk73 heqMono heq
+    hspH hspK hret hF hHeaderWf hExpectedWf hHeaderLen hExpectedLen hDisj
+    hcode hk73Mono hk73 heqMono
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hmachine
-  unfold hvbfFinalAny at hq
+  unfold hvbfFinalRouteB at hq
   rcases hq with h2 | h0 | h1
   · exact Or.inl h2
   · refine Or.inr (Or.inl ?_)
@@ -355,37 +358,54 @@ theorem header_validate_base_fee_specref_within
 /-! ## §4  Non-vacuity: a concrete inhabitant of the static premise set -/
 
 /-- The whole-routine theorem's static premise set is inhabited: at the
-    caller-shaped addresses of #12762's own witness family, with the trivial
-    code choice `cr = k73Code = eqCode = hvbfCode` (which makes the three
-    code-subsumption premises reflexivity), every static premise holds and
-    the entry assertion is pc-free.  The two callee contracts (`hk73RouteB`,
-    `heq`) remain named hypotheses of the main theorem — the K73 family's
-    remaining work and the `u256_eq` whole-routine gap — exactly like
-    `hcore` in `validate_header_cps_compose`. -/
+    caller-shaped addresses of #12762's own witness family, with a code
+    requirement that contains both the wrapper and equality bodies.  This
+    witnesses the full region, length, disjointness and code-subsumption
+    conjunction used by the machine adapter.  The Route-B K73 contract is
+    intentionally not fabricated here: its whole-routine proof remains the
+    named residual premise of the main theorem. -/
 theorem header_validate_base_fee_specref_within_inhabitable :
-    ∃ (cr k73Code eqCode : CodeReq) (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed
+    ∃ (cr k73Code : CodeReq) (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed
         parentPtr : Word) (v9 old18 v19 v20 : Word)
       (parentBytes headerBytes : List (BitVec 8)) (F : Assertion),
       F.pcFree ∧
       (spH = sp0 + signExtend12 (-16 : BitVec 12)) ∧
       (spK = spH + signExtend12 (-56 : BitVec 12)) ∧
       (raIn &&& ~~~(1 : Word) = raIn) ∧
+      (Region.mk headerPtr headerBytes).wf ∧
+      (Region.mk Expected (hvbfExpectedBytes gasLimit gasUsed parentBytes)).wf ∧
+      (headerBytes.length = 32) ∧
+      ((hvbfExpectedBytes gasLimit gasUsed parentBytes).length = 32) ∧
+      (headerPtr.toNat + 32 ≤ Expected.toNat ∨
+        Expected.toNat + 32 ≤ headerPtr.toNat) ∧
       (parentBytes.length = 32) ∧
       (∀ a i, hvbfCode a = some i → cr a = some i) ∧
       (∀ a i, k73Code a = some i → cr a = some i) ∧
-      (∀ a i, eqCode a = some i → cr a = some i) ∧
+      (∀ a i, u256EqCode a = some i → cr a = some i) ∧
         (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20
         parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
           (k74FlatFrame F)).pcFree := by
-  refine ⟨hvbfCode, hvbfCode, hvbfCode,
+  let cr : CodeReq := hvbfCode.union u256EqCode
+  have hcrDisj : hvbfCode.Disjoint u256EqCode := by
+    apply CodeReq.Disjoint.ofProg_ranges <;> decide
+  refine ⟨cr, cr,
     (0x100000 : Word), (0x0ffff0 : Word), (0x0fffb8 : Word),
     (0x12340000 : Word), (0x56780000 : Word), (0x200000 : Word),
     (100000 : Word), (50000 : Word), (0x200100 : Word),
     1, 2, 3, 4,
     List.replicate 32 (0 : BitVec 8), List.replicate 32 (0 : BitVec 8),
-    empAssertion, pcFree_emp, by decide, by decide, by decide, by decide,
-    fun a i h => h, fun a i h => h, fun a i h => h, ?_⟩
+    empAssertion, pcFree_emp, by decide, by decide, by decide,
+    by decide, by decide, by decide, by decide, by decide, by decide,
+    (fun a i h => by
+      simpa [cr] using
+        (CodeReq.union_mono_left (cr1 := hvbfCode) (cr2 := u256EqCode) a i h)),
+    (fun a i h => by simpa [cr] using h),
+    (fun a i h => by
+      simpa [cr] using
+        (CodeReq.mono_union_right
+          (oldCr := u256EqCode) (head := hvbfCode) (tail := u256EqCode)
+          hcrDisj (fun _ _ h' => h') a i h)), ?_⟩
   unfold hvbfPre
   dsimp [k74FlatFrame]
   pcf

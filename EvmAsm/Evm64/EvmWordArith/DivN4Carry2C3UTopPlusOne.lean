@@ -11,7 +11,11 @@
   (#7662).  Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
+
+public section
 
 namespace EvmAsm.Evm64
 

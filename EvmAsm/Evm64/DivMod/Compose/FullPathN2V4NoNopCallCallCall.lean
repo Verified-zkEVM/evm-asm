@@ -7,7 +7,11 @@
   composing the j=2/j=1 source theorem with the j=0 call body.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopFinalPost
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

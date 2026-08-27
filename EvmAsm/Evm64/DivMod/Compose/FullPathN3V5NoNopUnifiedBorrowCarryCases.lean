@@ -11,10 +11,14 @@
   to the rewritten `hc0`.  Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryNamed
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryNamed
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryNamed
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopRestCombosBorrowCarryNamed
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnified
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

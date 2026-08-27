@@ -11,8 +11,12 @@
   iteration windows held opaque.  Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedMod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallCombosBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopUnifiedMod
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -9,8 +9,12 @@
   wrappers (#7505 skip, #7510 addback).  Bead `evm-asm-wbc4i.9.3.3.2.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMax
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNorm
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMax
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxAddbackNorm
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

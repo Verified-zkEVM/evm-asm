@@ -5,7 +5,11 @@
   stack pointer.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

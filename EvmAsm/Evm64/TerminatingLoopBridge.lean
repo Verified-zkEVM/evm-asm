@@ -4,8 +4,12 @@
   Executable-loop bridge for terminating handler-table entries (GH #113).
 -/
 
-import EvmAsm.Evm64.HandlerLoopBridge
-import EvmAsm.Evm64.TerminatingHandlers
+module
+
+public import EvmAsm.Evm64.HandlerLoopBridge
+public import EvmAsm.Evm64.TerminatingHandlers
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -7,7 +7,11 @@
   entry in the 5-lane MOD dispatch.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5LaneShift0Mod
+
+public section
 
 namespace EvmAsm.Evm64
 

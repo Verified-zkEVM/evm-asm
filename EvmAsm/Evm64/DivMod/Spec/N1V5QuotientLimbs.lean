@@ -10,7 +10,11 @@
   Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
+
+public section
 
 namespace EvmAsm.Evm64
 

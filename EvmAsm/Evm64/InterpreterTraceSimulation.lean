@@ -4,8 +4,12 @@
   Trace-level simulation bridge for the pure interpreter loop (GH #109).
 -/
 
-import EvmAsm.Evm64.InterpreterSimulation
-import EvmAsm.Evm64.InterpreterTrace
+module
+
+public import EvmAsm.Evm64.InterpreterSimulation
+public import EvmAsm.Evm64.InterpreterTrace
+
+public section
 
 namespace EvmAsm.Evm64
 

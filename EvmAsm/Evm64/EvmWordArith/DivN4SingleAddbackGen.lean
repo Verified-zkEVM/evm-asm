@@ -19,7 +19,11 @@
   Bead `evm-asm-wbc4i.8.2.2`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+public section
 
 namespace EvmAsm.Evm64
 

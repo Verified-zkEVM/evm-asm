@@ -24,8 +24,12 @@
   arithmetic frontiers gating the final `evm_div_stack_spec_unconditional`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

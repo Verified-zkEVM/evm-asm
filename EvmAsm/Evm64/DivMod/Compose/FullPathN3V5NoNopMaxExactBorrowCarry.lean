@@ -12,7 +12,11 @@
   consume.  Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxExact
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopMaxExact
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

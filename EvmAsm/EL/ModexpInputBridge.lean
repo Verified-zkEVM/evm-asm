@@ -15,7 +15,11 @@
   each read from a contiguous range of executable memory.
 -/
 
-import EvmAsm.EL.KeccakInputBridge
+module
+
+public import EvmAsm.EL.KeccakInputBridge
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

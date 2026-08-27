@@ -8,16 +8,20 @@
   borrow-conditional carries from the bundle in each arm.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCCBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMTBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMTMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMTTBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMTBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopDispatchShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCCBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCCMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMMTBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMTMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboMTTBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboTMTBorrowCarry
+
+public section
 
 namespace EvmAsm.Evm64
 

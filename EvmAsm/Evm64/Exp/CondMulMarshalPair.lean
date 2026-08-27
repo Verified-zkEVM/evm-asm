@@ -26,8 +26,12 @@
   Hermes-bot.
 -/
 
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.AddrNorm
+module
+
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.AddrNorm
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

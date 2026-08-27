@@ -4,7 +4,11 @@
   Selected-carry callable-post wrapper for the n=2 v4/no-NOP DIV path.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

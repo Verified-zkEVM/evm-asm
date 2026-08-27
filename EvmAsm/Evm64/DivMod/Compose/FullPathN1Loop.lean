@@ -12,9 +12,13 @@
   to reduce import DAG height.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
-import EvmAsm.Evm64.DivMod.LoopUnifiedN1
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Loop
+public import EvmAsm.Evm64.DivMod.LoopUnifiedN1
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

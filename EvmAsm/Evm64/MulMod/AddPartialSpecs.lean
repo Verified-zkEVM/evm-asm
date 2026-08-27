@@ -5,7 +5,11 @@
   per-limb MULMOD block specs.
 -/
 
-import EvmAsm.Evm64.MulMod.LimbSpec
+module
+
+public import EvmAsm.Evm64.MulMod.LimbSpec
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

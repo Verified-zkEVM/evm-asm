@@ -48,8 +48,14 @@
   (`StateTracker.lean` conventions).
 -/
 
-import EvmAsm.Stateless.SpecRef.BlockAccessLists
-import EvmAsm.Stateless.SpecRef.Transactions
+module
+
+public import EvmAsm.Stateless.SpecRef.BlockAccessLists
+public import EvmAsm.Stateless.SpecRef.Transactions
+meta import EvmAsm.Stateless.SpecRef.BlockAccessLists
+meta import EvmAsm.Stateless.SpecRef.Transactions
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 

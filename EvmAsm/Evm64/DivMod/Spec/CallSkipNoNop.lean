@@ -4,7 +4,11 @@
   No-NOP stack-pre wrappers for the n=4 shift=0 DIV call+skip path.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallSkip
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallSkip
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

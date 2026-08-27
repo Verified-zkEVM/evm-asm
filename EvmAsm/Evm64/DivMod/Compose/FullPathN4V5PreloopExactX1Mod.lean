@@ -10,10 +10,14 @@
   `evm_mod_callable_v5` / SMOD `.proven`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1Mod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopExactX1
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1Mod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5PreloopShift0Mod
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

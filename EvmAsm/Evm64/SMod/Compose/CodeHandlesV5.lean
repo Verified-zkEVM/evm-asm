@@ -7,9 +7,13 @@
   for the SMOD `.proven` flip over `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.ModCallCallable
-import EvmAsm.Evm64.DivMod.Callable
-import EvmAsm.Evm64.SMod.Compose.CodeHandles
+module
+
+public import EvmAsm.Evm64.SMod.Compose.ModCallCallable
+public import EvmAsm.Evm64.DivMod.Callable
+public import EvmAsm.Evm64.SMod.Compose.CodeHandles
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

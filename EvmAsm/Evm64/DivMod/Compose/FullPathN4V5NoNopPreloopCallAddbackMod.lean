@@ -10,9 +10,13 @@
   predicates are op-agnostic and reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddbackMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallAddback
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallAddbackMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopPreloopCallAddback
+
+public section
 
 namespace EvmAsm.Evm64
 

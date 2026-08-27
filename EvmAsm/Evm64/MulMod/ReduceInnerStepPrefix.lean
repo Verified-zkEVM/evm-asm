@@ -4,11 +4,15 @@
   CPS spec for the shift-and-insert prefix of the MULMOD reducer inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.Program
-import EvmAsm.Evm64.MulMod.ReduceCompare
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.MulMod.Program
+public import EvmAsm.Evm64.MulMod.ReduceCompare
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

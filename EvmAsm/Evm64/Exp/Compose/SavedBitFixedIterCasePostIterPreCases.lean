@@ -5,7 +5,11 @@
   leaving reload-pointer branches explicit.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

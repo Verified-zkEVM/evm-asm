@@ -15,8 +15,12 @@
   of the final 5-way `DivisorLimbCase` assembly at bead 7.1.7.2.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
-import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.BzeroV4ExactFrame
+public import EvmAsm.Evm64.DivMod.Spec.StackPostBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

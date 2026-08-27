@@ -13,7 +13,11 @@
   collapses to `b0` at shift=0).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+public section
 
 namespace EvmAsm.Evm64
 

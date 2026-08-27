@@ -5,9 +5,13 @@
   carry required only conditionally on its runtime borrow.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarry
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

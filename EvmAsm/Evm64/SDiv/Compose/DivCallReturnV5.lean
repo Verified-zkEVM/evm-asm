@@ -11,9 +11,13 @@
   separate and rides through via `cpsTripleWithin_frameR`.
 -/
 
-import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
-import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
-import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+module
+
+public import EvmAsm.Evm64.SDiv.Compose.DivCallResultSignFixV5
+public import EvmAsm.Evm64.SDiv.DivCallHandoffChainShared
+public import EvmAsm.Evm64.SDiv.Compose.BaseCodeV5
+
+public section
 
 namespace EvmAsm.Evm64.SDiv.Compose
 

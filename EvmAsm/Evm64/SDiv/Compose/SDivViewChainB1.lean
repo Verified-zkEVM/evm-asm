@@ -4,10 +4,14 @@
   Shared declaration home for SDIV zero-divisor return views.
 -/
 
-import EvmAsm.Evm64.SDiv.DispatchViewsShared
-import EvmAsm.Evm64.SDiv.Compose.BzeroPost
-import EvmAsm.Evm64.DivMod.CallableBzeroV4
-import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+module
+
+public import EvmAsm.Evm64.SDiv.DispatchViewsShared
+public import EvmAsm.Evm64.SDiv.Compose.BzeroPost
+public import EvmAsm.Evm64.DivMod.CallableBzeroV4
+public import EvmAsm.Evm64.SDiv.Compose.ResultSignFixOwn
+
+public section
 
 /-
   EvmAsm.Evm64.SDiv.Compose.BzeroCallable

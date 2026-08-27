@@ -15,9 +15,13 @@
   n=2 lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2Bundle.Base
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+public section
 
 namespace EvmAsm.Evm64
 

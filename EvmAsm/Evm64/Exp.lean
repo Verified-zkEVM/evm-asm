@@ -10,109 +10,220 @@
   attach lemmas to it.
 -/
 
-import EvmAsm.Evm64.Exp.AddrNormAttr
-import EvmAsm.Evm64.Exp.Program
-import EvmAsm.Evm64.Exp.Gas
-import EvmAsm.Evm64.Exp.Args
-import EvmAsm.Evm64.Exp.ArgsStackDecode
-import EvmAsm.Evm64.Exp.LimbSpec
-import EvmAsm.Evm64.Exp.MarshalPair
-import EvmAsm.Evm64.Exp.SquaringCall
-import EvmAsm.Evm64.Exp.SquaringCallSeq
-import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
-import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
-import EvmAsm.Evm64.Exp.CondMulMarshalPair
-import EvmAsm.Evm64.Exp.CondMulCall
-import EvmAsm.Evm64.Exp.CondMulCallSeq
-import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
-import EvmAsm.Evm64.Exp.AddrNorm
-import EvmAsm.Evm64.Exp.Compose.Base
-import EvmAsm.Evm64.Exp.Compose.EvmExpCode
-import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
-import EvmAsm.Evm64.Exp.Compose.LoopCodeSpecs
-import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
-import EvmAsm.Evm64.Exp.TopPipelineShared
-import EvmAsm.Evm64.Exp.SquaringMarshalShared
-import EvmAsm.Evm64.Exp.SavedBitWithMulCondMarshalShared
-import EvmAsm.Evm64.Exp.FullLoopShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonicalPrefix
-import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonical
-import EvmAsm.Evm64.Exp.TwoMulCondShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologueFixed
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCountBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostTailBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedIterSpBounds
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedAccumulatorRun
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterState
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFramePre
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterPreNPost
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepBounds
-import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
-import EvmAsm.Evm64.Exp.SavedBitFixedIterLoopShared
-import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedSaveRestoreCompose
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
-import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitPrologueBodyCompose
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
-import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkipCanonical
-import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCanonical
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostPcFree
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterExitBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
-import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticStep
-import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticUnify
-import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
-import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
-import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
-import EvmAsm.Evm64.Exp.Layout
-import EvmAsm.Evm64.Exp.Spec
-import EvmAsm.Evm64.Exp.StackExecutionBridge
+module
+
+public import EvmAsm.Evm64.Exp.AddrNormAttr
+public import EvmAsm.Evm64.Exp.Program
+public import EvmAsm.Evm64.Exp.Gas
+public import EvmAsm.Evm64.Exp.Args
+public import EvmAsm.Evm64.Exp.ArgsStackDecode
+public import EvmAsm.Evm64.Exp.LimbSpec
+public import EvmAsm.Evm64.Exp.MarshalPair
+public import EvmAsm.Evm64.Exp.SquaringCall
+public import EvmAsm.Evm64.Exp.SquaringCallSeq
+public import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
+public import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+public import EvmAsm.Evm64.Exp.CondMulMarshalPair
+public import EvmAsm.Evm64.Exp.CondMulCall
+public import EvmAsm.Evm64.Exp.CondMulCallSeq
+public import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+public import EvmAsm.Evm64.Exp.AddrNorm
+public import EvmAsm.Evm64.Exp.Compose.Base
+public import EvmAsm.Evm64.Exp.Compose.EvmExpCode
+public import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+public import EvmAsm.Evm64.Exp.Compose.LoopCodeSpecs
+public import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
+public import EvmAsm.Evm64.Exp.TopPipelineShared
+public import EvmAsm.Evm64.Exp.SquaringMarshalShared
+public import EvmAsm.Evm64.Exp.SavedBitWithMulCondMarshalShared
+public import EvmAsm.Evm64.Exp.FullLoopShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonicalPrefix
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonical
+public import EvmAsm.Evm64.Exp.TwoMulCondShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologueFixed
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCountBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostTailBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedIterSpBounds
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedAccumulatorRun
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterState
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFramePre
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterPreNPost
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepBounds
+public import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
+public import EvmAsm.Evm64.Exp.SavedBitFixedIterLoopShared
+public import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedSaveRestoreCompose
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+public import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitPrologueBodyCompose
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
+public import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkipCanonical
+public import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCanonical
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostPcFree
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterExitBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
+public import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticStep
+public import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticUnify
+public import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
+public import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
+public import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
+public import EvmAsm.Evm64.Exp.Layout
+public import EvmAsm.Evm64.Exp.Spec
+public import EvmAsm.Evm64.Exp.StackExecutionBridge
+meta import EvmAsm.Evm64.Exp.AddrNormAttr
+meta import EvmAsm.Evm64.Exp.Program
+meta import EvmAsm.Evm64.Exp.Gas
+meta import EvmAsm.Evm64.Exp.Args
+meta import EvmAsm.Evm64.Exp.ArgsStackDecode
+meta import EvmAsm.Evm64.Exp.LimbSpec
+meta import EvmAsm.Evm64.Exp.MarshalPair
+meta import EvmAsm.Evm64.Exp.SquaringCall
+meta import EvmAsm.Evm64.Exp.SquaringCallSeq
+meta import EvmAsm.Evm64.Exp.SquaringMarshalPairPost
+meta import EvmAsm.Evm64.Exp.SquaringPairThenMulCall
+meta import EvmAsm.Evm64.Exp.CondMulMarshalPair
+meta import EvmAsm.Evm64.Exp.CondMulCall
+meta import EvmAsm.Evm64.Exp.CondMulCallSeq
+meta import EvmAsm.Evm64.Exp.CondMulPairThenMulCall
+meta import EvmAsm.Evm64.Exp.AddrNorm
+meta import EvmAsm.Evm64.Exp.Compose.Base
+meta import EvmAsm.Evm64.Exp.Compose.EvmExpCode
+meta import EvmAsm.Evm64.Exp.Compose.TopCodeSubs
+meta import EvmAsm.Evm64.Exp.Compose.LoopCodeSpecs
+meta import EvmAsm.Evm64.Exp.Compose.TopBoundaryBlocks
+meta import EvmAsm.Evm64.Exp.TopPipelineShared
+meta import EvmAsm.Evm64.Exp.SquaringMarshalShared
+meta import EvmAsm.Evm64.Exp.SavedBitWithMulCondMarshalShared
+meta import EvmAsm.Evm64.Exp.FullLoopShared
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonicalPrefix
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFullLoopCanonical
+meta import EvmAsm.Evm64.Exp.TwoMulCondShared
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBounds
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologue
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryPrologueFixed
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIter
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterLoop
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBaseTwoMulFixedIterMerged
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedWithMul
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryFixedIterPre
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePosts
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterExits
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedMergedFramedStep
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCountBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostStateBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostTailBounds
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostCases
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostFramedCases
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterReloadPointerPures
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostIterPreCases
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedExitBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixed
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedEntryExists
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoopFixedIterSpBounds
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedLoopInvariant
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedControlFrame
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedAccumulatorRun
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoolStep
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterState
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStatePre
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedInductionFramePre
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterPreNPost
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepPost
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStep
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStepBounds
+meta import EvmAsm.Evm64.Exp.SavedBitFixedIterStepShared
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoop
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadLimbFrames
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterStateLoopReloadTailFrames
+meta import EvmAsm.Evm64.Exp.SavedBitFixedIterLoopShared
+meta import EvmAsm.Evm64.Exp.SavedBitFixedInductionShared
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadReshuffle
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpResidual
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExpReadPrefix
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedReloadResidualRepartition
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedFinalResidualShared
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBlock3ExitExp
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitVacuous
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedBoundaryLeftover
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedSaveRestoreCompose
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomCompose
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitFixedHeadroomFullLoop
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEpilogueBase
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundarySeq
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitLoopEntry
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitEntryIterPreBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitPrologueBodyCompose
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitLoopExit
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryLoop
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulSkipCanonical
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitTwoMulCondCanonical
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostDefs
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterPostPcFree
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterMerge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitIterExitBridge
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyInd
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticStep
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitSemanticUnify
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitLoopBodyFromLoopPost
+meta import EvmAsm.Evm64.Exp.Compose.MergedLoopInd
+meta import EvmAsm.Evm64.Exp.Compose.SavedBitBoundaryEntryBody
+meta import EvmAsm.Evm64.Exp.Layout
+meta import EvmAsm.Evm64.Exp.Spec
+meta import EvmAsm.Evm64.Exp.StackExecutionBridge
+public meta import Lean.Meta.Tactic.Simp.Attr
+
+public section

@@ -10,9 +10,13 @@
   `div_getLimbN_eq_digit_shift0`).  Shift=0 half of `lane_n1`.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
-import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5FullShift0
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V5LaneShiftNz
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Shift0QuotientWordLane
+
+public section
 
 namespace EvmAsm.Evm64
 

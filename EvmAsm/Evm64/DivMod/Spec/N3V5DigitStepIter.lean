@@ -12,8 +12,12 @@
   Per-digit input to the v5 n=3 quotient telescope.  Bead `evm-asm-wbc4i.9.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderLt
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5Families
+
+public section
 
 namespace EvmAsm.Evm64
 

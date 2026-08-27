@@ -8,9 +8,13 @@
   (sharedNoNop_v5_b0_div / b10_div).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseAB
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseAB
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.Spec.UnconditionalScaffoldV5Div
+
+public section
 
 namespace EvmAsm.Evm64
 

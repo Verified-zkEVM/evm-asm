@@ -1,8 +1,12 @@
 /- Shared declaration home for the n=2 MOD call-iteration path. -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallExactX1Mod
-import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopSourceShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopCallExactX1Mod
+public import EvmAsm.Evm64.DivMod.Spec.N2V5CallCarryBorrowN2
+
+public section
 
 namespace EvmAsm.Evm64
 

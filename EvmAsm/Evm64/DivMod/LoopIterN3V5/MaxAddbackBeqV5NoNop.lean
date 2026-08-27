@@ -11,10 +11,14 @@
   Bead `evm-asm-wbc4i.9.3.3.2.2.3`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
-import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
-import EvmAsm.Evm64.DivMod.LoopIterN3MaxV4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddbackV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.TrialMaxV5
+public import EvmAsm.Evm64.DivMod.LoopBody.StoreLoopV5
+public import EvmAsm.Evm64.DivMod.LoopIterN3MaxV4NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

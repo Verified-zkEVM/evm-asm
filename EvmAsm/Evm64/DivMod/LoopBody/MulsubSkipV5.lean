@@ -17,8 +17,12 @@
   loop body always takes the correction-SKIP path (no addback, no `Carry2NzAll`).
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionSkip
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+public section
 
 namespace EvmAsm.Evm64
 

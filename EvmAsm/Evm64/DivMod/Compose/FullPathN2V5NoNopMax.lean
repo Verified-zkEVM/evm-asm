@@ -9,10 +9,14 @@
   reused from the v4 wrappers.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
-import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxSkipV5NoNop
+public import EvmAsm.Evm64.DivMod.LoopIterN2V5.MaxAddbackV5NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

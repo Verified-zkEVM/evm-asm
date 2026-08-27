@@ -7,7 +7,11 @@
   variants #7432/#7433).  Delegate-on-borrow + inline-skip.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopMaxIter
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -1,9 +1,19 @@
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Programs.BalRlpEncode
-import EvmAsm.Codegen.Programs.BalCanonicalSort
-import EvmAsm.Codegen.Programs.KeccakIncremental
-import EvmAsm.Codegen.Programs.HashBridge
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Programs.BalRlpEncode
+public import EvmAsm.Codegen.Programs.BalCanonicalSort
+public import EvmAsm.Codegen.Programs.KeccakIncremental
+public import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Programs.BalRlpEncode
+meta import EvmAsm.Codegen.Programs.BalCanonicalSort
+meta import EvmAsm.Codegen.Programs.KeccakIncremental
+meta import EvmAsm.Codegen.Programs.HashBridge
+
+@[expose] public section
 
 /-!
 # `zisk_bal_selftests` -- run the two BAL self-tests that have never executed

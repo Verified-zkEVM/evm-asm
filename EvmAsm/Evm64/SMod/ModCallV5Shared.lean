@@ -2,16 +2,20 @@
   Shared declaration home for the SMod V5 callable and return wrappers.
 -/
 
-import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
-import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
-import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
-import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
-import EvmAsm.Evm64.SMod.Compose.ModCallDispatchReadySequence
-import EvmAsm.Evm64.SMod.Compose.BaseSpecsV5
-import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
-import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
-import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwnV5
-import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
+module
+
+public import EvmAsm.Evm64.SMod.Compose.CodeHandlesV5
+public import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
+public import EvmAsm.Evm64.SMod.Compose.ModCallGenericHandoff
+public import EvmAsm.Evm64.SMod.Compose.DispatchReadyView
+public import EvmAsm.Evm64.SMod.Compose.ModCallDispatchReadySequence
+public import EvmAsm.Evm64.SMod.Compose.BaseSpecsV5
+public import EvmAsm.Evm64.SMod.Compose.BaseCodeV5
+public import EvmAsm.Evm64.SMod.Compose.ModCallResultSignFix
+public import EvmAsm.Evm64.SMod.Compose.ResultSignFixOwnV5
+public import EvmAsm.Evm64.SMod.Compose.ModCallReturnGeneric
+
+public section
 
 namespace EvmAsm.Evm64.SMod.Compose
 

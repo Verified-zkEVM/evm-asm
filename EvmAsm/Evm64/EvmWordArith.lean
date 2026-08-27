@@ -10,20 +10,22 @@
 -/
 
 -- Opcode-specific leaves that nothing else here imports:
-import EvmAsm.Evm64.EvmWordArith.IsZero
-import EvmAsm.Evm64.EvmWordArith.Eq
-import EvmAsm.Evm64.EvmWordArith.Comparison
-import EvmAsm.Evm64.EvmWordArith.ByteOps
-import EvmAsm.Evm64.EvmWordArith.LowMask
-import EvmAsm.Evm64.EvmWordArith.SignExtend
-import EvmAsm.Evm64.EvmWordArith.SDiv
-import EvmAsm.Evm64.EvmWordArith.SMod
+module
+
+public import EvmAsm.Evm64.EvmWordArith.IsZero
+public import EvmAsm.Evm64.EvmWordArith.Eq
+public import EvmAsm.Evm64.EvmWordArith.Comparison
+public import EvmAsm.Evm64.EvmWordArith.ByteOps
+public import EvmAsm.Evm64.EvmWordArith.LowMask
+public import EvmAsm.Evm64.EvmWordArith.SignExtend
+public import EvmAsm.Evm64.EvmWordArith.SDiv
+public import EvmAsm.Evm64.EvmWordArith.SMod
 
 -- MulCorrect covers Arithmetic → MultiLimb → Common.
-import EvmAsm.Evm64.EvmWordArith.MulCorrect
+public import EvmAsm.Evm64.EvmWordArith.MulCorrect
 
 -- Pure EXP semantic target.
-import EvmAsm.Evm64.EvmWordArith.Exp
+public import EvmAsm.Evm64.EvmWordArith.Exp
 
 -- ADDMOD/MULMOD helper: 2^256 mod N as an EvmWord (#91).
 
@@ -36,83 +38,85 @@ import EvmAsm.Evm64.EvmWordArith.Exp
 -- DivRemainderBound → DivAddbackLimb → DivMulSubLimb → DivLimbBridge →
 -- DivBridge → Normalization → MulSubChain → Div128Lemmas → MultiLimb →
 -- Div → Common.
-import EvmAsm.Evm64.EvmWordArith.Div128Shift0
-import EvmAsm.Evm64.EvmWordArith.DivCorrect
-import EvmAsm.Evm64.EvmWordArith.AddMod
-import EvmAsm.Evm64.EvmWordArith.MulHigh
-import EvmAsm.Evm64.EvmWordArith.MulMod
+public import EvmAsm.Evm64.EvmWordArith.Div128Shift0
+public import EvmAsm.Evm64.EvmWordArith.DivCorrect
+public import EvmAsm.Evm64.EvmWordArith.AddMod
+public import EvmAsm.Evm64.EvmWordArith.MulHigh
+public import EvmAsm.Evm64.EvmWordArith.MulMod
 
 -- ModBridgeAssemble covers ModBridgeUtop → Val256ModBridge.
-import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
+public import EvmAsm.Evm64.EvmWordArith.ModBridgeAssemble
 
 -- Standalone leaves:
-import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
-import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
-import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
-import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
-import EvmAsm.Evm64.EvmWordArith.DivN4Carry2C3UTopPlusOne
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
-import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
-import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
-import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
-import EvmAsm.Evm64.EvmWordArith.DivN4IterConservationGen
-import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
-import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeU4Plus2
-import EvmAsm.Evm64.EvmWordArith.DivN4C3LeUTopPlusOne
-import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantIfBorrow
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
-import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromOverestimateUnreach
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantPlusTwoCase
-import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantPlusTwoCase
-import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
-import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
-import EvmAsm.Evm64.EvmWordArith.DivBltBridge
-import EvmAsm.Evm64.EvmWordArith.DivBltBridgeSpecializations
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
-import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
-import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
-import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
-import EvmAsm.Evm64.EvmWordArith.DivKnuthABTrivialComposition
-import EvmAsm.Evm64.EvmWordArith.DivKnuthABKnownConditions
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantTrivials
-import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromCarryNz
-import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21BoundDHiPow32
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q0ddUBDHiPow32
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.NoWrapChainDHiPow32
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.WideRhatcUB
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21LevelUB
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21WideUHiCounterexample
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q1ddUndershootFromWideUn21
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.V4QHatBoundCounterexamples
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.CapBounds
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.NoWrap
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1d
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1cEuclidean
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Phase1bNoFireBound
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainA
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainB
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainC
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+public import EvmAsm.Evm64.EvmWordArith.DivN4Lemmas
+public import EvmAsm.Evm64.EvmWordArith.SkipBorrowExtract
+public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddback
+public import EvmAsm.Evm64.EvmWordArith.DivN4SecondCarryGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4Carry2C3UTopPlusOne
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4BorrowRemainderLtGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4SingleAddbackVal256
+public import EvmAsm.Evm64.EvmWordArith.DivN4DoubleAddbackVal256
+public import EvmAsm.Evm64.EvmWordArith.DivN4IterConservationGen
+public import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeTwo
+public import EvmAsm.Evm64.EvmWordArith.DivMulsubC3LeU4Plus2
+public import EvmAsm.Evm64.EvmWordArith.DivN4C3LeUTopPlusOne
+public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivN2MaxOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivMaxC3Invariant
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantIfBorrow
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantUnifiedCase
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantUnifiedCase
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromOverestimateUnreach
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantPlusTwoCase
+public import EvmAsm.Evm64.EvmWordArith.DivBltC3InvariantPlusTwoCase
+public import EvmAsm.Evm64.EvmWordArith.DivN3NormVStructure
+public import EvmAsm.Evm64.EvmWordArith.DivN2NormVStructure
+public import EvmAsm.Evm64.EvmWordArith.DivBltBridge
+public import EvmAsm.Evm64.EvmWordArith.DivBltBridgeSpecializations
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivV5TrialOverestimate
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialFromExactQuotient
+public import EvmAsm.Evm64.EvmWordArith.DivV4TrialVal256Composition
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthAEqualWindow
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthATopWindowFits
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthABTrivialComposition
+public import EvmAsm.Evm64.EvmWordArith.DivKnuthABKnownConditions
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantTrivials
+public import EvmAsm.Evm64.EvmWordArith.DivC3InvariantFromCarryNz
+public import EvmAsm.Evm64.EvmWordArith.AddbackBorrowExtract
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV2
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bNoFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase2bFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21Bound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21BoundDHiPow32
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.QuotientBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q0ddUBDHiPow32
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.NoWrapChainDHiPow32
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.WideRhatcUB
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21LevelUB
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Un21WideUHiCounterexample
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Q1ddUndershootFromWideUn21
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.V4QHatBoundCounterexamples
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.UpperBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.ExactQuotient
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Algorithm
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.CapBounds
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.NoWrap
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1d
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Q1cEuclidean
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.Phase1bNoFireBound
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainA
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainB
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainC
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5.V5BoundChainD
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV5Native
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindow
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+
+public section

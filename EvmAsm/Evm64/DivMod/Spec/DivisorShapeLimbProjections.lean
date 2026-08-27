@@ -5,7 +5,11 @@
   from each `NkShapeIs` predicate.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.DivisorShapeNamed
+
+public section
 
 namespace EvmAsm.Evm64
 

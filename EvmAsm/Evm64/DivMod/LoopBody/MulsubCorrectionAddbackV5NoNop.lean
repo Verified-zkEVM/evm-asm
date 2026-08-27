@@ -16,10 +16,14 @@
   single-addback path (`carry ≠ 0`).  Bead `evm-asm-wbc4i.9.2`.
 -/
 
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
-import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
-import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
-import EvmAsm.Evm64.DivMod.Compose.V5Code
+module
+
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubCorrectionAddback
+public import EvmAsm.Evm64.DivMod.LoopBody.DoubleAddbackBeqV4NoNop
+public import EvmAsm.Evm64.DivMod.LoopBody.MulsubSkipV5
+public import EvmAsm.Evm64.DivMod.Compose.V5Code
+
+public section
 
 namespace EvmAsm.Evm64
 

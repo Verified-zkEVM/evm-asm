@@ -16,9 +16,13 @@
   reachability invariant).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
-import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3LoopUnified
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+public import EvmAsm.Evm64.EvmWordArith.MaxTrialVacuity
+
+public section
 
 namespace EvmAsm.Evm64
 

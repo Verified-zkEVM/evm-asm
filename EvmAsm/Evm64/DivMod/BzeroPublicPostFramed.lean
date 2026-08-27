@@ -9,9 +9,13 @@
   the same `memOwn 3936` framing artifact.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.CPSSpec
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.CPSSpec
+
+public section
 
 namespace EvmAsm.Evm64
 

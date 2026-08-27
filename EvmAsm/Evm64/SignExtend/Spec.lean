@@ -7,8 +7,12 @@
 -/
 
 -- `SignExtend.Compose → SignExtend.LimbSpec → SignExtend.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Stack
-import EvmAsm.Evm64.SignExtend.Compose
+module
+
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Evm64.SignExtend.Compose
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

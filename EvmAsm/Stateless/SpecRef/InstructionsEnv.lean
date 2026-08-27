@@ -21,7 +21,11 @@
   they charge.
 -/
 
-import EvmAsm.Stateless.SpecRef.InstructionsCore
+module
+
+public import EvmAsm.Stateless.SpecRef.InstructionsCore
+
+@[expose] public section
 
 namespace EvmAsm.Stateless.SpecRef
 
@@ -67,10 +71,10 @@ def accessGasCost (address : Address) : EvmM Uint := do
       { e with accessedAddresses := setAdd e.accessedAddresses address })
     pure GasCosts.COLD_ACCOUNT_ACCESS
 
-private def pcNext : EvmM Unit :=
+def pcNext : EvmM Unit :=
   EvmM.modifyEvm (fun e => { e with pc := e.pc + 1 })
 
-private def pushConst (gas : Uint) (v : U256) : EvmM Unit := do
+def pushConst (gas : Uint) (v : U256) : EvmM Unit := do
   charge_gas gas
   stackPush v
   pcNext
@@ -115,7 +119,7 @@ def iCalldatasize : EvmM Unit := do
   pcNext
 
 /-- The shared copy shape of `calldatacopy`/`codecopy`. -/
-private def copyFromBuffer (base : Uint) (getBuffer : Evm → Bytes) : EvmM Unit := do
+def copyFromBuffer (base : Uint) (getBuffer : Evm → Bytes) : EvmM Unit := do
   let memory_start_index ← stackPop
   let data_start_index ← stackPop
   let size ← stackPop

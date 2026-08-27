@@ -5,7 +5,11 @@
   public unified spec file under the line-count guardrail.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedExactNoNop
+
+public section
 
 namespace EvmAsm.Evm64
 

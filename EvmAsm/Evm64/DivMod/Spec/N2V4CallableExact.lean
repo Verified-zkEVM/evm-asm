@@ -17,11 +17,15 @@
   by the dispatcher consumer.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V4ConcretePostBridge
-import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
-import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V4ConcretePostBridge
+public import EvmAsm.Evm64.DivMod.Spec.N2QuotientStackBridge
+public import EvmAsm.Evm64.DivMod.Spec.N2TrialWitnesses
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V4NoNopCallablePost
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+
+public section
 
 namespace EvmAsm.Evm64
 

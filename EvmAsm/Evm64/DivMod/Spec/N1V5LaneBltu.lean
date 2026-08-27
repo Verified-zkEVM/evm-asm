@@ -10,7 +10,11 @@
   `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5DigitSteps
+
+public section
 
 namespace EvmAsm.Evm64
 

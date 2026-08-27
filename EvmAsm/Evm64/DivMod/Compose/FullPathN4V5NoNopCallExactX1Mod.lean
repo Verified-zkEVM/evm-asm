@@ -10,7 +10,11 @@
   (`sharedDivModCodeNoNop_v5_sub_modCode_noNop_v5`).  Toward `evm_mod_callable_v5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCallExactX1
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

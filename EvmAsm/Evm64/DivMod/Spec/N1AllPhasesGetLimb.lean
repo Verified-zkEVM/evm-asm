@@ -1,7 +1,11 @@
-import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
-import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
-import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
-import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
+public import EvmAsm.Evm64.DivMod.Spec.N1FinalCarryZero
+public import EvmAsm.Evm64.DivMod.Spec.N1PathCallbacks
+public import EvmAsm.Evm64.DivMod.Spec.N1TrialWitnesses
+
+public section
 
 namespace EvmAsm.Evm64
 

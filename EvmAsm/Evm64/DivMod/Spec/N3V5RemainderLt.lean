@@ -18,10 +18,14 @@
   for the v5 n=3 quotient telescope.  Bead `evm-asm-wbc4i.9.3`.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
-import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
-import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.KnuthAFloorWindowN3
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+public import EvmAsm.Evm64.EvmWordArith.DivN4RemainderLt
+public import EvmAsm.Evm64.EvmWordArith.DivN3MaxOverestimate
+
+public section
 
 namespace EvmAsm.Evm64
 

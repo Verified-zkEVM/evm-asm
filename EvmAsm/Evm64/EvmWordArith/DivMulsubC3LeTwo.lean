@@ -10,7 +10,11 @@
   `max_trial_local_overestimate_n{2,3}_of_not_ult` lemmas provide `+2`).
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+public section
 
 namespace EvmAsm.Evm64
 

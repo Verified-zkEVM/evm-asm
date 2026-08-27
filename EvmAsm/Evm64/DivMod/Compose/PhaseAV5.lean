@@ -8,8 +8,12 @@
   v5 n=1 preloop.  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.PhaseABV4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V5NoNop
+
+public section
 
 namespace EvmAsm.Evm64
 

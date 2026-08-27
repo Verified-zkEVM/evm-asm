@@ -11,11 +11,15 @@
   framed.  Bead: n=3 MOD lane, Milestone D.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
-import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopDenormDefs
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5FamiliesMod
+public import EvmAsm.Evm64.DivMod.Spec.N3V5RemainderShared
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+
+public section
 
 namespace EvmAsm.Evm64
 

@@ -14,8 +14,12 @@
   op-agnostic and reused verbatim.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
-import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FastPrefixV6Mod
+public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+
+public section
 
 namespace EvmAsm.Evm64
 

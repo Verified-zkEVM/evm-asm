@@ -4,7 +4,11 @@
   MOD shift=0 post-loop composition split out of FullPath.lean.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPath
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPath
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

@@ -11,9 +11,13 @@
   Bead `evm-asm-bpagu`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
-import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
-import EvmAsm.Rv64.SyscallSpecs
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.OffsetsV6
+public import EvmAsm.Evm64.DivMod.LimbSpec.FastN1
+public import EvmAsm.Rv64.SyscallSpecs
+
+public section
 
 namespace EvmAsm.Evm64
 

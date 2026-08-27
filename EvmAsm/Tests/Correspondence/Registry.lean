@@ -13,12 +13,16 @@
   the `correspondence-check` executable.
 -/
 
-import EvmAsm.Tests.Correspondence.Harness
-import EvmAsm.Tests.Correspondence.Bal
-import EvmAsm.Tests.Correspondence.Header
-import EvmAsm.Tests.Correspondence.Mpt
-import EvmAsm.Tests.Correspondence.Rlp
-import EvmAsm.Tests.Correspondence.Transaction
+module
+
+public import EvmAsm.Tests.Correspondence.Harness
+public import EvmAsm.Tests.Correspondence.Bal
+public import EvmAsm.Tests.Correspondence.Header
+public import EvmAsm.Tests.Correspondence.Mpt
+public import EvmAsm.Tests.Correspondence.Rlp
+public import EvmAsm.Tests.Correspondence.Transaction
+
+@[expose] public section
 
 namespace EvmAsm.Tests.Correspondence.Registry
 

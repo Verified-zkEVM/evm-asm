@@ -27,7 +27,11 @@
   imported into any proof. Run via `lake exe specref-eest-check`.
 -/
 
-import EvmAsm.Stateless.SpecRef
+module
+
+public import EvmAsm.Stateless.SpecRef
+
+@[expose] public section
 
 namespace EvmAsm.Tests.SpecRefEestCheck
 
@@ -90,7 +94,7 @@ def usage : String :=
   "usage: specref-eest-check <input_file> <output_file>\n" ++
   "       specref-eest-check --gas-dims <input_file>"
 
-private def emitGasDimsJson (d : StatelessGasDims) : String :=
+def emitGasDimsJson (d : StatelessGasDims) : String :=
   let maxDim := max d.regular d.state
   "{" ++
   s!"\"regular\":{d.regular}," ++

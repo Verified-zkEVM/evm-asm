@@ -4,7 +4,11 @@
   Private quotient-word and hdiv package for the selected N2 DIV v4 route.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2CallableSelectedShapeEvidence
+
+public section
 
 namespace EvmAsm.Evm64
 

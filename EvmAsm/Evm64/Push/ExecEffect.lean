@@ -4,8 +4,12 @@
   Executable PUSH opcode effect bridge for GH #101.
 -/
 
-import EvmAsm.Evm64.Push.Immediate
-import EvmAsm.Evm64.Push.Width
+module
+
+public import EvmAsm.Evm64.Push.Immediate
+public import EvmAsm.Evm64.Push.Width
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 namespace PushExecEffect

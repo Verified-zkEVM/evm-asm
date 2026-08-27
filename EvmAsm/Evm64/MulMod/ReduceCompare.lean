@@ -5,8 +5,12 @@
   reducer inner step.
 -/
 
-import EvmAsm.Evm64.MulMod.ReduceShift
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
+module
+
+public import EvmAsm.Evm64.MulMod.ReduceShift
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

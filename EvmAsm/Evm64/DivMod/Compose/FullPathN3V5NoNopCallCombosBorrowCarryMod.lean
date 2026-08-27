@@ -11,8 +11,12 @@
   discharged from shape in #7527.  Bead `evm-asm-wbc4i.9.3.3.3.4`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallExactBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V5NoNopCallExactBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN3V4NoNop
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

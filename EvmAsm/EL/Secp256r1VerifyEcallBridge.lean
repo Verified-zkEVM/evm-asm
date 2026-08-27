@@ -4,9 +4,13 @@
   Pure zkVM secp256r1 signature-verification accelerator ECALL surface.
 -/
 
-import EvmAsm.EL.Secp256r1VerifyInputBridge
-import EvmAsm.EL.Secp256r1VerifyResultBridge
-import EvmAsm.Evm64.Accelerators.SyscallIds
+module
+
+public import EvmAsm.EL.Secp256r1VerifyInputBridge
+public import EvmAsm.EL.Secp256r1VerifyResultBridge
+public import EvmAsm.Evm64.Accelerators.SyscallIds
+
+@[expose] public section
 
 namespace EvmAsm.EL
 

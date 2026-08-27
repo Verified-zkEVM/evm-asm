@@ -12,9 +12,13 @@
   satisfiable-from-shape carry hypothesis the shift=0 loop consumes.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
-import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N2V5FamiliesShapeShared
+public import EvmAsm.Evm64.DivMod.Spec.N2V5ShapeBundleShared
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopLoopDefsBorrowCarry
+
+public section
 
 namespace EvmAsm.Evm64
 

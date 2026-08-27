@@ -8,9 +8,13 @@
   the n=2 MOD loop body.  Bead `evm-asm-wbc4i.10.3.2.4.5`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
-import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboCMBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopJ0ExitBorrowCarryMod
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN2V5NoNopComboChainA
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

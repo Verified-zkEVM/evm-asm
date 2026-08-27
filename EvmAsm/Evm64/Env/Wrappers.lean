@@ -11,7 +11,11 @@
   Authored by @pirapira; implemented by Hermes-bot (evm-hermes).
 -/
 
-import EvmAsm.Evm64.Env.StackSpec
+module
+
+public import EvmAsm.Evm64.Env.StackSpec
+
+public section
 
 namespace EvmAsm.Evm64
 namespace Env

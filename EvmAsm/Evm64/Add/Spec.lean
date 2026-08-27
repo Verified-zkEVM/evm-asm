@@ -6,11 +6,15 @@
 -/
 
 -- `Add.LimbSpec → Add.Program → Stack → SpAddr`.
-import EvmAsm.Evm64.Add.LimbSpec
-import EvmAsm.Evm64.Add.Program
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
-import EvmAsm.Evm64.Stack
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Evm64.Add.LimbSpec
+public import EvmAsm.Evm64.Add.Program
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+public import EvmAsm.Evm64.Stack
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 open EvmAsm.Rv64.Tactics
 

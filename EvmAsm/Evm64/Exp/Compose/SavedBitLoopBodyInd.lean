@@ -14,7 +14,11 @@
   Bead evm-asm-w5mk.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterBridges
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

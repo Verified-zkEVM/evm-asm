@@ -14,11 +14,15 @@
   shiftNz `_of_conds` lane.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
-import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
-import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipWordLane
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallSkipUpperBound
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+public import EvmAsm.Evm64.EvmWordArith.Div128CallSkipCloseV4
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+
+public section
 
 namespace EvmAsm.Evm64
 

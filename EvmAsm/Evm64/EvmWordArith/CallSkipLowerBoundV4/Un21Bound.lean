@@ -5,7 +5,11 @@
   to keep the arithmetic helper file under the line-count guardrail.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+module
+
+public import EvmAsm.Evm64.EvmWordArith.CallSkipLowerBoundV4.Phase1bBound
+
+public section
 
 namespace EvmAsm.Evm64
 

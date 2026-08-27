@@ -5,8 +5,12 @@
   loop step (GH #109).
 -/
 
-import EvmAsm.Evm64.InterpreterExecutableFetchBridge
-import EvmAsm.Evm64.SupportedLoopBridge
+module
+
+public import EvmAsm.Evm64.InterpreterExecutableFetchBridge
+public import EvmAsm.Evm64.SupportedLoopBridge
+
+public section
 
 namespace EvmAsm.Evm64
 

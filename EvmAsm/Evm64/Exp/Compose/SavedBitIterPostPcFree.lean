@@ -5,7 +5,11 @@
   pre/postcondition bundles.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitIterPosts
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

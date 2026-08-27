@@ -26,7 +26,11 @@
   See `memory/project_un21_lt_vTop_plan.md` for the full chain plan.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
+module
+
+public import EvmAsm.Evm64.EvmWordArith.Div128QuotientBounds
+
+public section
 
 namespace EvmAsm.Evm64
 

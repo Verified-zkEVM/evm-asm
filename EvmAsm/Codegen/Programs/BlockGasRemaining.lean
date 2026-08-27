@@ -47,58 +47,60 @@ open EvmAsm.Rv64.Program
     than deriving them from tx gas limits. EIP-7778 increments
     `block_output.block_gas_used` by max(gas used before refund, calldata
     floor), which only a gas-metered execution slice can compute exactly. -/
-def eip7778RemainingBlockGasCheckFunction : String :=
-  "eip7778_remaining_block_gas_check:\n" ++
-  "  addi sp, sp, -16\n" ++
-  "  sd s0, 0(sp)\n" ++
-  "  mv s0, a4                   # a4 reserved for callers' intrinsic-state array\n" ++
-  "  mv t0, a0                   # block_gas_limit\n" ++
-  "  mv t1, a1                   # tx_gas ptr\n" ++
-  "  mv t2, a2                   # block_gas_used_in_tx ptr\n" ++
-  "  mv t3, a3                   # count\n" ++
-  "  li t4, 0                    # i\n" ++
-  "  li t5, 0                    # block_gas_used\n" ++
-  ".Le7778_loop:\n" ++
-  "  beq t4, t3, .Le7778_ok\n" ++
-  "  bltu t0, t5, .Le7778_tx_fail\n" ++
-  "  slli t6, t4, 3\n" ++
-  "  add a4, t1, t6\n" ++
-  "  ld a5, 0(a4)                # tx.gas\n" ++
-  -- execution-specs EIP-8037 regular-dimension admission is intentionally
-  -- `min(TX_MAX_GAS_LIMIT, tx.gas)`: do not subtract intrinsic.state here.
-  -- The state dimension has its own independent admission check.
-  "  li a7, 16777216             # TX_MAX_GAS_LIMIT (2^24)\n" ++
-  "  bleu a5, a7, .Le7778_cap_done\n" ++
-  "  mv a5, a7                   # worst_regular = min(TX_MAX_GAS_LIMIT, tx.gas)\n" ++
-  ".Le7778_cap_done:\n" ++
-  "  sub a6, t0, t5              # gas_available\n" ++
-  "  bgtu a5, a6, .Le7778_tx_fail\n" ++
-  "  add a4, t2, t6\n" ++
-  "  ld a5, 0(a4)                # exact block_gas_used_in_tx\n" ++
-  "  add a6, t5, a5\n" ++
-  "  bltu a6, t5, .Le7778_overflow\n" ++
-  "  mv t5, a6\n" ++
-  "  addi t4, t4, 1\n" ++
-  "  j .Le7778_loop\n" ++
-  ".Le7778_tx_fail:\n" ++
-  "  li a0, 1\n" ++
-  "  addi a1, t4, 1\n" ++
-  "  mv a2, t5\n" ++
-  "  j .Le7778_ret\n" ++
-  ".Le7778_overflow:\n" ++
-  "  li a0, 2\n" ++
-  "  addi a1, t4, 1\n" ++
-  "  mv a2, t5\n" ++
-  "  j .Le7778_ret\n" ++
-  ".Le7778_ok:\n" ++
-  "  li a0, 0\n" ++
-  "  li a1, 0\n" ++
-  "  mv a2, t5\n" ++
-  ".Le7778_ret:\n" ++
-  "  ld s0, 0(sp)\n" ++
-  "  addi sp, sp, 16\n" ++
-  "  ret"
+def eip7778RemainingBlockGasCheck_prog : Program :=
+  [ .ADDI .x2 .x2 (-16 : BitVec 12),
+    .SD .x2 .x8 (0 : BitVec 12),
+    .MV .x8 .x14,
+    .MV .x5 .x10,
+    .MV .x6 .x11,
+    .MV .x7 .x12,
+    .MV .x28 .x13,
+    .LI .x29 (0 : Word),
+    .LI .x30 (0 : Word),
+    .BEQ .x29 .x28 (brOff (GuestAddrs.eip7778_remaining_block_gas_check + 136) (GuestAddrs.eip7778_remaining_block_gas_check + 36)),
+    .BLTU .x5 .x30 (brOff (GuestAddrs.eip7778_remaining_block_gas_check + 104) (GuestAddrs.eip7778_remaining_block_gas_check + 40)),
+    .SLLI .x31 .x29 (3 : BitVec 6),
+    .ADD .x14 .x6 .x31,
+    .LD .x15 .x14 (0 : BitVec 12),
+    .LUI .x17 (4096 : BitVec 20),
+    .BGEU .x17 .x15 (8 : BitVec 13),
+    .MV .x15 .x17,
+    .SUB .x16 .x5 .x30,
+    .BLTU .x16 .x15 (32 : BitVec 13),
+    .ADD .x14 .x7 .x31,
+    .LD .x15 .x14 (0 : BitVec 12),
+    .ADD .x16 .x30 .x15,
+    .BLTU .x16 .x30 (32 : BitVec 13),
+    .MV .x30 .x16,
+    .ADDI .x29 .x29 (1 : BitVec 12),
+    .JAL .x0 (jalOff (GuestAddrs.eip7778_remaining_block_gas_check + 36) (GuestAddrs.eip7778_remaining_block_gas_check + 100)),
+    .LI .x10 (1 : Word),
+    .ADDI .x11 .x29 (1 : BitVec 12),
+    .MV .x12 .x30,
+    .JAL .x0 (32 : BitVec 21),
+    .LI .x10 (2 : Word),
+    .ADDI .x11 .x29 (1 : BitVec 12),
+    .MV .x12 .x30,
+    .JAL .x0 (16 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .LI .x11 (0 : Word),
+    .MV .x12 .x30,
+    .LD .x8 .x2 (0 : BitVec 12),
+    .ADDI .x2 .x2 (16 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
 
+def eip7778RemainingBlockGasCheckFunction : String :=
+  "eip7778_remaining_block_gas_check:\n" ++ emitProgram eip7778RemainingBlockGasCheck_prog
+
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `eip7778RemainingBlockGasCheck_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
+theorem eip7778RemainingBlockGasCheckFunction_eq_prog :
+    eip7778RemainingBlockGasCheckFunction = "eip7778_remaining_block_gas_check:\n" ++ emitProgram eip7778RemainingBlockGasCheck_prog := rfl
+
+#guard eip7778RemainingBlockGasCheckFunction.startsWith "eip7778_remaining_block_gas_check:\n"
+#guard eip7778RemainingBlockGasCheck_prog.length = 40
 /-- `zisk_eip7778_remaining_block_gas_check`: focused zisk probe.
     Host input payload after the zisk length prefix:
       +0  block_gas_limit u64

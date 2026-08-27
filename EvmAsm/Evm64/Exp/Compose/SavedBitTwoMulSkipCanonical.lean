@@ -4,7 +4,11 @@
   Canonical-code views of the saved-bit two-MUL zero-bit skip path.
 -/
 
-import EvmAsm.Evm64.Exp.TwoMulCondShared
+module
+
+public import EvmAsm.Evm64.Exp.TwoMulCondShared
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

@@ -5,7 +5,11 @@
   via `sharedDivModCodeNoNop_v5_sub_modCode_noNop_v5` (raw shared-code body reused).
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCall
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopCall
+
+public section
 
 open EvmAsm.Rv64.Tactics
 

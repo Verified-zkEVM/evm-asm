@@ -9,7 +9,11 @@
   full call-skip path (FullPathN4V5NoNopFullCallSkip).  Bead `evm-asm-wbc4i.8`.
 -/
 
-import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallAddback
+module
+
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN4V5NoNopDenormCallAddback
+
+public section
 
 namespace EvmAsm.Evm64
 

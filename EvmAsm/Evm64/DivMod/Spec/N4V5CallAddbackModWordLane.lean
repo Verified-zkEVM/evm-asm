@@ -8,14 +8,18 @@
   `un*Out = mulsubN4 q_out b' u` (from `val256` injectivity + the committed val256
   cruxes + the mulsub conservation `mulsubN4_val256_eq`).
 -/
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
-import EvmAsm.Evm64.DivMod.LoopSemantic
-import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModRemainder
-import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
-import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
-import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
-import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
-import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+public import EvmAsm.Evm64.DivMod.LoopSemantic
+public import EvmAsm.Evm64.DivMod.Spec.N4V5CallAddbackModRemainder
+public import EvmAsm.Evm64.DivMod.Spec.N4C3EqUTopPlusOne
+public import EvmAsm.Evm64.DivMod.Spec.CallAddbackV5
+public import EvmAsm.Evm64.DivMod.Spec.CallSkipOverestimateBridge
+public import EvmAsm.Evm64.EvmWordArith.KnuthTheoremB
+public import EvmAsm.Evm64.EvmWordArith.CLZLemmas
+
+public section
 
 namespace EvmAsm.Evm64
 open EvmAsm.Rv64 EvmWord
@@ -63,12 +67,12 @@ theorem scaled_nat_amod (A B s : Nat) :
   rw [Nat.mul_comm A, Nat.mul_comm B, Nat.mul_comm (A % B), Nat.mul_mod_mul_left]
 
 /-- Accessor-form abbreviations for the n=4 addback normalized dividend/divisor. -/
-private noncomputable abbrev aD (a b : EvmWord) : Nat :=
+noncomputable abbrev aD (a b : EvmWord) : Nat :=
   val256 (n4CallAddbackBeqU0 a b) (n4CallAddbackBeqU1 a b)
     (n4CallAddbackBeqU2 a b) (n4CallAddbackBeqU3 a b)
     + (n4CallAddbackBeqU4 a b).toNat * 2 ^ 256
 
-private noncomputable abbrev aV (b : EvmWord) : Nat :=
+noncomputable abbrev aV (b : EvmWord) : Nat :=
   val256 (n4CallAddbackBeqB0Prime b) (n4CallAddbackBeqB1Prime b)
     (n4CallAddbackBeqB2Prime b) (n4CallAddbackBeqB3Prime b)
 

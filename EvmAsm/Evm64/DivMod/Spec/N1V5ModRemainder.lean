@@ -12,8 +12,12 @@
   `fullDivN1V5_remainder_eq_mod_of_shape` (N1V5Quotient).  Bead `evm-asm-wbc4i.9.1`.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
-import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.N1V5Quotient
+public import EvmAsm.Evm64.DivMod.Spec.N1CarryZeroReducers
+
+@[expose] public section
 
 namespace EvmAsm.Evm64
 

@@ -20,7 +20,11 @@
   bridge below.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+module
+
+public import EvmAsm.Evm64.EvmWordArith.DivN4Overestimate
+
+public section
 
 namespace EvmAsm.Evm64
 

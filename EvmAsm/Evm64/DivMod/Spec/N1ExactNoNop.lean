@@ -5,11 +5,15 @@
   to keep the dispatcher file under the size cap.
 -/
 
-import EvmAsm.Evm64.DivMod.Spec.CallablePost
-import EvmAsm.Evm64.DivMod.Spec.Dispatcher
-import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
-import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
-import EvmAsm.Evm64.DivMod.Compose.V4Code
+module
+
+public import EvmAsm.Evm64.DivMod.Spec.CallablePost
+public import EvmAsm.Evm64.DivMod.Spec.Dispatcher
+public import EvmAsm.Evm64.DivMod.Spec.UnifiedBzero
+public import EvmAsm.Evm64.DivMod.Compose.FullPathN1V4NoNop
+public import EvmAsm.Evm64.DivMod.Compose.V4Code
+
+public section
 
 namespace EvmAsm.Evm64
 

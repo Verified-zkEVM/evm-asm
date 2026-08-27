@@ -4,8 +4,12 @@
   Count-invariant wrappers around fixed iteration case-post peels.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCasePostBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedIterCount
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 

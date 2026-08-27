@@ -17,8 +17,12 @@
   pointer register `x19` holds `a3`.
 -/
 
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
-import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+module
+
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedExitBridge
+public import EvmAsm.Evm64.Exp.Compose.SavedBitFixedRelaxedBlock3Step
+
+public section
 
 namespace EvmAsm.Evm64.Exp.Compose
 
