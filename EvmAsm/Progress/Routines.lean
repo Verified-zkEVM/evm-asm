@@ -3546,7 +3546,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "(signedCountdownLoop_reload_spec) because body CSRS clobbers lim x29; "
         ++ "BLT-hdr lemma unapplied (JAL target LI 0x8000368c ≠ BLT 0x80003690). "
         ++ "Post: a0=0, output=keccakBodyDigest; pure SpecRef.keccak256 via "
-        ++ "keccakBodyDigest_eq_specref (#12037). Resource/ABI only → .proven"),
+        ++ "keccakBodyDigest_eq_specref (#12037). Output buffer contents on "
+        ++ "entry are ARBITRARY (`out0`, any 32 bytes — #12896): every byte "
+        ++ "is overwritten, so repeated calls are covered. "
+        ++ "Resource/ABI only → .proven"),
   -- #12018: whole-routine SHA-256 leaf at GuestAddrs.zkvm_sha256.
   -- `sha256Cr = CodeReq.ofProg B sha256ProgL` (single-program pairing at the
   -- guest address — tier A). N/rem is the length partition
@@ -3645,10 +3648,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "address-derivation formula against the reference, NOT the guest "
         ++ "sponge. ⚠️ GRADES THE FORMULA ONLY -- whether a0 holds the right "
         ++ "public key is the secp256k1 recover rung, a separate obligation. "
-        ++ "⚠️ DOMAIN: the keccak contract fixes its output buffer to 32 zero "
-        ++ "bytes and this routine never zeroes `afp_digest`; the data section "
-        ++ "declares `afp_digest: .zero 32`, so the FIRST call satisfies it and "
-        ++ "a second would not"),
+        ++ "The `afp_digest` scratch on entry is ARBITRARY (`digest0`, any 32 "
+        ++ "bytes — the #12896 fix): the keccak callee overwrites all of it, "
+        ++ "so calls 2..N are covered, not only the first after image load"),
   -- #12313. The first startable whole-routine result for the witness-header
   -- block-hash path. The empty section is an input-domain gate: it takes the
   -- early miss branch, so the nonempty scan and both already-proven callees

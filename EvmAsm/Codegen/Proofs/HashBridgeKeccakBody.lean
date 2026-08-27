@@ -988,9 +988,10 @@ theorem keccakRemToPad_body (inputBase outputBase : Word)
 /-- Pad entry → body exit via padCsrsDigest (fuel 18). Requires zeroed out.
     Exit free A is `keccakPadFreeA` (residual+pref split; recombine at top if needed). -/
 theorem keccakPadEntry_to_exit (inputBase outputBase : Word)
-    (input : List (BitVec 8)) (N rem : Nat)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (A : Assertion) (hA : A.pcFree)
     (hst : (keccakBodyPrePad input N rem).length = 200)
+    (hout0 : out0.length = 32)
     (hrem : rem ≤ 135)
     (halign : Zk3.toNat % 8 = 0)
     (h_over : Zk3.toNat + 200 ≤ 2 ^ 64)
@@ -1001,15 +1002,15 @@ theorem keccakPadEntry_to_exit (inputBase outputBase : Word)
     cpsTripleWithin 18 (B + 180) (B + 252) keccakCr
       (keccakPadEntry Zk3 (keccakAbsorbCursor inputBase N) rem
         (keccakBodyPrePad input N rem) (keccakResidual input N)
-        (keccakRemAmb outputBase (List.replicate 32 (0 : BitVec 8)) inputBase
+        (keccakRemAmb outputBase out0 inputBase
           (input.take (keccakAbsorbStep * N)) A))
       (keccakBodyExitPost outputBase input N rem
         (keccakPadFreeA inputBase input N A)) := by
   have hraw := keccakPadCsrsDigestLi0_spec keccakCr (B + 180)
-    Zk3 outputBase (keccakBodyPrePad input N rem) rem
+    Zk3 outputBase (keccakBodyPrePad input N rem) out0 rem
     (keccakPadFreeA inputBase input N A)
     (keccakPadFreeA_pcFree _ _ _ _ hA)
-    hst hrem halign h_over hvalidRem hvalid135 hvalidMem
+    hst hout0 hrem halign h_over hvalidRem hvalid135 hvalidMem
     (mem_at 45 (.LBU .x5 .x28 0) (B + 180)
       (by decide) (by rw [keccakProgL_len]; norm_num) (by rfl))
     (mem_at 46 (.XORI .x5 .x5 1) (B + 184)
@@ -1050,7 +1051,7 @@ theorem keccakPadEntry_to_exit (inputBase outputBase : Word)
   refine cpsTripleWithin_weaken
     (fun h hp =>
       keccakPadEntry_to_padPre h inputBase outputBase input N rem
-        (List.replicate 32 (0 : BitVec 8)) (keccakBodyPrePad input N rem) A hp)
+        out0 (keccakBodyPrePad input N rem) A hp)
     (fun h hq => by
       simpa [keccakBodyExitPost, keccakBodyDigest] using hq)
     hraw
@@ -1066,11 +1067,12 @@ private theorem bodyPrePad_len (input : List (BitVec 8)) (N rem : Nat) :
 /-- Full body: setup → outer → rem → pad/CSRS/digest/LI0.
     Domain: `input.length = 136*N + rem`, `rem ≤ 135`, zeroed 32-byte out. -/
 theorem keccakBody_spec (inputBase outputBase : Word)
-    (input : List (BitVec 8)) (N rem : Nat)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v20 v9 v18 v8 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
     (hlen : input.length = keccakAbsorbStep * N + rem)
     (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
     (hos : os.length = 200)
     (halign : Zk3.toNat % 8 = 0)
     (hover : Zk3.toNat + 200 < 2 ^ 64)
@@ -1091,11 +1093,9 @@ theorem keccakBody_spec (inputBase outputBase : Word)
       isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
     cpsTripleWithin (keccakBodyFuel N rem) (B + 20) (B + 252) keccakCr
       (keccakBodyEntryPre inputBase (BitVec.ofNat 64 (keccakAbsorbStep * N + rem))
-        outputBase v20 v9 v18 v8 v28 v29 os input
-        (List.replicate 32 (0 : BitVec 8)) A)
+        outputBase v20 v9 v18 v8 v28 v29 os input out0 A)
       (keccakBodyExitPost outputBase input N rem
         (keccakPadFreeA inputBase input N A)) := by
-  set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8)
   set lenW : Word := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
   have hrem_lt : rem < keccakAbsorbStep := by
     simp only [keccakAbsorbStep]; omega
@@ -1162,8 +1162,8 @@ theorem keccakBody_spec (inputBase outputBase : Word)
   have c012 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     cSetupOuter cOuterRem
   -- 6. pad→exit
-  have cPad := keccakPadEntry_to_exit inputBase outputBase input N rem A hA
-    hstPad hrem_le halign hover_le hvalidRem hvalid135 hvalidMem
+  have cPad := keccakPadEntry_to_exit inputBase outputBase input N rem out0 A
+    hA hstPad hout0 hrem_le halign hover_le hvalidRem hvalid135 hvalidMem
   -- 7. full chain
   have cAll := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     c012 cPad
