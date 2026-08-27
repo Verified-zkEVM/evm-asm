@@ -210,6 +210,20 @@ private theorem sep_br_cast {le le' Z} (heq : le = le') :
       ((bytesRegion Expected le ** Z) q) → ((bytesRegion Expected le' ** Z) q) :=
   fun _ hp => heq ▸ hp
 
+/-- Pushes a hold-transformer one level under an unchanged prefix factor,
+    enabling position-addressed lifts along a right-nested chain. -/
+private theorem under_id {P P' B : Assertion} (hT : ∀ q, P q → P' q) :
+    ∀ q, ((B ** P) q) → ((B ** P') q) :=
+  fun q hp => sep_pair_congr (fun _ h => h) hT q hp
+
+/-- The piggyback assertion carried through the source theorem's ambient
+`F` slot (top-level def, NOT a body-local let: certificate tactics such as
+`xperm_cert_eq` fail on let-zeta free variables). -/
+private def k73_piggyback (spH old8 headerPtr : Word)
+    (headerBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+    bytesRegion headerPtr headerBytes ** F
+
 /-- Equal-route shape adapter (#12346 residual 2b): the wrapper vocabulary
     instantiation of the premise-free equal-route triple
     `k73_equal_route_spec_within` yields EXACTLY the revised wrapper
@@ -219,20 +233,20 @@ private theorem sep_br_cast {le le' Z} (heq : le = le') :
     discharge-able, not merely well-typed.
 
     Proof notes: the source theorem's assertion parameter is set to the
-    piggyback `G` carrying the two atoms its pre/post omit but ours include
+    piggyback carrying the two atoms its pre/post omit but ours include
     (`frameSlotsSaved hvbfFrame …`, `bytesRegion headerPtr headerBytes`) —
     after that the PRE sides are the same atom multiset, so the premise-side
     conversion is an ASSERTION EQUALITY (`dsimp` + `xperm`), not an
     entailment; the return side lifts five status/data pins to ownerships
     and casts the window image. -/
-theorem k73_equal_route_adapter {cr k73Code : CodeReq}
+theorem k73_equal_route_adapter {cr : CodeReq}
     (spH spK old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
     (parentBytes expectedBytes headerBytes : List (BitVec 8)) (F : Assertion)
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (heqWord : gasUsed = gasLimit >>> 1)
     (hsrc : parentBytes.length = 32) (hout : expectedBytes.length = 32)
-    (hret : ((H + 40 : Word) &&& ~~~1) = H + 40)
+    (_hret : ((H + 40 : Word) &&& ~~~1) = H + 40)
     (hF : F.pcFree)
     (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i) :
     cpsTripleWithin 29 K73 (H + 40) cr
@@ -242,12 +256,13 @@ theorem k73_equal_route_adapter {cr k73Code : CodeReq}
       ((.x1 ↦ᵣ (H + 40)) **
         k73RouteBCallPost spH spK (H + 40) old8 headerPtr v9 old18 (gasLimit >>> 1)
           v19 v20 gasUsed gasLimit parentPtr parentBytes headerBytes F) := by
-  let G : Assertion := frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
-    bytesRegion headerPtr headerBytes ** F
-  have hGF : G.pcFree := by pcf; exact hF
+  have hGF : (k73_piggyback spH old8 headerPtr headerBytes F).pcFree := by
+    pcf; exact hF
   have hsrc0 := k73_equal_route_spec_within (sp0 := spH) (spH := spK) (H + 40)
     gasLimit gasUsed parentPtr Expected (gasLimit >>> 1) headerPtr
-    v9 old18 v19 v20 parentBytes expectedBytes G hspK rfl heqWord hsrc hout rfl hGF
+    v9 old18 v19 v20 parentBytes expectedBytes
+    (k73_piggyback spH old8 headerPtr headerBytes F)
+    hspK rfl heqWord hsrc hout rfl hGF
   have hcr := cpsTripleWithin_extend_code hk73Mono hsrc0
   refine cpsTripleWithin_weaken (fun s hp => ?_) (fun s hq => ?_) hcr
   · have hpreEq :
@@ -255,9 +270,9 @@ theorem k73_equal_route_adapter {cr k73Code : CodeReq}
             gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
             (H + 40) old8 F) =
           k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
-            headerPtr v9 old18 v19 v20 parentBytes expectedBytes G := by
-      dsimp only [k73HeadPre, k73PreRest]
-      dsimp only [G]
+            headerPtr v9 old18 v19 v20 parentBytes expectedBytes
+            (k73_piggyback spH old8 headerPtr headerBytes F) := by
+      dsimp only [k73HeadPre, k73PreRest, k73_piggyback]
       xperm
     rw [hpreEq] at hp
     exact hp
@@ -279,7 +294,8 @@ theorem k73_equal_route_adapter {cr k73Code : CodeReq}
         regOwn .x31 ** frameSlotsSaved k73Frame spK
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         bytesRegion parentPtr parentBytes **
-        bytesRegion Expected (k73CopyOut parentBytes expectedBytes) ** G)] at hq
+        bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+        k73_piggyback spH old8 headerPtr headerBytes F)] at hq
     obtain ⟨sa, sb, had, hud, hx1g, hbig⟩ := hq
     refine ⟨sa, sb, had, hud, hx1g, ?_⟩
     dsimp only [k73RouteBCallPost]
@@ -297,17 +313,124 @@ theorem k73_equal_route_adapter {cr k73Code : CodeReq}
             regOwn .x31 ** frameSlotsSaved k73Frame spK
               (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
             bytesRegion parentPtr parentBytes **
-            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) ** G) u →
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            k73_piggyback spH old8 headerPtr headerBytes F) u →
           (k73PostOwn spH spK headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed
             parentPtr parentBytes (hvbfWrittenImage gasLimit gasUsed parentBytes)
             headerBytes (H + 40) old8 F) u) :=
       by
         intro u hu
-        -- Route-B pin-lift ladder PENDING (next session): rotate each pin to
-        -- head via AC-equality casts (`xperm_cert_eq` from Tactics.XPermCert,
-        -- needs import), lift with `sep_pin_lift`, cast window with
-        -- `sep_br_cast … hwin`, close via dsimp+xperm against unfolded goal.
-        sorry
+        -- Expand the piggyback into its atoms so the closing certificate can
+        -- treat fsHvbf / brHeader / F as individual chain factors.
+        dsimp only [k73_piggyback] at hu
+        -- Positional transformer vocabulary: identity-congruence pushes a
+        -- hold-transformer one level down the right-nested spine.
+        -- Lifts, position-addressed (spine indices 7, 8, 9, 10, 12): each
+        -- `under_id^k sep_pin_lift` turns the k-th factor's pin into an own.
+        have hcur1 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** (.x11 ↦ᵣ gasUsed) ** (.x12 ↦ᵣ parentPtr) **
+            (.x13 ↦ᵣ Expected) ** (.x0 ↦ᵣ 0) **
+            (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          under_id (under_id (under_id (under_id (under_id (under_id sep_pin_lift))))) u hu
+        have hcur2 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** regOwn .x11 ** (.x12 ↦ᵣ parentPtr) **
+            (.x13 ↦ᵣ Expected) ** (.x0 ↦ᵣ 0) **
+            (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          under_id (under_id (under_id (under_id (under_id (under_id (under_id sep_pin_lift)))))) u hcur1
+        have hcur3 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+            (.x13 ↦ᵣ Expected) ** (.x0 ↦ᵣ 0) **
+            (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id sep_pin_lift))))))) u hcur2
+        have hcur4 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+            (.x0 ↦ᵣ 0) **
+            (.x5 ↦ᵣ packBytes ((parentBytes.drop 24).take 8)) **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id sep_pin_lift)))))))) u hcur3
+        have hcur5 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+            (.x0 ↦ᵣ 0) ** regOwn .x5 **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (k73CopyOut parentBytes expectedBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id sep_pin_lift))))))))))) u hcur4
+        -- Window cast at its spine slot (bytesRegion Expected …).
+        have hcur6 : ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+            (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+            regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+            (.x0 ↦ᵣ 0) ** regOwn .x5 **
+            regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+            regOwn .x31 ** frameSlotsSaved k73Frame spK
+              (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+            bytesRegion parentPtr parentBytes **
+            bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes) **
+            frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+            bytesRegion headerPtr headerBytes ** F) u :=
+          (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (under_id (sep_br_cast hwin))))))))))))))))))))) u hcur5
+        -- Reorder into the unfolded-goal spelling (pure permutation).
+        dsimp only [k73PostOwn, tailRest, tailRestCore]
+        exact (by
+          xperm_cert_eq :
+            ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
+              (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+              regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x13 **
+              (.x0 ↦ᵣ 0) ** regOwn .x5 **
+              regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+              regOwn .x31 ** frameSlotsSaved k73Frame spK
+                (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+              bytesRegion parentPtr parentBytes **
+              bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes) **
+              frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+              bytesRegion headerPtr headerBytes ** F)
+            =
+            ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) ** regOwn .x10 ** regOwn .x11 **
+              (.x0 ↦ᵣ (0 : Word)) **
+              frameSlotsSaved hvbfFrame spH (hvbfSaved (H + 40) old8) **
+              (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+              regOwn .x12 ** regOwn .x13 ** regOwn .x5 **
+              regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+              regOwn .x31 ** frameSlotsSaved k73Frame spK
+                (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
+              bytesRegion headerPtr headerBytes ** bytesRegion parentPtr parentBytes **
+              bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes) ** F)) ▸
+          hcur6
     exact hpt sb hbig
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
