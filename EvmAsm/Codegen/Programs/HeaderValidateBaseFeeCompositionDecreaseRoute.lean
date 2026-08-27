@@ -1217,4 +1217,90 @@ theorem k73_decrease_entry_status_native_discharged
       dsimp only [k73MulPreNoRa]
       sep_perm hp) hentry htwin
 
+/-! `regsOwnAt k73Frame` written as the flat ownership chain (the fold's
+    trailing unit is not a definitional equality, so callers bridge through
+    this lemma instead of `rfl`). -/
+private theorem k73_regsOwnAt_k73Frame_flat :
+    regsOwnAt k73Frame =
+      (regOwn .x1 ** regOwn .x8 ** regOwn .x9 **
+        regOwn .x18 ** regOwn .x19 ** regOwn .x20) := by
+  simp [k73Frame, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right']
+
+/-- Outer overflow failure returning to the caller: the multiply stage exit
+    at K73 + 272 (multiply carry junk carried in `P`) runs the shared
+    `li x10, 1` plus epilogue tail.  The source is the shape produced by the
+    native discharge composition - pin on the live link register, frame-slot
+    dwords for the callee-saved window, and ownerships of exactly the
+    registers the epilogue overwrites, which the ambient choice supplies.
+    Values reloaded from the frame land per `k73Saved`, and the junk `P`
+    rides through untouched. -/
+theorem k73_decrease_mulfail_outer_return_spec_within
+    (sp0 spH raIn v8 v9 v18 v19 v20 : Word) (P : Assertion)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hP : P.pcFree) :
+    cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P)
+      ((.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) ** P) := by
+  have hsavedU : (k73Saved raIn v8 v9 v18 v19 v20) .x1 = raIn := rfl
+  have hPi : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** P).pcFree := by
+    pcf
+    exact hP
+  have ht := k73_failure_tail_spec_within sp0 spH raIn
+    (k73Saved raIn v8 v9 v18 v19 v20) ((.x0 ↦ᵣ (0 : Word)) ** P)
+    hsp hret hsavedU hPi
+  -- Flat spelling of the shared failure-tail premise.
+  have htFlat :
+      cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+        ((.x2 ↦ᵣ spH) ** (regOwn .x1 ** regOwn .x8 ** regOwn .x9 **
+            regOwn .x18 ** regOwn .x19 ** regOwn .x20) **
+          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+          regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)
+        ((.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
+          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+          (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) ** P) :=
+    cpsTripleWithin_weaken
+      (fun _ hp => by
+        rw [k73_regsOwnAt_k73Frame_flat]
+        xperm_hyp hp)
+      (fun _ hq => hq) ht
+  refine cpsTripleWithin_weaken (fun s hp => ?_) (fun _ hq => hq) htFlat
+  -- Regroup with the link-register pin at the head ...
+  have egrpa :
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+          (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+          regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P)) =
+      (((.x1 ↦ᵣ (K73 + 88)) ** ((.x2 ↦ᵣ spH) **
+          frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+          regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+          regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P))) := by
+    xperm_cert_eq
+  have hx1 : ((.x1 ↦ᵣ (K73 + 88)) ** ((.x2 ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+      regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)) s := egrpa ▸ hp
+  -- ... lift the pin to an ownership (the value is dead: the epilogue
+  -- reloads `x1` from the saved slot, and `hsavedU` pins that to `raIn`) ...
+  have hl : (regOwn .x1 ** ((.x2 ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+      regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)) s :=
+    decr_sep_pin_lift _ hx1
+  -- ... and finish by pure permutation against the flat tail premise.
+  exact (by xperm_cert_eq :
+    ((regOwn .x1 ** ((.x2 ↦ᵣ spH) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
+      regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P))) =
+    (((.x2 ↦ᵣ spH) ** (regOwn .x1 ** regOwn .x8 ** regOwn .x9 **
+        regOwn .x18 ** regOwn .x19 ** regOwn .x20) **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P))) ▸ hl
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
