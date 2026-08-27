@@ -166,6 +166,35 @@ theorem top_frameSaved_with_rest_to_own
   exact sepConj_mono_left
     (top_frameSlotsSaved_to_own frame newSp vals) h hp
 
+theorem top_keccak_slot_h0 (sp : Word) :
+    sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
+        signExtend12 (0 : BitVec 12) = sp - BitVec.ofNat 64 48 := by
+  simp [signExtend12]
+  grind
+
+theorem top_keccak_ret_slot (sp : Word) :
+    sp + signExtend12 (-16 : BitVec 12) = sp - BitVec.ofNat 64 16 := by
+  simp [signExtend12]
+  grind
+
+theorem top_keccak_slot_h8 (sp : Word) :
+    sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
+        signExtend12 (8 : BitVec 12) = sp - BitVec.ofNat 64 40 := by
+  simp [signExtend12]
+  grind
+
+theorem top_keccak_slot_h16 (sp : Word) :
+    sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
+        signExtend12 (16 : BitVec 12) = sp - BitVec.ofNat 64 32 := by
+  simp [signExtend12]
+  grind
+
+theorem top_keccak_slot_h24 (sp : Word) :
+    sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
+        signExtend12 (24 : BitVec 12) = sp - BitVec.ofNat 64 24 := by
+  simp [signExtend12]
+  grind
+
 theorem top_keccak_slots_to_stackFree
     (sp : Word) (retPC : Word) (vals : Reg → Word) :
     ∀ h,
@@ -183,26 +212,10 @@ theorem top_keccak_slots_to_stackFree
         (memOwn (sp - BitVec.ofNat 64 8) **
           memOwn (sp - BitVec.ofNat 64 56) ** memOwn (sp - BitVec.ofNat 64 64))) h := by
     xperm_hyp hp
-  have h0 :
-      sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
-          signExtend12 (0 : BitVec 12) = sp - 48 := by
-    norm_num
-    bv_omega
-  have h8 :
-      sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
-          signExtend12 (8 : BitVec 12) = sp - 40 := by
-    norm_num
-    bv_omega
-  have h16 :
-      sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
-          signExtend12 (16 : BitVec 12) = sp - 32 := by
-    norm_num
-    bv_omega
-  have h24 :
-      sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12) +
-          signExtend12 (24 : BitVec 12) = sp - 24 := by
-    norm_num
-    bv_omega
+  have h0 := top_keccak_slot_h0 sp
+  have h8 := top_keccak_slot_h8 sp
+  have h16 := top_keccak_slot_h16 sp
+  have h24 := top_keccak_slot_h24 sp
   have hp2 :
       (memOwn (sp - BitVec.ofNat 64 16) **
         memOwn (sp - BitVec.ofNat 64 48) ** memOwn (sp - BitVec.ofNat 64 40) **
@@ -215,7 +228,14 @@ theorem top_keccak_slots_to_stackFree
             (sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12)) vals **
           memOwn (sp - BitVec.ofNat 64 8) ** memOwn (sp - BitVec.ofNat 64 56) **
           memOwn (sp - BitVec.ofNat 64 64)) h := by
-      exact sepConj_mono memIs_implies_memOwn (fun _ x => x) h hp1
+      have hp1' :
+          (memOwn (sp + signExtend12 (-16 : BitVec 12)) **
+            frameSlotsSaved keccakFrame
+              (sp + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12)) vals **
+            memOwn (sp - BitVec.ofNat 64 8) ** memOwn (sp - BitVec.ofNat 64 56) **
+            memOwn (sp - BitVec.ofNat 64 64)) h := by
+        exact sepConj_mono memIs_implies_memOwn (fun _ x => x) h hp1
+      simpa only [top_keccak_ret_slot] using hp1'
     simp only [frameSlotsSaved, keccakFrame, List.foldr, sepConj_emp_right'] at hp1a
     rw [h0, h8, h16, h24] at hp1a
     have hp1r :
@@ -226,18 +246,20 @@ theorem top_keccak_slots_to_stackFree
           memOwn (sp - BitVec.ofNat 64 16) ** memOwn (sp - BitVec.ofNat 64 8) **
           memOwn (sp - BitVec.ofNat 64 56) ** memOwn (sp - BitVec.ofNat 64 64)) h := by
       xperm_chunked hp1a
-    exact top_mem4_with_owned_tail_to_memOwn
+    have hp2' := top_mem4_with_owned_tail_to_memOwn
       (sp - BitVec.ofNat 64 48) (sp - BitVec.ofNat 64 40)
       (sp - BitVec.ofNat 64 32) (sp - BitVec.ofNat 64 24)
       (sp - BitVec.ofNat 64 16) (sp - BitVec.ofNat 64 8)
       (sp - BitVec.ofNat 64 56) (sp - BitVec.ofNat 64 64)
       (vals .x8) (vals .x9) (vals .x18) (vals .x20) h hp1r
+    xperm_chunked hp2'
   simp only [stackFree_succ, stackFree_zero]
   show (memOwn (sp - BitVec.ofNat 64 64) ** memOwn (sp - BitVec.ofNat 64 56) **
     memOwn (sp - BitVec.ofNat 64 48) ** memOwn (sp - BitVec.ofNat 64 40) **
     memOwn (sp - BitVec.ofNat 64 32) ** memOwn (sp - BitVec.ofNat 64 24) **
     memOwn (sp - BitVec.ofNat 64 16) ** memOwn (sp - BitVec.ofNat 64 8) **
     empAssertion) h
+  simp only [sepConj_emp_right']
   xperm_chunked hp2
 
 local macro "pcf" : tactic =>
@@ -260,6 +282,17 @@ def vphlTopKFrame
     (parentBase : Word) (parentBytes claimedOld : List (BitVec 8))
     (os : List (BitVec 8)) : Assertion :=
     regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+    (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+    ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+    bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **
+    bytesRegion vphlClaimedAddr claimedOld **
+    bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **
+    bytesRegion vphlZk3 os
+
+def vphlTopKFrameCore
+    (spC retHdr outPtr : Word) (cs0 cs1 cs2 cs3 cs4 : Word)
+    (parentBase : Word) (parentBytes claimedOld : List (BitVec 8))
+    (os : List (BitVec 8)) : Assertion :=
     (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
     ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
     bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **
@@ -293,7 +326,7 @@ def vphlTopArmPre
     bytesRegion childBase childBytes ** (vphlOffsetAddr ↦ₘ offset) **
     (vphlLengthAddr ↦ₘ len) ** kFrame ** F)
 
-@[irreducible] private def vphlTopHashPost
+@[irreducible] def vphlTopHashPost
     (spC retPC retHdr parentLenW childLenW outPtr v21 : Word)
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word)
     (parentBytes childBytes claimedB computedB zk3B : List (BitVec 8))
@@ -320,7 +353,7 @@ def vphlTopArmPre
     (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedB **
     bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 zk3B)
 
-@[irreducible] private def vphlTopHashRest
+@[irreducible] def vphlTopHashRest
     (spC retPC retHdr parentLenW childLenW outPtr v21 : Word)
     (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase childBase : Word)
     (parentBytes childBytes claimedB computedB zk3B : List (BitVec 8))

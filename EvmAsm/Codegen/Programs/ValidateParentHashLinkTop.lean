@@ -29,12 +29,8 @@ theorem validate_parent_hash_link_spec_within    (sp0 spC retHdr parentBase pare
     vphlTopKFrame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21 parentBase parentBytes
       claimedOld os
   let kFrameCore : Assertion :=
-    (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
-      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
-      bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **
-      bytesRegion vphlClaimedAddr claimedOld **
-      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **
-      bytesRegion vphlZk3 os
+    vphlTopKFrameCore spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes
+      claimedOld os
   have hcover_le : childBase.toNat + childBytes.length ≤ 2 ^ 64 := Nat.le_of_lt hcover
   have hk := vphl_k20_call_spec_within spC retHdr parentBase parentLenW
     childBase childLenW outPtr v21 oldOffset oldLen parentBytes childBytes claimedOld os
@@ -43,7 +39,7 @@ theorem validate_parent_hash_link_spec_within    (sp0 spC retHdr parentBase pare
   have hcont := vphl_continuation_spec
     sp0 spC retHdr parentBase parentLenW childBase childLenW outPtr
     cs0 cs1 cs2 cs3 cs4 v21 oldOffset oldLen parentBytes childBytes claimedOld
-    childLen N rem os kFrame kFrameCore F hret hspC hplenW hcalign hcslack hcover hcvalid hpalign hpover hpvalid hkeccakLen hrem_le hNbound hb8i hos
+    childLen N rem os kFrame kFrameCore F rfl rfl hret hspC hplenW hcalign hcslack hcover hcvalid hpalign hpover hpvalid hkeccakLen hrem_le hNbound hb8i hos
     hclaimedLen hF
   have hcall := vphl_callReturn_pre (F := kFrame ** F)
     (Q := vphlRetPost sp0 spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21
