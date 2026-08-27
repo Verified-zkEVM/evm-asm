@@ -256,6 +256,8 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
