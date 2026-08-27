@@ -1303,4 +1303,194 @@ theorem k73_decrease_mulfail_outer_return_spec_within
       frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
       regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P))) ▸ hl
 
+/-- An existential projection never owns the program counter when no
+    instance does: eliminate the binder on the holding state and reuse the
+    witness-level fact.  Stated over the bare `∀` form because generalized
+    field notation on a lambda head resolves `pcFree` against `Function`,
+    not `Assertion`. -/
+private theorem k73_pcFree_exists {A : Nat → Assertion}
+    (hW : ∀ k, (A k).pcFree) :
+    ∀ h, ((fun s => ∃ k, (A k) s : Assertion) h) → h.pc = none := by
+  intro h hs
+  obtain ⟨k, hk⟩ := hs
+  exact hW k h hk
+
+/-- Computed multiply accumulator image on the decrease arm (40 bytes). -/
+private def k73_decr_img1 (baseBytes : List (BitVec 8)) (delta : Word) :
+    List (BitVec 8) :=
+  EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32
+
+/-- Computed multiply output image on the decrease arm: the low 32 bytes of
+    the accumulator copied over the initial window; independent of that
+    window's content. -/
+private def k73_decr_img2 (baseBytes : List (BitVec 8)) (delta : Word)
+    (outWin : List (BitVec 8)) : List (BitVec 8) :=
+  EvmAsm.Codegen.U256MulU64Be.copyState (k73_decr_img1 baseBytes delta)
+    outWin 32
+
+/-- The whole-route ambient envelope for this arm: the wrapper-world
+    register facts that the carry rest does not already speak about,
+    kept as one opaque token so permutation certificates match. -/
+private def k73_decr_ghole (spH : Word) (G : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+    regOwn .x19 ** regOwn .x20 ** G
+
+/-- Leftover machine-visible state after any multiply stage outcome: the
+    overflow-window existential over the epilogue register facts. -/
+private def k73_decr_mulfail_win (spH deltaV target basePtr outPtr : Word)
+    (baseBytes outWin : List (BitVec 8)) : Assertion :=
+  fun s => ∃ k, (k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
+      (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
+    bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
+    k73MulOverflowCoreNoStatus (k73_decr_img1 baseBytes deltaV) k) s
+
+/-- The ambient junk carried through the outer failure leg: tail extras,
+    overflow window, caller ambience. -/
+private def k73_decr_mulfail_junk (spH deltaV target basePtr outPtr : Word)
+    (baseBytes outWin : List (BitVec 8)) (Grest : Assertion) : Assertion :=
+  EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
+    k73_decr_mulfail_win spH deltaV target basePtr outPtr baseBytes outWin **
+    Grest
+
+/-- The outer multiply-overflow failure leg, from whole-route entry to the
+    shared-epilogue return: charges the native-discharge corollary onto
+    `k73_decrease_mulfail_outer_return_spec_within`, leaving every leftover
+    atom of the carry rest inside the junk abbreviation. -/
+theorem k73_decr_mulfail_entry_to_return_spec_within
+    (sp0 spH raIn gasLimit gasUsed target basePtr outPtr : Word)
+    (v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes accWin outWin : List (BitVec 8)) (Grest : Assertion)
+    (hsp : spH = sp0 + signExtend12 (-56 : BitVec 12))
+    (htarget : target = gasLimit >>> 1)
+    (hne : gasUsed ≠ target)
+    (hnotlt : ¬ target.toNat < gasUsed.toNat)
+    (hnonzero : gasUsed ≠ 0)
+    (hG : Grest.pcFree)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hlenA : baseBytes.length = 32)
+    (hlenAcc : accWin.length = 40)
+    (houtW : outWin.length = 32)
+    (halignA : basePtr.toNat % 8 = 0)
+    (hoverA : basePtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (basePtr + BitVec.ofNat 64 j) = true)
+    (halignOut : outPtr.toNat % 8 = 0)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true) :
+    cpsBranchWithin (19 + 3852 + 9) K73 wholeCode
+      (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
+        v8 v9 v18 v19 v20 baseBytes outWin
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
+          k73_decr_ghole spH Grest))
+      raIn
+      ((.x2 ↦ᵣ sp0) ** regsAt k73Frame (k73Saved raIn v8 v9 v18 v19 v20) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
+        k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
+          baseBytes outWin Grest)
+      (K73 + 92)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_ghole spH Grest) **
+        regOwn .x10) := by
+  have hGH :
+      ((k73_decr_ghole spH Grest)).pcFree := by
+    pcf
+    exact hG
+  have hciii := k73_decrease_entry_status_native_discharged
+    sp0 spH raIn gasLimit gasUsed target basePtr outPtr
+    v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5 baseBytes accWin outWin
+    (k73_decr_ghole spH Grest)
+    hsp htarget hne hnotlt hnonzero hGH hlenA hlenAcc houtW
+    halignA hoverA hvalidA halignOut hoverOut hvalidOut
+  -- Re-typed at the statement's image-token spelling so the final combinator
+  -- unifies against the goal syntactically.
+  have hciiiT : cpsBranchWithin (19 + 3852) K73 wholeCode
+      (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
+        v8 v9 v18 v19 v20 baseBytes outWin
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+          bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
+          k73_decr_ghole spH Grest))
+      (K73 + 272)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_ghole spH Grest) ** regOwn .x10)
+      (K73 + 92)
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_ghole spH Grest) ** regOwn .x10) := hciii
+  -- pcFree of the junk parameter: standard atoms plus one existential window.
+  have hTEpc :
+      (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr (target - gasUsed)
+        outPtr baseBytes).pcFree := by
+    dsimp only [EvmAsm.Codegen.U256MulU64Be.mulTailExtra]
+    pcf
+  have hWinpc :
+      (k73_decr_mulfail_win spH (target - gasUsed) target basePtr outPtr
+        baseBytes outWin).pcFree :=
+    k73_pcFree_exists (A := fun k =>
+        ((k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
+            (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word)) **
+          bytesRegion outPtr
+            (k73_decr_img2 baseBytes (target - gasUsed) outWin) **
+          k73MulOverflowCoreNoStatus
+            (k73_decr_img1 baseBytes (target - gasUsed)) k))
+      (fun k => by pcf)
+  have hPjunk :
+      (k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
+        baseBytes outWin Grest).pcFree :=
+    pcFree_sepConj hTEpc (pcFree_sepConj hWinpc hG)
+  -- The twin, run at the junk parameter.
+  have hspF : spH + signExtend12 (56 : BitVec 12) = sp0 := by
+    have hx : signExtend12 (56 : BitVec 12) = (56 : Word) := by decide
+    rw [hsp, hx]
+    have hy : signExtend12 (-56 : BitVec 12) =
+        (18446744073709551560 : Word) := by decide
+    rw [hy]
+    bv_omega
+  have htwin := k73_decrease_mulfail_outer_return_spec_within
+    sp0 spH raIn v8 v9 v18 v19 v20
+    (k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
+      baseBytes outWin Grest) hspF hret hPjunk
+  -- Premise alignment: pure permutation after unfolding the carry rest.
+  have eqT :
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
+          (k73_decr_img1 baseBytes (target - gasUsed))
+          (k73_decr_img2 baseBytes (target - gasUsed) outWin)
+          (k73_decr_ghole spH Grest) ** regOwn .x10) =
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+        (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+        regOwn .x19 ** regOwn .x20 ** regOwn .x10 **
+        (U256MulU64Be.mulTailExtra basePtr (target - gasUsed) outPtr baseBytes **
+          (fun s => ∃ k,
+            (k73MulEpilogueNoRa (spH + signExtend12 (-48)) (K73 + 88) basePtr
+                outPtr target (target - gasUsed) (0 : Word) **
+              bytesRegion outPtr
+                (k73_decr_img2 baseBytes (target - gasUsed) outWin) **
+              k73MulOverflowCoreNoStatus
+                (k73_decr_img1 baseBytes (target - gasUsed)) k) s) **
+          Grest)) := by
+    dsimp only [k73DecreaseMulCarryRest, k73_decr_ghole, k73_decr_img1,
+      k73_decr_img2]
+    xperm_cert_eq
+  have htw' := cpsTripleWithin_weaken (fun _ hp => eqT ▸ hp)
+    (fun _ hq => hq) htwin
+  exact cpsBranchWithin_seq_cpsTripleWithin_taken_same_cr hciiiT htw'
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
