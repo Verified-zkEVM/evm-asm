@@ -27,7 +27,7 @@ module
 public import EvmAsm.Stateless.SpecRef.Fork
 public import EvmAsm.Stateless.SpecRef.WitnessStateRoot
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

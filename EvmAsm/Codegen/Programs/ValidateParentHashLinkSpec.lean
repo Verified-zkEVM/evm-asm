@@ -1,0 +1,1383 @@
+/-  EvmAsm.Codegen.Programs.ValidateParentHashLinkSpec  Whole-routine caller contract `validate_parent_hash_link_spec_within` for `validateParentHashLink_prog` (`HeaderChain.lean`, 80 instructions, entry `GuestAddrs.validate_parent_hash_link`). The routine is linked and called from the header-contiguity loop. Its static call closure (`rlp_list_nth_item`, `block_hash_from_header`, `zkvm_keccak256`) is pinned in `guestImageEntries` and `.proven` in the routine registry. The post covers status 0 (decoded 32-byte field and comparison result), status 1 (RLP parse/field failure), and status 2 (decoded field with non-32-byte length). The source-window bound needed by byte-wise `mset_memcpy` is derived locally from the caller's `hcslack` and `hcover` facts plus the successful field-0 decode. -/
+import EvmAsm.Codegen.Programs.HeaderChain
+import EvmAsm.Codegen.Programs.RlpListNthItemCallSAsm
+import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
+import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
+import EvmAsm.Codegen.Programs.AccountDecodeBridge
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+import EvmAsm.Rv64.SAsm.AbiFrameCall
+import EvmAsm.Rv64.MemRegion
+import EvmAsm.Rv64.MemRegionStore
+import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.RLP.WalkItemDeterminism
+namespace EvmAsm.Codegen.ValidateParentHashLinkSpec
+open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
+open EvmAsm.Rv64.Tactics
+open EvmAsm.Codegen.Proofs
+open EvmAsm.Codegen.RlpListNthItemSAsm
+open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+/- The source-window fact for the 32-byte arm is a consequence of the
+   caller's byte-window bounds, not an independent semantic premise.  `Success`
+   alone deliberately permits a declared list window larger than the backing
+   byte list; the caller's `hcslack`/`hcover` close that gap. -/
+theorem vphl_success_field0_bound
+    (childBytes : List (BitVec 8)) (childBase : Word) (childLen : Nat)
+    (hcslack : childLen + 9 ≤ childBytes.length)
+    (hcover : childBase.toNat + childBytes.length < 2 ^ 64) :
+    ∀ fo ln, RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln →
+      ln = (32 : Word) → fo.toNat + 32 ≤ childBytes.length := by
+  intro fo ln hsucc hln
+  rcases hsucc with ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩
+  have hlen_le : childLen ≤ childBytes.length := by omega
+  have hover : childBase.toNat + childLen + 9 < 2 ^ 64 := by omega
+  have hcursor_le := RlpListNthItemSAsm.StrictListPayload.cursor_le hlist
+  have hend := RlpListNthItemSAsm.StrictListPayload.end_eq hlist
+  cases hnth with
+  | zero _ _ _ hitem =>
+      have hoffle : cursorOff ≤ childLen := by simpa using hcursor_le
+      have hitem' : EvmAsm.Rv64.RLP.rlpItemDecode childBytes cursorOff
+          (childBase + BitVec.ofNat 64 cursorOff)
+          (childBase + BitVec.ofNat 64 childLen) next ln := by
+        simpa [hend] using hitem
+      have hspan := EvmAsm.Rv64.RLP.rlpItemDecode_field0_content_span
+        hitem' hoffle hover
+      have hlen_toNat : ln.toNat = 32 := by rw [hln]; decide
+      rw [hlen_toNat] at hspan
+      rw [hoff]
+      omega
+/- #12459: the claimed hash is copied byte-wise through `mset_memcpy`; the
+   former dword-alignment premise is intentionally gone.  The source-window
+   bound is derived from the caller's slack/coverage facts and successful
+   field-0 decoding rather than carried as a universal theorem premise. -/
+/-- Entry address of the linked `validate_parent_hash_link` routine. -/
+abbrev vphlBase : Word := (GuestAddrs.validate_parent_hash_link : Word)
+/-- The `.bss` scratch cells (all 8-aligned, decidable). -/
+abbrev vphlOffsetAddr : Word := (GuestAddrs.vphl_offset : Word)abbrev vphlLengthAddr : Word := (GuestAddrs.vphl_length : Word)abbrev vphlClaimedAddr : Word := (GuestAddrs.vphl_claimed : Word)abbrev vphlComputedAddr : Word := (GuestAddrs.vphl_computed : Word)
+/-- The keccak sponge state cell (`zk3_state`, 200 bytes). -/
+abbrev vphlZk3 : Word := BitVec.ofNat 64 GuestAddrs.zk3_state
+/-- The fetch set: own body ∪ `rlp_list_nth_item` ∪    (`block_hash_from_header` ∪ `zkvm_keccak256`). -/
+def vphlCoreCode : CodeReq :=
+  (CodeReq.ofProg vphlBase validateParentHashLink_prog).union
+    (RlpListNthItemSAsm.code.union BlockHashFromHeaderSpec.fullCode)
+
+def vphlCode : CodeReq := msetMemcpyCode.union vphlCoreCode
+/-- The 80-instruction body. -/
+theorem vphlProg_length : validateParentHashLink_prog.length = 80 := by decide
+/-- `PCFree` for byte regions (needed for framing). -/
+instance (regionBase : Word) (bs : List (BitVec 8)) :    Assertion.PCFree (bytesRegion regionBase bs) :=  ⟨EvmAsm.Rv64.bytesRegion_pcFree _ _⟩
+/-- `PCFree` for `stackFree` (needed for framing). -/
+instance (sp : Word) (k : Nat) : Assertion.PCFree (stackFree sp k) :=  ⟨SAsm.pcFree_stackFree _ _⟩-- ----------------------------------------------------------------------------- Concrete cell facts, la bridges, and code monotonicity
+private theorem vphlOffsetAddr_toNat : vphlOffsetAddr.toNat = GuestAddrs.vphl_offset := by decide
+private theorem vphlLengthAddr_toNat : vphlLengthAddr.toNat = GuestAddrs.vphl_length := by decide
+private theorem vphlClaimedAddr_toNat : vphlClaimedAddr.toNat = GuestAddrs.vphl_claimed := by decide
+private theorem vphlComputedAddr_toNat :    vphlComputedAddr.toNat = GuestAddrs.vphl_computed := by decide
+private theorem vphlZk3_toNat : vphlZk3.toNat = GuestAddrs.zk3_state := by decide
+private theorem vphlClaimed_over : vphlClaimedAddr.toNat + 32 < 2 ^ 64 := by
+  rw [vphlClaimedAddr_toNat]
+  decide
+private theorem vphlClaimed_valid (k : Nat) (hk : k < 32) :
+    isValidByteAccess (vphlClaimedAddr + BitVec.ofNat 64 k) = true := by
+  have hv : GuestAddrs.vphl_claimed = 2745219168 := by decide
+  have hto : (vphlClaimedAddr + BitVec.ofNat 64 k).toNat =
+      GuestAddrs.vphl_claimed + k := by
+    rw [BitVec.toNat_add, vphlClaimedAddr_toNat, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt (show k < 2 ^ 64 by omega),
+      Nat.mod_eq_of_lt (by rw [hv]; omega)]
+  rw [isValidByteAccess_eq, isValidMemAddr_eq, hto]
+  rw [hv]
+  simp only [Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq]
+  unfold Rv64.MEM_START Rv64.MEM_END Rv64.INPUT_MEM_START Rv64.INPUT_MEM_END
+    Rv64.RAM_MEM_START Rv64.RAM_MEM_END
+  omega
+private theorem vphlZk3_align : vphlZk3.toNat % 8 = 0 := by
+  rw [vphlZk3_toNat]; decide
+private theorem vphlZk3_over : vphlZk3.toNat + 200 < 2 ^ 64 := by
+  rw [vphlZk3_toNat, show GuestAddrs.zk3_state = 2745483488 from by decide]; omega
+private theorem vphlZk3_validMem (k : Nat) (hk : k < 201) :    isValidMemAddr (vphlZk3 + BitVec.ofNat 64 k) = true := by
+  have hv : GuestAddrs.zk3_state = 2745483488 := by decide
+  have hto : (vphlZk3 + BitVec.ofNat 64 k).toNat = GuestAddrs.zk3_state + k := by
+    rw [BitVec.toNat_add, vphlZk3_toNat, BitVec.toNat_ofNat,      Nat.mod_eq_of_lt (show k < 2 ^ 64 by omega), Nat.mod_eq_of_lt (by
+        rw [hv]; omega : GuestAddrs.zk3_state + k < 2 ^ 64)]
+  rw [isValidMemAddr_eq, hto]
+  exact Bool.or_eq_true_iff.2 (Or.inr (Bool.and_eq_true_iff.2    ⟨decide_eq_true (by simp only [Rv64.RAM_MEM_START]; rw [hv]; omega),     decide_eq_true (by simp only [Rv64.RAM_MEM_END]; rw [hv]; omega)⟩))
+/-- `ofProg` code of the routine sits inside the union `vphlCode`. -/
+private theorem vphl_mset_own_disjoint :
+    msetMemcpyCode.Disjoint (CodeReq.ofProg vphlBase validateParentHashLink_prog) := by
+  exact CodeReq.Disjoint.ofProg_ranges msetMemcpyBase vphlBase
+    Codegen.msetMemcpy_prog validateParentHashLink_prog
+    (by rw [msetMemcpy_prog_length]; decide)
+    (by rw [vphlProg_length]; decide)
+    (by rw [msetMemcpy_prog_length, vphlProg_length]; decide)
+
+private theorem vphl_mset_rlp_disjoint :
+    msetMemcpyCode.Disjoint RlpListNthItemSAsm.code := by
+  unfold msetMemcpyCode RlpListNthItemSAsm.code
+  exact CodeReq.Disjoint.ofProg_ranges msetMemcpyBase RlpListNthItemSAsm.B
+    Codegen.msetMemcpy_prog rlpListNthItem_prog
+    (by rw [msetMemcpy_prog_length]; decide)
+    (by rw [RlpListNthItemSAsm.total_length]; decide)
+    (by rw [msetMemcpy_prog_length, RlpListNthItemSAsm.total_length]; decide)
+
+private theorem vphl_mset_wrapper_disjoint :
+    msetMemcpyCode.Disjoint BlockHashFromHeaderSpec.wrapperCode := by
+  unfold msetMemcpyCode BlockHashFromHeaderSpec.wrapperCode
+  exact CodeReq.Disjoint.ofProg_ranges msetMemcpyBase BlockHashFromHeaderSpec.B
+    Codegen.msetMemcpy_prog blockHashFromHeader_prog
+    (by rw [msetMemcpy_prog_length]; decide)
+    (by rw [BlockHashFromHeaderSpec.wrapper_length]; decide)
+    (by rw [msetMemcpy_prog_length, BlockHashFromHeaderSpec.wrapper_length]; decide)
+
+private theorem vphl_mset_keccak_disjoint :
+    msetMemcpyCode.Disjoint BlockHashFromHeaderSpec.keccakCode := by
+  unfold msetMemcpyCode BlockHashFromHeaderSpec.keccakCode
+  exact CodeReq.Disjoint.ofProg_ranges msetMemcpyBase BlockHashFromHeaderSpec.K
+    Codegen.msetMemcpy_prog zkvmKeccak256_prog
+    (by rw [msetMemcpy_prog_length]; decide)
+    (by decide)
+    (by rw [msetMemcpy_prog_length]; decide)
+
+private theorem vphl_mset_core_disjoint : msetMemcpyCode.Disjoint vphlCoreCode := by
+  simpa [vphlCoreCode, BlockHashFromHeaderSpec.fullCode] using
+    (CodeReq.Disjoint.union_right vphl_mset_own_disjoint
+      (CodeReq.Disjoint.union_right vphl_mset_rlp_disjoint
+        (CodeReq.Disjoint.union_right vphl_mset_wrapper_disjoint
+          vphl_mset_keccak_disjoint)))
+
+private theorem vphlCoreMem (a : Word) (i : Instr)
+    (h : vphlCoreCode a = some i) : vphlCode a = some i :=
+  CodeReq.mono_union_right vphl_mset_core_disjoint (fun _ _ h => h) a i h
+
+theorem vphlCode_vphl (a : Word) (i : Instr)
+    (h : CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i) :
+    vphlCode a = some i :=
+  vphlCoreMem a i (CodeReq.union_mono_left a i h)
+/-- Membership helper for the epilogue (and later segments): one    `CodeReq.singleton` membership fact in the wrapper body, lifted into    `vphlCode`. -/
+private theorem vphlMem (prog : List Instr) (hprog : prog = validateParentHashLink_prog)    (A : Word) (k : Nat) (ins : Instr)    (hk : k < prog.length)    (hA : A = vphlBase + BitVec.ofNat 64 (4 * k))    (hins : prog[k]'hk = ins) :    ∀ a i, CodeReq.singleton A ins a = some i → vphlCode a = some i := by
+  subst hprog
+  intro a i hs
+  have hcore : CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=
+    CodeReq.ofProg_mem_at vphlBase A validateParentHashLink_prog k ins hA hk hins
+      (by rw [vphlProg_length]; norm_num) a i hs
+  exact vphlCoreMem a i (CodeReq.union_mono_left a i hcore)
+private theorem vphlS16 : ∀ a i, CodeReq.singleton (vphlBase + 64)    (.AUIPC .x13 (EvmAsm.Codegen.laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64))) a = some i →    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 16    (vphlBase + 4 * 16) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega))
+private theorem vphlS17 : ∀ a i, CodeReq.singleton (vphlBase + 68)    (.ADDI .x13 .x13 (EvmAsm.Codegen.laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64))) a = some i →    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 17    (vphlBase + 4 * 17) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega))
+private theorem vphlS18 : ∀ a i, CodeReq.singleton (vphlBase + 72)    (.AUIPC .x14 (EvmAsm.Codegen.laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72))) a = some i →    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 18    (vphlBase + 4 * 18) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega))
+private theorem vphlS19 : ∀ a i, CodeReq.singleton (vphlBase + 76)    (.ADDI .x14 .x14 (EvmAsm.Codegen.laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72))) a = some i →    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 19    (vphlBase + 4 * 19) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega))
+private theorem vphlLaHi_offset : EvmAsm.Codegen.laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64) =    Rv64.laHi (vphlBase + 64) vphlOffsetAddr := by decide
+private theorem vphlLaLo_offset : EvmAsm.Codegen.laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 64) =    Rv64.laLo (vphlBase + 64) vphlOffsetAddr := by decide
+private theorem vphlLaRange_offset : laInRange (vphlBase + 64) vphlOffsetAddr := by decide
+private theorem vphlLaHi_length : EvmAsm.Codegen.laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72) =    Rv64.laHi (vphlBase + 72) vphlLengthAddr := by decide
+private theorem vphlLaLo_length : EvmAsm.Codegen.laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 72) =    Rv64.laLo (vphlBase + 72) vphlLengthAddr := by decide
+private theorem vphlLaRange_length : laInRange (vphlBase + 72) vphlLengthAddr := by decide
+/-- The `la x13, vphl_offset` pair at instructions 16-17. -/
+private theorem vphlLa_offset_13 (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 64) (vphlBase + 64 + 8)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      (.x13 ↦ᵣ vOld) (.x13 ↦ᵣ vphlOffsetAddr) := by
+  have hau := vphlS16
+  rw [vphlLaHi_offset] at hau
+  have had := vphlS17
+  rw [vphlLaLo_offset] at had
+  exact la_materialize_within .x13 vOld (vphlBase + 64) vphlOffsetAddr (by decide)    vphlLaRange_offset hau had
+/-- The `la x14, vphl_length` pair at instructions 18-19. -/
+private theorem vphlLa_length_14 (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 72) (vphlBase + 72 + 8)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      (.x14 ↦ᵣ vOld) (.x14 ↦ᵣ vphlLengthAddr) := by
+  have hau := vphlS18
+  rw [vphlLaHi_length] at hau
+  have had := vphlS19
+  rw [vphlLaLo_length] at had
+  exact la_materialize_within .x14 vOld (vphlBase + 72) vphlLengthAddr (by decide)    vphlLaRange_length hau had
+/-- `la .x5, vphl_length` at [22]-[23] (`vphlBase+88 → vphlBase+88+8`). -/
+private theorem vphlLa_length_5a (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 88) (vphlBase + 88 + 8) vphlCode      (.x5 ↦ᵣ vOld) (.x5 ↦ᵣ vphlLengthAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 88) 22    (.AUIPC .x5 (laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 92) 23    (.ADDI .x5 .x5 (laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88) =      EvmAsm.Rv64.laHi (vphlBase + 88) vphlLengthAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_length (GuestAddrs.validate_parent_hash_link + 88) =      EvmAsm.Rv64.laLo (vphlBase + 88) vphlLengthAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x5 vOld (vphlBase + 88) vphlLengthAddr    (by decide) (by decide) hau had
+  exact h
+/-- `la .x5, vphl_offset` at [27]-[28] (`vphlBase+108 → vphlBase+108+8`). -/
+private theorem vphlLa_offset_5b (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 108) (vphlBase + 108 + 8) vphlCode      (.x5 ↦ᵣ vOld) (.x5 ↦ᵣ vphlOffsetAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 108) 27    (.AUIPC .x5 (laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 112) 28    (.ADDI .x5 .x5 (laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108) =      EvmAsm.Rv64.laHi (vphlBase + 108) vphlOffsetAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_offset (GuestAddrs.validate_parent_hash_link + 108) =      EvmAsm.Rv64.laLo (vphlBase + 108) vphlOffsetAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x5 vOld (vphlBase + 108) vphlOffsetAddr    (by decide) (by decide) hau had
+  exact h
+/-- `la .x29, vphl_claimed` at [31]-[32] (`vphlBase+124 → vphlBase+124+8`). -/
+private theorem vphlLa_claimed_29 (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 124) (vphlBase + 124 + 8) vphlCode      (.x29 ↦ᵣ vOld) (.x29 ↦ᵣ vphlClaimedAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 124) 31    (.AUIPC .x29 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 128) 32    (.ADDI .x29 .x29 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124) =      EvmAsm.Rv64.laHi (vphlBase + 124) vphlClaimedAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 124) =      EvmAsm.Rv64.laLo (vphlBase + 124) vphlClaimedAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x29 vOld (vphlBase + 124) vphlClaimedAddr    (by decide) (by decide) hau had
+  exact h
+/-- `la .x12, vphl_computed` at [43]-[44] (`vphlBase+172 → vphlBase+172+8`). -/
+private theorem vphlLa_computed_12 (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 172) (vphlBase + 172 + 8) vphlCode      (.x12 ↦ᵣ vOld) (.x12 ↦ᵣ vphlComputedAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 172) 43    (.AUIPC .x12 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 176) 44    (.ADDI .x12 .x12 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172) =      EvmAsm.Rv64.laHi (vphlBase + 172) vphlComputedAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 172) =      EvmAsm.Rv64.laLo (vphlBase + 172) vphlComputedAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x12 vOld (vphlBase + 172) vphlComputedAddr    (by decide) (by decide) hau had
+  exact h
+/-- `la .x5, vphl_claimed` at [46]-[47] (`vphlBase+184 → vphlBase+184+8`). -/
+theorem vphlLa_claimed_5c (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 184) (vphlBase + 184 + 8) vphlCode      (.x5 ↦ᵣ vOld) (.x5 ↦ᵣ vphlClaimedAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 184) 46    (.AUIPC .x5 (laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 188) 47    (.ADDI .x5 .x5 (laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184) =      EvmAsm.Rv64.laHi (vphlBase + 184) vphlClaimedAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_claimed (GuestAddrs.validate_parent_hash_link + 184) =      EvmAsm.Rv64.laLo (vphlBase + 184) vphlClaimedAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x5 vOld (vphlBase + 184) vphlClaimedAddr    (by decide) (by decide) hau had
+  exact h
+/-- `la .x6, vphl_computed` at [48]-[49] (`vphlBase+192 → vphlBase+192+8`). -/
+theorem vphlLa_computed_6 (vOld : Word) :    cpsTripleWithin 2 (vphlBase + 192) (vphlBase + 192 + 8) vphlCode      (.x6 ↦ᵣ vOld) (.x6 ↦ᵣ vphlComputedAddr) := by
+  have hau := vphlMem _ rfl (vphlBase + 192) 48    (.AUIPC .x6 (laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have had := vphlMem _ rfl (vphlBase + 196) 49    (.ADDI .x6 .x6 (laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192)))    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have hhi : laHi GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192) =      EvmAsm.Rv64.laHi (vphlBase + 192) vphlComputedAddr := by decide
+  have hlo : laLo GuestAddrs.vphl_computed (GuestAddrs.validate_parent_hash_link + 192) =      EvmAsm.Rv64.laLo (vphlBase + 192) vphlComputedAddr := by decide
+  rw [hhi] at hau
+  rw [hlo] at had
+  have h := la_materialize_within .x6 vOld (vphlBase + 192) vphlComputedAddr    (by decide) (by decide) hau had
+  exact h-- ----------------------------------------------------------------------------- Prologue (instructions 0..19): frame setup, argument marshalling, output-- zero, K20 argument setup — 20 steps, entry `vphlBase`, exit `vphlBase + 80`.
+private theorem vphlM0 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 0) (.ADDI .x2 .x2 (-48 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 0    (vphlBase + 0) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM1 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 4) (.SD .x2 .x1 (0 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 1    (vphlBase + 4) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM2 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 8) (.SD .x2 .x8 (8 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 2    (vphlBase + 8) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM3 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 12) (.SD .x2 .x9 (16 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 3    (vphlBase + 12) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM4 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 16) (.SD .x2 .x18 (24 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 4    (vphlBase + 16) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM5 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 20) (.SD .x2 .x19 (32 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 5    (vphlBase + 20) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM6 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 24) (.SD .x2 .x20 (40 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 6    (vphlBase + 24) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM7 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 28) (.MV .x8 .x10) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 7    (vphlBase + 28) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM8 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 32) (.MV .x9 .x11) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 8    (vphlBase + 32) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM9 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 36) (.MV .x18 .x12) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 9    (vphlBase + 36) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM10 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 40) (.MV .x19 .x13) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 10    (vphlBase + 40) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM11 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 44) (.MV .x20 .x14) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 11    (vphlBase + 44) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM12 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 48) (.SD .x20 .x0 (0 : BitVec 12)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 12    (vphlBase + 48) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM13 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 52) (.MV .x10 .x18) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 13    (vphlBase + 52) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM14 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 56) (.MV .x11 .x19) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 14    (vphlBase + 56) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+private theorem vphlM15 (a : Word) (i : Instr)    (h : CodeReq.singleton (vphlBase + 60) (.LI .x12 (0 : Word)) a = some i) :    CodeReq.ofProg vphlBase validateParentHashLink_prog a = some i :=  CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr vphlBase validateParentHashLink_prog 15    (vphlBase + 60) (by rw [vphlProg_length]; norm_num) (by rw [vphlProg_length]; norm_num)    (by bv_omega)) a i h
+/-- The prologue: 20 steps from `vphlBase` to `vphlBase + 80` (the K20 call    site).  Post: frame saved, arguments marshalled into s-registers, out cell    zeroed, K20 arguments in a0-a4. -/
+theorem vphl_prologue_spec_within    (sp0 spC retHdr : Word) (cs0 cs1 cs2 cs3 cs4 v21 : Word)    (parentBase parentLenW childBase childLenW outPtr : Word)    (oldOut oldOffset oldLen : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (os : List (BitVec 8))    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12)) :    cpsTripleWithin 20 vphlBase (vphlBase + 80)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ sp0) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        memOwn spC **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) **        (.x14 ↦ᵣ vphlLengthAddr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+  -- instruction 0: ADDI sp, sp, -48
+  have h0 : cpsTripleWithin 1 (vphlBase + 0) (vphlBase + 4)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ sp0) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        memOwn spC **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        memOwn spC **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM0) (addi_spec_gen_same_within .x2 sp0 (-48 : BitVec 12) vphlBase (by decide))
+    rw [← hspC] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ cs0) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          memOwn spC **          memOwn (spC + 8) **          memOwn (spC + 16) **          memOwn (spC + 24) **          memOwn (spC + 32) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 1: SD x1, 0(sp)
+  have h1 : cpsTripleWithin 1 (vphlBase + 4) (vphlBase + 8)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        memOwn spC **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM1) (sd_spec_gen_own_within .x2 .x1 spC retHdr (0 : BitVec 12) (vphlBase + 4))
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show spC + (0 : Word) = spC from by bv_omega] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x8 ↦ᵣ cs0) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          memOwn (spC + 8) **          memOwn (spC + 16) **          memOwn (spC + 24) **          memOwn (spC + 32) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 2: SD x8, 8(sp)
+  have h2 : cpsTripleWithin 1 (vphlBase + 8) (vphlBase + 12)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        memOwn (spC + 8) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM2) (sd_spec_gen_own_within .x2 .x8 spC cs0 (8 : BitVec 12) (vphlBase + 8))
+    rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          memOwn (spC + 16) **          memOwn (spC + 24) **          memOwn (spC + 32) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 3: SD x9, 16(sp)
+  have h3 : cpsTripleWithin 1 (vphlBase + 12) (vphlBase + 16)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        memOwn (spC + 16) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM3) (sd_spec_gen_own_within .x2 .x9 spC cs1 (16 : BitVec 12) (vphlBase + 12))
+    rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ cs0) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          memOwn (spC + 24) **          memOwn (spC + 32) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 4: SD x18, 24(sp)
+  have h4 : cpsTripleWithin 1 (vphlBase + 16) (vphlBase + 20)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        memOwn (spC + 24) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM4) (sd_spec_gen_own_within .x2 .x18 spC cs2 (24 : BitVec 12) (vphlBase + 16))
+    rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ cs0) **          (.x9 ↦ᵣ cs1) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          memOwn (spC + 32) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 5: SD x19, 32(sp)
+  have h5 : cpsTripleWithin 1 (vphlBase + 20) (vphlBase + 24)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        memOwn (spC + 32) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM5) (sd_spec_gen_own_within .x2 .x19 spC cs3 (32 : BitVec 12) (vphlBase + 20))
+    rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ cs0) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          memOwn (spC + 40) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 6: SD x20, 40(sp)
+  have h6 : cpsTripleWithin 1 (vphlBase + 24) (vphlBase + 28)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        memOwn (spC + 40) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM6) (sd_spec_gen_own_within .x2 .x20 spC cs4 (40 : BitVec 12) (vphlBase + 24))
+    rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ cs0) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 7: MV x8, x10
+  have h7 : cpsTripleWithin 1 (vphlBase + 28) (vphlBase + 32)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM7) (mv_spec_gen_within .x8 .x10 parentBase cs0 (vphlBase + 28) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x9 ↦ᵣ cs1) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 8: MV x9, x11
+  have h8 : cpsTripleWithin 1 (vphlBase + 32) (vphlBase + 36)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ cs1) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM8) (mv_spec_gen_within .x9 .x11 parentLenW cs1 (vphlBase + 32) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x18 ↦ᵣ cs2) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 9: MV x18, x12
+  have h9 : cpsTripleWithin 1 (vphlBase + 36) (vphlBase + 40)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ cs2) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM9) (mv_spec_gen_within .x18 .x12 childBase cs2 (vphlBase + 36) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x19 ↦ᵣ cs3) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 10: MV x19, x13
+  have h10 : cpsTripleWithin 1 (vphlBase + 40) (vphlBase + 44)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM10) (mv_spec_gen_within .x19 .x13 childLenW cs3 (vphlBase + 40) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x20 ↦ᵣ cs4) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 11: MV x20, x14
+  have h11 : cpsTripleWithin 1 (vphlBase + 44) (vphlBase + 48)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ cs4) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM11) (mv_spec_gen_within .x20 .x14 outPtr cs4 (vphlBase + 44) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x19 ↦ᵣ childLenW) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ oldOut) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 12: SD x0, 0(x20) (out := 0)
+  have h12 : cpsTripleWithin 1 (vphlBase + 48) (vphlBase + 52)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ oldOut) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM12) (sd_x0_spec_gen_within .x20 outPtr oldOut (0 : BitVec 12) (vphlBase + 48))
+    rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+        show outPtr + (0 : Word) = outPtr from by bv_omega] at h0
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x19 ↦ᵣ childLenW) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ parentBase) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 13: MV x10, x18
+  have h13 : cpsTripleWithin 1 (vphlBase + 52) (vphlBase + 56)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ parentBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM13) (mv_spec_gen_within .x10 .x18 childBase parentBase (vphlBase + 52) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x19 ↦ᵣ childLenW) **          (.x20 ↦ᵣ outPtr) **          (.x21 ↦ᵣ v21) **          (.x11 ↦ᵣ parentLenW) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ (0 : Word)) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 14: MV x11, x19
+  have h14 : cpsTripleWithin 1 (vphlBase + 56) (vphlBase + 60)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ parentLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM14) (mv_spec_gen_within .x11 .x19 childLenW parentLenW (vphlBase + 56) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x20 ↦ᵣ outPtr) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ childBase) **          (.x12 ↦ᵣ childBase) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ (0 : Word)) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instruction 15: LI x12, 0
+  have h15 : cpsTripleWithin 1 (vphlBase + 60) (vphlBase + 64)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ childBase) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0 := cpsTripleWithin_extend_code (vphlM15) (li_spec_gen_within .x12 childBase (0 : Word) (vphlBase + 60) (by decide))
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x19 ↦ᵣ childLenW) **          (.x20 ↦ᵣ outPtr) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ childBase) **          (.x11 ↦ᵣ childLenW) **          (.x13 ↦ᵣ childLenW) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ (0 : Word)) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree) h0
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instructions 16-17: la x13, vphl_offset
+  have h16 : cpsTripleWithin 2 (vphlBase + 64) (vphlBase + 64 + 8)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ childLenW) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x19 ↦ᵣ childLenW) **          (.x20 ↦ᵣ outPtr) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ childBase) **          (.x11 ↦ᵣ childLenW) **          (.x12 ↦ᵣ (0 : Word)) **          (.x14 ↦ᵣ outPtr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ (0 : Word)) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree)      (vphlLa_offset_13 childLenW)
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  -- instructions 18-19: la x14, vphl_length
+  have h17 : cpsTripleWithin 2 (vphlBase + 72) (vphlBase + 72 + 8)      (CodeReq.ofProg vphlBase validateParentHashLink_prog)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) **        (.x14 ↦ᵣ outPtr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) **        (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) **        (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) **        (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) **        (.x11 ↦ᵣ childLenW) **        (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) **        (.x14 ↦ᵣ vphlLengthAddr) **        regOwn .x5 **        regOwn .x6 **        regOwn .x7 **        regOwn .x15 **        regOwn .x16 **        regOwn .x17 **        regOwn .x28 **        regOwn .x29 **        regOwn .x30 **        regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) **        ((spC + 8) ↦ₘ cs0) **        ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) **        ((spC + 32) ↦ₘ cs3) **        ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) **        (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+    have h0f := cpsTripleWithin_frameR      ((.x2 ↦ᵣ spC) **          (.x1 ↦ᵣ retHdr) **          (.x8 ↦ᵣ parentBase) **          (.x9 ↦ᵣ parentLenW) **          (.x18 ↦ᵣ childBase) **          (.x19 ↦ᵣ childLenW) **          (.x20 ↦ᵣ outPtr) **          (.x21 ↦ᵣ v21) **          (.x10 ↦ᵣ childBase) **          (.x11 ↦ᵣ childLenW) **          (.x12 ↦ᵣ (0 : Word)) **          (.x13 ↦ᵣ vphlOffsetAddr) **          regOwn .x5 **          regOwn .x6 **          regOwn .x7 **          regOwn .x15 **          regOwn .x16 **          regOwn .x17 **          regOwn .x28 **          regOwn .x29 **          regOwn .x30 **          regOwn .x31 **          (.x0 ↦ᵣ (0 : Word)) **          (spC ↦ₘ retHdr) **          ((spC + 8) ↦ₘ cs0) **          ((spC + 16) ↦ₘ cs1) **          ((spC + 24) ↦ₘ cs2) **          ((spC + 32) ↦ₘ cs3) **          ((spC + 40) ↦ₘ cs4) **          stackFree spC 8 **          bytesRegion parentBase parentBytes **          bytesRegion childBase childBytes **          (outPtr ↦ₘ (0 : Word)) **          (vphlOffsetAddr ↦ₘ oldOffset) **          (vphlLengthAddr ↦ₘ oldLen) **          bytesRegion vphlClaimedAddr claimedOld **          bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **          bytesRegion vphlZk3 os) (by pcFree)      (vphlLa_length_14 outPtr)
+    exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)      (fun h hp => by xperm_hyp hp) h0f
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) h0 h1
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c1 h2
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c2 h3
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c3 h4
+  have c5 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c4 h5
+  have c6 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c5 h6
+  have c7 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c6 h7
+  have c8 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c7 h8
+  have c9 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c8 h9
+  have c10 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c9 h10
+  have c11 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c10 h11
+  have c12 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c11 h12
+  have c13 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c12 h13
+  have c14 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c13 h14
+  have c15 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c14 h15
+  have c16 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c15 h16
+  have c17 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by xperm_hyp hp) c16 h17
+  exact cpsTripleWithin_mono_nSteps (show 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 2 + 2 ≤ 20 from by omega) c17
+/-- Epilogue (instructions 72-79, `vphlBase+288 → retHdr`): restore the six    saved registers, pop the 48-byte frame, return. Parameterized over the    arm-dependent register/memory values. -/
+theorem vphl_epilogue_spec_within    (spC sp0 retHdr x1Val statusW v11e v12e : Word)    (parentBase parentLenW childBase childLenW outPtr v21 : Word)    (cs0 cs1 cs2 cs3 cs4 : Word)    (outValW offV lenV : Word)    (parentBytes childBytes claimedB computedB : List (BitVec 8))    (osPost : List (BitVec 8))    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))    (hret : retHdr &&& ~~~(1 : Word) = retHdr) :    cpsTripleWithin 8 (vphlBase + 288) retHdr vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ x1Val) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost) ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost) := by
+  have hM_ld1 := vphlMem _ rfl (vphlBase + 288) 72 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld1 := ld_spec_gen_within .x1 .x2 spC x1Val retHdr (0 : BitVec 12) (vphlBase + 288) (by decide)
+  rw [signExtend12_0, show (spC + 0 : Word) = spC from by bv_omega] at h_ld1
+  have hE_ld1 := cpsTripleWithin_extend_code (hM_ld1) h_ld1
+  have hF_ld1 := cpsTripleWithin_frameR      ((.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld1
+  have hM_ld8 := vphlMem _ rfl (vphlBase + 292) 73 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld8 := ld_spec_gen_within .x8 .x2 spC parentBase cs0 (8 : BitVec 12) (vphlBase + 292) (by decide)
+  rw [show spC + signExtend12 (8 : BitVec 12) = spC + 8 from by rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]] at h_ld8
+  have hE_ld8 := cpsTripleWithin_extend_code (hM_ld8) h_ld8
+  have hF_ld8 := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld8
+  have hs_ld8 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hF_ld1 hF_ld8
+  have hM_ld9 := vphlMem _ rfl (vphlBase + 296) 74 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld9 := ld_spec_gen_within .x9 .x2 spC parentLenW cs1 (16 : BitVec 12) (vphlBase + 296) (by decide)
+  rw [show spC + signExtend12 (16 : BitVec 12) = spC + 16 from by rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]] at h_ld9
+  have hE_ld9 := cpsTripleWithin_extend_code (hM_ld9) h_ld9
+  have hF_ld9 := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld9
+  have hs_ld9 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_ld8 hF_ld9
+  have hM_ld18 := vphlMem _ rfl (vphlBase + 300) 75 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld18 := ld_spec_gen_within .x18 .x2 spC childBase cs2 (24 : BitVec 12) (vphlBase + 300) (by decide)
+  rw [show spC + signExtend12 (24 : BitVec 12) = spC + 24 from by rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide]] at h_ld18
+  have hE_ld18 := cpsTripleWithin_extend_code (hM_ld18) h_ld18
+  have hF_ld18 := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld18
+  have hs_ld18 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_ld9 hF_ld18
+  have hM_ld19 := vphlMem _ rfl (vphlBase + 304) 76 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld19 := ld_spec_gen_within .x19 .x2 spC childLenW cs3 (32 : BitVec 12) (vphlBase + 304) (by decide)
+  rw [show spC + signExtend12 (32 : BitVec 12) = spC + 32 from by rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]] at h_ld19
+  have hE_ld19 := cpsTripleWithin_extend_code (hM_ld19) h_ld19
+  have hF_ld19 := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld19
+  have hs_ld19 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_ld18 hF_ld19
+  have hM_ld20 := vphlMem _ rfl (vphlBase + 308) 77 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_ld20 := ld_spec_gen_within .x20 .x2 spC outPtr cs4 (40 : BitVec 12) (vphlBase + 308) (by decide)
+  rw [show spC + signExtend12 (40 : BitVec 12) = spC + 40 from by rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide]] at h_ld20
+  have hE_ld20 := cpsTripleWithin_extend_code (hM_ld20) h_ld20
+  have hF_ld20 := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_ld20
+  have hs_ld20 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_ld19 hF_ld20
+  have hM_addi := vphlMem _ rfl (vphlBase + 312) 78 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_addi := addi_spec_gen_same_within .x2 spC (48 : BitVec 12) (vphlBase + 312) (by decide)
+  rw [show spC + signExtend12 (48 : BitVec 12) = sp0 from by
+        rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide, hspC,
+          show signExtend12 (-48 : BitVec 12) = (0xFFFFFFFFFFFFFFD0 : Word) from by decide]; bv_omega] at h_addi
+  have hE_addi := cpsTripleWithin_extend_code (hM_addi) h_addi
+  have hF_addi := cpsTripleWithin_frameR      ((.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_addi
+  have hs_addi := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_ld20 hF_addi
+  have hM_jalr := vphlMem _ rfl (vphlBase + 316) 79 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl
+  have h_jalr := jalr_x0_spec_gen_within .x1 retHdr (0 : BitVec 12) (vphlBase + 316)
+  simp only [signExtend12_0] at h_jalr
+  rw [show (retHdr + 0 : Word) = retHdr from by bv_omega, hret] at h_jalr
+  have hE_jalr := cpsTripleWithin_extend_code (hM_jalr) h_jalr
+  have hF_jalr := cpsTripleWithin_frameR      ((.x2 ↦ᵣ sp0) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ statusW) ** (.x11 ↦ᵣ v11e) ** (.x12 ↦ᵣ v12e) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ outValW) ** (vphlOffsetAddr ↦ₘ offV) ** (vphlLengthAddr ↦ₘ lenV) ** bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB ** bytesRegion vphlZk3 osPost)      (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hE_jalr
+  have hs_jalr := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hs_addi hF_jalr
+  exact cpsTripleWithin_mono_nSteps (show 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 ≤ 8 from by omega)    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hp => by xperm_hyp hp) hs_jalr)/-! ## K20 call (instruction 20): `rlp_list_nth_item(child, 0)`    Peel-idiom helper copied from `HeaderExtractLogsBloomSpec` (the    `callReturnResult` post of the generic call adapter is an existential    bundle; this reduces it to a per-outcome obligation). -/
+/-- Peel the `∃ status offset len v11 v12` and the `⌜Result⌝` pure fact from a    `callReturnResult` precondition, reducing to a per-outcome obligation. -/
+theorem vphl_callReturn_pre    {N : Nat} {ret X : Word} {F Q : Assertion}    (spC listBase offsetPtr lenPtr oldOffset oldLen : Word)    (csaved : RlpListNthItemSAsm.Saved) (bytes : List (BitVec 8)) (listLen : Nat)    (h : ∀ status offset len v11 v12,        RlpListNthItemSAsm.Result bytes listBase listLen 0 oldOffset oldLen status offset len →        cpsTripleWithin N (vphlBase + 84) ret vphlCode          (((.x1 ↦ᵣ X) **            (((.x2 ↦ᵣ spC) ** stackFree spC 8 ** savedRegTail csaved) **             ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **              (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **              (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **              (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len)))) ** F) Q) :    cpsTripleWithin N (vphlBase + 84) ret vphlCode      (((.x1 ↦ᵣ X) **        callReturnResult spC listBase (0 : Word) offsetPtr lenPtr oldOffset oldLen csaved          bytes listLen 0) ** F) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, s1, s2, hd12, hu12, hP, hRs⟩ := hPR
+  obtain ⟨t1, t2, hdt, hut, hXcRR, hFt⟩ := hP
+  obtain ⟨u1, u2, hdu, huu, hX, hcRR⟩ := hXcRR
+  unfold callReturnResult at hcRR
+  obtain ⟨status, offset, len, v11, v12, hBig⟩ := hcRR
+  have hspl := (sepConj_pure_right u2).1 hBig
+  exact h status offset len v11 v12 hspl.2 R hR s hcr    ⟨hp, hcompat, s1, s2, hd12, hu12,      ⟨t1, t2, hdt, hut, ⟨u1, u2, hdu, huu, hX, hspl.1⟩, hFt⟩, hRs⟩ hpc
+/-- The strict overflow bound for the child region: the non-strict hypothesis    `hcover` plus last-byte validity exclude the `= 2 ^ 64` edge. -/
+private theorem vphl_child_over_strict (childBase : Word) (childBytes : List (BitVec 8))    (hcover : childBase.toNat + childBytes.length ≤ 2 ^ 64)    (hcvalid : ∀ k, k < childBytes.length →      isValidByteAccess (childBase + BitVec.ofNat 64 k) = true)    (hpos : 0 < childBytes.length) :    childBase.toNat + childBytes.length < 2 ^ 64 := by
+  have _ := hpos
+  by_contra h
+  push Not at h
+  have heq : childBase.toNat + childBytes.length = 2 ^ 64 := by omega
+  have hto : (childBase + BitVec.ofNat 64 (childBytes.length - 1)).toNat = 2 ^ 64 - 1 := by
+    rw [BitVec.toNat_add, BitVec.toNat_ofNat,      Nat.mod_eq_of_lt (show childBytes.length - 1 < 2 ^ 64 by omega)]
+    rw [show childBase.toNat + (childBytes.length - 1) = 2 ^ 64 - 1 by omega]
+    exact Nat.mod_eq_of_lt (by omega)
+  have hv := hcvalid (childBytes.length - 1) (by omega)
+  rw [isValidByteAccess_eq, isValidMemAddr_eq, hto] at hv
+  simp only [Rv64.MEM_START, Rv64.MEM_END, Rv64.INPUT_MEM_START, Rv64.INPUT_MEM_END,    Rv64.RAM_MEM_START, Rv64.RAM_MEM_END, Bool.or_eq_true, Bool.and_eq_true,    decide_eq_true_eq] at hv
+  omega
+/-- Wrapper/callee code-range disjointness: the wrapper `[vphlBase, +320)` is    disjoint from each callee's `ofProg` range (all three callee bases are    below `vphlBase`). -/
+private theorem vphl_K20_disjoint :    (CodeReq.ofProg vphlBase validateParentHashLink_prog).Disjoint RlpListNthItemSAsm.code := by
+  simpa [RlpListNthItemSAsm.code] using    CodeReq.Disjoint.ofProg_ranges vphlBase RlpListNthItemSAsm.B validateParentHashLink_prog      rlpListNthItem_prog (by rw [vphlProg_length]; decide)      (by rw [RlpListNthItemSAsm.total_length]; decide)      (by rw [vphlProg_length, RlpListNthItemSAsm.total_length]; decide)
+private theorem vphl_bhfhWrapper_disjoint :    (CodeReq.ofProg vphlBase validateParentHashLink_prog).Disjoint      BlockHashFromHeaderSpec.wrapperCode := by
+  simpa [BlockHashFromHeaderSpec.wrapperCode] using    CodeReq.Disjoint.ofProg_ranges vphlBase BlockHashFromHeaderSpec.B validateParentHashLink_prog      blockHashFromHeader_prog (by rw [vphlProg_length]; decide)      (by rw [BlockHashFromHeaderSpec.wrapper_length]; decide)      (by rw [vphlProg_length, BlockHashFromHeaderSpec.wrapper_length]; decide)
+private theorem vphl_keccak_disjoint :    (CodeReq.ofProg vphlBase validateParentHashLink_prog).Disjoint      BlockHashFromHeaderSpec.keccakCode := by
+  simpa [BlockHashFromHeaderSpec.keccakCode] using    CodeReq.Disjoint.ofProg_ranges vphlBase BlockHashFromHeaderSpec.K validateParentHashLink_prog      zkvmKeccak256_prog (by rw [vphlProg_length]; decide) (by decide)      (by rw [vphlProg_length]; decide)
+private theorem vphl_tail_disjoint :    (CodeReq.ofProg vphlBase validateParentHashLink_prog).Disjoint      (RlpListNthItemSAsm.code.union BlockHashFromHeaderSpec.fullCode) := by
+  intro a
+  by_cases hP : CodeReq.ofProg vphlBase validateParentHashLink_prog a = none
+  · exact Or.inl hP
+  · have h1 := (vphl_K20_disjoint a).resolve_left hP
+    have hw := (vphl_bhfhWrapper_disjoint a).resolve_left hP
+    have hk := (vphl_keccak_disjoint a).resolve_left hP
+    right
+    simp only [RlpListNthItemSAsm.code, BlockHashFromHeaderSpec.fullCode,      BlockHashFromHeaderSpec.wrapperCode, BlockHashFromHeaderSpec.keccakCode] at h1 hw hk ⊢
+    simp only [CodeReq.union, h1, hw, hk]
+private theorem vphlCalleeMem : ∀ a i, RlpListNthItemSAsm.code a = some i →    vphlCode a = some i := by
+  intro a i hi
+  apply vphlCoreMem
+  exact CodeReq.mono_union_right vphl_tail_disjoint (fun _ _ h => h) a i
+    (CodeReq.union_mono_left a i hi)
+/-- The frame threaded through the K20 call: the scratch registers K20 does not    touch, the six saved-frame cells, the parent region, the cleared output    cell, and the claimed/computed/zk3 regions. -/
+def vphlK20Frame (spC retHdr outPtr : Word) (cs0 cs1 cs2 cs3 cs4 : Word)    (parentBase : Word) (parentBytes claimedOld : List (BitVec 8)) (os : List (BitVec 8)) :    Assertion :=  regOwn .x15 ** regOwn .x16 ** regOwn .x17 **    (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **    ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **    bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **    bytesRegion vphlClaimedAddr claimedOld **    bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **    bytesRegion vphlZk3 os
+private theorem vphlK20Frame_pcFree (spC retHdr outPtr : Word)    (cs0 cs1 cs2 cs3 cs4 : Word) (parentBase : Word)    (parentBytes claimedOld : List (BitVec 8)) (os : List (BitVec 8)) :    (vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes      claimedOld os).pcFree := by
+  unfold vphlK20Frame
+  repeat' first
+    | exact pcFree_regOwn | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+    | apply pcFree_sepConj
+/-- The K20 call: 299 steps, `vphlBase + 80 → vphlBase + 84`. -/
+theorem vphl_k20_call_spec_within    (spC retHdr parentBase parentLenW childBase childLenW outPtr v21 : Word)    (oldOffset oldLen : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (os : List (BitVec 8))    (childLen : Nat) (cs0 cs1 cs2 cs3 cs4 : Word)    (hclenW : childLenW = BitVec.ofNat 64 childLen)    (hcalign : childBase.toNat % 8 = 0)    (hcslack : childLen + 9 ≤ childBytes.length)    (hcover : childBase.toNat + childBytes.length ≤ 2 ^ 64)    (hcvalid : ∀ k, k < childBytes.length →      isValidByteAccess (childBase + BitVec.ofNat 64 k) = true) :    cpsTripleWithin 299 (vphlBase + 80) (vphlBase + 84) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) **        (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ childBase) ** (.x11 ↦ᵣ childLenW) ** (.x12 ↦ᵣ (0 : Word)) **        (.x13 ↦ᵣ vphlOffsetAddr) ** (.x14 ↦ᵣ vphlLengthAddr) **        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 **        bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **        (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      (((.x1 ↦ᵣ (vphlBase + 84)) **        callReturnResult spC childBase (0 : Word) vphlOffsetAddr vphlLengthAddr          oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW, s2 := childBase,            s3 := childLenW, s4 := outPtr, s5 := v21 }          childBytes childLen 0) **        (regOwn .x15 ** regOwn .x16 ** regOwn .x17 **         (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **         ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **         bytesRegion parentBase parentBytes ** (outPtr ↦ₘ (0 : Word)) **         bytesRegion vphlClaimedAddr claimedOld **         bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **         bytesRegion vphlZk3 os)) := by
+  have hcover' : childBase.toNat + childBytes.length < 2 ^ 64 :=    vphl_child_over_strict childBase childBytes hcover hcvalid (by omega)
+  have hnowrap : childBase.toNat + childLen + 9 < 2 ^ 64 := by omega
+  have hF2 := vphlK20Frame_pcFree spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase    parentBytes claimedOld os
+  have h : cpsTripleWithin (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))      (vphlBase + 80) (vphlBase + 84) vphlCode      (((.x1 ↦ᵣ retHdr) ** callEntryRest spC childBase childLenW (0 : Word)          vphlOffsetAddr vphlLengthAddr oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 } childBytes) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os)      (((.x1 ↦ᵣ (vphlBase + 84)) **        callReturnResult spC childBase (0 : Word) vphlOffsetAddr vphlLengthAddr          oldOffset oldLen          { ra := vphlBase + 84, s0 := parentBase, s1 := parentLenW,            s2 := childBase, s3 := childLenW, s4 := outPtr, s5 := v21 }          childBytes childLen 0) **        vphlK20Frame spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 parentBase parentBytes          claimedOld os) :=    rlpListNthItem_call_spec_within (cr := vphlCode) (vphlBase + 80)      (BitVec.ofNat 64 GuestAddrs.rlp_list_nth_item) retHdr spC childBase childLenW      (0 : Word) vphlOffsetAddr vphlLengthAddr oldOffset oldLen      (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.validate_parent_hash_link + 80))      _ hF2      { ra := retHdr, s0 := parentBase, s1 := parentLenW, s2 := childBase,        s3 := childLenW, s4 := outPtr, s5 := v21 }      childBytes childLen 0 hclenW (by decide) (by decide) hcalign (by omega) hnowrap hcover' hcvalid      (by omega) (by decide) rfl rfl      (fun a i hh => vphlMem _ rfl (vphlBase + 80) 20 _        (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl a i hh)      vphlCalleeMem
+  exact cpsTripleWithin_weaken    (fun _ hp => by unfold vphlK20Frame callEntryRest savedRegTail entryRest; xperm_chunked hp)    (fun _ hq => by unfold vphlK20Frame at hq; xperm_chunked hq) h
+/-- Convert a `∀`-valued scratch-register hypothesis into `regOwn` ownership for    the 12 caller-saved scratch registers (x5, x6, x7, x15, x16, x17, x28, x29,    x30, x31, x13, x14).  Same pattern as    `cpsTripleWithin_of_forall_regIs_to_regOwn7`. -/
+theorem vphl_of_forall_regIs_to_regOwn12 {n : Nat} {entry exit_ : Word}    {cr : CodeReq} {P Q : Assertion}    (hspec : ∀ v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14,      cpsTripleWithin n entry exit_ cr (P ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) Q) :    cpsTripleWithin n entry exit_ cr (P ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPOwn, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP, hO1⟩ := hPOwn
+  obtain ⟨g2, g3, d2, u2, ⟨v5, hv5⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v6, hv6⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v7, hv7⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v15, hv15⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v16, hv16⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v17, hv17⟩, hO7⟩ := hO6
+  obtain ⟨g14, g15, d8, u8, ⟨v28, hv28⟩, hO8⟩ := hO7
+  obtain ⟨g16, g17, d9, u9, ⟨v29, hv29⟩, hO9⟩ := hO8
+  obtain ⟨g18, g19, d10, u10, ⟨v30, hv30⟩, hO10⟩ := hO9
+  obtain ⟨g20, g21, d11, u11, ⟨v31, hv31⟩, hO11⟩ := hO10
+  obtain ⟨g22, g23, d12, u12, ⟨v13, hv13⟩, ⟨v14, hv14⟩⟩ := hO11
+  exact hspec v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14 R hR s hcr ⟨hp, hcompat, h1, h2, hd, hu, ⟨g0, g1, d1, u1, hP, g2, g3, d2, u2, hv5, g4, g5, d3, u3, hv6, g6, g7, d4, u4, hv7, g8, g9, d5, u5, hv15, g10, g11, d6, u6, hv16, g12, g13, d7, u7, hv17, g14, g15, d8, u8, hv28, g16, g17, d9, u9, hv29, g18, g19, d10, u10, hv30, g20, g21, d11, u11, hv31, g22, g23, d12, u12, hv13, hv14⟩, hRb⟩ hpc
+/-- One copy-loop window step: writing chunk k of `src` over the window    `src.take (8k) ++ dst.drop (8k)` at offset `8k` yields the k+1 window. -/
+private theorem vphl_copy_step (dst src : List (BitVec 8)) (k : Nat)    (hdst : dst.length = 32) (hsrc : 32 ≤ src.length) (hk : 8 * k + 8 ≤ 32) :    setBytes (src.take (8 * k) ++ dst.drop (8 * k)) (8 * k) ((src.drop (8 * k)).take 8)      = src.take (8 * k + 8) ++ dst.drop (8 * k + 8) := by
+  have hcklen : ((src.drop (8 * k)).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop]; omega
+  set S := setBytes (src.take (8 * k) ++ dst.drop (8 * k)) (8 * k)      ((src.drop (8 * k)).take 8) with hS
+  set w := src.take (8 * k) ++ dst.drop (8 * k) with hw
+  have hwlen : w.length = 32 := by
+    rw [hw, List.length_append, List.length_take, List.length_drop, hdst]; omega
+  have h1 : S.take (8 * k) = src.take (8 * k) := by
+    have := setBytes_take_of_ge ((src.drop (8 * k)).take 8) w (8 * k) (8 * k) (Nat.le_refl _)
+    rw [this, hw, List.take_append_of_le_length (by rw [List.length_take]; omega),      List.take_take, Nat.min_self]
+  have h2 : (S.drop (8 * k)).take 8 = (src.drop (8 * k)).take 8 := by
+    have h2 := setBytes_slot w ((src.drop (8 * k)).take 8) (8 * k) (by
+      rw [hcklen, hw, List.length_append, List.length_take, List.length_drop, hdst]; omega)
+    rwa [hcklen] at h2
+  have h3 : S.drop (8 * k + 8) = dst.drop (8 * k + 8) := by
+    have h3 := setBytes_drop_of_le ((src.drop (8 * k)).take 8) w (8 * k) (8 * k + 8)      (by rw [hcklen])
+    have hl : (src.take (8 * k)).length = 8 * k := by rw [List.length_take]; omega
+    rw [h3, List.drop_append, List.drop_eq_nil_of_le (by rw [hl]; omega), List.nil_append,      hl, show 8 * k + 8 - 8 * k = 8 by omega, ← List.drop_drop]
+  have hck : src.take (8 * k + 8) = src.take (8 * k) ++ (src.drop (8 * k)).take 8 :=    List.take_add (l := src) (i := 8 * k) (j := 8)
+  rw [← List.take_append_drop (8 * k) S, h1, ← List.take_append_drop 8 (S.drop (8 * k)), h2,    List.drop_drop, h3, hck, ← List.append_assoc]
+/-- After four rounds the claimed cell holds `src.take 32`. -/
+private theorem vphl_copy_final (dst src : List (BitVec 8)) (hdst : dst.length = 32) :    src.take 32 ++ dst.drop 32 = src.take 32 := by
+  rw [List.drop_eq_nil_of_le (by rw [hdst]), List.append_nil]
+/-- Post assertion: one existential bundle and a three-way outcome    disjunction inside a single pure, pairing the status word with the    semantic guard (`helbRetPost` idiom).  `spC = sp0 - 48` is the frame base;    the six frame cells persist with the saved values (they are not reclaimed    as `memOwn`). -/
+def vphlRetPost    (sp0 spC retHdr outPtr : Word) (cs0 cs1 cs2 cs3 cs4 v21 : Word)    (parentBase childBase : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (childLen : Nat)    (oldOffset oldLen : Word) (os : List (BitVec 8)) : Assertion :=  fun h => ∃ (a0v outVal foEff lnEff fo ln : Word)      (claimedB computedB osPost : List (BitVec 8)),    (((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) **        (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) **        (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) **        (.x10 ↦ᵣ a0v) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 **        regOwn .x12 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **        regOwn .x17 ** regOwn .x28 ** regOwn .x29 **        regOwn .x30 ** regOwn .x31 ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 **      bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **        (outPtr ↦ₘ outVal) ** (vphlOffsetAddr ↦ₘ foEff) ** (vphlLengthAddr ↦ₘ lnEff) **        bytesRegion vphlClaimedAddr claimedB ** bytesRegion vphlComputedAddr computedB **        bytesRegion vphlZk3 osPost) **      ⌜(a0v = (1 : Word) ∧ RlpListNthItemSAsm.Failure childBytes childBase childLen 0 ∧          outVal = (0 : Word) ∧ foEff = oldOffset ∧ lnEff = oldLen ∧          claimedB = claimedOld ∧ computedB = List.replicate 32 (0 : BitVec 8) ∧          osPost = os) ∨        (a0v = (2 : Word) ∧          RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln ∧          ln ≠ (32 : Word) ∧ outVal = (0 : Word) ∧ foEff = fo ∧ lnEff = ln ∧          claimedB = claimedOld ∧ computedB = List.replicate 32 (0 : BitVec 8) ∧          osPost = os) ∨        (a0v = (0 : Word) ∧          RlpListNthItemSAsm.Success childBytes childBase childLen 0 fo ln ∧          ln = (32 : Word) ∧ foEff = fo ∧ lnEff = ln ∧          claimedB = (childBytes.drop fo.toNat).take 32 ∧          computedB = EvmAsm.Stateless.SpecRef.keccak256 parentBytes ∧          outVal = (if (childBytes.drop fo.toNat).take 32 =              EvmAsm.Stateless.SpecRef.keccak256 parentBytes            then (1 : Word) else (0 : Word)))⌝) h-- ----------------------------------------------------------------------------- Status arms: shared address arithmetic and adapter helpers
+private theorem vphlSE13_192 : signExtend13 (192 : BitVec 13) = (192 : Word) := by decide
+private theorem vphlSE13_180 : signExtend13 (180 : BitVec 13) = (180 : Word) := by decide
+private theorem vphlSE13_56 : signExtend13 (56 : BitVec 13) = (56 : Word) := by decide
+private theorem vphlSE13_44 : signExtend13 (44 : BitVec 13) = (44 : Word) := by decide
+private theorem vphlSE13_32 : signExtend13 (32 : BitVec 13) = (32 : Word) := by decide
+private theorem vphlSE13_20 : signExtend13 (20 : BitVec 13) = (20 : Word) := by decide
+private theorem vphlSE21_28 : signExtend21 (28 : BitVec 21) = (28 : Word) := by decide
+private theorem vphlSE21_16 : signExtend21 (16 : BitVec 21) = (16 : Word) := by decide
+private theorem vphlSE21_8 : signExtend21 (8 : BitVec 21) = (8 : Word) := by decide
+private theorem vphlA21t : (vphlBase + 84) + (192 : Word) = vphlBase + 276 := by bv_omega
+private theorem vphlA21f : (vphlBase + 84) + 4 = vphlBase + 88 := by bv_omega
+private theorem vphlA26t : (vphlBase + 104) + (180 : Word) = vphlBase + 284 := by bv_omega
+private theorem vphlA26f : (vphlBase + 104) + 4 = vphlBase + 108 := by bv_omega
+private theorem vphlA65t : (vphlBase + 260) + (28 : Word) = vphlBase + 288 := by bv_omega
+private theorem vphlA68t : (vphlBase + 272) + (16 : Word) = vphlBase + 288 := by bv_omega
+private theorem vphlA70t : (vphlBase + 280) + (8 : Word) = vphlBase + 288 := by bv_omega
+private theorem vphlA52t : (vphlBase + 208) + (56 : Word) = vphlBase + 264 := by bv_omega
+private theorem vphlA52f : (vphlBase + 208) + 4 = vphlBase + 212 := by bv_omega
+private theorem vphlA55t : (vphlBase + 220) + (44 : Word) = vphlBase + 264 := by bv_omega
+private theorem vphlA55f : (vphlBase + 220) + 4 = vphlBase + 224 := by bv_omega
+private theorem vphlA58t : (vphlBase + 232) + (32 : Word) = vphlBase + 264 := by bv_omega
+private theorem vphlA58f : (vphlBase + 232) + 4 = vphlBase + 236 := by bv_omega
+private theorem vphlA61t : (vphlBase + 244) + (20 : Word) = vphlBase + 264 := by bv_omega
+private theorem vphlA61f : (vphlBase + 244) + 4 = vphlBase + 248 := by bv_omega
+/-- Weaken a valued `x11`/`x12` pair to write-ownership (the epilogue keeps them    valued; the whole-routine post owns them). -/
+private theorem vphl_regPair_to_regOwn (a b : Word) :    ∀ h, ((.x11 ↦ᵣ a) ** (.x12 ↦ᵣ b)) h → (regOwn .x11 ** regOwn .x12) h :=  fun h hp => sepConj_mono (regIs_implies_regOwn .x11) (regIs_implies_regOwn .x12) h hp
+/-- Convert the twelve valued scratch-register atoms into write-ownership
+    (needed at the epilogue junction, whose pre/post are `regOwn`-form). -/
+private theorem vphl_regIs12_to_regOwn (v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14 : Word) :
+    ∀ h, ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) h → (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14) h :=
+  fun h hp => sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6) (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x15) (sepConj_mono (regIs_implies_regOwn .x16) (sepConj_mono (regIs_implies_regOwn .x17) (sepConj_mono (regIs_implies_regOwn .x28) (sepConj_mono (regIs_implies_regOwn .x29) (sepConj_mono (regIs_implies_regOwn .x30) (sepConj_mono (regIs_implies_regOwn .x31) (sepConj_mono (regIs_implies_regOwn .x13) (regIs_implies_regOwn .x14))))))))))) h hp
+
+/-- Status-1 arm: the `rlp_list_nth_item` call failed (`Result.fail`): the branch    at [21] is taken to [69], status 1 is loaded, and [70] jumps to the epilogue.    1 + 1 + 1 + 8 = 11 steps. -/
+theorem vphl_arm_fail_spec_within    (sp0 spC retHdr : Word)    (parentBase parentLenW childBase childLenW outPtr v21 : Word)    (cs0 cs1 cs2 cs3 cs4 : Word)    (v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14 v11 v12 : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (childLen : Nat)    (oldOffset oldLen : Word) (os : List (BitVec 8))    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))    (hret : retHdr &&& ~~~(1 : Word) = retHdr)    (hFail : RlpListNthItemSAsm.Failure childBytes childBase childLen 0) :    cpsTripleWithin 11 (vphlBase + 84) retHdr vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)      (vphlRetPost sp0 spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21 parentBase childBase        parentBytes childBytes claimedOld childLen oldOffset oldLen os) := by
+  have _ := (v5, v6, v7, v15, v16, v17, v28, v29, v30, v31, v13, v14)
+  -- [21] BNE x10, x0 — taken (x10 = 1) to [69]
+  have hBr0 := bne_spec_gen_within .x10 .x0 (192 : BitVec 13) (1 : Word) (0 : Word)    (vphlBase + 84)
+  rw [vphlSE13_192, vphlA21t, vphlA21f] at hBr0
+  have hBr := cpsBranchWithin_takenStripPure2 hBr0 (fun hp hQf => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, hQ⟩⟩ := hQf
+    exact absurd hQ.2 (by decide))
+  have hBr_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hBr
+  have hBr' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 84) 21 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hBr_f
+  have s1 : cpsTripleWithin 1 (vphlBase + 84) (vphlBase + 276) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hBr'
+  -- [69] LI x10, 1
+  have hLi0 := li_spec_gen_within .x10 (1 : Word) (1 : Word) (vphlBase + 276) (by decide)
+  have hLi_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hLi0
+  have hLi' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 276) 69 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLi_f
+  have s2 : cpsTripleWithin 1 (vphlBase + 276) (vphlBase + 280) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLi'
+  -- [70] JAL x0, 8 → [72]
+  have hJal0 := jal_x0_spec_gen_within (8 : BitVec 21) (vphlBase + 280)
+  rw [vphlSE21_8, vphlA70t] at hJal0
+  have hJal_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hJal0
+  have hJal' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 280) 70 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hJal_f
+  have s3 : cpsTripleWithin 1 (vphlBase + 280) (vphlBase + 288) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by simpa only [sepConj_emp_left'] using hp)      (fun _ hq => by simpa only [sepConj_emp_left'] using hq) hJal'
+  -- epilogue [72]..[79]
+  have hEpi := vphl_epilogue_spec_within spC sp0 retHdr (vphlBase + 84) (1 : Word) v11 v12    parentBase parentLenW childBase childLenW outPtr v21 cs0 cs1 cs2 cs3 cs4 (0 : Word)    oldOffset oldLen parentBytes childBytes claimedOld (List.replicate 32 (0 : BitVec 8)) os    hspC hret
+  have t1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 s2
+  have t2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t1 s3
+  have t3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t2 hEpi
+  exact cpsTripleWithin_mono_nSteps (by omega)    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun h hq => by
+        simp only [vphlRetPost]
+        refine ⟨1, 0, oldOffset, oldLen, oldOffset, oldLen, claimedOld,
+          List.replicate 32 (0 : BitVec 8), os, by
+            refine (sepConj_pure_right _).2 ⟨(by
+              have h1 : (((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12)) ** ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (1 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ oldOffset) ** (vphlLengthAddr ↦ₘ oldLen) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)) h := by xperm_chunked hq
+              have h2 := sepConj_mono (vphl_regPair_to_regOwn v11 v12) (fun _ x => x) h h1
+              xperm_chunked h2),
+              (by exact Or.inl ⟨rfl, hFail, rfl, rfl, rfl, rfl, rfl, rfl⟩)⟩⟩) t3)
+/-- Status-2 arm: the K20 call succeeded but the claimed parent-hash field    length is not 32 — [21] falls through, [22]-[25] load and test the length,    [26] is taken to [71] (`LI x10, 2`), which falls through into the epilogue.    15 steps total. -/
+theorem vphl_arm_len_ne32_spec_within    (sp0 spC retHdr parentLenW childLenW outPtr : Word)    (cs0 cs1 cs2 cs3 cs4 v21 : Word)    (parentBase childBase : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (childLen : Nat)    (fo ln oldOffset oldLen : Word)    (v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14 : Word)    (v11 v12 : Word) (os : List (BitVec 8))    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))    (hret : retHdr &&& ~~~(1 : Word) = retHdr)    (hSucc : Success childBytes childBase childLen 0 fo ln)    (hne : ln ≠ (32 : Word)) :    cpsTripleWithin 15 (vphlBase + 84) retHdr vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)      (vphlRetPost sp0 spC retHdr outPtr cs0 cs1 cs2 cs3 cs4 v21 parentBase childBase        parentBytes childBytes claimedOld childLen oldOffset oldLen os) := by
+  have _ := (v15, v16, v17, v28, v29, v30, v31, v13, v14)
+  -- [21] BNE x10, x0 — not taken (x10 = 0), fall through to [22]
+  have hBr0 := bne_spec_gen_within .x10 .x0 (192 : BitVec 13) (0 : Word) (0 : Word)    (vphlBase + 84)
+  rw [vphlSE13_192, vphlA21t, vphlA21f] at hBr0
+  have hBr := cpsBranchWithin_ntakenStripPure2 hBr0 (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, hQ⟩⟩ := hQt
+    exact absurd hQ.2 (by decide))
+  have hBr_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hBr
+  have hBr' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 84) 21 _      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hBr_f
+  have s1 : cpsTripleWithin 1 (vphlBase + 84) (vphlBase + 88) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hBr'
+  -- [22]-[23] la x5, vphl_length
+  have hLa_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) (vphlLa_length_5a v5)
+  have s2 : cpsTripleWithin 2 (vphlBase + 88) (vphlBase + 88 + 8) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLa_f
+  -- [24] LD x6, [x5] (the length cell)
+  have hLd0 := ld_spec_gen_within .x6 .x5 vphlLengthAddr v6 ln (0 : BitVec 12)    (vphlBase + 96) (by decide)
+  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show vphlLengthAddr + (0 : Word) = vphlLengthAddr from by bv_omega] at hLd0
+  have hLd_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hLd0
+  have hLd' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 96) 24 _      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLd_f
+  have s3 : cpsTripleWithin 1 (vphlBase + 96) (vphlBase + 100) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLd'
+  -- [25] LI x7, 32
+  have hLi0 := li_spec_gen_within .x7 v7 (32 : Word) (vphlBase + 100) (by decide)
+  have hLi_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hLi0
+  have hLi' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 100) 25 _      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLi_f
+  have s4 : cpsTripleWithin 1 (vphlBase + 100) (vphlBase + 104) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLi'
+  -- [26] BNE x6, x7 — taken (ln ≠ 32) to [71]
+  have hBr20 := bne_spec_gen_within .x6 .x7 (180 : BitVec 13) ln (32 : Word) (vphlBase + 104)
+  rw [vphlSE13_180, vphlA26t, vphlA26f] at hBr20
+  have hBr2 := cpsBranchWithin_takenStripPure2 hBr20 (fun hp hQf => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, hQ⟩⟩ := hQf
+    exact hne hQ.2)
+  have hBr2_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hBr2
+  have hBr2' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 104) 26 _      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hBr2_f
+  have s5 : cpsTripleWithin 1 (vphlBase + 104) (vphlBase + 284) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hBr2'
+  -- [71] LI x10, 2 (falls through to [72])
+  have hLi20 := li_spec_gen_within .x10 (0 : Word) (2 : Word) (vphlBase + 284) (by decide)
+  have hLi2_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) hLi20
+  have hLi2' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 284) 71 _      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLi2_f
+  have s6 : cpsTripleWithin 1 (vphlBase + 284) (vphlBase + 288) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLi2'
+  -- epilogue [72]..[79]
+  have hEpi := vphl_epilogue_spec_within spC sp0 retHdr (vphlBase + 84) (2 : Word) v11 v12    parentBase parentLenW childBase childLenW outPtr v21 cs0 cs1 cs2 cs3 cs4 (0 : Word)    fo ln parentBytes childBytes claimedOld (List.replicate 32 (0 : BitVec 8)) os hspC hret
+  have t1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 s2
+  have t2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t1 s3
+  have t3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t2 s4
+  have t4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t3 s5
+  have t5 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t4 s6
+  have t6 := cpsTripleWithin_seq_perm_same_cr (fun h hp => by
+      have h1 : (((.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) ** ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)) h := by xperm_chunked hp
+      have h2 := sepConj_mono (vphl_regIs12_to_regOwn vphlLengthAddr ln (32 : Word) v15 v16 v17 v28 v29 v30 v31 v13 v14) (fun _ x => x) h h1
+      xperm_chunked h2) t5 hEpi
+  exact cpsTripleWithin_mono_nSteps (by omega)    (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun h hq => by
+        simp only [vphlRetPost]
+        refine ⟨2, 0, fo, ln, fo, ln, claimedOld,
+          List.replicate 32 (0 : BitVec 8), os, by
+            refine (sepConj_pure_right _).2 ⟨(by
+              have h1 : (((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12)) ** ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ retHdr) ** (.x8 ↦ᵣ cs0) ** (.x9 ↦ᵣ cs1) ** (.x18 ↦ᵣ cs2) ** (.x19 ↦ᵣ cs3) ** (.x20 ↦ᵣ cs4) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (2 : Word)) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** regOwn .x13 ** regOwn .x14 ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)) h := by xperm_chunked hq
+              have h2 := sepConj_mono (vphl_regPair_to_regOwn v11 v12) (fun _ x => x) h h1
+              xperm_chunked h2),
+              (by exact Or.inr (Or.inl ⟨rfl, hSucc, hne, rfl, rfl, rfl, rfl, rfl, rfl⟩))⟩⟩) t6)
+/-- Status-0 prefix, length check passes (`ln = 32`): instructions 21 (not    taken), 22-25, 26 (not taken) — 6 steps, landing at [27]. -/
+theorem vphl_arm_len_eq32_prefix_spec_within    (sp0 spC retHdr parentLenW childLenW outPtr : Word)    (cs0 cs1 cs2 cs3 cs4 v21 : Word)    (parentBase childBase : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (childLen : Nat)    (fo ln : Word)    (v5 v6 v7 v15 v16 v17 v28 v29 v30 v31 v13 v14 : Word)    (v11 v12 : Word)    (os : List (BitVec 8))    (hspC : spC = sp0 + signExtend12 (-48 : BitVec 12))    (hret : retHdr &&& ~~~(1 : Word) = retHdr)    (hSucc : Success childBytes childBase childLen 0 fo ln)    (hln32 : ln = (32 : Word)) :    cpsTripleWithin 6 (vphlBase + 84) (vphlBase + 108) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) **        (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **        (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) **        (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) **        (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) := by
+  have _ := hspC
+  have _ := hret
+  have _ := hSucc
+  -- [21] BNE x10, x0 — not taken (x10 = 0)
+  have hBr0 := bne_spec_gen_within .x10 .x0 (192 : BitVec 13) (0 : Word) (0 : Word)    (vphlBase + 84)
+  rw [vphlSE13_192, vphlA21t, vphlA21f] at hBr0
+  have hNt0 := cpsBranchWithin_ntakenStripPure2 hBr0 (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, hQ⟩⟩ := hQt
+    exact absurd hQ.2 (by decide))
+  have hNt_f := cpsTripleWithin_frameR    (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **      (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **      (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **      (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) **      (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **      (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14)) **      ((spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 ** bytesRegion parentBase parentBytes **      bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **      (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **      bytesRegion vphlClaimedAddr claimedOld **      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **      bytesRegion vphlZk3 os))    (by repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hNt0
+  have hNt' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 84) 21 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hNt_f
+  have s1 : cpsTripleWithin 1 (vphlBase + 84) (vphlBase + 88) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) **        (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **        (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) **        (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **        (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun _ hq => by xperm_chunked hq) hNt'
+  -- [22]-[23] la x5, vphl_length
+  have hLa_f := cpsTripleWithin_frameR    (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **      (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **      (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **      (.x12 ↦ᵣ v12) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) **      (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **      (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word))) **      ((spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 ** bytesRegion parentBase parentBytes **      bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **      (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **      bytesRegion vphlClaimedAddr claimedOld **      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **      bytesRegion vphlZk3 os))    (by repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) (vphlLa_length_5a v5)
+  have s2 : cpsTripleWithin 2 (vphlBase + 88) (vphlBase + 96) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) **        (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **        (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **        (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun _ hq => by xperm_chunked hq) hLa_f
+  -- [24] LD x6 ← [vphl_length]
+  have hLd0 := ld_spec_gen_within .x6 .x5 vphlLengthAddr v6 ln (0 : BitVec 12)    (vphlBase + 96) (by decide)
+  rw [signExtend12_0, show vphlLengthAddr + (0 : Word) = vphlLengthAddr from by bv_omega] at hLd0
+  have hLd_f := cpsTripleWithin_frameR    (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **      (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **      (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **      (.x12 ↦ᵣ v12) ** (.x7 ↦ᵣ v7) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **      (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) **      (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word))) **      ((spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 ** bytesRegion parentBase parentBytes **      bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **      (vphlOffsetAddr ↦ₘ fo) ** bytesRegion vphlClaimedAddr claimedOld **      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **      bytesRegion vphlZk3 os))    (by repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hLd0
+  have hLd' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 96) 24 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLd_f
+  have s3 : cpsTripleWithin 1 (vphlBase + 96) (vphlBase + 100) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **        (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ v7) **        (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun _ hq => by xperm_chunked hq) hLd'
+  -- [25] LI x7, 32
+  have hLi0 := li_spec_gen_within .x7 v7 (32 : Word) (vphlBase + 100) (by decide)
+  have hLi_f := cpsTripleWithin_frameR    (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **      (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **      (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **      (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x15 ↦ᵣ v15) **      (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **      (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word))) **      ((spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 ** bytesRegion parentBase parentBytes **      bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **      (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **      bytesRegion vphlClaimedAddr claimedOld **      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **      bytesRegion vphlZk3 os))    (by repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hLi0
+  have hLi' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 100) 25 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLi_f
+  have s4 : cpsTripleWithin 1 (vphlBase + 100) (vphlBase + 104) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ v7) **        (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **        (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) **        (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) **        (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun _ hq => by xperm_chunked hq) hLi'
+  -- [26] BNE x6, x7 — not taken (ln = 32)
+  have hBr260 := bne_spec_gen_within .x6 .x7 (180 : BitVec 13) ln (32 : Word)    (vphlBase + 104)
+  rw [vphlSE13_180, vphlA26t, vphlA26f] at hBr260
+  have hNt260 := cpsBranchWithin_ntakenStripPure2 hBr260 (fun hp hQt => by
+    obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, hQ⟩⟩ := hQt
+    exact absurd hQ.2 (not_not_intro hln32))
+  have hNt26_f := cpsTripleWithin_frameR    (((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **      (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **      (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **      (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) **      (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word))) **      ((spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **      ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **      stackFree spC 8 ** bytesRegion parentBase parentBytes **      bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **      (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **      bytesRegion vphlClaimedAddr claimedOld **      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **      bytesRegion vphlZk3 os))    (by repeat' first
+      | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+      | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hNt260
+  have hNt26' := cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 104) 26 _    (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hNt26_f
+  have s5 : cpsTripleWithin 1 (vphlBase + 104) (vphlBase + 108) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) **        (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) **        (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os)      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) **        (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) **        (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **        (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) **        (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **        stackFree spC 8 ** bytesRegion parentBase parentBytes **        bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) **        (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **        bytesRegion vphlClaimedAddr claimedOld **        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **        bytesRegion vphlZk3 os) :=    cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)      (fun _ hq => by xperm_chunked hq) hNt26'
+  have t1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 s2
+  have t2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t1 s3
+  have t3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t2 s4
+  have t4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t3 s5
+  exact cpsTripleWithin_mono_nSteps (by omega) t4
+/-- Split of the child region at the claimed-parent-hash field offset. -/
+private theorem vphl_child_split (childBase : Word) (childBytes : List (BitVec 8))    (fo : Word) (hfole : fo.toNat ≤ childBytes.length) (hfo8 : 8 ∣ fo.toNat) :    bytesRegion childBase childBytes =      (bytesRegion childBase (childBytes.take fo.toNat) **        bytesRegion (childBase + fo) (childBytes.drop fo.toNat)) := by
+  conv_lhs => rw [← List.take_append_drop (fo.toNat) childBytes]
+  rw [bytesRegion_append _ _ _ (by rwa [List.length_take, Nat.min_eq_left hfole]),    List.length_take, Nat.min_eq_left hfole, BitVec.ofNat_toNat, BitVec.setWidth_eq]
+/-- The claimed-parent-hash copy: reload the field offset and address, then call the verified byte-wise `mset_memcpy` helper with `x10 = vphl_claimed`, `x11 = childBase + fo`, and `x12 = 32`; the aligned scratch load reconstructs the last comparison dword. The call and three nops preserve the existing continuation at `vphlBase + 164` (208 steps including the 32-byte helper). -/
+theorem vphl_copy_claimed_spec_within    (spC retHdr parentLenW childLenW outPtr : Word)    (cs0 cs1 cs2 cs3 cs4 v21 : Word) (parentBase childBase : Word)    (parentBytes childBytes claimedOld : List (BitVec 8)) (fo ln : Word)    (v15 v16 v17 v28 v29 v30 v31 v13 v14 v11 v12 : Word)    (os : List (BitVec 8))    (hfb : fo.toNat + 32 ≤ childBytes.length)    (hcalign : childBase.toNat % 8 = 0)    (hcov64 : childBase.toNat + childBytes.length < 2 ^ 64)    (hcvalid : ∀ k, k < childBytes.length → isValidByteAccess (childBase + BitVec.ofNat 64 k) = true)    (hclaimedLen : claimedOld.length = 32) :    cpsTripleWithin 208 (vphlBase + 108) (vphlBase + 164) vphlCode      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ vphlLengthAddr) ** (.x6 ↦ᵣ ln) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr claimedOld ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** regOwn .x10 ** regOwn .x11 ** regOwn .x12 ** regOwn .x5 ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes (((childBytes.drop fo.toNat).drop 24).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr ((childBytes.drop fo.toNat).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) := by
+  have hcopy := mset_memcpy_own_spec_within msetMemcpyBase childBase
+    vphlClaimedAddr (vphlBase + 152) childBytes claimedOld
+    fo.toNat 0 32 hcalign (by decide) hfb
+    (by omega) hcov64
+    (by rw [vphlClaimedAddr_toNat, hclaimedLen]; decide)
+    hcvalid (by
+      intro k hk
+      have hk32 : k < 32 := by rw [hclaimedLen] at hk; exact hk
+      exact vphlClaimed_valid k hk32)
+  have hcopy' := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (fun a i h => CodeReq.union_mono_left a i h) hcopy
+  have hcopyPure :
+      copyIntoRegion claimedOld childBytes 0 fo.toNat 32 =
+        (childBytes.drop fo.toNat).take 32 := by
+    exact EvmAsm.Codegen.AccountDecodeBridge.copyIntoRegion_eq_slice
+      claimedOld childBytes fo.toNat 32 hclaimedLen hfb
+  let msetP : Assertion :=
+    (.x12 ↦ᵣ (32 : Word)) **
+      (.x11 ↦ᵣ (childBase + fo)) **
+      (.x10 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion childBase childBytes ** bytesRegion vphlClaimedAddr claimedOld **
+      regOwn .x5
+  let msetPCall : Assertion :=
+    (.x12 ↦ᵣ (32 : Word)) **
+      (.x11 ↦ᵣ (childBase + fo)) **
+      (.x10 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion childBase childBytes ** bytesRegion vphlClaimedAddr claimedOld **
+      (.x5 ↦ᵣ vphlOffsetAddr)
+  let msetQ : Assertion :=
+    (.x12 ↦ᵣ (0 : Word)) **
+      (.x11 ↦ᵣ (childBase + BitVec.ofNat 64 (fo.toNat + 32))) **
+      (.x10 ↦ᵣ (vphlClaimedAddr + BitVec.ofNat 64 32)) **
+      regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion childBase childBytes **
+      bytesRegion vphlClaimedAddr
+        ((childBytes.drop fo.toNat).take 32)
+  have hcopy'' : cpsTripleWithin 194 msetMemcpyBase (vphlBase + 152) vphlCode
+      (((.x1 ↦ᵣ (vphlBase + 152)) ** msetP))
+      ((.x1 ↦ᵣ (vphlBase + 152)) ** msetQ) := by
+    change cpsTripleWithin 194 msetMemcpyBase (vphlBase + 152) vphlCode
+      ((.x1 ↦ᵣ (vphlBase + 152)) **
+        ((.x12 ↦ᵣ (32 : Word)) **
+          (.x11 ↦ᵣ (childBase + fo)) **
+            (.x10 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+              bytesRegion childBase childBytes **
+                bytesRegion vphlClaimedAddr claimedOld ** regOwn .x5))
+      ((.x1 ↦ᵣ (vphlBase + 152)) **
+        ((.x12 ↦ᵣ (0 : Word)) **
+          (.x11 ↦ᵣ (childBase + BitVec.ofNat 64 (fo.toNat + 32))) **
+            (.x10 ↦ᵣ (vphlClaimedAddr + BitVec.ofNat 64 32)) **
+              regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+              bytesRegion childBase childBytes **
+                  bytesRegion vphlClaimedAddr
+                    ((childBytes.drop fo.toNat).take 32)))
+    have hfo : BitVec.ofNat 64 fo.toNat = fo := by
+      apply BitVec.eq_of_toNat_eq
+      rw [BitVec.toNat_ofNat]
+      exact Nat.mod_eq_of_lt fo.isLt
+    have hcopy0 :
+        cpsTripleWithin 194 msetMemcpyBase (vphlBase + 152) vphlCode
+          ((.x1 ↦ᵣ (vphlBase + 152)) ** msetP)
+          ((.x1 ↦ᵣ (vphlBase + 152)) ** msetQ) := by
+      exact cpsTripleWithin_weaken
+        (fun _ hp => by
+          dsimp [msetP] at hp ⊢
+          rw [← hfo] at hp
+          simpa only [BitVec.add_zero, sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hp)
+        (fun _ hq => by
+          dsimp [msetQ] at ⊢
+          rw [← hcopyPure]
+          simpa [msetQ, BitVec.add_zero, Nat.zero_add,
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq) hcopy'
+    simpa only [show vphlBase + 152 = vphlBase + 148 + 4 by bv_omega] using hcopy0
+  have htarget : (vphlBase + 148) +
+      signExtend21 (jalOff GuestAddrs.mset_memcpy
+        (GuestAddrs.validate_parent_hash_link + 148)) = msetMemcpyBase := by
+    decide
+  have hmem : ∀ a i,
+      CodeReq.singleton (vphlBase + 148)
+        (.JAL .x1 (jalOff GuestAddrs.mset_memcpy
+          (GuestAddrs.validate_parent_hash_link + 148))) a = some i →
+      vphlCode a = some i := by
+    exact vphlMem _ rfl (vphlBase + 148) 37 _
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) (by decide)
+  have hcopyCall :
+      cpsTripleWithin 194 msetMemcpyBase (vphlBase + 152) vphlCode
+        ((.x1 ↦ᵣ (vphlBase + 152)) ** msetPCall)
+        ((.x1 ↦ᵣ (vphlBase + 152)) ** msetQ) := by
+    refine cpsTripleWithin_weaken (by
+      intro hstate hp
+      dsimp [msetPCall, msetP] at hp ⊢
+      exact sepConj_mono_right (P := (.x1 ↦ᵣ (vphlBase + 152)))
+        (Q := msetPCall) (Q' := msetP) (fun h hq => by
+          have htail' :
+              ((.x5 ↦ᵣ vphlOffsetAddr) **
+                ((.x12 ↦ᵣ (32 : Word)) **
+                  (.x11 ↦ᵣ (childBase + fo)) **
+                    (.x10 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+                      bytesRegion childBase childBytes **
+                        bytesRegion vphlClaimedAddr claimedOld)) h := by
+            xperm_hyp hq
+          have htail'' := sepConj_mono_left
+            (regIs_implies_regOwn .x5) _ htail'
+          xperm_hyp htail'') hstate hp) (fun _ hq => hq) hcopy''
+  have hcallBase := callWithin_spec (cr := vphlCode)
+    (P := msetPCall) (Q := msetQ)
+    (vphlBase + 148) msetMemcpyBase (vphlBase + 84)
+      (jalOff GuestAddrs.mset_memcpy
+        (GuestAddrs.validate_parent_hash_link + 148)) 194 htarget hmem
+      (by dsimp [msetPCall]; repeat' first
+        | exact pcFree_regIs | exact pcFree_regOwn
+        | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj)
+      hcopyCall
+  have hcall := cpsTripleWithin_frameR
+    ((.x30 ↦ᵣ (vphlBase + 84)))
+    (by exact pcFree_regIs) hcallBase
+  let msetQOwn : Assertion :=
+    regOwn .x10 ** regOwn .x11 ** regOwn .x12 **
+      regOwn .x5 ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion childBase childBytes **
+        bytesRegion vphlClaimedAddr
+          ((childBytes.drop fo.toNat).take 32)
+  have hmsetQOwn : ∀ h, msetQ h → msetQOwn h := by
+    intro h hq
+    dsimp [msetQ, msetQOwn] at hq ⊢
+    have hq' := sepConj_mono (regIs_implies_regOwn .x12)
+      (sepConj_mono (regIs_implies_regOwn .x11)
+        (sepConj_mono (regIs_implies_regOwn .x10)
+          (fun _ x => x))) _ hq
+    xperm_hyp hq'
+  have hcallOwn :
+      cpsTripleWithin 195 (vphlBase + 148) (vphlBase + 152) vphlCode
+        (((.x1 ↦ᵣ (vphlBase + 84)) ** msetPCall) **
+          (.x30 ↦ᵣ (vphlBase + 84)))
+        (((.x1 ↦ᵣ (vphlBase + 152)) ** msetQOwn) **
+          (.x30 ↦ᵣ (vphlBase + 84))) := by
+    refine cpsTripleWithin_weaken (fun _ hp => hp) (by
+      intro h hq
+      have hq' :
+          (((.x1 ↦ᵣ (vphlBase + 148 + 4)) ** msetQ) **
+            (.x30 ↦ᵣ (vphlBase + 84))) h := by
+        xperm_hyp hq
+      have hq''0 :
+          (((.x1 ↦ᵣ (vphlBase + 148 + 4)) ** msetQOwn) **
+            (.x30 ↦ᵣ (vphlBase + 84))) h := by
+        exact sepConj_mono_left
+          (sepConj_mono_right
+            (P := (.x1 ↦ᵣ (vphlBase + 148 + 4)))
+            (Q := msetQ) (Q' := msetQOwn) hmsetQOwn) _ hq'
+      have hq'' :
+          (((.x1 ↦ᵣ (vphlBase + 152)) ** msetQOwn) **
+            (.x30 ↦ᵣ (vphlBase + 84))) h := by
+        simpa only [show vphlBase + 148 + 4 = vphlBase + 152 by bv_omega] using hq''0
+      exact hq'') hcall
+  have hLa := vphlLa_offset_5b vphlLengthAddr
+  have hLd := ld_spec_gen_within .x6 .x5 vphlOffsetAddr ln fo
+      (0 : BitVec 12) (vphlBase + 116) (by decide)
+  rw [signExtend12_0,
+    show vphlOffsetAddr + (0 : Word) = vphlOffsetAddr from by bv_omega] at hLd
+  have hLdE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 116) 29
+      (.LD .x6 .x5 (0 : BitVec 12))
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLd
+  have hAdd := add_spec_gen_within .x28 .x18 .x6 childBase fo v28
+      (vphlBase + 120) (by decide)
+  have hAddE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 120) 30
+      (.ADD .x28 .x18 .x6)
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hAdd
+  have hLac := vphlLa_claimed_29 v29
+  have hSave := mv_spec_gen_within .x30 .x1 (vphlBase + 84)
+      v30 (vphlBase + 132) (by decide)
+  have hSaveE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 132) 33
+      (.MV .x30 .x1)
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hSave
+  have hMv10 := mv_spec_gen_within .x10 .x29 vphlClaimedAddr
+      (0 : Word) (vphlBase + 136) (by decide)
+  have hMv10E := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 136) 34
+      (.MV .x10 .x29)
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hMv10
+  have hMv11 := mv_spec_gen_within .x11 .x28 (childBase + fo)
+      v11 (vphlBase + 140) (by decide)
+  have hMv11E := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 140) 35
+      (.MV .x11 .x28)
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hMv11
+  have hLi := li_spec_gen_within .x12 v12 (32 : Word)
+      (vphlBase + 144) (by decide)
+  have hLiE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 144) 36
+      (.LI .x12 (32 : Word))
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLi
+  have hRestore := mv_spec_gen_within .x1 .x30 (vphlBase + 84)
+      (vphlBase + 152) (vphlBase + 152) (by decide)
+  have hRestoreE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 152) 38
+      (.MV .x1 .x30)
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hRestore
+  have hn0 := generic_nop_spec_within
+      (base := vphlBase + 156) (exit_ := vphlBase + 160)
+      (.ADDI .x0 .x0 (0 : BitVec 12))
+      (by intro s hpc; simp only [execInstrBr, MachineState.setReg]; rw [hpc]; congr 1)
+      (by intro s hfetch; exact step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl))
+  have hn0E := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 156) 39
+      (.ADDI .x0 .x0 (0 : BitVec 12))
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hn0
+  have hLdFinal := bytesRegion_ld_within .x30 .x29 vphlClaimedAddr
+      (vphlBase + 84)
+      (vphlBase + 160) ((childBytes.drop fo.toNat).take 32) 3
+      (by decide)
+      (by
+        have hdrop : 32 ≤ (childBytes.drop fo.toNat).length := by
+          rw [List.length_drop]
+          omega
+        rw [List.length_take, Nat.min_eq_left hdrop]
+        omega)
+      (by decide)
+  have hLdFinalE := cpsTripleWithin_extend_code (cr' := vphlCode)
+    (vphlMem _ rfl (vphlBase + 160) 40
+      (.LD .x30 .x29 (24 : BitVec 12))
+      (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hLdFinal
+  simp only [Nat.reduceMul, List.drop_take, List.take_take, Nat.reduceSub,
+    Nat.min_self] at hLdFinalE
+  -- `runBlock` unfolds this local code definition on the goal before composing;
+  -- expose the same union on each manually supplied leaf so its fast path sees
+  -- one identical CodeReq instead of trying to synthesize a (false) extension.
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hLa
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hLdE
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hAddE
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hLac
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hSaveE
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hMv10E
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hMv11E
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hLiE
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hcallOwn
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hRestoreE
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hn0E
+  change cpsTripleWithin _ _ _ (msetMemcpyCode.union vphlCoreCode) _ _ at hLdFinalE
+  runBlock hLa hLdE hAddE hLac hSaveE hMv10E hMv11E hLiE hcallOwn
+    hRestoreE hn0E hLdFinalE
+/-- The block-hash code sits inside `vphlCode` (via the two union levels). -/
+theorem vphl_hash_prep_spec_within
+    (spC retHdr parentLenW childLenW outPtr : Word)
+    (cs0 cs1 cs2 cs3 cs4 v21 : Word) (parentBase childBase : Word)
+    (parentBytes childBytes : List (BitVec 8))
+    (fo ln : Word)
+    (v15 v16 v17 v31 v13 v14 v11 v12 : Word)
+    (os : List (BitVec 8)) (v5 v10 : Word) :
+    cpsTripleWithin 4 (vphlBase + 164) (vphlBase + 180) vphlCode
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os)
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ vphlComputedAddr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) := by
+  -- [41] MV x10 ← x8 (parentBase)
+  have hM10 := mv_spec_gen_within .x10 .x8 parentBase v10 (vphlBase + 164) (by decide)
+  have hM1_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) (cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 164) 41 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hM10)
+  have s1 : cpsTripleWithin 1 (vphlBase + 164) (vphlBase + 168) vphlCode ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) := cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hM1_f
+  -- [42] MV x11 ← x9 (parentLenW)
+  have hM20 := mv_spec_gen_within .x11 .x9 parentLenW v11 (vphlBase + 168) (by decide)
+  have hM2_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) (cpsTripleWithin_extend_code (vphlMem _ rfl (vphlBase + 168) 42 _ (by rw [vphlProg_length]; norm_num) (by bv_omega) rfl) hM20)
+  have s2 : cpsTripleWithin 1 (vphlBase + 168) (vphlBase + 172) vphlCode ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) := cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hM2_f
+  -- [43]-[44] la x12, vphl_computed
+  have hLa_f := cpsTripleWithin_frameR ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) (by repeat' first | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj) (vphlLa_computed_12 v12)
+  have s3 : cpsTripleWithin 2 (vphlBase + 172) (vphlBase + 180) vphlCode ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ v12) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) ** (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) ** (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ vphlComputedAddr) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) ** (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) ** (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) ** (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) ** ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) ** stackFree spC 8 ** bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes ** (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) ** bytesRegion vphlClaimedAddr (((childBytes.drop fo.toNat)).take 32) ** bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) ** bytesRegion vphlZk3 os) := cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) hLa_f
+  have t1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) s1 s2
+  have t2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) t1 s3
+  exact cpsTripleWithin_mono_nSteps (by omega) (cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by xperm_chunked hq) t2)
+
+/-- The block-hash code sits inside `vphlCode` (via the two union levels). -/
+
+private theorem vphlBhMem : ∀ a i, BlockHashFromHeaderSpec.fullCode a = some i →
+    vphlCode a = some i := by
+  have hW : RlpListNthItemSAsm.code.Disjoint BlockHashFromHeaderSpec.wrapperCode := by
+    unfold RlpListNthItemSAsm.code BlockHashFromHeaderSpec.wrapperCode
+      RlpListNthItemSAsm.B BlockHashFromHeaderSpec.B
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [RlpListNthItemSAsm.total_length]; decide
+    · rw [BlockHashFromHeaderSpec.wrapper_length]; decide
+    · rw [RlpListNthItemSAsm.total_length, BlockHashFromHeaderSpec.wrapper_length]; decide
+  have hK : RlpListNthItemSAsm.code.Disjoint BlockHashFromHeaderSpec.keccakCode := by
+    unfold RlpListNthItemSAsm.code BlockHashFromHeaderSpec.keccakCode
+      RlpListNthItemSAsm.B BlockHashFromHeaderSpec.K
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [RlpListNthItemSAsm.total_length]; decide
+    · decide
+    · rw [RlpListNthItemSAsm.total_length]; decide
+  have hB : RlpListNthItemSAsm.code.Disjoint BlockHashFromHeaderSpec.fullCode := by
+    intro a
+    by_cases h2 : RlpListNthItemSAsm.code a = none
+    · exact Or.inl h2
+    · have hw := (hW a).resolve_left h2
+      have hk := (hK a).resolve_left h2
+      right
+      simp only [BlockHashFromHeaderSpec.fullCode] at hw hk ⊢
+      simp only [CodeReq.union, hw, hk]
+  exact fun a i hi => vphlCoreMem a i
+    (CodeReq.mono_union_right vphl_tail_disjoint (fun _ _ h => h) a i
+      (CodeReq.mono_union_right hB (fun _ _ h => h) a i hi))
+
+/-- The frame threaded through the `block_hash_from_header` call: the callee-saved
+    `x21`/`x19`, the six frame cells, the output/offset/length cells, the claimed
+    and child regions, and the three stack cells the callee does not use. -/
+private def vphlBhFrame (spC childLenW outPtr fo ln v21 : Word)
+    (cs0 cs1 cs2 cs3 cs4 retHdr : Word) (childBase : Word)
+    (childBytes claimed32 : List (BitVec 8)) : Assertion :=
+  (.x21 ↦ᵣ v21) ** (.x19 ↦ᵣ childLenW) **
+    (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+    ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+    (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **
+    bytesRegion vphlClaimedAddr claimed32 ** bytesRegion childBase childBytes **
+    memOwn (spC - BitVec.ofNat 64 8) ** memOwn (spC - BitVec.ofNat 64 56) **
+    memOwn (spC - BitVec.ofNat 64 64)
+
+private theorem vphlBhFrame_pcFree (spC childLenW outPtr fo ln v21 : Word)
+    (cs0 cs1 cs2 cs3 cs4 retHdr : Word) (childBase : Word)
+    (childBytes claimed32 : List (BitVec 8)) :
+    (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr childBase
+      childBytes claimed32).pcFree := by
+  unfold vphlBhFrame
+  repeat' first
+    | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs | exact pcFree_memOwn
+    | exact bytesRegion_pcFree _ _ | apply pcFree_sepConj
+
+/-- Convert the ten valued temp registers into `regOwns keccakBodyFreeTemps`. -/
+private theorem vphl_temps_to_keccakTemps (a5 a6 a7 a13 a14 a15 a16 a17 a30 a31 : Word) :
+    ∀ h, ((.x5 ↦ᵣ a5) ** (.x6 ↦ᵣ a6) ** (.x7 ↦ᵣ a7) ** (.x13 ↦ᵣ a13) **
+      (.x14 ↦ᵣ a14) ** (.x15 ↦ᵣ a15) ** (.x16 ↦ᵣ a16) ** (.x17 ↦ᵣ a17) **
+      (.x30 ↦ᵣ a30) ** (.x31 ↦ᵣ a31)) h →
+      (regOwns keccakBodyFreeTemps) h := by
+  intro h hp
+  simp only [keccakBodyFreeTemps, regOwns_cons, regOwns_nil]
+  simpa only [sepConj_emp_right'] using
+    sepConj_mono (regIs_implies_regOwn .x5) (sepConj_mono (regIs_implies_regOwn .x6)
+    (sepConj_mono (regIs_implies_regOwn .x7) (sepConj_mono (regIs_implies_regOwn .x13)
+    (sepConj_mono (regIs_implies_regOwn .x14) (sepConj_mono (regIs_implies_regOwn .x15)
+    (sepConj_mono (regIs_implies_regOwn .x16) (sepConj_mono (regIs_implies_regOwn .x17)
+    (sepConj_mono (regIs_implies_regOwn .x30) (regIs_implies_regOwn .x31))))))))) h hp
+
+/-- The `block_hash_from_header` pre (minus the `x1` atom) is pc-free. -/
+private theorem vphlBhCallP_pcFree (spC parentBase childBase : Word)
+    (parentLenW outPtr fo ln childLenW v21 : Word)
+    (cs0 cs1 cs2 cs3 cs4 retHdr : Word)
+    (parentBytes childBytes claimed32 : List (BitVec 8)) (os : List (BitVec 8)) :
+    ((.x2 ↦ᵣ spC) ** memOwn (spC + signExtend12 (-16 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      keccakCallerPre parentBase (BitVec.ofNat 64 parentBytes.length) vphlComputedAddr
+        (childBase + fo) vphlClaimedAddr os parentBytes (List.replicate 32 (0 : BitVec 8))
+        (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr childBase
+          childBytes claimed32)).pcFree := by
+  unfold keccakCallerPre vphlBhFrame
+  simp only [keccakBodyFreeTemps, regOwns_cons, regOwns_nil, regsAt, keccakEntryVals,
+    keccakFrame]
+  simp only [List.foldr]
+  repeat' first
+    | exact pcFree_regIs | exact pcFree_regOwn | exact pcFree_memIs
+    | exact pcFree_memOwn | exact pcFree_emp
+    | exact pcFree_stackFree _ _ | exact bytesRegion_pcFree _ _
+    | exact pcFree_regOwns _ | apply pcFree_sepConj
+
+/-- Recombine the parent region after the keccak absorb split. -/
+private theorem vphl_parent_rejoin (parentBase : Word) (parentBytes : List (BitVec 8))
+    (N : Nat) (hlen : keccakAbsorbStep * N ≤ parentBytes.length) :
+    bytesRegion parentBase parentBytes =
+      (bytesRegion parentBase (parentBytes.take (keccakAbsorbStep * N)) **
+        bytesRegion (keccakAbsorbCursor parentBase N) (keccakResidual parentBytes N)) := by
+  have hstep : keccakAbsorbStep = 136 := rfl
+  conv_lhs => rw [← List.take_append_drop (keccakAbsorbStep * N) parentBytes]
+  rw [bytesRegion_append _ _ _ (by
+    rw [List.length_take, Nat.min_eq_left hlen]
+    exact ⟨17 * N, by rw [hstep]; omega⟩)]
+  rw [List.length_take, Nat.min_eq_left hlen]
+  unfold keccakAbsorbCursor keccakResidual
+  rw [hstep]
+
+/-- The `block_hash_from_header` call (instructions 45's JAL plus the callee body):
+    `6 + (5 + keccakBodyFuel N rem + 6)` callee steps plus one JAL step.  Entry at
+    `vphlBase + 180` (the JAL), exit at `vphlBase + 184` (the return). -/
+theorem vphl_hash_call_spec_within
+    (spC retHdr parentLenW childLenW outPtr : Word)
+    (cs0 cs1 cs2 cs3 cs4 v21 : Word) (parentBase childBase : Word)
+    (parentBytes childBytes : List (BitVec 8)) (N rem : Nat)
+    (fo ln v5 v13 v14 v15 v16 v17 v31 : Word)
+    (os : List (BitVec 8))
+    (hplenW : parentLenW = BitVec.ofNat 64 parentBytes.length)
+    (hkeccakLen : parentBytes.length = keccakAbsorbStep * N + rem)
+    (hrem_le : rem ≤ 135)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hb8i : (keccakAbsorbCursor parentBase N).toNat % 8 = 0)
+    (hos : os.length = 200)
+    (hpover : parentBase.toNat + parentBytes.length < 2 ^ 64)
+    (hpvalid : ∀ k, k < parentBytes.length →
+      isValidByteAccess (parentBase + BitVec.ofNat 64 k) = true)
+    :
+    cpsTripleWithin (1 + (6 + (5 + keccakBodyFuel N rem + 6))) (vphlBase + 180)
+      (vphlBase + 184) vphlCode
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 84)) ** (.x8 ↦ᵣ parentBase) **
+        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **
+        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ parentBase) **
+        (.x11 ↦ᵣ parentLenW) ** (.x12 ↦ᵣ vphlComputedAddr) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) **
+        (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) ** (.x17 ↦ᵣ v17) **
+        (.x28 ↦ᵣ (childBase + fo)) ** (.x29 ↦ᵣ vphlClaimedAddr) **
+        (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) **
+        (.x31 ↦ᵣ v31) ** (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x0 ↦ᵣ (0 : Word)) **
+        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        stackFree spC 8 **
+        bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **
+        (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **
+        bytesRegion vphlClaimedAddr ((childBytes.drop fo.toNat).take 32) **
+        bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **
+        bytesRegion vphlZk3 os)
+      ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (vphlBase + 184)) ** (.x8 ↦ᵣ parentBase) **
+        (.x9 ↦ᵣ parentLenW) ** (.x18 ↦ᵣ childBase) ** (.x19 ↦ᵣ childLenW) **
+        (.x20 ↦ᵣ outPtr) ** (.x21 ↦ᵣ v21) ** (.x10 ↦ᵣ (0 : Word)) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x11 ** regOwn .x12 **
+        regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        (spC ↦ₘ retHdr) ** ((spC + 8) ↦ₘ cs0) ** ((spC + 16) ↦ₘ cs1) **
+        ((spC + 24) ↦ₘ cs2) ** ((spC + 32) ↦ₘ cs3) ** ((spC + 40) ↦ₘ cs4) **
+        memOwn (spC - BitVec.ofNat 64 8) **
+        ((spC + signExtend12 (-16 : BitVec 12)) ↦ₘ (vphlBase + 184)) **
+        frameSlotsSaved keccakFrame
+          (spC + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12))
+          (keccakEntryVals parentBase parentLenW childBase outPtr) **
+        memOwn (spC - BitVec.ofNat 64 56) ** memOwn (spC - BitVec.ofNat 64 64) **
+        bytesRegion parentBase parentBytes ** bytesRegion childBase childBytes **
+        (outPtr ↦ₘ (0 : Word)) ** (vphlOffsetAddr ↦ₘ fo) ** (vphlLengthAddr ↦ₘ ln) **
+        bytesRegion vphlClaimedAddr ((childBytes.drop fo.toNat).take 32) **
+        bytesRegion vphlComputedAddr (EvmAsm.Stateless.SpecRef.keccak256 parentBytes) **
+        bytesRegion vphlZk3
+          (setBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0
+            (keccakBytes (keccakGuestPad (keccakBodyPrePad parentBytes N rem) rem) 0))) := by
+  have hofadd : ∀ a b : Nat, BitVec.ofNat 64 a + BitVec.ofNat 64 b =
+      BitVec.ofNat 64 (a + b) := by
+    intro a b
+    apply BitVec.eq_of_toNat_eq
+    simp [BitVec.toNat_add, BitVec.toNat_ofNat]
+  have hcursor : keccakAbsorbCursor parentBase N = parentBase +
+      BitVec.ofNat 64 (keccakAbsorbStep * N) := rfl
+  have hz := vphlZk3_over
+  rw [vphlZk3_toNat] at hz
+  have hrem64 : rem < 2 ^ 64 := by omega
+  have hovers : ∀ n, n < rem →
+      (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + (rem - (n + 1)) < 2 ^ 64 := by
+    intro n hn
+    rw [vphlZk3_toNat]
+    omega
+  have hvalids : ∀ n, n < rem →
+      isValidByteAccess (BitVec.ofNat 64 GuestAddrs.zk3_state +
+        BitVec.ofNat 64 (rem - (n + 1))) = true := by
+    intro n hn
+    rw [isValidByteAccess_eq]
+    exact vphlZk3_validMem _ (by omega)
+  have hvalidRem : isValidByteAccess (BitVec.ofNat 64 GuestAddrs.zk3_state +
+      BitVec.ofNat 64 rem) = true := by
+    rw [isValidByteAccess_eq]
+    exact vphlZk3_validMem _ (by omega)
+  have hvalid135 : isValidByteAccess (BitVec.ofNat 64 GuestAddrs.zk3_state +
+      BitVec.ofNat 64 135) = true := by
+    rw [isValidByteAccess_eq]
+    exact vphlZk3_validMem _ (by omega)
+  have hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (BitVec.ofNat 64 GuestAddrs.zk3_state +
+        BitVec.ofNat 64 j) = true := fun j hj => vphlZk3_validMem j (by omega)
+  have hstep2 : keccakAbsorbStep = 136 := rfl
+  rw [hstep2] at hkeccakLen hNbound
+  have hcursorToNat : (keccakAbsorbCursor parentBase N).toNat =
+      parentBase.toNat + keccakAbsorbStep * N := by
+    rw [hcursor, BitVec.toNat_add, BitVec.toNat_ofNat]
+    have hstepN : keccakAbsorbStep * N < 2 ^ 64 := by
+      rw [hstep2]
+      omega
+    rw [Nat.mod_eq_of_lt hstepN]
+    apply Nat.mod_eq_of_lt
+    rw [hstep2]
+    omega
+  have hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor parentBase N).toNat + (rem - (n + 1)) < 2 ^ 64 := by
+    intro n hn
+    rw [hcursorToNat]
+    rw [hstep2]
+    have := hkeccakLen
+    omega
+  have hvalidi : ∀ n, n < rem →
+      isValidByteAccess (keccakAbsorbCursor parentBase N +
+        BitVec.ofNat 64 (rem - (n + 1))) = true := by
+    intro n hn
+    have haddr : keccakAbsorbCursor parentBase N + BitVec.ofNat 64 (rem - (n + 1)) =
+        parentBase + BitVec.ofNat 64 (keccakAbsorbStep * N + (rem - (n + 1))) := by
+      rw [hcursor, BitVec.add_assoc, hofadd]
+    rw [haddr]
+    apply hpvalid
+    rw [hstep2]
+    omega
+  have hbh := BlockHashFromHeaderSpec.block_hash_from_header_spec_within
+    spC (vphlBase + 184) parentBase vphlComputedAddr parentBytes N rem
+    parentBase parentLenW childBase outPtr (childBase + fo) vphlClaimedAddr os
+    (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr childBase
+      childBytes ((childBytes.drop fo.toNat).take 32))
+    (vphlBhFrame_pcFree spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+      childBase childBytes ((childBytes.drop fo.toNat).take 32))
+    (by decide) hkeccakLen hrem_le hos vphlZk3_align vphlZk3_over hNbound hrem64 hb8i
+    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+  have hbh' := cpsTripleWithin_extend_code vphlBhMem hbh
+  let Shared : Assertion :=
+    ((.x2 ↦ᵣ spC) ** memOwn (spC + signExtend12 (-16 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      (.x10 ↦ᵣ parentBase) ** (.x11 ↦ᵣ (BitVec.ofNat 64 parentBytes.length)) **
+      (.x12 ↦ᵣ vphlComputedAddr) ** (.x28 ↦ᵣ (childBase + fo)) **
+      (.x29 ↦ᵣ vphlClaimedAddr) ** (.x0 ↦ᵣ (0 : Word)) **
+      bytesRegion vphlZk3 os ** bytesRegion parentBase parentBytes **
+      bytesRegion vphlComputedAddr (List.replicate 32 (0 : BitVec 8)) **
+      vphlBhFrame spC childLenW outPtr fo ln v21
+        cs0 cs1 cs2 cs3 cs4 retHdr childBase childBytes
+        ((childBytes.drop fo.toNat).take 32))
+  let Temp : Assertion :=
+    ((.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ fo) ** (.x7 ↦ᵣ (32 : Word)) **
+      (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ v16) **
+      (.x17 ↦ᵣ v17) ** (.x30 ↦ᵣ (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8))) **
+      (.x31 ↦ᵣ v31))
+  let PConcrete : Assertion := Shared ** Temp
+  let P : Assertion :=
+    ((.x2 ↦ᵣ spC) ** memOwn (spC + signExtend12 (-16 : BitVec 12)) **
+      stackFree (spC + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      keccakCallerPre parentBase (BitVec.ofNat 64 parentBytes.length)
+        vphlComputedAddr (childBase + fo) vphlClaimedAddr os parentBytes
+        (List.replicate 32 (0 : BitVec 8))
+        (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+          childBase childBytes ((childBytes.drop fo.toNat).take 32)))
+  let Q : Assertion :=
+    ((.x2 ↦ᵣ spC) **
+      ((spC + signExtend12 (-16 : BitVec 12)) ↦ₘ (vphlBase + 184)) **
+      frameSlotsSaved keccakFrame
+        (spC + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12))
+        (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      regsAt keccakFrame (keccakEntryVals parentBase parentLenW childBase outPtr) **
+      keccakCallerPost parentBase vphlComputedAddr parentBytes N rem
+        (vphlBhFrame spC childLenW outPtr fo ln v21 cs0 cs1 cs2 cs3 cs4 retHdr
+          childBase childBytes ((childBytes.drop fo.toNat).take 32)))
+  have hbh'' : cpsTripleWithin (6 + (5 + keccakBodyFuel N rem + 6))
+      BlockHashFromHeaderSpec.B (vphlBase + 184) vphlCode
+      ((.x1 ↦ᵣ (vphlBase + 184)) ** P)
+      ((.x1 ↦ᵣ (vphlBase + 184)) ** Q) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by
+      xperm_hyp hp) (fun _ hq => by
+      xperm_hyp hq) hbh'
+  have hcall := callWithin_spec (cr := vphlCode) (P := P) (Q := Q)
+    (vphlBase + 180) (BlockHashFromHeaderSpec.B : Word) (vphlBase + 84)
+    (jalOff GuestAddrs.block_hash_from_header
+      (GuestAddrs.validate_parent_hash_link + 180))
+    (6 + (5 + keccakBodyFuel N rem + 6)) (by decide)
+    (fun a i h =>
+      vphlMem _ rfl (vphlBase + 180) 45 _ (by rw [vphlProg_length]; norm_num)
+        (by bv_omega) rfl a i h)
+    (by
+      simpa only [P] using
+        (vphlBhCallP_pcFree spC parentBase childBase parentLenW outPtr fo ln
+          childLenW v21 cs0 cs1 cs2 cs3 cs4 retHdr parentBytes childBytes
+          ((childBytes.drop fo.toNat).take 32) os)) hbh''
+  simp only [Q] at hcall
+  have hneg16 : spC + (-16 : Word) =
+      spC - BitVec.ofNat 64 16 := by
+    simp only [BitVec.sub_eq_add_neg]
+    have h : (-16 : Word) = -BitVec.ofNat 64 16 := by decide
+    rw [h]
+  have hneg32 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 32 = spC - BitVec.ofNat 64 48 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 32 =
+        -BitVec.ofNat 64 48 := by decide
+    rw [h]
+  have hneg24 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 24 = spC - BitVec.ofNat 64 40 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 24 =
+        -BitVec.ofNat 64 40 := by decide
+    rw [h]
+  have hneg16' : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 16 = spC - BitVec.ofNat 64 32 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 16 =
+        -BitVec.ofNat 64 32 := by decide
+    rw [h]
+  have hneg8 : (spC + (-16 : Word)) -
+      BitVec.ofNat 64 8 = spC - BitVec.ofNat 64 24 := by
+    simp only [BitVec.sub_eq_add_neg]
+    rw [BitVec.add_assoc]
+    have h : (-16 : Word) + -BitVec.ofNat 64 8 =
+        -BitVec.ofNat 64 24 := by decide
+    rw [h]
+  have hsub32 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 32 =
+      spC - BitVec.ofNat 64 48 := by bv_omega
+  have hsub24 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 24 =
+      spC - BitVec.ofNat 64 40 := by bv_omega
+  have hsub16 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 16 =
+      spC - BitVec.ofNat 64 32 := by bv_omega
+  have hsub8 : spC - BitVec.ofNat 64 16 - BitVec.ofNat 64 8 =
+      spC - BitVec.ofNat 64 24 := by bv_omega
+  have hretpc : vphlBase + 180 + (4 : Word) = vphlBase + 184 := by bv_omega
+  have hparentN : keccakAbsorbStep * N ≤ parentBytes.length := by
+    rw [hkeccakLen, hstep2]
+    omega
+  have hrem_lt : rem < keccakAbsorbStep := by
+    rw [hstep2]
+    omega
+  have hdigest : keccakBodyDigest parentBytes N rem =
+      EvmAsm.Stateless.SpecRef.keccak256 parentBytes :=
+    keccakBodyDigest_eq_specref parentBytes N rem hkeccakLen hrem_lt
+  exact cpsTripleWithin_weaken
+    (P := ((.x1 ↦ᵣ (vphlBase + 84)) ** P))
+    (Q := ((.x1 ↦ᵣ (vphlBase + 184)) ** Q))
+    (fun h hp => by
+      have hpC : ((.x1 ↦ᵣ (vphlBase + 84)) ** PConcrete) h := by
+        simp only [PConcrete, Shared, Temp, vphlBase, vphlBhFrame,
+          stackFree_succ, stackFree_zero, regsAt, keccakEntryVals, keccakFrame,
+          List.foldr, sepConj_emp_right'] at hp ⊢
+        norm_num at hp ⊢
+        simp only [hneg16,
+          hsub32, hsub24, hsub16, hsub8] at ⊢
+        rw [hplenW] at hp ⊢
+        xperm_hyp hp
+      have hpOwn := sepConj_mono_right
+        (sepConj_mono (fun _ hh => hh)
+          (vphl_temps_to_keccakTemps v5 fo (32 : Word) v13 v14 v15 v16
+            v17 (packBytes ((((childBytes.drop fo.toNat)).drop (24)).take 8)) v31)) h hpC
+      simp only [P, Shared, vphlBase, vphlBhFrame, stackFree_succ, stackFree_zero,
+        regsAt, keccakEntryVals, keccakFrame, keccakCallerPre,
+        keccakBodyFreeTemps, regOwns_cons, regOwns_nil,
+        List.foldr, sepConj_emp_right'] at hpOwn ⊢
+      norm_num at hpOwn ⊢
+      simp only [hneg16,
+        hsub32, hsub24, hsub16, hsub8] at hpOwn ⊢
+      rw [hplenW] at hpOwn ⊢
+      xperm_hyp hpOwn) (fun h hq => by
+      simp only [Q, vphlBase, vphlBhFrame, frameSlotsSaved, regsAt, keccakEntryVals,
+        keccakFrame, keccakCallerPost, keccakCallerFreeA, keccakCsrsRestNoX5,
+        regOwns_cons, regOwns_nil, List.foldr,
+        sepConj_emp_right'] at hq ⊢
+      norm_num at hq ⊢
+      rw [← hdigest] at ⊢
+      rw [vphl_parent_rejoin parentBase parentBytes N hparentN] at ⊢
+      xperm_hyp hq) hcall
+
+end EvmAsm.Codegen.ValidateParentHashLinkSpec

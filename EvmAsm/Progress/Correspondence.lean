@@ -792,7 +792,7 @@ reference genuinely differ in KIND rather than in bound (#11615)" },
   { family := "header", routine := "header_extract_logs_bloom",
     spec := some "header_logs_bloom_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:225, \
+    reference := "the `bloom` field of `_decode_header` (SpecRef/Stateless.lean:235, \
 stateless.py:244)",
     note := "#11575 row 1, the first fork of #11351's pattern -- and it lands CLEANER than \
 its representative, which is the point worth recording. \
@@ -843,7 +843,7 @@ assumed. ⚠️ CITATION KIND: the `FixedBytes` clause cites an EXTERNAL package
   { family := "header", routine := "header_extract_number",
     spec := some "header_number_of_decode",
     verdict := .domainRestricted, basis := .ported,
-    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:225, \
+    reference := "the `number` field of `_decode_header` (SpecRef/Stateless.lean:235, \
 stateless.py:244)",
     note := "`portDefect` CLEARED in #11513; verdict STAYS `.domainRestricted`, but for a \
 different reason than before and the reason is the whole content of this row. The previous note \
