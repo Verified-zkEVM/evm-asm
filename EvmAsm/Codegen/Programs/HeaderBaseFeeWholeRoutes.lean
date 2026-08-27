@@ -10,12 +10,28 @@
   cancellation needed before Route B can claim the narrower pre.
 -/
 
-import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeTopReturn
 import EvmAsm.Rv64.Tactics.XCancelStruct
+import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeTop
 
 set_option maxRecDepth 8000
 
 namespace EvmAsm.Codegen.HeaderBaseFeeSpec
+
+set_option linter.defProp false in
+def k73_increase_first_div_source_branch_for_return :=
+  k73_increase_first_div_source_branch
+
+set_option linter.defProp false in
+def k73_increase_second_add_branch_for_return :=
+  k73_increase_second_add_branch
+
+set_option linter.defProp false in
+def k73_increase_second_div_source_branch_for_return :=
+  k73_increase_second_div_source_branch
+
+set_option linter.defProp false in
+def k73_increase_status_div_zero_spec_within_for_return :=
+  k73_increase_status_div_zero_spec_within
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.Proofs
@@ -1254,4 +1270,3 @@ theorem k73_increase_entry_status_div_zero_live_spec_within :
     (hNq1 := by simp [k73AddBTailSteps]; decide)
     (hNcarry := by decide)
 
-end EvmAsm.Codegen.HeaderBaseFeeSpec
