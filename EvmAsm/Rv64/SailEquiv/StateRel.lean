@@ -6,27 +6,28 @@
 -/
 
 import EvmAsm.Rv64.Basic
--- Deliberately NOT `import Out`.  The vendored umbrella pulls `Out.Step` and
--- `Out.Fetch`, and those reach `Out.RvfiDii` -- 1224 generated lines that cost
--- ~12 min and ~13 GB RSS to elaborate on one core while every other core waits
--- (under 38 s pre-v4.33; the transparency flip made it ~84x slower).
+-- Deliberately NOT `import RiscvZkvm.Sail`. The generated umbrella pulls
+-- `RiscvZkvm.Sail.Step` and `RiscvZkvm.Sail.Fetch`, and those reach
+-- `RiscvZkvm.Sail.RvfiDii` -- an expensive generated unit that can take tens
+-- of minutes and about 13 GB RSS to elaborate from source.
 --
 -- Nothing here needs it.  RVFI is dead code in this configuration:
--- `get_config_rvfi ()` is hardcoded `false` in `Out/Prelude.lean`, every RVFI
--- call site sits behind `if get_config_rvfi ()`, and our own proofs already
--- discharge it that way (see `VmemReduction.lean`, `rw [show get_config_rvfi
--- () = false from rfl]`).  `Out.InstsEnd` supplies `execute` and keeps
--- `Out.{Prelude,Xlen,Defs,Regs,Types,RiscvExtras}` -- including the four
--- platform axioms behind this layer's 74 `axiom_baseline.json` entries.
+-- `get_config_rvfi ()` is hardcoded `false` in
+-- `RiscvZkvm/Sail/Prelude.lean`, every RVFI call site sits behind
+-- `if get_config_rvfi ()`, and our own proofs already discharge it that way
+-- (see `VmemReduction.lean`, `rw [show get_config_rvfi () = false from rfl]`).
+-- `RiscvZkvm.Sail.InstsEnd` supplies `execute` and keeps the required generated
+-- modules, including the four platform axioms behind this layer's 74
+-- `axiom_baseline.json` entries.
 --
--- This does couple us to the vendored package's INTERNAL module names rather
--- than its public root.  That is deliberate and safe: if a regen restructures
--- them the build fails loudly with an unknown module, never silently.  After
--- running `scripts/regen-sail-model.sh`, re-check this closure rather than
--- reflexively restoring `import Out`.
-import Out.InstsEnd
+-- This couples us to the dependency's internal module names rather than its
+-- public root. That is deliberate and safe: if a regeneration restructures
+-- them the build fails loudly with an unknown module, never silently. After
+-- updating the riscv-zkvm tag, re-check this closure rather than reflexively
+-- restoring the umbrella import.
+import RiscvZkvm.Sail.InstsEnd
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

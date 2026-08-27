@@ -1,5 +1,8 @@
 # Sail-zkVM integration — Phase 2 bootstrap (foundation migration)
 
+> Historical bootstrap record. Current maintenance moved to
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **For:** the next session. **Goal of P2:** vendor the (now-proven) current-upstream
 scoped RV64IM Lean model into evm-asm, build it in-project, drop the moving
 `dhsorens` fork, and re-establish the 51 `*_sail_equiv` lemmas against it.
