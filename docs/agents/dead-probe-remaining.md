@@ -1,7 +1,7 @@
 # Remaining Dead Codegen Probe Programs (not yet removed)
 
 <!-- Tracked as an issue for batching: https://github.com/Verified-zkEVM/evm-asm/issues/12866 -->
-<!-- Latest scan count: 105 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
+<!-- Latest scan count: 99 (regenerate with `python3 scripts/scan_deadprobes.py`). -->
 <!-- Keep the count line in sync when a batch below is completed. -->
 
 Registry of unverified `EvmAsm/Codegen/Programs/` modules that still define
@@ -19,6 +19,8 @@ cross-checked with the `git grep -l <Name>` method in the Reviewer playbook.
   #12814).
 
 In flight: a `State*` account/state-extractor batch (20 files, `StateBalanceProof` ... `StateWalkExtractSlot`) was filed as a dead-code PR. Move it into Completed batches once merged.
+
+In flight: a `Bal*` non-storage field-comparator batch (7 files, `BalAccountAccessDescriptors` ... `BalAccountCodeConsistent`) filed as the equivalent of #12943. `BalAccountCodeConsistent` surfaces dead only once the 6 sibling files (one of them, `BalAllAccountsCode`, references its defs inline) are removed, so all seven go together. Move it into Completed batches once merged.
 
 ## Identification criteria (every entry meets all three)
 
@@ -45,7 +47,7 @@ and files that are still live anywhere (for example `TxTotalBlobGas.lean`, whose
 `calculate_total_blob_gas` helper is referenced by the `Stateless/SpecRef` port)
 are correctly excluded even though their probe strings are self-contained.
 
-## Remaining 105 files
+## Remaining 99 files
 
 ```text
   - AccountExistsAtBlockHash
@@ -55,12 +57,6 @@ are correctly excluded even though their probe strings are self-contained.
   - AccountStorageWalkable
   - AccountVerify
   - B3CoinbaseFee
-  - BalAccountAccessDescriptors
-  - BalAccountDescriptorArray
-  - BalAccountNthDescriptor
-  - BalAllAccountsCode
-  - BalAllAccountsCodeCovers
-  - BalStorageAccessDescriptors
   - BaseFeePerGasAtBlockHash
   - BaseFeePerGasAtBlockNumber
   - BlobGasPairAtBlockHash
