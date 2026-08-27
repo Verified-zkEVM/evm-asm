@@ -13,7 +13,7 @@ module
 
 public import EvmAsm.Evm64.Shift.LimbSpec
 
-@[expose] public section
+public section
 
 open EvmAsm.Rv64.Tactics
 

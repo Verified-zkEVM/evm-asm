@@ -200,6 +200,41 @@ Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
 default, so a `def` added later is not silently exposed), but do not report it as
 a build-time improvement.
 
+### ⚠️ Where the win is NOT: `Evm64` leaf opcodes
+
+The `def`-count predictor tells you what a file *could* save. It does not tell
+you whether the file will survive the build, and in `Evm64` those two pull in
+opposite directions. Measured over one 82-file tranche across 15 leaf-opcode
+directories (`Calldata`, `Shift`, `MLoad`, `MStore`, `Code`, `Env`, `Push`,
+`Terminating`, `ReturnData`, `AddMod`, `Byte`, `And`, `Xor`, `Slt`, `Sgt`):
+
+| | |
+| --- | ---: |
+| files un-exposed and still building | **10 of 82 (12 %)** |
+| public `.olean` over those 10 | 704 672 → 677 208 B (**−3.9 %**) |
+| share of the ~131 MB migrated public total | **0.02 %** |
+| downstream modules freed from body-edit invalidation | 128 of 3045 (4.2 %) |
+| full builds spent converging | 5 |
+
+Two of the ten got **larger** (`Calldata/StageProgram` +240 B, `Env/Semantics`
++176 B): for a small body, the re-exported `.axiomInfo` costs more than the body
+did. Un-exposing is not monotone in bytes.
+
+**The mechanism, and why it generalises to the rest of `Evm64`.** Exposure mass
+and cross-module value-reasoning are *correlated here*. The big definitions in
+`Evm64` are big because they are RISC-V **programs** and **argument decoders**,
+and those are exactly what downstream `unfold`s — `Calldata/CopySpec.lean:247`
+does `unfold evm_calldatacopy` to split the program into preamble and loop. The
+files that survived un-exposure are `*Spec`-shaped, whose public half is mostly
+theorem *statements* — interface no matter what you do. So the files with
+something to save are the ones that cannot save it.
+
+⇒ Do **not** grind the remaining ~640 `Evm64` def-bearing files. Extrapolating
+this tranche gives ~78 sticking files for ~210 KB, at ~40 full builds of
+convergence. Spend the effort where large definitions are *not* value-reasoned —
+`Stateless/SpecRef` is the demonstrated case (`IncrementalMptWrite.lean`, −64 %
+on one file, more than 7× this entire tranche).
+
 ### Relationship to `@[irreducible]`
 
 `@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
