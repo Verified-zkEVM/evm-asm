@@ -1318,6 +1318,48 @@ theorem loop_test_li_bgeu_terminal_496_drop_x0
   have hdrop := cpsNBranchWithin_as_cpsTripleWithin hn
   exact cpsTripleWithin_frameR FR hFR hdrop
 
+/-! The complementary, non-terminal side of the same linked pair.  The
+    caller supplies the static `iVal < 496` fact, while the x0 transfer is
+    discharged before an arbitrary pc-free frame is reattached. -/
+theorem loop_test_li_bgeu_continue_496_drop_x0
+    (iVal vOld : Word) (h_i : BitVec.ult iVal (496 : Word))
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 2 (PriceK + 200) (PriceK + 208) priceCode
+      (((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld)) ** FR)
+      (((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜BitVec.ult iVal (496 : Word)⌝) ** FR) := by
+  have hLi := li_spec_gen_within .x5 vOld (496 : Word) (PriceK + 200) (by decide)
+  have hLiF : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x5 ↦ᵣ vOld) ** (.x18 ↦ᵣ iVal))
+      ((.x5 ↦ᵣ (496 : Word)) ** (.x18 ↦ᵣ iVal)) := by
+    refine cpsTripleWithin_extend_code ?_
+      (cpsTripleWithin_frameR (.x18 ↦ᵣ iVal) (by pcFree) hLi)
+    intro a i hi
+    have hins : amsterdamBlobGasPriceU256_prog[50]'(by decide) =
+        .LI .x5 (496 : Word) := by decide
+    show priceCode a = some i
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 200)
+      amsterdamBlobGasPriceU256_prog 50 (.LI .x5 (496 : Word))
+      (by decide) (by decide) hins (by decide) a i hi
+  have hLiF' : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word))) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hLiF
+  have hContinue : cpsTripleWithin 1 (PriceK + 204) (PriceK + 208) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜BitVec.ult iVal (496 : Word)⌝) := by
+    apply cpsBranchWithin_ntakenPath
+      (EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.loop_test_bgeu_branch
+        iVal (496 : Word))
+    intro _ hQt
+    obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+    have h_not_ult := ((sepConj_pure_right _).1 h_pure).2
+    exact h_not_ult h_i
+  have hseq := cpsTripleWithin_seq_same_cr hLiF' hContinue
+  exact cpsTripleWithin_frameR FR hFR hseq
+
 /-! The arithmetic values exposed by `taylor_round` are the same pure six-limb
     transitions used by the model.  Keep these bridges next to the private
     machine-value abbreviations: the outer-loop composition can then reason
@@ -1366,6 +1408,7 @@ theorem roundS_carry_eq_add384Run
 
 #print axioms taylor_round
 #print axioms loop_test_li_bgeu_terminal_496_drop_x0
+#print axioms loop_test_li_bgeu_continue_496_drop_x0
 #print axioms roundP_eq_mul384Run
 #print axioms roundP_high_eq_mul384Run
 #print axioms roundS_eq_add384Run
