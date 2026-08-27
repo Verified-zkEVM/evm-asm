@@ -7,6 +7,7 @@ or_chainP2 / add6P_core / mul6P_core / swapdivP_core and the branch leaves.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModel
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceDivisionBridge
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceMem
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody10Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody11Spec
