@@ -29,6 +29,8 @@ namespace EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
+open EvmAsm.Codegen.U256DivU64BeSAsm
+open EvmAsm.Codegen.U256SubBeSAsm
 
 /-- Overflow test of the in-place subtraction on the nonzero decrease arm:
     `bne a0, x0, +52` at K73 + 220 sends a nonzero borrow to the shared
@@ -187,5 +189,124 @@ theorem k73_decrease_entry_mul_status_spec_within
     (fun _ hp => by
       dsimp only [k73MulPreNoRa]
       sep_perm hp) hentry hmuls
+
+open EvmAsm.Codegen.U256MulU64Be in
+/-- Fall leg of the multiply stage developed to the subtraction call site:
+    the divider ABI surfaces out of the multiply carry (`regOwns [.x14..x17]`
+    ride in the ambient `H`, matching `k74FlatFrame`), both in-place divisions
+    run premise-free under the honest divisor bound, the zero-flag shortcut is
+    taken (x20 = 0 on this arm), and the subtraction setup lands at the borrow
+    test K73 + 220. -/
+theorem k73_decrease_mul_fall_to_sub_borrow_spec_within
+    (spH raIn basePtr outPtr target gasUsed v8 v9 v18 v19 v20 : Word)
+    (baseBytes accBytes outBytes : List (BitVec 8)) (H : Assertion)
+    (hH : H.pcFree)
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroBase : Region.wf ⟨basePtr, baseBytes⟩)
+    (hlenBase : baseBytes.length = 32)
+    (hlenOut : outBytes.length = 32)
+    (hovBase : basePtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : basePtr.toNat + 32 ≤ outPtr.toNat ∨
+      outPtr.toNat + 32 ≤ basePtr.toNat)
+    (htargetPos : 0 < target.toNat)
+    (hszDiv1 :
+      4 * ((u256DivU64BeInPlaceFn outPtr target outBytes).body.size + 1)
+        ≤ 2 ^ 64)
+    (hszDiv2 :
+      4 * ((u256DivU64BeInPlaceFn outPtr 8
+        (u256DivU64BeQuotBytes outBytes outBytes target)).body.size + 1)
+        ≤ 2 ^ 64)
+    (hszSub :
+      4 * ((u256SubBeInPlaceFn basePtr outPtr baseBytes
+        (u256DivU64BeQuotBytes
+          (u256DivU64BeQuotBytes outBytes outBytes target)
+          (u256DivU64BeQuotBytes outBytes outBytes target) 8)).body.size + 1)
+        ≤ 2 ^ 64) :
+    cpsTripleWithin
+      ((10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
+          (u256DivU64BeInPlaceFn outPtr 8
+            (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps +
+        1) +
+        (1 + (5 + (u256SubBeInPlaceFn basePtr outPtr baseBytes
+          (u256DivU64BeQuotBytes
+            (u256DivU64BeQuotBytes outBytes outBytes target)
+            (u256DivU64BeQuotBytes outBytes outBytes target) 8)).body.steps)))
+      (K73 + 92) (K73 + 220) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        k73DecreaseMulCarryRest spH raIn basePtr outPtr target
+          (target - gasUsed) v8 v9 v18 v19 v20
+          baseBytes accBytes outBytes
+          (regOwns [.x14, .x15, .x16, .x17] ** H) ** regOwn .x10))
+      (((.x1 : Reg) ↦ᵣ (K73 + 220)) **
+        ((.x10 : Reg) ↦ᵣ u256SubBeBorrow baseBytes
+          (u256DivU64BeQuotBytes
+            (u256DivU64BeQuotBytes outBytes outBytes target)
+            (u256DivU64BeQuotBytes outBytes outBytes target) 8)
+          (u256DivU64BeQuotBytes
+            (u256DivU64BeQuotBytes outBytes outBytes target)
+            (u256DivU64BeQuotBytes outBytes outBytes target) 8)) **
+        ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        regOwns u256SubBeInPlaceScratch **
+        bytesRegion outPtr
+          (u256SubBeBytes baseBytes
+            (u256DivU64BeQuotBytes
+              (u256DivU64BeQuotBytes outBytes outBytes target)
+              (u256DivU64BeQuotBytes outBytes outBytes target) 8)
+            (u256DivU64BeQuotBytes
+              (u256DivU64BeQuotBytes outBytes outBytes target)
+              (u256DivU64BeQuotBytes outBytes outBytes target) 8)) **
+        bytesRegion basePtr baseBytes ** ((.x8 : Reg) ↦ᵣ basePtr) **
+        ((.x9 : Reg) ↦ᵣ outPtr) ** ((.x18 : Reg) ↦ᵣ target) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x2 : Reg) ↦ᵣ spH) **
+        ((.x19 : Reg) ↦ᵣ (target - gasUsed)) **
+        ((.x20 : Reg) ↦ᵣ (0 : Word)) **
+        EvmAsm.Codegen.U256MulU64Be.frameSlots
+          (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          basePtr outPtr target (target - gasUsed) (0 : Word) **
+        bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes **
+        frameSlotsSaved k73Frame spH
+          (k73Saved raIn v8 v9 v18 v19 v20) ** H) := by
+  have hret1 : (((K73 + 104) + 4 : Word) &&& ~~~(1 : Word)) = (K73 + 104) + 4 :=
+    EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+  have hret2 : (((K73 + 120) + 4 : Word) &&& ~~~(1 : Word)) = (K73 + 120) + 4 :=
+    EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+  have hretS : (((K73 + 216) + 4 : Word) &&& ~~~(1 : Word)) = K73 + 216 + 4 :=
+    EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+  have hFframe :
+      (k73DecreaseDivPairFrame spH raIn basePtr outPtr target (target - gasUsed)
+        v8 v9 v18 v19 v20 baseBytes accBytes H).pcFree := by
+    dsimp [k73DecreaseDivPairFrame]
+    pcf
+    exact hH
+  have hdivpair := k73_decrease_div_pair_spec_within
+    outPtr target (target - gasUsed) (K73 + 88) outBytes
+    (k73DecreaseDivPairFrame spH raIn basePtr outPtr target (target - gasUsed)
+      v8 v9 v18 v19 v20 baseBytes accBytes H)
+    hFframe hrw hlenOut hovOut htargetPos hszDiv1 hszDiv2 hret1 hret2
+  have hx20 := k73_decrease_div_to_sub_branch_spec_within
+    spH raIn basePtr outPtr target (target - gasUsed) v8 v9 v18 v19 v20
+    baseBytes accBytes outBytes H hH
+  have hsub := k73_decrease_div_to_sub_spec_within
+    spH raIn basePtr outPtr target (target - gasUsed) v8 v9 v18 v19 v20
+    baseBytes accBytes outBytes H hH
+    hrw hroBase hlenBase hlenOut hovBase hovOut hdisj hszSub hretS
+  -- Segment A: multiply carry shape -> divider pre, then both divisions.
+  have hsegA := cpsTripleWithin_weaken
+    (fun s hp => by
+      have h1 := k73_decrease_mul_carry_to_div_pre
+        spH raIn basePtr outPtr target (target - gasUsed) v8 v9 v18 v19 v20
+        baseBytes accBytes outBytes H s hp
+      dsimp only [k73DecreaseDivPairPre, k73DecreaseDivPairFrame] at h1 ⊢
+      xperm_hyp h1)
+    (fun _ hq => hq)
+    hdivpair
+  -- Segment B: x20 = 0 shortcut into the subtraction arm.
+  have hsegB := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp only [k73DecreaseDivPairPost, k73DecreaseDivPairFrame] at hp ⊢
+      sep_perm hp) hsegA hx20
+  -- Segment C: subtraction setup and call to the borrow test.
+  exact cpsTripleWithin_seq_same_cr hsegB hsub
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
