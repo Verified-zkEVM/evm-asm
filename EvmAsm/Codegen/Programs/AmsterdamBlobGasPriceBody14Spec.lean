@@ -6,6 +6,8 @@ parametric — both loop parities are instances. Consumes the parametric windows
 or_chainP2 / add6P_core / mul6P_core / swapdivP_core and the branch leaves.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModel
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceMem
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody10Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody11Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody13Spec
@@ -17,6 +19,11 @@ import EvmAsm.Rv64.Tactics.XSimp
 import EvmAsm.Rv64.Tactics.XPermPure
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
+
+/-! The pure limb/model and cell-chain support is adopted from k3's rescued
+    K70 work after a standalone build and axiom audit.  The corresponding
+    `AmsterdamBlobGasPriceDiv` rescue is intentionally not imported: it still
+    contains three `sorry`s and is not a premise for this machine proof. -/
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
@@ -1183,3 +1190,8 @@ theorem taylor_round (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Wor
   simpa using nb6
 
 #print axioms taylor_round
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.limbsToNat_natToLimbs
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.div384by64_spec
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.priceLoopFuel_done_taylor
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.cellsOf_eq_bytesRegion
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPrice.bytesRegion_imp_cellsOwn
