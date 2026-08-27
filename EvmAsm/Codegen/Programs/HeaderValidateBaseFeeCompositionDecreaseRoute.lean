@@ -22,6 +22,7 @@
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
+import EvmAsm.Rv64.BitAux
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
 
@@ -72,5 +73,49 @@ theorem k73_decrease_sub_borrow_branch_spec_within
     (r := .x10) (P := ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest) hraw
   exact cpsBranchWithin_weaken (fun _ hp => by sep_perm hp)
     (fun _ hq => by sep_perm hq) (fun _ hq => by sep_perm hq) hbr
+
+open EvmAsm.Codegen.U256MulU64Be in
+/-- Deployed multiply contract specialized to the K73 call site: the callee
+    runs at the deployed address, returns to `K73 + 88`, and its assertion
+    parameter carries exactly what the decrease seams hand it
+    (`v19`-slot := `delta`, `v13`-slot := `outPtr`).  Symbolic-address
+    wrapper: alignment / bounds / byte-validity of the two regions stay as
+    static premises so no concrete witness is required. -/
+theorem k73_mul_callee_at_callsite
+    (F : Assertion) (hF : F.pcFree)
+    (spOld v8 v9 v18 delta v20 aPtr outPtr : Word)
+    (f0 f1 f2 f3 f4 f5 : Word)
+    (baseBytes outBytes : List (BitVec 8))
+    (hlenA : baseBytes.length = 32)
+    (hout : outBytes.length = 32)
+    (halignA : aPtr.toNat % 8 = 0)
+    (hoverA : aPtr.toNat + 32 < 2 ^ 64)
+    (hvalidA : ∀ j, j < 32 →
+      isValidByteAccess (aPtr + BitVec.ofNat 64 j) = true)
+    (halignOut : outPtr.toNat % 8 = 0)
+    (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hvalidOut : ∀ j, j < 32 →
+      isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin 3850 (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spOld (K73 + 88)
+        v8 v9 v18 delta v20 aPtr delta outPtr outPtr
+        f0 f1 f2 f3 f4 f5 baseBytes
+        (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32) outBytes)
+      (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
+        (spOld + Rv64.signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        v8 v9 v18 delta v20 aPtr delta outPtr baseBytes
+        (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
+        (EvmAsm.Codegen.U256MulU64Be.copyState
+          (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
+          outBytes 32) ** F) := by
+  have hretCall : ((K73 + 88 : Word) &&& ~~~(1 : Word)) = K73 + 88 :=
+    EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
+  exact mulWhole_spec F hF baseBytes
+    (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
+    outBytes hlenA
+    (EvmAsm.Codegen.U256MulU64Be.mulState_len baseBytes delta 32)
+    hout spOld (K73 + 88) v8 v9 v18 delta v20 aPtr delta outPtr outPtr
+    f0 f1 f2 f3 f4 f5 halignA hoverA hvalidA halignOut hoverOut hvalidOut
+    hretCall
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute
