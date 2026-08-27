@@ -206,6 +206,7 @@ import EvmAsm.Codegen.Programs.RlpEncodeUintBeComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeSAsm
 import EvmAsm.Codegen.Programs.RlpEncodeBytesComposeTailSAsm
 import EvmAsm.Codegen.Programs.RlpSpliceHelperSpec
+import EvmAsm.Codegen.Programs.DivisorAndPadGateCover
 import EvmAsm.Codegen.Programs.AccountWalkGateCover
 import EvmAsm.Codegen.Programs.RlpItemSizeGateCover
 import EvmAsm.Codegen.Programs.RlpEncodeListPrefixArmsTile
@@ -1734,8 +1735,14 @@ def routineRegistry : List RoutineEntry := [
   -- Shared callee of both K70 and K74. The existing flat theorem is already
   -- anchored to this routine's own CodeReq, so this row exposes it directly.
   routine "u256_div_u64_be" .conditional (some "u256DivU64BeInPlaceFlat_spec")
-      (gate := "nonzero divisor `0 < b < 2^64`; the remaining hypotheses "
-        ++ "are ABI/resource facts")
+      (gate := "nonzero divisor. ⚠️ #12867: the stated `0 < b < 2^64` overstates "
+        ++ "it — `u256DivU64BeInPlaceFlat_spec` carries only `hbPos : 0 < "
+        ++ "b.toNat`, and the upper half holds of EVERY `Word` "
+        ++ "(`divisorGate_upper_bound_is_free`), so the gate is exactly `b ≠ 0` "
+        ++ "(`divisorGate_iff`). instance `divisorGate_admits_eight` (the "
+        ++ "literal K73's +120/+168 calls supply); "
+        ++ "`divisorGate_excludes_only_zero` shows exactly one value is cut. "
+        ++ "The remaining hypotheses are ABI/resource facts")
       (notes := "whole-routine triple at `GuestAddrs.u256_div_u64_be` over "
         ++ "`CodeReq.ofProg … u256DivU64Be_prog`: processes a 32-byte "
         ++ "big-endian source into the 32-byte quotient window and returns "
@@ -3513,7 +3520,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "not decorative: the reference decodes all 64 bytes, so a nonzero pad "
         ++ "byte makes the value ≥ 2^384 > p and the reference rejects, while the "
         ++ "guest scan never reads those bytes and would not. The two sides agree "
-        ++ "exactly ON the well-formed felts")
+        ++ "exactly ON the well-formed felts. #12867: that divergence is now a "
+        ++ "theorem, not prose — `padGate_is_load_bearing` exhibits `wGood`/"
+        ++ "`wBad` sharing the SAME 48-byte suffix (all the guest reads, per the "
+        ++ "precondition's `bytesRegion inPtr (w.drop 16)`) where "
+        ++ "`bytes_to_fq` accepts one and rejects the other; "
+        ++ "`padGate_separates_the_pair` confirms the pair straddles `hpad` and "
+        ++ "differs nowhere else. Dropping `hpad` would not weaken this row, it "
+        ++ "would falsify it")
       (notes := "model-facing restatement: `a0` IS the accept/reject indicator of "
         ++ "`SpecRef.Bls12.bytes_to_fq` on the wire felt. ⚠️ PREDICATE agreement "
         ++ "only — `lt_p` returns a boolean, never the field element, so value "
@@ -4417,6 +4431,21 @@ private noncomputable abbrev _walk_next_scalar_instance_witness :=
   @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_admits_ordinary
 private noncomputable abbrev _walk_next_scalar_boundary_witness :=
   @EvmAsm.Codegen.AccountWalkGateCover.scalarGate_boundary
+-- #12867, last two tractable gates. They fail in OPPOSITE directions: the
+-- divisor row states an upper bound the type makes vacuous, where
+-- rlp_walk_init (#12957) omitted a real one the type supplied.
+private noncomputable abbrev _divisor_upper_free_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_upper_bound_is_free
+private noncomputable abbrev _divisor_gate_iff_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_iff
+private noncomputable abbrev _divisor_admits_eight_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
+private noncomputable abbrev _divisor_excludes_zero_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_excludes_only_zero
+private noncomputable abbrev _pad_gate_load_bearing_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_is_load_bearing
+private noncomputable abbrev _pad_gate_separates_witness :=
+  @EvmAsm.Codegen.DivisorAndPadGateCover.padGate_separates_the_pair
 private noncomputable abbrev _rlp_item_size_routine_witness :=
   @EvmAsm.Codegen.RlpSpliceHelperSpec.rlp_item_size_spec_within
 private noncomputable abbrev _rlp_item_span_routine_witness :=
