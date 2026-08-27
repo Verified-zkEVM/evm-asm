@@ -45,4 +45,37 @@ theorem dwordBytes_packBytes_eq_self {c : List (BitVec 8)} (hlen : c.length = 8)
     have hn8 : n < 8 := by simpa [dwordBytes] using hn1
     interval_cases n <;> simp [dwordBytes, hlen, extractByte_packBytes]
 
+private theorem take_succ_set {α : Type} (bs : List α) (b : α) (i : Nat)
+    (h : i < bs.length) :
+    (bs.take (i + 1)).set i b = bs.take i ++ [b] := by
+  have hle : (List.take i bs).length ≤ i := by simp
+  rw [List.take_add_one, List.getElem?_eq_getElem h,
+    List.set_append_right (s := List.take i bs) i b hle]
+  have hlt : (List.take i bs).length = min i bs.length := List.length_take
+  have heq : (List.take i bs).length = i := by omega
+  rw [heq]
+  simp
+
+/-- Pasting `ns` into `bs` at offset `i` splices prefix/chunk/suffix:
+    prefix unchanged, pasted chunk whole, suffix after the chunk. -/
+theorem win8_splice {bs : List (BitVec 8)} (ns : List (BitVec 8)) (i : Nat)
+    (h : i + ns.length ≤ bs.length) :
+    setBytes bs i ns = bs.take i ++ ns ++ bs.drop (i + ns.length) := by
+  induction ns generalizing bs i with
+  | nil => simp
+  | cons b rest ih =>
+    have hs : (bs.set i b).length = bs.length := List.length_set
+    have h' := h
+    simp only [List.length_cons] at h'
+    have hb : i < bs.length := by omega
+    have hle : (List.take i bs).length ≤ i := by simp
+    have hlt : (List.take i bs).length = min i bs.length := List.length_take
+    have heq : (List.take i bs).length = i := by omega
+    have key := @ih (bs.set i b) (i + 1) (by rw [hs]; omega)
+    rw [setBytes_cons, key, List.take_set, take_succ_set _ _ _ hb,
+      List.drop_set, if_pos (by omega)]
+    have hsimp : i + 1 + rest.length = i + (rest.length + 1) := by omega
+    rw [hsimp]
+    simp
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualRoute
