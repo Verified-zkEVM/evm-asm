@@ -64,6 +64,22 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AccountNonceGateCover.nonce_regimes_exhaustive
 
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.scalarGate_admits_ordinary
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.scalarGate_boundary
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.scalarGate_iff
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_band_ends_inhabited
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_256
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_excludes_55
+
+#print axioms EvmAsm.Codegen.AccountWalkGateCover.walkInitLong1_upper_bound_is_implicit
+
 #print axioms EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 
 #print axioms EvmAsm.Codegen.AmbientFree.bncIsInf64FlatEntry_spec
