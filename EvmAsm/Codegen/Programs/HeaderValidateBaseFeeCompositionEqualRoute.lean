@@ -238,7 +238,26 @@ private def k73_piggyback (spH old8 headerPtr : Word)
     after that the PRE sides are the same atom multiset, so the premise-side
     conversion is an ASSERTION EQUALITY (`dsimp` + `xperm`), not an
     entailment; the return side lifts five status/data pins to ownerships
-    and casts the window image. -/
+    and casts the window image.
+
+    Why the entry link is FIXED at `H + 40` (established, not assumed —
+    this is not a class-(a) frozen parameter):
+    1. *Emission*: `hvbfProg` index 9, at address `H + 36`, is
+       `.JAL .x1 (jalOff …eip1559_calc_base_fee_per_gas …)`; RISC-V JAL with
+       rd = x1 writes the link register with pc + 4, which is exactly
+       `H + 40`.  The instruction identity is pinned in the Core call
+       adapters via `CodeReq.ofProg_mem_at` with decide-discharged sides.
+    2. *Derived, not presupposed*: `hvbfPre` carries x1 symbolically; the
+       call twin `header_validate_base_fee_k73_call_gen_spec_within`
+       derives `(x1 ↦ H+40) ** Q` as the OUTPUT of `callWithin_spec`'s JAL
+       semantics applied to that symbolic-entry triple.
+    3. *Post-side consistency*: Core `tailRestCore` spells the callee-saved
+       frame as `frameSlotsSaved k73Frame spK (k73Saved (H + 40) …)` — K73
+       saves the incoming link at entry and restores it at its epilogue
+       (visible in the linked disassembly window).
+    The linked image has exactly one control transfer into K73 — that JAL —
+    so every execution reaching K73 under this program enters with link
+    register `H + 40`; no reachable caller is left uncovered. -/
 theorem k73_equal_route_adapter {cr : CodeReq}
     (spH spK old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
