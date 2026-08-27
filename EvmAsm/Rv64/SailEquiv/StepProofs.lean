@@ -29,7 +29,7 @@
 
 import EvmAsm.Rv64.SailEquiv.BranchProofs
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64.SailEquiv

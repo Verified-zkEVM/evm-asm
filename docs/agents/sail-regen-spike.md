@@ -1,5 +1,9 @@
 # Sail regeneration spike — P1 report (validated) + direction for P2
 
+> Historical regeneration report. The maintained, refreshed recipe is
+> `scripts/regen-model.sh` in
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **Verdict: 🟢 GO — proven end-to-end.** The current-upstream model generates AND
 builds, patch-free, on the project's toolchain: Sail 0.20.2 (built on OCaml ≥5.2)
 generates the scoped model (113 files); that model + external lean-sail v4 builds on

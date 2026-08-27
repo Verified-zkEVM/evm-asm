@@ -1,5 +1,10 @@
 # Design: Sail-anchored zkVM RISC-V semantics — import pipeline & toy-spec removal
 
+> Historical design record. The extraction, provenance, regeneration, release
+> cache, and upstream Lean-emulator validation now live in
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+> Paths and proposed commands below describe the earlier in-tree design.
+
 **Status:** Draft / RFC — for review before any proof work begins.
 **Author:** drafted in-session (2026-06-24), for @pirapira / Verified-zkEVM.
 **Scope decision taken:** "Investigate & write design doc" (no proof code this session).
@@ -53,7 +58,7 @@ The integration must be simultaneously:
   `native_decide`/`bv_decide`, per existing CI gates) plus — on the
   `Rv64/SailEquiv/` correspondence surface only — the four uninterpreted
   platform constants the vendored Sail model axiomatizes
-  (`Out/RiscvExtras.lean`); proofs off that surface carry none of them
+  (`RiscvZkvm/Sail/RiscvExtras.lean`); proofs off that surface carry none of them
   (per-declaration accounting: `scripts/axiom_baseline.json`).
 - **Auditable / legible** — an Ethereum client dev (not a Lean expert) can
   check compliance with the *exact* zkVM RISC-V standard by reading a small

@@ -1,5 +1,9 @@
 # Sail-zkVM integration — Phase 3 bootstrap (differential testing + P2 residuals)
 
+> Historical bootstrap record. Current maintenance and the executable Lean
+> emulator validation moved to
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **For:** the next session. **Context:** P2's core migration is **DONE and green** (see
 `sail-phase2-bootstrap.md`). The project builds against the vendored, release-pinned,
 scoped RV64IM model (`require out from "vendor/sail-riscv-zkvm-lean"`); `dhsorens` is

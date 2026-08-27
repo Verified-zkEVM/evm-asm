@@ -212,7 +212,7 @@ class ImportGraph:
     """In-tree import graph rooted at one or more top-level Lean libraries.
 
     `edges[m]` holds only edges whose target resolves to a file on disk, so
-    Mathlib / Lean / Init / Out targets are recorded in `external` and excluded
+    Mathlib / Lean / Init / RiscvZkvm targets are recorded in `external` and excluded
     from every graph metric.  Rebuild cost is what we are measuring, and an
     external package is not rebuilt by our edits.
     """

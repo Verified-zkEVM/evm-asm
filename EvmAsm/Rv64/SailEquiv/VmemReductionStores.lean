@@ -24,8 +24,8 @@ import EvmAsm.Rv64.SailEquiv.VmemWriteReduction
 import EvmAsm.Rv64.SailEquiv.VmemReductionLoads
 import EvmAsm.Rv64.SailEquiv.MemReduce
 
-open Out
-open Out.Functions
+open RiscvZkvm.Sail
+open RiscvZkvm.Sail.Functions
 open Sail
 open PreSail
 

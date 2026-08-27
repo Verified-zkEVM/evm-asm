@@ -46,7 +46,7 @@ import EvmAsm.Rv64.SailEquiv.VmemReductionStores
 import EvmAsm.Rv64.SailEquiv.VmemPresent
 import EvmAsm.Rv64.Execution
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64
