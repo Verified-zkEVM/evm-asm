@@ -762,6 +762,154 @@ private theorem k73_decr_sub_value
   rw [k73_bytesBEtoNat_eq_beBytesToNat, hla] at hb0
   omega
 
+/-- Word-level delta unwrap on the decrease arm: when the used gas sits
+    strictly below the target, the register subtraction `target - gasUsed`
+    does not wrap, so its numeric value is the plain difference. -/
+private theorem k73_decr_word_delta_toNat (target gasUsed : Word)
+    (hlt : gasUsed.toNat < target.toNat) :
+    (target - gasUsed).toNat = target.toNat - gasUsed.toNat := by
+  rw [BitVec.toNat_sub]
+  have h1 : target.toNat < 2 ^ 64 := BitVec.isLt target
+  have h2 : gasUsed.toNat < 2 ^ 64 := BitVec.isLt gasUsed
+  omega
+
+/-- The machine's byte image on the successful decrease arm equals the
+    written-image content Route-B pins in the postcondition.  The static
+    guard `hMulFit` excludes multiply overflow: runs whose product exceeds
+    256 bits report status ≠ 0 and take the failure arm instead, so this
+    condition is caller-data-static rather than a runtime decision. -/
+theorem k73_decr_machine_bytes_eq_written
+    {gasLimit gasUsed target : Word} {parentBytes A : List (BitVec 8)}
+    (htgtDef : target.toNat = gasLimit.toNat / 2)
+    (hdecr : gasUsed.toNat < gasLimit.toNat / 2)
+    (htargetPos : 0 < target.toNat)
+    (hleTarget : target.toNat ≤ 2 ^ 56)
+    (hlenP : parentBytes.length = 32) (halenA : A.length = 32)
+    (hMulFit : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes *
+        (target - gasUsed).toNat < 2 ^ 256)
+    (hvalA : EvmAsm.Crypto.beBytesToNat A
+        = (EvmAsm.Crypto.beBytesToNat parentBytes * (target - gasUsed).toNat)
+          % 2 ^ 256) :
+    u256SubBeBytes parentBytes
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8)
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8)
+      = hvbfWrittenImage gasLimit gasUsed parentBytes := by
+  have hdw : (target - gasUsed).toNat = target.toNat - gasUsed.toNat := by
+    refine k73_decr_word_delta_toNat target gasUsed ?_
+    rw [htgtDef]
+    exact hdecr
+  rw [hdw] at hvalA hMulFit
+  have hbB : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes
+      = EvmAsm.Crypto.beBytesToNat parentBytes :=
+    k73_bytesBEtoNat_eq_beBytesToNat parentBytes
+  rw [hbB] at hMulFit
+  have hval2 : EvmAsm.Crypto.beBytesToNat A
+      = EvmAsm.Crypto.beBytesToNat parentBytes * (target.toNat - gasUsed.toNat) :=
+    hvalA.trans (Nat.mod_eq_of_lt hMulFit)
+  have hb0 := k73_fixed_bytes_bound parentBytes
+  rw [k73_bytesBEtoNat_eq_beBytesToNat, hlenP] at hb0
+  have hvq2 := k73_decr_quot2_value A target htargetPos hleTarget halenA
+  have hq1 := k73_quot_bytes_natToBytesBE A A target halenA halenA htargetPos hleTarget
+  have hlq1 : (u256DivU64BeQuotBytes A A target).length = 32 := by
+    rw [hq1]; simp
+  have hq2 := k73_quot_bytes_natToBytesBE
+      (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8 hlq1 hlq1 (by decide) (by decide)
+  have hlq2 : (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+      (u256DivU64BeQuotBytes A A target) 8).length = 32 := by
+    rw [hq2]; simp
+  -- the twice-divided window does not exceed the fee (borrow-free subtract)
+  have hleSub : EvmAsm.Crypto.beBytesToNat
+        (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+          (u256DivU64BeQuotBytes A A target) 8) ≤
+      EvmAsm.Crypto.beBytesToNat parentBytes := by
+    rw [hvq2, hval2]
+    have d1 : ((EvmAsm.Crypto.beBytesToNat parentBytes *
+            (target.toNat - gasUsed.toNat)) / target.toNat) / 8
+        ≤ EvmAsm.Crypto.beBytesToNat parentBytes *
+          (target.toNat - gasUsed.toNat) / target.toNat :=
+      Nat.div_le_self _ _
+    have d2 : EvmAsm.Crypto.beBytesToNat parentBytes *
+          (target.toNat - gasUsed.toNat) / target.toNat
+        ≤ EvmAsm.Crypto.beBytesToNat parentBytes * target.toNat / target.toNat :=
+      Nat.div_le_div_right (Nat.mul_le_mul_left _
+        (show target.toNat - gasUsed.toNat ≤ target.toNat from Nat.sub_le _ _))
+    have d3 : EvmAsm.Crypto.beBytesToNat parentBytes * target.toNat /
+        target.toNat ≤ EvmAsm.Crypto.beBytesToNat parentBytes := by
+      rw [Nat.mul_comm]
+      exact Nat.le_of_eq (Nat.mul_div_cancel_left _ htargetPos)
+    exact le_trans (le_trans d1 d2) d3
+  -- spec reduction: the decrease arm of the recurrence fires
+  have hneInner : ¬(gasUsed.toNat > gasLimit.toNat / 2) := by
+    intro hh; have := hdecr; omega
+  have hneOuter : ¬((gasUsed.toNat == gasLimit.toNat / 2) = true) := by
+    intro hc
+    have hge := beq_iff_eq.mp hc
+    have := hdecr
+    omega
+  -- value of the machine output
+  have e1 : EvmAsm.Crypto.beBytesToNat
+        (u256SubBeBytes parentBytes
+          (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+            (u256DivU64BeQuotBytes A A target) 8)
+          (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+            (u256DivU64BeQuotBytes A A target) 8)) =
+      EvmAsm.Crypto.beBytesToNat parentBytes -
+        (EvmAsm.Crypto.beBytesToNat parentBytes *
+          (target.toNat - gasUsed.toNat) / target.toNat) / 8 := by
+    rw [k73_decr_sub_value hlenP hlq2 hlq2 hleSub, hvq2, hval2]
+  -- value of the written image
+  have e2 : EvmAsm.Crypto.beBytesToNat
+        (hvbfWrittenImage gasLimit gasUsed parentBytes) =
+      EvmAsm.Crypto.beBytesToNat parentBytes -
+        (EvmAsm.Crypto.beBytesToNat parentBytes *
+          (target.toNat - gasUsed.toNat) / target.toNat) / 8 := by
+    show EvmAsm.Crypto.beBytesToNat
+        (EvmAsm.Stateless.SpecRef.natToBytesBE 32
+          (EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+            (gasLimit.toNat / 2)
+            (EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes))) = _
+    have hswap : EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+        (gasLimit.toNat / 2)
+        (EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes)
+        = EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide gasUsed.toNat
+          (gasLimit.toNat / 2)
+          (EvmAsm.Crypto.beBytesToNat parentBytes) := by
+      rw [k73_bytesBEtoNat_eq_beBytesToNat parentBytes]
+    rw [hswap, EvmAsm.Stateless.SpecRef.baseFeeRecurrenceWide,
+      if_neg hneOuter, if_neg hneInner, ← htgtDef]
+    have hvv := k73_fixed_bytes_value 32
+      (EvmAsm.Crypto.beBytesToNat parentBytes -
+        EvmAsm.Stateless.SpecRef.baseFeeDecreaseDelta
+          (EvmAsm.Crypto.beBytesToNat parentBytes)
+          (target.toNat - gasUsed.toNat) target.toNat)
+    have hblt : EvmAsm.Crypto.beBytesToNat parentBytes -
+        EvmAsm.Stateless.SpecRef.baseFeeDecreaseDelta
+          (EvmAsm.Crypto.beBytesToNat parentBytes)
+          (target.toNat - gasUsed.toNat) target.toNat < 256 ^ 32 :=
+      lt_of_le_of_lt (Nat.sub_le _ _) hb0
+    have hred : EvmAsm.Crypto.beBytesToNat parentBytes -
+        EvmAsm.Stateless.SpecRef.baseFeeDecreaseDelta
+          (EvmAsm.Crypto.beBytesToNat parentBytes)
+          (target.toNat - gasUsed.toNat) target.toNat
+        = EvmAsm.Crypto.beBytesToNat parentBytes -
+          EvmAsm.Crypto.beBytesToNat parentBytes *
+            (target.toNat - gasUsed.toNat) / target.toNat / 8 := by
+      rw [EvmAsm.Stateless.SpecRef.baseFeeDecreaseDelta_eq_reference]
+    exact Eq.trans hvv (Eq.trans (Nat.mod_eq_of_lt hblt) hred)
+  apply k73_bytes_inj_same_length
+  · rw [EvmAsm.Codegen.U256BeFlat.u256SubBeBytes_length
+      parentBytes
+      (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+        (u256DivU64BeQuotBytes A A target) 8)
+      (u256DivU64BeQuotBytes (u256DivU64BeQuotBytes A A target)
+        (u256DivU64BeQuotBytes A A target) 8) hlq2]
+    exact (hvbfWrittenImage_length gasLimit gasUsed parentBytes).symm
+  · rw [e2]
+    exact e1
+
 /-- Full nonzero-decrease run from the divider entry to a symbolic return:
     the fall leg reaches the borrow test at K73 + 220; a zero borrow falls
     through to `li x10, 0` and returns with status 0 while any other borrow
