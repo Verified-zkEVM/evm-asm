@@ -30,6 +30,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
+import EvmAsm.Codegen.Programs.U256AddBeBInPlaceSAsm
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Crypto.BeBytesArith
 import EvmAsm.Rv64.Tactics.XPermCert
@@ -911,5 +912,103 @@ theorem k73_incr_machine_bytes_eq_written_replace
     exact (hvbfWrittenImage_length gasLimit gasUsed parentBytes).symm
   · rw [erhs]
     exact elhs
+
+/-! ## Increase-arm Route-B junction casts -/
+
+/-- Wrapper-side ambient atoms the machine exits omit (caller frame,
+    header bytes, scratch registers) that the Route-B posts require. -/
+private def k73_incr_piggyback (wspH old8 headerPtr : Word)
+    (headerBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  frameSlotsSaved hvbfFrame wspH (hvbfSaved (H + 40) old8) **
+    bytesRegion headerPtr headerBytes ** regOwn .x13 ** regOwn .x5 **
+    regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
+    regOwn .x31 ** F
+
+/-- Window-content cast at the `Expected` cell. -/
+private theorem k73_incr_br_cast {le le' : List (BitVec 8)} {Z : Assertion}
+    (heq : le = le') :
+    ∀ q, ((bytesRegion Expected le ** Z) q) → ((bytesRegion Expected le' ** Z) q) :=
+  fun _ hp => heq ▸ hp
+
+/-- Fixed exit junk that has no home in the Route-B post: the add scratch
+    registers, the multiply scratch frame, and the multiply accumulator
+    window.  Absorbed into the universally quantified trailing slot. -/
+private def k73_incr_outj (wspK parentPtr gasUsed target : Word)
+    (_parentBytes A : List (BitVec 8)) (F : Assertion) : Assertion :=
+  regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch **
+    U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      parentPtr Expected target (gasUsed - target) (1 : Word) **
+    bytesRegion U256MulU64Be.accBase A ** F
+
+/-- First-arm junction cast: the add has run, its output sits at `Expected`,
+    and the BEQZ outcome has been folded into the status register.
+    `x10 = 0` is the success arm (image cast by the keep W-equality);
+    `x10 = 1` is the failure arm (the image is the scratch content). -/
+private theorem k73_incr_first_routeB
+    (wspH wspK old8 headerPtr parentPtr v9 old18 v19 v20 gasUsed target : Word)
+    (parentBytes A q2 headerBytes : List (BitVec 8)) (Frest : Assertion)
+    (hcast : U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2
+      = hvbfWrittenImage gasLimit gasUsed parentBytes) :
+    ∀ s, (k73IncreaseFirstFinalPost wspH wspK (H + 40) gasUsed parentPtr Expected
+        target headerPtr v9 old18 v19 v20 parentBytes A q2
+        (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)) s →
+    (((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost wspH wspK (H + 40) old8 headerPtr
+        v9 old18 target v19 v20 gasUsed gasLimit parentPtr parentBytes
+        headerBytes
+        (k73_incr_outj wspK parentPtr gasUsed target parentBytes A Frest)) s)  := by
+  intro s hp
+  simp only [k73IncreaseFirstFinalPost] at hp
+  rcases hp with h1 | h0
+  · -- failure disjunct (x10 = 1)
+    have hEq1 : (((.x2 : Reg) ↦ᵣ wspH) ** ((regsAt k73Frame (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))
+        = (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) := by
+      simp only [k73Frame, regsAt_cons, regsAt_nil, k73Saved, sepConj_emp_right']
+      xperm_cert_eq
+    have hp1 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      hEq1 ▸ h1
+    have hc11 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((regOwn .x11) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 : Reg) ↦ᵣ (1 : Word)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x11) (v := Expected))) s hp1
+    have hc12 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 : Reg) ↦ᵣ (1 : Word)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x11) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x12) (v := Expected)))) s hc11
+    have hEq2 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest))))))))))))))))))
+        = (((.x1 : Reg) ↦ᵣ (H + 40)) ** (k73FailurePost wspH wspK headerPtr v9
+            old18 target v19 v20 gasUsed parentPtr (1 : Word) parentBytes
+            (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2) headerBytes
+            (H + 40) old8
+            (k73_incr_outj wspK parentPtr gasUsed target parentBytes A Frest))) := by
+      dsimp only [k73FailurePost, tailRestScratch, tailRestCore, k73_incr_piggyback,
+        k73_incr_outj]
+      xperm_cert_eq
+    have hcb := hEq2 ▸ hc12
+    obtain ⟨sa, sb, had, hud, hx1, hFP⟩ := hcb
+    exact ⟨sa, sb, had, hud, hx1,
+      Or.inr ⟨(1 : Word), U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2, by decide, hFP⟩⟩
+  · -- success disjunct (x10 = 0)
+    have hEq1 : (((.x2 : Reg) ↦ᵣ wspH) ** ((regsAt k73Frame (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))
+        = (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) := by
+      simp only [k73Frame, regsAt_cons, regsAt_nil, k73Saved, sepConj_emp_right']
+      xperm_cert_eq
+    have hp1 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** (((.x11 : Reg) ↦ᵣ Expected) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      hEq1 ▸ h0
+    have hc11 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((regOwn .x11) ** (((.x12 : Reg) ↦ᵣ Expected) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 : Reg) ↦ᵣ (0 : Word)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x11) (v := Expected))) s hp1
+    have hc12 : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (U256AddBeSAsm.u256AddBeBytes parentBytes q2 q2)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 : Reg) ↦ᵣ (0 : Word)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x11) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x12) (v := Expected)))) s hc11
+    have hcbr : (((.x2 : Reg) ↦ᵣ wspH) ** (((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest)))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x10 : Reg) ↦ᵣ (0 : Word)) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x11) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := regOwn .x12) (k73_incr_br_cast hcast)))) s hc12
+    have hcl : ((((.x2 : Reg) ↦ᵣ wspH) ** ((regOwn .x10) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest))))))))))))))))))) s :=
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_under_id (B := (.x2 : Reg) ↦ᵣ wspH) (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.decr_sep_pin_lift (r := Reg.x10) (v := (0 : Word))) s hcbr
+    have hEq2 : (((.x2 : Reg) ↦ᵣ wspH) ** ((regOwn .x10) ** ((regOwn .x11) ** ((regOwn .x12) ** ((bytesRegion Expected (hvbfWrittenImage gasLimit gasUsed parentBytes)) ** (((.x1 : Reg) ↦ᵣ (H + 40)) ** (((.x8 : Reg) ↦ᵣ headerPtr) ** (((.x9 : Reg) ↦ᵣ v9) ** (((.x18 : Reg) ↦ᵣ old18) ** (((.x19 : Reg) ↦ᵣ v19) ** (((.x20 : Reg) ↦ᵣ v20) ** ((frameSlotsSaved k73Frame wspK (k73Saved (H + 40) headerPtr v9 old18 v19 v20)) ** (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((regOwns EvmAsm.Codegen.U256AddBeBInPlaceSAsm.u256AddBeBInPlaceScratch) ** ((bytesRegion parentPtr parentBytes) ** ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88) parentPtr Expected target (gasUsed - target) (1 : Word)) ** ((bytesRegion U256MulU64Be.accBase A) ** (k73_incr_piggyback wspH old8 headerPtr headerBytes Frest))))))))))))))))))
+        = (((.x1 : Reg) ↦ᵣ (H + 40)) ** (k73PostOwn wspH wspK headerPtr v9 old18
+            target v19 v20 gasUsed parentPtr parentBytes
+            (hvbfWrittenImage gasLimit gasUsed parentBytes) headerBytes
+            (H + 40) old8
+            (k73_incr_outj wspK parentPtr gasUsed target parentBytes A Frest))) := by
+      dsimp only [k73PostOwn, tailRest, tailRestCore, k73_incr_piggyback,
+        k73_incr_outj]
+      xperm_cert_eq
+    have hcb := hEq2 ▸ hcl
+    obtain ⟨sa, sb, had, hud, hx1, hPO⟩ := hcb
+    exact ⟨sa, sb, had, hud, hx1, Or.inl hPO⟩
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
