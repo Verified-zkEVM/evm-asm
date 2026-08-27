@@ -1,5 +1,9 @@
 # Sail-zkVM integration — adversarial review of the P2 hand-off (2026-06-25)
 
+> Historical review of the in-tree package. The generated model and its current
+> trust-boundary documentation are maintained in
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **What this is.** An independent verification of the P2 "core migration done" hand-off
 (`sail-phase3-bootstrap.md`), run against the actual repo rather than the bootstrap's
 prose. Every claim below is backed by a command run this session. TL;DR: **the migration

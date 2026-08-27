@@ -52,7 +52,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Same restore-only scheme as build.yml, split the same three ways
+      # Same restore-only scheme as build.yml, split the same two ways
       # (#12798). This job never SAVES -- only push/merge_group/dispatch runs of
       # build.yml do, so the nightly cannot churn the 10 GB quota or evict the
       # main-branch entries (#1441).
@@ -66,12 +66,6 @@ jobs:
         with:
           path: .lake/packages
           key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
-
-      - name: Restore vendored Sail cache
-        uses: actions/cache/restore@v5
-        with:
-          path: vendor/sail-riscv-zkvm-lean/.lake
-          key: lake-sail-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/lean-toolchain', 'vendor/sail-riscv-zkvm-lean/lakefile.toml', 'vendor/sail-riscv-zkvm-lean/lake-manifest.json') }}-${{ hashFiles('vendor/sail-riscv-zkvm-lean/Out/**/*.lean') }}
 
       - name: Restore lake build cache
         uses: actions/cache/restore@v5

@@ -15,7 +15,7 @@
   excluded from an earlier run-only predicate (`Instr.runSimulable`, now
   deleted) because the old extracted `currentlyEnabled` had no `Ext_Zicsr` arm,
   making `execute_JALR`'s leading `update_elp_state` fault in every state
-  (#10688).  The regenerated model (tag 2026-07-27-9901550, `Zicsr_insts` in
+  (#10688).  The regenerated model (sail-riscv 0.13.1, `Zicsr_insts` in
   scope) fixed that arm; `update_elp_state_noop` (`RunInv.lean`) proves the call
   is a bare-mode no-op, `jalr_sideCond_of_runInv` below discharges the `JALR`
   side condition from the standard invariant, and `jalr_sideCond_satisfiable`
@@ -27,7 +27,7 @@ import EvmAsm.Rv64.SailEquiv.RunInv
 import EvmAsm.Rv64.SailEquiv.StepSim
 import EvmAsm.Rv64.SailEquiv.StepProofs
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 open Sail
 
 namespace EvmAsm.Rv64
@@ -96,7 +96,7 @@ theorem runSail_sailStep_eq {si : SailInstr} {sSail : SailState} {pc : BitVec 64
 /-- **The `JALR` side condition holds in every run-invariant state** — the
     constructive mirror of the #10688 defect.
 
-    Before the 2026-07-27-9901550 model regen, `¬ instrSideCond (.JALR ..)` was
+    Before the scoped model regen, `¬ instrSideCond (.JALR ..)` was
     provable for **all** states (the extracted `currentlyEnabled` had no
     `Ext_Zicsr` arm, so the `update_elp_state` conjunct was unsatisfiable and
     `jalr_sail_equiv` was vacuous).  This theorem shows the fixed model's side
@@ -450,7 +450,7 @@ def jalrWitnessSailState : SailState :=
     `rs1`, a concrete state pair witnesses `instrSideCond (.JALR rd rs1 0)`.
 
     This is the absolute-satisfiability mirror of #10688: under the pre-regen
-    vendored model, `¬ instrSideCond (.JALR rd rs1 offset) sRv sSail` was
+    older model, `¬ instrSideCond (.JALR rd rs1 offset) sRv sSail` was
     provable for **all** states (so `jalr_sail_equiv`, `jalr_step_sail_equiv`
     and the `.JALR` arm of `step_execute_sail_sim` were vacuously true).  With
     the `Ext_Zicsr` arm restored, the witness below discharges every conjunct
