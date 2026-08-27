@@ -540,7 +540,9 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # sites leave the fixture corpus, so the ratchet moves with the live manifest.
 # #12632 (384-bit Taylor blob-gas fix) drops one bare local-J site.
 # #12812 (u256 restoring divider) adds two local-J sites.
-EXPECTED_BARE_J_SITES = 153
+# #12960 retires 7 dead balance-account field-comparator probe files
+# (unlinked, unreferenced); their two bare local-J sites leave the corpus.
+EXPECTED_BARE_J_SITES = 151
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -557,7 +559,9 @@ EXPECTED_BARE_J_SITES = 153
 # #12779's derived fixture regeneration brings accountAtHeaderStateRootFunction
 # in line with its current StateCompose source, removing one bare long-B site
 # from the pre-existing 710-site population.
-EXPECTED_BARE_B_SITES = 705
+# #12960 retires 7 dead balance-account field-comparator probe files
+# (unlinked, unreferenced); their 33 bare local-B sites leave the corpus.
+EXPECTED_BARE_B_SITES = 672
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).
