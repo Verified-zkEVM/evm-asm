@@ -196,11 +196,12 @@ private theorem exitCore_to_caller (h : PartialState)
 /-- Framed body for no-ra wrap. -/
 theorem keccakBody_framed (sp0 ret : Word)
     (inputBase outputBase : Word)
-    (input : List (BitVec 8)) (N rem : Nat)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v8 v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
     (hlen : input.length = keccakAbsorbStep * N + rem)
     (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
     (hos : os.length = 200)
     (halign_zk : Zk3.toNat % 8 = 0)
     (hover : Zk3.toNat + 200 < 2 ^ 64)
@@ -222,7 +223,6 @@ theorem keccakBody_framed (sp0 ret : Word)
     let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
     let vals := keccakEntryVals v8 v9 v18 v20
     let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
-    let out0 := List.replicate 32 (0 : BitVec 8)
     cpsTripleWithin (keccakBodyFuel N rem)
       (keccakBodyEntry B) (keccakBodyExit B) keccakCr
       ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ ret) **
@@ -233,10 +233,10 @@ theorem keccakBody_framed (sp0 ret : Word)
         regsOwnAt keccakFrame **
         frameSlotsSaved keccakFrame newSp vals **
         keccakCallerPost inputBase outputBase input N rem A) := by
-  intro newSp vals lenW out0
-  have hbody0 := keccakBody_spec inputBase outputBase input N rem
+  intro newSp vals lenW
+  have hbody0 := keccakBody_spec inputBase outputBase input N rem out0
     v20 v9 v18 v8 v28 v29 os A hA
-    hlen hrem_le hos halign_zk hover hNbound hrem64 hb8i
+    hlen hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
     hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   have hslots : (frameSlotsSaved keccakFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
@@ -282,12 +282,13 @@ theorem keccakBody_framed (sp0 ret : Word)
     BLT-header lemma does not apply (JAL→LI 0x8000368c ≠ BLT 0x80003690). -/
 theorem zkvm_keccak256_spec_within (sp0 ret : Word)
     (inputBase outputBase : Word)
-    (input : List (BitVec 8)) (N rem : Nat)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v8 v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
     (hlen : input.length = keccakAbsorbStep * N + rem)
     (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
     (hos : os.length = 200)
     (halign_zk : Zk3.toNat % 8 = 0)
     (hover : Zk3.toNat + 200 < 2 ^ 64)
@@ -308,7 +309,6 @@ theorem zkvm_keccak256_spec_within (sp0 ret : Word)
       isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
     let vals := keccakEntryVals v8 v9 v18 v20
     let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
-    let out0 := List.replicate 32 (0 : BitVec 8)
     let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
     cpsTripleWithin (5 + keccakBodyFuel N rem + 6) B ret keccakCr
       ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
@@ -319,10 +319,10 @@ theorem zkvm_keccak256_spec_within (sp0 ret : Word)
         regsAt keccakFrame vals **
         frameSlotsSaved keccakFrame newSp vals **
         keccakCallerPost inputBase outputBase input N rem A) := by
-  intro vals lenW out0 newSp
-  have hbody := keccakBody_framed sp0 ret inputBase outputBase input N rem
+  intro vals lenW newSp
+  have hbody := keccakBody_framed sp0 ret inputBase outputBase input N rem out0
     v8 v9 v18 v20 v28 v29 os A hA
-    hlen hrem_le hos halign_zk hover hNbound hrem64 hb8i
+    hlen hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
     hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   refine keccakFrame_spec_own keccakCr B sp0 ret vals (keccakBodyFuel N rem)
     (keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
@@ -383,6 +383,6 @@ theorem zkvm_keccak256_spec_within (sp0 ret : Word)
         exact this)
     exact hsub
   · -- body: PC pins bodyEntry/Exit = B+20 / B+252
-    simpa [keccakBodyEntry, keccakBodyExit, newSp, vals, lenW, out0] using hbody
+    simpa [keccakBodyEntry, keccakBodyExit, newSp, vals, lenW] using hbody
 
 end EvmAsm.Codegen.Proofs

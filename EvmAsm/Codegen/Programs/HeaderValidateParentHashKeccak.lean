@@ -181,9 +181,10 @@ theorem hvphKeccakCall
       (by decide) (by decide) (by decide) (by decide)
   have hret72 : ((H + 72 : Word) &&& ~~~(1 : Word)) = H + 72 := by decide
   have hcallee0 := zkvm_keccak256_spec_within spC (H + 72)
-    parentPtr Computed parentBytes N rem v8 v9 v18 v20 v28 v29 os empAssertion
-    (by pcf) hret72 hlen hrem_le hos halign_zk hover hNbound hrem64 hb8i
-    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+    parentPtr Computed parentBytes N rem out0 v8 v9 v18 v20 v28 v29 os
+    empAssertion
+    (by pcf) hret72 hlen hrem_le (by simp [out0]) hos halign_zk hover hNbound
+    hrem64 hb8i hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   have hcallee' :
       cpsTripleWithin (nKeccak N rem) K (H + 72) keccakCode
         ((.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ (H + 72)) **
