@@ -153,6 +153,254 @@ theorem tailOutputBytes_decode_kat :
       0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff := by
   decide
 
+/- The status-0 tail post has one semantic boundary: every assertion except the
+   four output dwords is unchanged, while those dwords contain the 32-byte
+   result.  Name the retained part so the output conversion does not have to
+   duplicate the whole branch post. -/
+@[reducible] private def tailStatus0Rest
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (0 : Word)) **
+    (.x21 ↦ᵣ outPtr) **
+    (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+    (.x0 ↦ᵣ (0 : Word)) **
+    (.x7 ↦ᵣ ((extractByte q0 0).zeroExtend 64)) **
+    (.x28 ↦ᵣ (outPtr + BitVec.ofNat 64 31)) **
+    (.x29 ↦ᵣ (32 : Word)) **
+    (.x30 ↦ᵣ BitVec.ofNat 64 32) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 0) ↦ₘ q0) **
+    (.x2 ↦ᵣ newSp) **
+    (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) **
+    (.x8 ↦ᵣ excess) **
+    (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ v18) **
+    (.x19 ↦ᵣ v19) **
+    (.x20 ↦ᵣ v20) **
+    (.x31 ↦ᵣ v31) **
+    (.x5 ↦ᵣ (q4 ||| q5)) **
+    (.x6 ↦ᵣ q5) **
+    frameSlotsSaved priceFrame newSp vals **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 8) ↦ₘ q1) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 16) ↦ₘ q2) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 24) ↦ₘ q3) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 32) ↦ₘ q4) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 40) ↦ₘ q5) ** FR
+
+@[reducible] private def tailStatus0Cells
+    (outPtr q0 q1 q2 q3 o0 o1 o2 o3 : Word) : Assertion :=
+  ((outPtr + BitVec.ofNat 64 0) ↦ₘ tailOutputFullReplaceBE o0 q3) **
+    ((outPtr + BitVec.ofNat 64 8) ↦ₘ tailOutputFullReplaceBE o1 q2) **
+    ((outPtr + BitVec.ofNat 64 16) ↦ₘ tailOutputFullReplaceBE o2 q1) **
+    ((outPtr + BitVec.ofNat 64 24) ↦ₘ tailOutputFullReplaceBE o3 q0)
+
+@[reducible] private def tailStatus0Source
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  ((.x10 ↦ᵣ (0 : Word)) **
+    ((.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+      (.x0 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ ((extractByte q0 0).zeroExtend 64)) **
+      (.x28 ↦ᵣ (outPtr + BitVec.ofNat 64 31)) ** (.x29 ↦ᵣ (32 : Word)) **
+      (.x30 ↦ᵣ BitVec.ofNat 64 32) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 0) ↦ₘ q0) **
+      ((outPtr + BitVec.ofNat 64 24) ↦ₘ tailOutputFullReplaceBE o3 q0) **
+      (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) ** (.x11 ↦ᵣ outPtr) **
+      (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ v18) **
+      (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x31 ↦ᵣ v31) **
+      (.x5 ↦ᵣ (q4 ||| q5)) ** (.x6 ↦ᵣ q5) **
+      frameSlotsSaved priceFrame newSp vals **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+      (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+      (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 8) ↦ₘ q1) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 16) ↦ₘ q2) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 24) ↦ₘ q3) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 32) ↦ₘ q4) **
+      (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 40) ↦ₘ q5) **
+      ((outPtr + BitVec.ofNat 64 0) ↦ₘ tailOutputFullReplaceBE o0 q3) **
+      ((outPtr + BitVec.ofNat 64 8) ↦ₘ tailOutputFullReplaceBE o1 q2) **
+      ((outPtr + BitVec.ofNat 64 16) ↦ₘ tailOutputFullReplaceBE o2 q1) ** FR))
+
+@[reducible] private def tailStatus0Bytes
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  tailStatus0Rest newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
+    bytesRegion outPtr (tailOutputBytes q0 q1 q2 q3)
+
+theorem tailStatus0Cells_to_bytes
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : ∀ h,
+    (tailStatus0Rest newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
+      tailStatus0Cells outPtr q0 q1 q2 q3 o0 o1 o2 o3) h →
+    tailStatus0Bytes newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR h := by
+  intro h hp
+  unfold tailStatus0Bytes
+  apply tailOutputCells_to_bytesRegion
+  exact hp
+
+theorem tailStatus0Source_to_bytes
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : ∀ h,
+    tailStatus0Source newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+      o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+      v18 v19 v20 v31 FR h →
+    tailStatus0Bytes newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR h := by
+  intro h hp
+  unfold tailStatus0Bytes
+  apply tailOutputCells_to_bytesRegion
+  simp only [tailStatus0Source, tailStatus0Rest,
+    tailOutputFullReplaceBE] at hp ⊢
+  xperm_hyp hp
+
+/- The two tail exits share their program counter.  Keep the status-1 post
+   abstract while changing only the second (status-0) post; this lets the
+   concrete `tail_core` theorem supply the first post without copying it into
+   this adapter. -/
+private theorem cpsNBranchWithin_weaken_second_same_pc
+    {n : Nat} {entry pc : Word} {cr : CodeReq} {P Q1 Q0 Q0' : Assertion}
+    (h : cpsNBranchWithin n entry cr P [(pc, Q1), (pc, Q0)])
+    (hQ0 : ∀ h, Q0 h → Q0' h) :
+    cpsNBranchWithin n entry cr P [(pc, Q1), (pc, Q0')] := by
+  apply cpsNBranchWithin_weaken_posts h
+  intro ex hex
+  simp only [List.mem_cons] at hex
+  rcases hex with h1 | h2
+  · subst ex
+    exact ⟨(pc, Q1), by simp, rfl, fun _ hs => hs⟩
+  · rcases h2 with h2 | hnil
+    · subst ex
+      exact ⟨(pc, Q0'), by simp, rfl, hQ0⟩
+    · simp at hnil
+
+/- A reusable outer-fold seam: callers provide the already-derived tail
+   theorem and the status-0 output conversion, while the status-1 post stays
+   exactly the one emitted by the linked tail proof. -/
+theorem tail_core_status0_bytes
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 : Word)
+    (v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (FR : Assertion)
+    {Q1 Q0 : Assertion}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+        v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+      [(PriceK + 968, Q1), (PriceK + 968, Q0)])
+    (hStatus0 : ∀ h, Q0 h →
+      tailStatus0Bytes newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR h) :
+    cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+        v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+      [(PriceK + 968, Q1),
+       (PriceK + 968, tailStatus0Bytes newSp excess outPtr vals
+         q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+         v18 v19 v20 v31 FR)] := by
+  exact cpsNBranchWithin_weaken_second_same_pc hTail hStatus0
+
+theorem tail_core_status0_source_to_bytes
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 : Word)
+    (v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (FR : Assertion) {Q1 : Assertion}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+        v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+      [(PriceK + 968, Q1),
+       (PriceK + 968,
+        tailStatus0Source newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+          o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          v18 v19 v20 v31 FR)]) :
+    cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+        v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+      [(PriceK + 968, Q1),
+       (PriceK + 968,
+        tailStatus0Bytes newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR)] := by
+  apply tail_core_status0_bytes (hTail := hTail)
+  exact tailStatus0Source_to_bytes newSp excess outPtr vals
+    q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+    p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR
+
+/- Type-check the adapter against the actual linked tail theorem.  The first
+   exit is intentionally existential here: the adapter preserves it without
+   copying its large status-1 assertion, while the second exit is the concrete
+   bytes-producing result used by the outer fold. -/
+theorem tail_core_status0_source_of_tail_core
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 : Word)
+    (v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    ∃ Q1 : Assertion,
+      cpsNBranchWithin 296 (PriceK + 900) priceCode
+        (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+          o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+        [(PriceK + 968, Q1),
+         (PriceK + 968,
+          tailStatus0Bytes newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR)] := by
+  have hTail := EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_core
+    newSp excess outPtr vals
+    q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+    p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
+  have hAdapt := tail_core_status0_source_to_bytes
+    newSp excess outPtr vals
+    q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+    p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR
+    (hTail := hTail)
+  exact ⟨_, hAdapt⟩
+
 /- The library currently provides the N-branch bulk adapter for nine
    registers.  K70's round owns exactly these seven registers, so keep the
    smaller adapter local rather than manufacturing two unrelated resources. -/
