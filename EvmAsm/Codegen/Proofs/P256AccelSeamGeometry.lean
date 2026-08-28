@@ -163,4 +163,48 @@ theorem p256_mulParams_bundle_satisfiable :
   refine ⟨by decide, by decide, by decide, by decide, by decide, by decide,
     by decide, by decide, by decide, by decide, by decide, by decide⟩
 
+/-! ## The seam applies: a closed instance of the distributed triple
+
+    The obstruction #13011 names is that the accelerator step lemma demanded a
+    single `bytesRegion` covering both the parameter block and the operands,
+    which this image cannot supply.  The theorem below is that triple, fully
+    instantiated at the measured geometry with two disjoint regions — nothing
+    is left as a hypothesis except the caller's register fact.
+
+    `p256_op_with`'s own registry row is deliberately NOT landed here; this
+    demonstrates only that the seam no longer blocks it. -/
+
+/-- Validity of the parameter region, at the measured base. -/
+theorem pMul_valid :
+    ∀ j, j < 136 → isValidMemAddr (pMulBase + BitVec.ofNat 64 j) = true := by
+  decide
+
+/-- Validity of the `.bss` staging arena, at the measured base. -/
+theorem stage_valid :
+    ∀ j, j < 128 → isValidMemAddr (bssBase + BitVec.ofNat 64 j) = true := by
+  decide
+
+/-- The distributed accelerator seam, instantiated at the real P-256 layout:
+    `a`, `b`, `c`, `d` in the `.bss` arena, `module` in the `.data` parameter
+    region alongside the block itself. -/
+theorem p256_mulParams_seam_instance (base : Word) (rf : SAsm.RegFile)
+    (hp : SAsm.RegFile.get rf .x5 = pMulBase + BitVec.ofNat 64 96) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.CSRS 0x802 .x5))
+      ((SAsm.regFileIs rf) ** bytesRegion pMulBase pMulWs ** bytesRegion bssBase stageWs)
+      ((SAsm.regFileIs rf) ** bytesRegion pMulBase pMulWs ** bytesRegion bssBase
+        (setBytes stageWs 64 (SAsm.leBytes32 (Accel.arith256Mod
+          (SAsm.wsNat256 stageWs 0)
+          (SAsm.wsNat256 stageWs 32)
+          (SAsm.wsNat256 stageWs 96)
+          (SAsm.wsNat256 pMulWs 0))))) :=
+  SAsm.csrs_arith256Mod_distributed_spec_within base .x5 (by decide)
+    pMulBase 136 pMulWs bssBase 128 stageWs rf
+    (by decide) (by decide) (by decide) (by decide) pMul_valid stage_valid
+    false false false true
+    96 0 32 96 0 64
+    hp (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
 end EvmAsm.Codegen.P256AccelSeamGeometry
