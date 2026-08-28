@@ -168,6 +168,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bahCr_eq_flatCr
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_call_site_pointers_unaligned
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_align_bites
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_spec_within
+
 #print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
@@ -495,6 +505,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_call_native_spec_within
 
@@ -942,6 +954,32 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSectionSpec.swsU32lePresFlat_spec
 
+#print axioms EvmAsm.Codegen.SystemCallStagingBase.sscProgL_spans_symbol
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscExecStatus_ne_one
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_eq_one_iff
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_mem_three
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ardCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscpCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.stage_system_call_spec_within
+
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
@@ -953,6 +991,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
+
+#print axioms EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
 
 #print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
 

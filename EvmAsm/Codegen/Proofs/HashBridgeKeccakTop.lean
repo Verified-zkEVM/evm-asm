@@ -199,7 +199,7 @@ theorem keccakBody_framed (sp0 ret : Word)
     (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v8 v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hrem_le : rem ≤ 135)
     (hout0 : out0.length = 32)
     (hos : os.length = 200)
@@ -236,7 +236,7 @@ theorem keccakBody_framed (sp0 ret : Word)
   intro newSp vals lenW
   have hbody0 := keccakBody_spec inputBase outputBase input N rem out0
     v20 v9 v18 v8 v28 v29 os A hA
-    hlen hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
+    hfit hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
     hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   have hslots : (frameSlotsSaved keccakFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
@@ -277,16 +277,34 @@ theorem keccakBody_framed (sp0 ret : Word)
       xperm_hyp hq1)
     hbodyF
 
-/-- Top triple for `zkvm_keccak256`.
+/-- **Envelope seam** for `zkvm_keccak256` (issue #13014).
+
+    Same triple as `zkvm_keccak256_spec_within`, but the input resource is only
+    required to be **at least** as long as the hashed length: the caller may
+    hand over a region that runs past `136*N + rem` bytes — a dword envelope,
+    say — and the trailing bytes are carried through the triple as a resource
+    and never read.  This is what lets a caller hash an *interior slice* of a
+    buffer it already owns: `bytesRegion_window_focus_any` hands back exactly
+    the dword envelope of an unaligned window, and this seam consumes it.
+
+    The digest still depends only on the first `136*N + rem` bytes — see
+    `keccakBodyDigest_congr` / `keccakBodyDigest_append`.
+
+    Crucially the seam does **not** assume the trailing bytes are zero.  An
+    exactly-sized `bytesRegion base bs` with `8 ∤ bs.length` pins the bytes
+    after `bs` to `0x00` (`packBytes` zero-pads the last, partial dword), which
+    is a *content* claim about the caller's buffer, not resource framing; that
+    is precisely the assumption this seam removes.
+
     Outer loop uses LI-header reload (`signedCountdownLoop_reload_spec`);
     BLT-header lemma does not apply (JAL→LI 0x8000368c ≠ BLT 0x80003690). -/
-theorem zkvm_keccak256_spec_within (sp0 ret : Word)
+theorem zkvm_keccak256_spec_within_envelope (sp0 ret : Word)
     (inputBase outputBase : Word)
     (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v8 v9 v18 v20 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hrem_le : rem ≤ 135)
     (hout0 : out0.length = 32)
     (hos : os.length = 200)
@@ -322,7 +340,7 @@ theorem zkvm_keccak256_spec_within (sp0 ret : Word)
   intro vals lenW newSp
   have hbody := keccakBody_framed sp0 ret inputBase outputBase input N rem out0
     v8 v9 v18 v20 v28 v29 os A hA
-    hlen hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
+    hfit hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
     hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
   refine keccakFrame_spec_own keccakCr B sp0 ret vals (keccakBodyFuel N rem)
     (keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
@@ -384,5 +402,51 @@ theorem zkvm_keccak256_spec_within (sp0 ret : Word)
     exact hsub
   · -- body: PC pins bodyEntry/Exit = B+20 / B+252
     simpa [keccakBodyEntry, keccakBodyExit, newSp, vals, lenW] using hbody
+
+/-- Top triple for `zkvm_keccak256` (exactly-sized input region).
+    The `= 136*N + rem` instance of `zkvm_keccak256_spec_within_envelope`. -/
+theorem zkvm_keccak256_spec_within (sp0 ret : Word)
+    (inputBase outputBase : Word)
+    (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem → Zk3.toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor inputBase N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor inputBase N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    let vals := keccakEntryVals v8 v9 v18 v20
+    let lenW := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
+    let newSp := sp0 + signExtend12 ((-32 : BitVec 12))
+    cpsTripleWithin (5 + keccakBodyFuel N rem + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsOwn keccakFrame newSp **
+        keccakCallerPre inputBase lenW outputBase v28 v29 os input out0 A)
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame vals **
+        frameSlotsSaved keccakFrame newSp vals **
+        keccakCallerPost inputBase outputBase input N rem A) :=
+  zkvm_keccak256_spec_within_envelope sp0 ret inputBase outputBase input N rem
+    out0 v8 v9 v18 v20 v28 v29 os A hA halign_ret (Nat.le_of_eq hlen.symm)
+    hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i hovers hoveri
+    hvalids hvalidi hvalidRem hvalid135 hvalidMem
 
 end EvmAsm.Codegen.Proofs

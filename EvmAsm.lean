@@ -58,6 +58,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakFrame
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Body

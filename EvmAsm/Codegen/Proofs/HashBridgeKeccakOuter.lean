@@ -55,6 +55,32 @@ theorem keccakAbsorbedPrefix_length (input : List (BitVec 8)) (k : Nat) :
     simp only [keccakAbsorbedPrefix]
     exact keccakPermuteAbsorbed_length _ _ ih
 
+/-- `keccakAbsorbedPrefix … k` reads only the first `136 * k` bytes: two inputs
+    agreeing on that prefix absorb to the same sponge. -/
+theorem keccakAbsorbedPrefix_congr (input input' : List (BitVec 8)) (k : Nat)
+    (h : input.take (keccakAbsorbStep * k) = input'.take (keccakAbsorbStep * k)) :
+    keccakAbsorbedPrefix input k = keccakAbsorbedPrefix input' k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    have hle : keccakAbsorbStep * k ≤ keccakAbsorbStep * (k + 1) := by
+      simp only [keccakAbsorbStep]; omega
+    have hprev : input.take (keccakAbsorbStep * k) = input'.take (keccakAbsorbStep * k) := by
+      have h2 := congrArg (List.take (keccakAbsorbStep * k)) h
+      rwa [List.take_take, List.take_take, Nat.min_eq_left hle] at h2
+    have hblk : (input.drop (keccakAbsorbStep * k)).take keccakAbsorbStep =
+        (input'.drop (keccakAbsorbStep * k)).take keccakAbsorbStep := by
+      rw [List.take_drop, List.take_drop,
+        show keccakAbsorbStep * k + keccakAbsorbStep = keccakAbsorbStep * (k + 1) from by
+          simp only [keccakAbsorbStep]; omega, h]
+    simp only [keccakAbsorbedPrefix, ih hprev, hblk]
+
+/-- Bytes past `136 * k` are invisible to `keccakAbsorbedPrefix … k`. -/
+theorem keccakAbsorbedPrefix_append (input suf : List (BitVec 8)) (k : Nat)
+    (hk : keccakAbsorbStep * k ≤ input.length) :
+    keccakAbsorbedPrefix (input ++ suf) k = keccakAbsorbedPrefix input k :=
+  keccakAbsorbedPrefix_congr _ _ k (List.take_append_of_le_length hk)
+
 theorem keccakAbsorbedPrefix_succ (input : List (BitVec 8)) (k : Nat) :
     keccakAbsorbedPrefix input (k + 1) =
       keccakPermuteAbsorbed (keccakAbsorbedPrefix input k)

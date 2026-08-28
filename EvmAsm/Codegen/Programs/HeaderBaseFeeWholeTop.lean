@@ -186,26 +186,33 @@ private theorem k73_increase_status_to_div_spec_within
     (fun _ hq => hq)
     (fun s hq => hcarry s hq) hstatus
 
+/-- The keep/replace disjuncts carry the window-value pures
+`beBytesToNat q2 ≠ 0` / `= 0`: the zero-test controls WHICH BYTES the window
+holds (keep window = `AddBe p q2 q2` vs replace image = `AddBe p 1 1`), so
+without the pures the post is PATH-BLIND, and a path-blind post admits
+countermodel states that no local window algebra can kill, because the
+implication quantifies over all states satisfying the post rather than the
+reachable ones. Do not weaken the pures back out. -/
 @[irreducible] def k73IncreaseDivZeroPost
     (spH raIn gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (baseBytes accBytes q2 : List (BitVec 8)) (G : Assertion) :
     Assertion := fun s =>
   ∃ k : Nat,
-    (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+    ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
       ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
       bytesRegion outPtr q2 ** ((.x18 : Reg) ↦ᵣ target) **
       k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
         baseBytes accBytes
-        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) s ∨
-    (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+    ((((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
       regOwns exposedRegs **
       bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
       ((.x18 : Reg) ↦ᵣ target) **
       k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
         baseBytes accBytes
-        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) s
+        (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G) k) ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s
 
 theorem k73_increase_status_div_zero_spec_within
     (spH raIn gasLimit gasUsed basePtr outPtr target : Word)

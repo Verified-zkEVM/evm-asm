@@ -184,10 +184,18 @@ per-opcode gas debit is unobservable to any triple — it EXISTS, at \
 `Dispatch.lean:1208-1214` (loads `opcode_gas_costs`, compares `env+568`, \
 `sub`/`sd`, table modelled at `Proofs/OpcodeTables.lean:229`), and is simply \
 inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.md`",
-         .infra "`stage_system_call` has no machine post yet, and the \
-`execution_requests_hash` hash-half compose is still open. (The \
-validation-accept prefix landed domainRestricted; that work is DONE and its \
-issue closed — the surviving dependency is the two items named here)",
+         .infra "the `execution_requests_hash` hash-half compose is still \
+open. (The validation-accept prefix landed domainRestricted; that work is DONE \
+and its issue closed.) ⚠️ `stage_system_call` NO LONGER belongs on this list: \
+its machine post landed as #12206 item 1 \
+(`stage_system_call_spec_within`, `.conditional`) — `a2` is 0, 1 or 2 with the \
+STAGING-failure class 1 kept distinguishable from the EXECUTION-failure class \
+2 (#11810), plus `a1 = 0`, `a0 = &system_call_returndata` and \
+`system_call_mode = 0` on the failure path and `ra`/`s0` restored on every \
+path, all of it CALLEE-INDEPENDENT because `a2` is written only by that \
+routine's own `li` instructions. What survives is the DISCHARGE of its three \
+named residuals `ArdCallShape` / `SscpCallShape` / `RdcCallShape`, the last of \
+which is #12204",
          .infra "`assemble_execution_requests` whole-routine triple LANDED \
 (#12813, `assemble_execution_requests_spec_within`) and `requests_hash_verify` \
 LANDED on top of it (#12206 item 2, `requests_hash_verify_spec_within`: the \
@@ -212,7 +220,7 @@ by composing this triple through `callWithin` (the tops still use \
 `shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
 separate hash-half five-slot compose after `validation_accept` (the parent \
 `execution_requests_hash` composition remains open)."],
-      auditedAt := some "2026-08-12 @12129-staleness",
+      auditedAt := some "2026-08-28 @12206-item-1",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
