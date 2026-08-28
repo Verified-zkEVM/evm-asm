@@ -370,6 +370,51 @@ def keccakBodyDigest (input : List (BitVec 8)) (N rem : Nat) : List (BitVec 8) :
   let padded := keccakGuestPad st rem
   keccakDigestCopy (setBytes padded 0 (keccakBytes padded 0))
 
+/-! ### Envelope congruence (pure)
+
+The guest sponge and digest read only `input[0 … 136*N + rem)`.  These are the
+pure half of the envelope seam: they say the hash of a region depends only on
+the first `len` bytes, so a caller may hand over a region that is longer than
+the hashed length (a dword envelope, say) without changing the result. -/
+
+/-- The pre-pad sponge depends on `input` only through its first
+    `136*N + rem` bytes. -/
+theorem keccakBodyPrePad_congr (input input' : List (BitVec 8)) (N rem : Nat)
+    (h : input.take (keccakAbsorbStep * N + rem)
+        = input'.take (keccakAbsorbStep * N + rem)) :
+    keccakBodyPrePad input N rem = keccakBodyPrePad input' N rem := by
+  have hpref : keccakAbsorbedPrefix input N = keccakAbsorbedPrefix input' N := by
+    refine keccakAbsorbedPrefix_congr input input' N ?_
+    have h2 := congrArg (List.take (keccakAbsorbStep * N)) h
+    rwa [List.take_take, List.take_take,
+      Nat.min_eq_left (Nat.le_add_right _ _)] at h2
+  have htail : (input.drop (keccakAbsorbStep * N)).take rem
+      = (input'.drop (keccakAbsorbStep * N)).take rem := by
+    rw [List.take_drop, List.take_drop, h]
+  simp only [keccakBodyPrePad, hpref, htail]
+
+/-- The guest digest depends on `input` only through its first
+    `136*N + rem` bytes. -/
+theorem keccakBodyDigest_congr (input input' : List (BitVec 8)) (N rem : Nat)
+    (h : input.take (keccakAbsorbStep * N + rem)
+        = input'.take (keccakAbsorbStep * N + rem)) :
+    keccakBodyDigest input N rem = keccakBodyDigest input' N rem := by
+  simp only [keccakBodyDigest, keccakBodyPrePad_congr input input' N rem h]
+
+/-- Trailing bytes past the hashed length do not reach the sponge. -/
+theorem keccakBodyPrePad_append (input suf : List (BitVec 8)) (N rem : Nat)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length) :
+    keccakBodyPrePad (input ++ suf) N rem = keccakBodyPrePad input N rem :=
+  keccakBodyPrePad_congr _ _ N rem (List.take_append_of_le_length hfit)
+
+/-- Trailing bytes past the hashed length do not reach the digest.  This is the
+    statement that makes the envelope seam usable: the four buffer bytes that a
+    20-byte in-place hash shares its last dword with are **arbitrary**. -/
+theorem keccakBodyDigest_append (input suf : List (BitVec 8)) (N rem : Nat)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length) :
+    keccakBodyDigest (input ++ suf) N rem = keccakBodyDigest input N rem :=
+  keccakBodyDigest_congr _ _ N rem (List.take_append_of_le_length hfit)
+
 /-- Free temps needed by outer/rem/pad that setup does not initialize.
     Includes all of `keccakAbsorbOuterTemps` except x11/x12/x28 (setup leaves
     those concrete and the reshape drops them to owns). -/
@@ -660,30 +705,33 @@ theorem keccakRemAmb_pcFree (outputBase : Word) (out0 : List (BitVec 8))
   pcFree_sepConj (by pcf) <|
   pcFree_sepConj (pcFree_regOwns _) hA
 
-/-- Residual after N full blocks (exact-length domain). -/
+/-- Residual after N full blocks.  With the envelope domain
+    (`136*N + rem ≤ input.length`) this may be **longer** than `rem`: the trailing
+    bytes are carried as a resource but never read. -/
 def keccakResidual (input : List (BitVec 8)) (N : Nat) : List (BitVec 8) :=
   input.drop (keccakAbsorbStep * N)
 
-private theorem residual_length_eq (input : List (BitVec 8)) (N rem : Nat)
-    (hlen : input.length = keccakAbsorbStep * N + rem) :
-    (keccakResidual input N).length = rem := by
-  simp only [keccakResidual, List.length_drop, hlen]; omega
+private theorem residual_length_ge (input : List (BitVec 8)) (N rem : Nat)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length) :
+    rem ≤ (keccakResidual input N).length := by
+  simp only [keccakResidual, List.length_drop]; omega
 
 private theorem absorbedPref_length (input : List (BitVec 8)) (N rem : Nat)
-    (hlen : input.length = keccakAbsorbStep * N + rem) :
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length) :
     (input.take (keccakAbsorbStep * N)).length = keccakAbsorbStep * N := by
-  simp only [List.length_take, hlen]; omega
+  simp only [List.length_take]; omega
 
 private theorem input_split_eq (inputBase : Word) (input : List (BitVec 8))
-    (N rem : Nat) (hlen : input.length = keccakAbsorbStep * N + rem)
+    (N rem : Nat) (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hN8 : (keccakAbsorbStep * N) % 8 = 0) :
     bytesRegion inputBase input =
       (bytesRegion inputBase (input.take (keccakAbsorbStep * N)) **
         bytesRegion (inputBase + BitVec.ofNat 64 (keccakAbsorbStep * N))
           (input.drop (keccakAbsorbStep * N))) := by
   set n := keccakAbsorbStep * N
+  have hn : n ≤ input.length := by omega
   have hpre : (input.take n).length = n := by
-    simp only [n, List.length_take, hlen]; omega
+    simp only [List.length_take]; omega
   have h8 : 8 ∣ (input.take n).length := by
     rw [hpre]; exact Nat.dvd_of_mod_eq_zero hN8
   have happ := bytesRegion_append inputBase (input.take n) (input.drop n) h8
@@ -703,7 +751,7 @@ private theorem sep_flat_mid_holds (P A B Q : Assertion) (h : PartialState)
 theorem keccakOuterPost_to_remPre (h : PartialState)
     (inputBase outputBase : Word) (input : List (BitVec 8))
     (N rem : Nat) (out0 : List (BitVec 8)) (A : Assertion)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hp :
       ((.x9 ↦ᵣ BitVec.ofNat 64 rem) **
         (.x29 ↦ᵣ BitVec.ofNat 64 keccakAbsorbStep) **
@@ -732,7 +780,7 @@ theorem keccakOuterPost_to_remPre (h : PartialState)
     simpa [keccakAbsorbOuterInv, keccakAbsorbOuterCore, keccakOuterAmb,
       Nat.sub_zero] using hp
   have hN8 : (keccakAbsorbStep * N) % 8 = 0 := keccakAbsorb_offset_mod8 N
-  have hsplit := input_split_eq inputBase input N rem hlen hN8
+  have hsplit := input_split_eq inputBase input N rem hfit hN8
   -- Split full input → take ** residual (cursor defeq base+offset)
   rw [hsplit,
     show inputBase + BitVec.ofNat 64 (keccakAbsorbStep * N) =
@@ -962,32 +1010,26 @@ theorem keccakRemPath_nonzero_body (inputBase outputBase : Word)
   rw [beq_rem_exit] at hpath
   exact hpath
 
-private theorem residual_take_eq (input : List (BitVec 8)) (N rem : Nat)
-    (hlen : input.length = keccakAbsorbStep * N + rem) :
-    (keccakResidual input N).take rem = keccakResidual input N :=
-  List.take_of_length_le (by rw [residual_length_eq input N rem hlen])
-
 private theorem bodyPrePad_zero (input : List (BitVec 8)) (N : Nat) :
     keccakBodyPrePad input N 0 = keccakAbsorbedPrefix input N := by
   simp only [keccakBodyPrePad, keccakRemAbsorbed_zero, List.take_zero]
 
+/-- No length hypothesis: `xorBytesUpTo … rem` cannot see past index `rem`, so
+    the `take rem` inside `keccakBodyPrePad` is redundant even when the residual
+    is longer than `rem` (the envelope domain). -/
 private theorem bodyPrePad_pos (input : List (BitVec 8)) (N rem : Nat)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
     (hpos : 0 < rem) :
     keccakBodyPrePad input N rem =
       xorBytesUpTo (keccakAbsorbedPrefix input N)
         (keccakResidual input N) rem := by
-  have htake := residual_take_eq input N rem hlen
   simp only [keccakBodyPrePad, keccakRemAbsorbed, if_neg (Nat.ne_of_gt hpos)]
-  -- BodyPrePad uses (drop).take rem; residual = drop; equal under hlen.
-  rw [show (input.drop (keccakAbsorbStep * N)).take rem =
-      keccakResidual input N from by simpa [keccakResidual] using htake]
+  exact xorBytesUpTo_take (keccakAbsorbedPrefix input N) (keccakResidual input N) rem
 
 /-- Unified rem path (cases rem = 0 / >0) → padEntry with prePad sponge. -/
 theorem keccakRemPath_body (inputBase outputBase : Word)
     (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (A : Assertion) (hA : A.pcFree)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hrem_le : rem ≤ 135) (hrem64 : rem < 2 ^ 64)
     (hst : (keccakAbsorbedPrefix input N).length = 200)
     (hb8s : Zk3.toNat % 8 = 0)
@@ -1028,13 +1070,13 @@ theorem keccakRemPath_body (inputBase outputBase : Word)
         simpa [bodyPrePad_zero] using hq)
       h0
   · have hrem_pos : 1 ≤ rem := Nat.succ_le_of_lt (Nat.pos_of_ne_zero hrem0)
-    have hinp : rem ≤ (keccakResidual input N).length := by
-      rw [residual_length_eq input N rem hlen]
+    have hinp : rem ≤ (keccakResidual input N).length :=
+      residual_length_ge input N rem hfit
     have hpath := keccakRemPath_nonzero_body inputBase outputBase input N rem
       out0 A hA hrem_pos hrem_le hrem64 hst hinp hb8s hb8i
       hovers hoveri hvalids hvalidi
     refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => by
-      simpa [bodyPrePad_pos input N rem hlen (Nat.pos_of_ne_zero hrem0)] using hq)
+      simpa [bodyPrePad_pos input N rem (Nat.pos_of_ne_zero hrem0)] using hq)
       hpath
 
 /-- Free A under pad after rem: residual input + absorbedPref + leftovers. -/
@@ -1240,7 +1282,7 @@ theorem keccakRemSetup_owns (inputBase outputBase : Word)
 theorem keccakRemToPad_body (inputBase outputBase : Word)
     (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (A : Assertion) (hA : A.pcFree)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hrem_le : rem ≤ 135) (hrem64 : rem < 2 ^ 64)
     (hst : (keccakAbsorbedPrefix input N).length = 200)
     (hb8s : Zk3.toNat % 8 = 0)
@@ -1270,7 +1312,7 @@ theorem keccakRemToPad_body (inputBase outputBase : Word)
           (input.take (keccakAbsorbStep * N)) A)) := by
   have c0 := keccakRemSetup_owns inputBase outputBase input N rem out0 A hA
   have c1 := keccakRemPath_body inputBase outputBase input N rem out0 A hA
-    hlen hrem_le hrem64 hst hb8s hb8i hovers hoveri hvalids hvalidi
+    hfit hrem_le hrem64 hst hb8s hb8i hovers hoveri hvalids hvalidi
   exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) c0 c1
 
 /-- Pad entry → body exit via padCsrsDigest (fuel 18). Requires zeroed out.
@@ -1353,12 +1395,14 @@ private theorem bodyPrePad_len (input : List (BitVec 8)) (N rem : Nat) :
   · simp only [if_neg h0, xorBytesUpTo_length, hst]
 
 /-- Full body: setup → outer → rem → pad/CSRS/digest/LI0.
-    Domain: `input.length = 136*N + rem`, `rem ≤ 135`, zeroed 32-byte out. -/
+    Domain: `136*N + rem ≤ input.length` (the **envelope** domain — the region
+    may be longer than the hashed length; the extra bytes are carried as a
+    resource and never read), `rem ≤ 135`, zeroed 32-byte out. -/
 theorem keccakBody_spec (inputBase outputBase : Word)
     (input : List (BitVec 8)) (N rem : Nat) (out0 : List (BitVec 8))
     (v20 v9 v18 v8 v28 v29 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
-    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hfit : keccakAbsorbStep * N + rem ≤ input.length)
     (hrem_le : rem ≤ 135)
     (hout0 : out0.length = 32)
     (hos : os.length = 200)
@@ -1387,8 +1431,6 @@ theorem keccakBody_spec (inputBase outputBase : Word)
   set lenW : Word := BitVec.ofNat 64 (keccakAbsorbStep * N + rem)
   have hrem_lt : rem < keccakAbsorbStep := by
     simp only [keccakAbsorbStep]; omega
-  have hfit : keccakAbsorbStep * N + rem ≤ input.length := by
-    simp only [hlen]; exact Nat.le_refl _
   have hstN : (keccakAbsorbedPrefix input N).length = 200 :=
     keccakAbsorbedPrefix_length _ _
   have hstPad : (keccakBodyPrePad input N rem).length = 200 := bodyPrePad_len input N rem
@@ -1414,7 +1456,7 @@ theorem keccakBody_spec (inputBase outputBase : Word)
     hrem_lt hfit hNbound halign hvalidMem
   -- 4. outer post → rem pre (0 fuel) + rem→pad
   have cRem := keccakRemToPad_body inputBase outputBase input N rem out0 A hA
-    hlen hrem_le hrem64 hstN halign hb8i hovers hoveri hvalids hvalidi
+    hfit hrem_le hrem64 hstN halign hb8i hovers hoveri hvalids hvalidi
   have cOuterRem : cpsTripleWithin
       ((N * (keccakAbsorbOuterBodyFuel + 2) + 2) + (2 + (1 + rem * 8)))
       (B + 64) (B + 180) keccakCr
@@ -1441,7 +1483,7 @@ theorem keccakBody_spec (inputBase outputBase : Word)
             (input.take (keccakAbsorbStep * N)) A) :=
       cpsTripleWithin_weaken (fun _ hp => by simpa [lenW] using hp)
         (fun h hq =>
-          keccakOuterPost_to_remPre h inputBase outputBase input N rem out0 A hlen
+          keccakOuterPost_to_remPre h inputBase outputBase input N rem out0 A hfit
             (by simpa [lenW] using hq))
         cOuter
     exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)

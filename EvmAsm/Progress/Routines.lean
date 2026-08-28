@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Programs.U256AddBeAInPlaceSAsm
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
@@ -145,6 +146,8 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
+import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -258,6 +261,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -1888,6 +1892,39 @@ def routineRegistry : List RoutineEntry := [
         ++ "non-vacuity witnesses for the status-zero route, not "
         ++ "a claim that every K73 input is covered; the generic unconstrained "
         ++ "entry theorem remains open. No emitted code changes."),
+  -- #12346 residual 2b: the increase arm's wrapper-vocabulary Route-B
+  -- adapter.  The composed triple is complete over the wrapper contract
+  -- (`k73PreRest` premise, `k73RouteBCallPost` conclusion) but carries the
+  -- multiply callee DISCHARGED (issue #12346): `k73_incr_callee_discharged`
+  -- inhabits the `hcallee` obligation from the proven `mulWhole_spec` via the
+  -- disjoint call-site geometry (aPtr = parentPtr, outPtr = Expected are
+  -- separate windows); the respeller's copyState idempotency gap is closed by
+  -- a proven list lemma, and the wrapper's accumulator window is the
+   -- constructed product image. The row stays `.conditional` for the honest
+   -- static input-domain gates: `target = gas_limit >>> 1` and
+   -- `target < gas_used` SELECT this arm (the spec branches three ways on
+   -- parent_gas_used vs parent_gas_target, and the equal/decreasing arms have
+   -- their own routes), while `0 < target` (issue #12951) is a genuine
+   -- domain gate — a live soundness question, not a formality.
+  routine "eip1559_calc_base_fee_per_gas" .conditional
+      (some "k73_incr_route_adapter_inhabited")
+      (gate := "the multiply callee is discharged internally from the "
+        ++ "proven `mulWhole_spec` (disjoint call-site windows; see "
+        ++ "`k73_incr_callee_discharged`). Remaining static gates: "
+        ++ "ABI facts (8-byte alignment, 32-byte validity of the parent-fee "
+        ++ "and expected-window regions, window disjointness), "
+        ++ "`target = gas_limit >>> 1` and `target < gas_used` (these "
+        ++ "SELECT this arm — the equal/decreasing arms have their own "
+        ++ "routes), and `0 < target` (issue #12951 — genuine domain gate, "
+        ++ "live soundness question).")
+      (notes := "wrapper-vocab Route-B adapter for the increase arm "
+        ++ "(`k73_incr_route_adapter`, witness = constructed inhabitance at "
+        ++ "gas_limit = 10,000, gas_used = 7,500, parent fee bytes 0): "
+        ++ "the strengthened `k73IncreaseStatusFinalPost` carries the "
+        ++ "zero-test branch pures (a path-blind post admits countermodel "
+        ++ "states no local window algebra can kill). The concrete witness "
+        ++ "establishes non-vacuity only; it does NOT upgrade the general "
+        ++ "theorem past the static input-domain gates."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -2951,6 +2988,67 @@ def routineRegistry : List RoutineEntry := [
         ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
         ++ "synthesize through `laHi`/`laLo`. Lives in "
         ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12990: the third widx sibling, unblocked by reconciling the historical
+  -- x6/x31 loop-counter mismatch — the proof was transposed onto the image's
+  -- register assignment, and `widxSwapProg = widxSwapRecords_prog` is now a
+  -- decide-checked identity (the old `widxSwapProg_ne` negative control is
+  -- gone). The allowlist exemption is retired with this row.
+  routine "widx_swap_records" .proven (some "widxSwapRecordsEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_swap_records` over "
+        ++ "`CodeReq.ofProg … widxSwapRecords_prog` (the image's own program via "
+        ++ "`widxSwapProg_eq`, #12990), 58 steps: swaps two six-dword index "
+        ++ "records in place inside one arena (`widxSwapMem arena qa qb 6` in "
+        ++ "the post), counter `x31` ends zero, `t0`/`t1` clobbered, `a0`/`a1` "
+        ++ "end one record past the swapped pair. Hypotheses: the two records "
+        ++ "are distinct and both fit the arena; single-arena shape because the "
+        ++ "machine model has one writable-region resource — offsets are "
+        ++ "explicit, not existentially hidden. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12988: the allowlist's stated blocker ("needs the Fn.retSpecFlat lift")
+  -- was an UN-INSTANTIATED adapter, not missing machinery — the routine's
+  -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
+  -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
+  -- threading, no proof content changed).
+  routine "call_frame_forward_gas" .proven
+      (some "callFrameForwardGasFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.call_frame_forward_gas` over "
+        ++ "`CodeReq.ofProg … callFrameForwardGas_prog` (the emitted program; "
+        ++ "the address/program pairing is registered in guestImageEntries): "
+        ++ "EIP-150 gas forwarding — on return `a1 = cffgCap requested "
+        ++ "gas_left` (the all-but-one-64th cap) and `a0 = cap + stipend "
+        ++ "value_nonzero` (CALL_STIPEND 2300 when value moves). Register-only "
+        ++ "leaf; `a2` and the temporaries return as `regOwn` riders. DERIVED "
+        ++ "from the proof-first `callFrameForwardGasFn_spec` by "
+        ++ "`Fn.retSpecFlat`; `cffgCap_eq_capped` ties the cap to "
+        ++ "`message_call_gas`'s `capped` at `s = 0`. Total over its argument "
+        ++ "types: the sole hypothesis is an aligned return address. Lives in "
+        ++ "`Codegen/Proofs/CallFrameForwardGasFlatEntry.lean`"),
+  -- #12988 tranche 2: the two serializer twins, via a DIRECT flat proof
+  -- (parametric over placement, instantiated twice). The structured
+  -- `Fn.SpecR` contracts remain as the DCode-generated specs; the generic
+  -- SpecR→flat lift is blocked by the asrtR granularity wall (asrtR
+  -- forgets `ra`), recorded in #12988.
+  routine "bal_serializer_slot_to_le" .proven
+      (some "balSerializerSlotToLeFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.bal_serializer_slot_to_le` over "
+        ++ "`CodeReq.ofProg … balSerializerSlotToLe_prog` (the emitted "
+        ++ "program, 12 insns): reverses the 32-byte big-endian buffer at "
+        ++ "`a0` into the `bal_serializer_slot_le` scratch (BE → LE), source "
+        ++ "intact, scratch = `(bs.take 32).reverse`. Direct flat proof "
+        ++ "(`countdownLoop_spec` over the region-level byte lemmas), "
+        ++ "parametric over placement with the `la` identity as hypothesis "
+        ++ "(`bslFlat_spec`), instantiated here where it closes by `rfl`. "
+        ++ "Lives in `Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  routine "bal_serializer_balance_to_le" .proven
+      (some "balSerializerBalanceToLeFlat_spec")
+      (notes := "twin instantiation of `bslFlat_spec` at "
+        ++ "`GuestAddrs.bal_serializer_balance_to_le` (target scratch "
+        ++ "`bal_serializer_balance_le`) — see the "
+        ++ "`bal_serializer_slot_to_le` row directly above; the two differ "
+        ++ "only in their `la` immediates and placement. Lives in "
+        ++ "`Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -3807,6 +3905,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "arena. ORDER is load-bearing and pinned: the post is "
         ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order. "
         ++ "Non-vacuity: `kss_sample_witness_multi` (same 3-segment gather). "
+        ++ "Output buffer contents on entry are ARBITRARY (`out0`, any 32 "
+        ++ "bytes -- the #12897/#12987 fix): every byte is overwritten, so "
+        ++ "callers need not pre-clear and repeated calls are covered. "
         ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
         ++ "separate row; this row closes the segments leg of #12113's "
         ++ "`h_tsh` residual until the EIP-7702 wrapper re-points to the "
@@ -4455,12 +4556,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 210 := by decide
+theorem routineCount_eq : routineCount = 215 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 44 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4478,7 +4579,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 171 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 175 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5511,6 +5612,13 @@ private noncomputable abbrev _u256_eq_routine_witness :=
 -- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+-- #12319: the FIRST-OPERAND-ALIASED (`a0 = a2`) contract over the SAME
+-- `u256_add_be` text. No Routines ROW: `u256_add_be` already has one, and this
+-- is a second contract on that routine rather than a second routine. Witnessed
+-- anyway so `check-axioms` covers the module (same pattern as the
+-- `_erh_hash_one_*` phase witnesses above).
+private noncomputable abbrev _u256_add_be_a_inplace_witness :=
+  @EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
@@ -5558,6 +5666,8 @@ private noncomputable abbrev _k73_decr_entry_status_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
 private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
+private noncomputable abbrev _k73_incr_route_adapter_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -5717,6 +5827,17 @@ private noncomputable abbrev _wcidx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+-- #12990: the third widx sibling, after the x6/x31 reconciliation.
+private noncomputable abbrev _widx_swap_records_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxSwapRecordsEntry_spec
+-- #12988: the un-instantiated Fn.retSpecFlat adapter, instantiated.
+private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
+  @EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
+-- #12988 tranche 2: the serializer twins' direct flat proofs.
+private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
 -- `bncZero64Fn_spec` it is derived from.
 private noncomputable abbrev _bnc_zero64_routine_witness :=

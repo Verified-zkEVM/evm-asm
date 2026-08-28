@@ -58,6 +58,7 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakFrame
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
@@ -82,6 +83,8 @@ import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsAppendSpec
 import EvmAsm.Codegen.Programs.ReceiptRecordNthSpec
+import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
+import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
