@@ -7,6 +7,7 @@
    values for the subsequent exit-divide and outer-loop adapters.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
 
@@ -16,8 +17,141 @@ open EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14TerminalSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPrice
+open EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie
 
 set_option maxRecDepth 8000
+
+/- The status-0 tail writes the four output words in big-endian byte order.
+   Keep this bridge at the assertion level: the tail starts from four existing
+   dwords, replaces all 32 bytes, and therefore produces one contiguous
+   `bytesRegion` rather than four unrelated cells. -/
+def tailOutputFullReplaceBE (o q : Word) : Word :=
+  replaceByte (replaceByte (replaceByte (replaceByte (replaceByte (replaceByte
+    (replaceByte (replaceByte o 0 (((extractByte q 7).zeroExtend 64).truncate 8))
+      1 (((extractByte q 6).zeroExtend 64).truncate 8))
+      2 (((extractByte q 5).zeroExtend 64).truncate 8))
+      3 (((extractByte q 4).zeroExtend 64).truncate 8))
+      4 (((extractByte q 3).zeroExtend 64).truncate 8))
+      5 (((extractByte q 2).zeroExtend 64).truncate 8))
+      6 (((extractByte q 1).zeroExtend 64).truncate 8))
+      7 (((extractByte q 0).zeroExtend 64).truncate 8)
+
+def tailOutputWordBytes (q : Word) : List (BitVec 8) :=
+  (List.range 8).map (fun j => extractByte q (7 - j))
+
+def tailOutputBytes (q0 q1 q2 q3 : Word) : List (BitVec 8) :=
+  tailOutputWordBytes q3 ++ tailOutputWordBytes q2 ++
+    tailOutputWordBytes q1 ++ tailOutputWordBytes q0
+
+theorem tailOutputFullReplaceBE_eq_pack (o q : Word) :
+    tailOutputFullReplaceBE o q = packBytes (tailOutputWordBytes q) := by
+  simp only [tailOutputFullReplaceBE, truncate_zeroExtend_byte]
+  rw [← packBytes_limbBytes o]
+  rw [packBytes_set _ 0 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 1 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 2 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 3 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 4 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 5 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 6 _ (by decide) (by simp [limbBytes_length])]
+  rw [packBytes_set _ 7 _ (by decide) (by simp [limbBytes_length])]
+  congr 1
+
+theorem tailOutputBytes_take0 (q0 q1 q2 q3 : Word) :
+    (tailOutputBytes q0 q1 q2 q3).take 8 = tailOutputWordBytes q3 := by
+  simp [tailOutputBytes, tailOutputWordBytes]
+
+theorem tailOutputBytes_drop8_take1 (q0 q1 q2 q3 : Word) :
+    ((tailOutputBytes q0 q1 q2 q3).drop 8).take 8 = tailOutputWordBytes q2 := by
+  simp [tailOutputBytes, tailOutputWordBytes]
+
+theorem tailOutputBytes_drop16_take2 (q0 q1 q2 q3 : Word) :
+    ((tailOutputBytes q0 q1 q2 q3).drop 16).take 8 = tailOutputWordBytes q1 := by
+  simp [tailOutputBytes, tailOutputWordBytes, List.drop_append,
+    List.drop_eq_nil_of_le]
+
+theorem tailOutputBytes_drop24_take3 (q0 q1 q2 q3 : Word) :
+    ((tailOutputBytes q0 q1 q2 q3).drop 24).take 8 = tailOutputWordBytes q0 := by
+  simp [tailOutputBytes, tailOutputWordBytes, List.drop_append,
+    List.drop_eq_nil_of_le]
+
+theorem tailOutputBytes_length (q0 q1 q2 q3 : Word) :
+    (tailOutputBytes q0 q1 q2 q3).length = 32 := by
+  simp [tailOutputBytes, tailOutputWordBytes]
+
+theorem tailOutputCells_eq_bytesRegion
+    (base q0 q1 q2 q3 o0 o1 o2 o3 : Word) :
+    (((base + BitVec.ofNat 64 0) ↦ₘ tailOutputFullReplaceBE o3 q3) **
+      ((base + BitVec.ofNat 64 8) ↦ₘ tailOutputFullReplaceBE o2 q2) **
+      ((base + BitVec.ofNat 64 16) ↦ₘ tailOutputFullReplaceBE o1 q1) **
+      ((base + BitVec.ofNat 64 24) ↦ₘ tailOutputFullReplaceBE o0 q0))
+      = bytesRegion base (tailOutputBytes q0 q1 q2 q3) := by
+  rw [tailOutputFullReplaceBE_eq_pack, tailOutputFullReplaceBE_eq_pack,
+    tailOutputFullReplaceBE_eq_pack, tailOutputFullReplaceBE_eq_pack]
+  unfold bytesRegion
+  have hlen : (tailOutputBytes q0 q1 q2 q3).length = 32 :=
+    tailOutputBytes_length _ _ _ _
+  rw [hlen]
+  have hchunks : (32 + 7) / 8 = 4 := by decide
+  rw [hchunks]
+  simp only [bytesRegionAux]
+  rw [tailOutputBytes_take0, tailOutputBytes_drop8_take1]
+  simp only [List.drop_drop]
+  rw [tailOutputBytes_drop16_take2, tailOutputBytes_drop24_take3]
+  simp only [sepConj_emp_right']
+  rw [show base + BitVec.ofNat 64 0 = base from by bv_omega,
+    show base + 8 + 8 = base + BitVec.ofNat 64 16 from by bv_omega,
+    show (base + BitVec.ofNat 64 16) + 8 =
+      base + BitVec.ofNat 64 24 from by bv_omega]
+  rfl
+
+/- The model uses division by powers of 256 while the machine-facing tie uses
+   shifts.  The two encodings are definitionally different, so make the
+   equality explicit before connecting the tail's byte list to `priceOutcome`.
+   The proof is independent of the 256-bit envelope; truncation is supplied by
+   `BitVec.ofNat 8`. -/
+theorem natToBeBytes_eq_beBytes32OfNat (r : Nat) :
+    natToBeBytes 32 r = beBytes32OfNat r := by
+  apply List.ext_getElem
+  · simp [natToBeBytes, beBytes32OfNat]
+  · intro i h1 h2
+    have hi : i < 32 := by simpa [natToBeBytes] using h1
+    simp only [natToBeBytes, beBytes32OfNat, List.getElem_map,
+      List.getElem_range]
+    rw [Nat.shiftRight_eq_div_pow]
+    have hpow : (2 : Nat) ^ (8 * (31 - i)) =
+        256 ^ (31 - i) := by
+      rw [show (256 : Nat) = 2 ^ 8 by decide, ← Nat.pow_mul]
+    rw [hpow]
+    apply BitVec.eq_of_toNat_eq
+    simp only [BitVec.toNat_ofNat]
+    omega
+
+theorem tailOutputCells_to_bytesRegion
+    (P : Assertion) (base q0 q1 q2 q3 o0 o1 o2 o3 : Word) :
+    ∀ h,
+      (P **
+        (((base + BitVec.ofNat 64 0) ↦ₘ tailOutputFullReplaceBE o3 q3) **
+          ((base + BitVec.ofNat 64 8) ↦ₘ tailOutputFullReplaceBE o2 q2) **
+          ((base + BitVec.ofNat 64 16) ↦ₘ tailOutputFullReplaceBE o1 q1) **
+          ((base + BitVec.ofNat 64 24) ↦ₘ tailOutputFullReplaceBE o0 q0))) h →
+        (P ** bytesRegion base (tailOutputBytes q0 q1 q2 q3)) h := by
+  intro h hp
+  rw [← tailOutputCells_eq_bytesRegion base q0 q1 q2 q3 o0 o1 o2 o3]
+  xperm_hyp hp
+
+/- A non-symmetric kernel test anchors the machine byte ordering to the
+   representation-free Nat decoder.  The four words are deliberately chosen
+   so neither word order nor byte order can be hidden by a palindrome. -/
+theorem tailOutputBytes_decode_kat :
+    EvmAsm.Stateless.SpecRef.bytesBEtoNat
+      (tailOutputBytes
+        (0x8899aabbccddeeff : Word)
+        (0x0011223344556677 : Word)
+        (0x8899aabbccddeeff : Word)
+        (0x0011223344556677 : Word)) =
+      0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff := by
+  decide
 
 /- The library currently provides the N-branch bulk adapter for nine
    registers.  K70's round owns exactly these seven registers, so keep the
