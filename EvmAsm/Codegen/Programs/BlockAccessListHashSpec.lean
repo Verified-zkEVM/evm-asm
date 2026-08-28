@@ -130,4 +130,100 @@ theorem At_succ (k : Nat) : At k + 4 = At (k + 1) := by
   have h := At_add k 1
   rwa [show BitVec.ofNat 64 (4 * 1) = (4 : Word) from rfl] at h
 
+/-! ## §2  Fetching the callees
+
+    `allCode` is a three-way union.  Every pair of programs in it is
+    range-separated at the linked addresses — `zkvm_keccak256`
+    `[0x80003460, 0x80003574)`, `bah_u32le` `[0x8000caa0, 0x8000cad0)`,
+    `block_access_list_hash_core` `[0x8000cad0, 0x8000cae8)`, this wrapper
+    `[0x8000cae8, 0x8000cb64)` — so each `Disjoint` obligation is one
+    `ofProg_ranges` application with `decide`able side conditions. -/
+
+private abbrev coreW : CodeReq := BlockAccessListHashCoreSpec.wrapperCode
+private abbrev keccakC : CodeReq := BlockAccessListHashCoreSpec.keccakCode
+
+private theorem disj_w_bah : wCr.Disjoint bahCr :=
+  CodeReq.Disjoint.ofProg_ranges W BlockAccessListHashBahOffset.BahB
+    wProgL BlockAccessListHashBahOffset.bahProgL
+    (by rw [wProg_len]; decide) (by decide) (by decide)
+
+private theorem disj_w_coreW : wCr.Disjoint coreW :=
+  CodeReq.Disjoint.ofProg_ranges W BlockAccessListHashCoreSpec.B
+    wProgL blockAccessListHashCore_prog
+    (by rw [wProg_len]; decide) (by decide) (by rw [wProg_len]; decide)
+
+private theorem disj_w_keccak : wCr.Disjoint keccakC :=
+  CodeReq.Disjoint.ofProg_ranges W BlockAccessListHashCoreSpec.K
+    wProgL zkvmKeccak256_prog
+    (by rw [wProg_len]; decide) (by decide) (by decide)
+
+private theorem disj_bah_coreW : bahCr.Disjoint coreW :=
+  CodeReq.Disjoint.ofProg_ranges BlockAccessListHashBahOffset.BahB
+    BlockAccessListHashCoreSpec.B
+    BlockAccessListHashBahOffset.bahProgL blockAccessListHashCore_prog
+    (by decide) (by decide) (by decide)
+
+private theorem disj_bah_keccak : bahCr.Disjoint keccakC :=
+  CodeReq.Disjoint.ofProg_ranges BlockAccessListHashBahOffset.BahB
+    BlockAccessListHashCoreSpec.K
+    BlockAccessListHashBahOffset.bahProgL zkvmKeccak256_prog
+    (by decide) (by decide) (by decide)
+
+/-- The `bah_u32le` leaf's own code requirement, as seen from `allCode`. -/
+theorem bahMem : ∀ a i, bahCr a = some i → allCode a = some i :=
+  fun a i h =>
+    CodeReq.mono_union_right disj_w_bah
+      (fun a i h => CodeReq.union_mono_left a i h) a i h
+
+private theorem coreWMem : ∀ a i, coreW a = some i → allCode a = some i :=
+  fun a i h =>
+    CodeReq.mono_union_right disj_w_coreW
+      (fun a i h =>
+        CodeReq.mono_union_right disj_bah_coreW
+          (fun a i h => CodeReq.union_mono_left a i h) a i h) a i h
+
+private theorem keccakMem : ∀ a i, keccakC a = some i → allCode a = some i :=
+  fun a i h =>
+    CodeReq.mono_union_right disj_w_keccak
+      (fun a i h =>
+        CodeReq.mono_union_right disj_bah_keccak
+          (fun a i h =>
+            CodeReq.mono_union_right
+              (CodeReq.Disjoint.ofProg_ranges BlockAccessListHashCoreSpec.B
+                BlockAccessListHashCoreSpec.K
+                blockAccessListHashCore_prog zkvmKeccak256_prog
+                (by decide) (by decide) (by decide))
+              (fun a i h => h) a i h) a i h) a i h
+
+/-- The core's whole code requirement (its own six instructions plus the
+    `zkvm_keccak256` body it carries), as seen from `allCode`. -/
+theorem coreMem :
+    ∀ a i, BlockAccessListHashCoreSpec.fullCode a = some i → allCode a = some i :=
+  CodeReq.union_split_mono coreWMem keccakMem
+
+/-! ## §3  The exit shape: the tail jump
+
+    Index 30 is `JAL x0, block_access_list_hash_core`, reached with the frame
+    already popped and `ra` already restored.  It moves the PC and nothing
+    else, so any pc-free assertion survives it unchanged — which is what lets
+    the core's precondition be established BEFORE the jump and consumed after
+    it. -/
+
+theorem tail_target :
+    At 30 + signExtend21
+        (jalOff GuestAddrs.block_access_list_hash_core
+          (GuestAddrs.block_access_list_hash + 120))
+      = BlockAccessListHashCoreSpec.B := by
+  decide
+
+theorem tail_jump_spec (P : Assertion) (hP : P.pcFree) :
+    cpsTripleWithin 1 (At 30) BlockAccessListHashCoreSpec.B allCode P P := by
+  have h := jal0_spec_pcFree
+    (jalOff GuestAddrs.block_access_list_hash_core
+      (GuestAddrs.block_access_list_hash + 120))
+    (At 30) hP
+  rw [tail_target] at h
+  exact cpsTripleWithin_extend_code
+    (wMem 30 _ (by rw [wProg_len]; decide) (by rfl)) h
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
