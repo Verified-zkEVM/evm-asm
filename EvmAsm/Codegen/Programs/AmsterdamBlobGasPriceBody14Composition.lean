@@ -12,6 +12,8 @@ open EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody10Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14TerminalSpec
 
 set_option maxRecDepth 8000
@@ -260,6 +262,67 @@ theorem nb_extend_head_same_cr {n1 n2 : Nat} {entry mid : Word} {cr : CodeReq}
   · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
       hstep1, ex, List.mem_append.mpr (Or.inr hrest), hpc1, hQ1⟩
 
+/- Compose a uniform continuation onto every exit of an N-branch.  The
+   unchanged exits use the zero-step identity below, lifted to the common
+   continuation bound; the selected exits may instead advance through the
+   shared status tail. -/
+private theorem cpsTripleWithin_refl_same_cr {addr : Word} {cr : CodeReq}
+    {P Q : Assertion} (h : ∀ hp, P hp → Q hp) :
+    cpsTripleWithin 0 addr addr cr P Q := by
+  intro R hR s hcr hPR hpc
+  exact ⟨0, Nat.le_refl 0, s, stepN_zero, hpc, by
+    obtain ⟨hp, hcompat, hpq⟩ := hPR
+    exact ⟨hp, hcompat, sepConj_mono_left h hp hpq⟩⟩
+
+private theorem nb_extend_each_same_cr {n1 n2 : Nat} {entry : Word}
+    {cr : CodeReq} {P : Assertion}
+    {exits exits' : List (Word × Assertion)}
+    (h1 : cpsNBranchWithin n1 entry cr P exits)
+    (h2 : ∀ ex ∈ exits, ∃ ex' ∈ exits',
+      cpsTripleWithin n2 ex.1 ex'.1 cr ex.2 ex'.2) :
+    cpsNBranchWithin (n1 + n2) entry cr P exits' := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQ1⟩ :=
+    h1 R hR s hcr hPR hpc
+  obtain ⟨ex', hmem', hseq⟩ := h2 ex hmem
+  have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+  obtain ⟨k2, hk2, s2, hstep2, hpc2, hQ2⟩ :=
+    hseq R hR s1 hcr' hQ1 hpc1
+  exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
+    stepN_add_eq hstep1 hstep2, ex', hmem', hpc2, hQ2⟩
+
+/- Compose a continuation at an exit after an arbitrary retained prefix.  The
+   prefix form is useful for the round's status arms: each arm is adjacent to
+   the remaining concrete exits, but spelling that whole list at every step
+   would duplicate the generated postconditions. -/
+private theorem nb_extend_after_prefix {n1 n2 : Nat} {entry mid : Word}
+    {cr : CodeReq} {P Qm : Assertion}
+    {preExits rest exits2 : List (Word × Assertion)}
+    (h1 : cpsNBranchWithin n1 entry cr P
+      (preExits ++ ((mid, Qm) :: rest)))
+    (h2 : cpsNBranchWithin n2 mid cr Qm exits2) :
+    cpsNBranchWithin (n1 + n2) entry cr P
+      (preExits ++ (exits2 ++ rest)) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQ1⟩ :=
+    h1 R hR s hcr hPR hpc
+  simp only [List.mem_append, List.mem_cons] at hmem
+  rcases hmem with hprefix | hmid | hrest
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
+      hstep1, ex, List.mem_append_left (exits2 ++ rest) hprefix, hpc1, hQ1⟩
+  · subst ex
+    have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hQ2⟩ :=
+      h2 R hR s1 hcr' hQ1 hpc1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
+      stepN_add_eq hstep1 hstep2, ex2,
+        List.mem_append.mpr (Or.inr (List.mem_append.mpr (Or.inl hmem2))),
+      hpc2, hQ2⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
+        hstep1, ex,
+        List.mem_append.mpr (Or.inr (List.mem_append.mpr (Or.inr hrest))),
+        hpc1, hQ1⟩
+
 /- The zero-accumulator arm reaches the exit-divide window with the concrete
    values produced by the round dispatch: `x5 = w`, `x6 = a5`, and the
    caller's `AB`/`PB` bases in `x19`/`x20`.  This adapter is the first point
@@ -364,6 +427,727 @@ theorem taylor_round_terminal_496_status1_exitdiv_tail
     v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB hTail
   have hAll := nb_extend_head_same_cr hRoundN hZero
   simpa [FR0] using hAll
+
+/- The common linked status-1 exit is a one-instruction continuation from
+   every overflow post at `PriceK + 964`.  Keeping the continuation
+   assertion generic lets the later arm adapters retain the complete
+   overflow-specific state while changing only the ABI status register. -/
+theorem status1_tail
+    (excess : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      ((.x10 ↦ᵣ excess) ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) ** FR) := by
+  have hLi := li_spec_gen_within .x10 excess (1 : Word)
+    (PriceK + 964) (by decide)
+  have hLiF := cpsTripleWithin_frameR FR hFR hLi
+  refine cpsTripleWithin_extend_code ?_ hLiF
+  intro a i hi
+  have hins : amsterdamBlobGasPriceU256_prog[241]'(by decide) =
+      .LI .x10 (1 : Word) := by decide
+  show priceCode a = some i
+  exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 964)
+    amsterdamBlobGasPriceU256_prog 241 (.LI .x10 (1 : Word))
+    (by decide) (by decide) hins (by decide) a i hi
+
+/- The `mul6PQOVF0` post has the status input in the middle of its exact
+   resource chain.  This residual assertion is the same chain with that one
+   register removed, so the status continuation cannot duplicate ownership or
+   silently discard the overflow-specific arithmetic state. -/
+@[reducible] def mul6OverflowRest
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (r29 x5 x6 x7 x28 x30 x31 : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  (((.x29 ↦ᵣ r29) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜r29 ≠ (0 : Word)⌝) **
+    (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+    (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+    (.x5 ↦ᵣ x5) ** (.x6 ↦ᵣ x6) ** (.x7 ↦ᵣ x7) **
+    (.x28 ↦ᵣ x28) ** (.x30 ↦ᵣ x30) ** (.x31 ↦ᵣ x31) **
+    frameSlotsSaved priceFrame newSp vals **
+    (((AB) + signExtend12 0) ↦ₘ a0) **
+    (((AB) + signExtend12 8) ↦ₘ a1) **
+    (((AB) + signExtend12 16) ↦ₘ a2) **
+    (((AB) + signExtend12 24) ↦ₘ a3) **
+    (((AB) + signExtend12 32) ↦ₘ a4) **
+    (((AB) + signExtend12 40) ↦ₘ a5) **
+    (((PB) + signExtend12 0) ↦ₘ p0) **
+    (((PB) + signExtend12 8) ↦ₘ p1) **
+    (((PB) + signExtend12 16) ↦ₘ p2) **
+    (((PB) + signExtend12 24) ↦ₘ p3) **
+    (((PB) + signExtend12 32) ↦ₘ p4) **
+    (((PB) + signExtend12 40) ↦ₘ p5) **
+    (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ s0) **
+    (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ s1) **
+    (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ s2) **
+    (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ s3) **
+    (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ s4) **
+    (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ s5) ** FR)
+
+theorem mul6PQOVF0_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF0 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult ((rv64_mulhu a0 excess) +
+              (if BitVec.ult ((a0 * excess) + (0 : Word)) (a0 * excess)
+                then (1 : Word) else (0 : Word))) (rv64_mulhu a0 excess)
+            then (1 : Word) else (0 : Word))
+          a0 (a0 * excess) (rv64_mulhu a0 excess) ((a0 * excess) + (0 : Word))
+          ((rv64_mulhu a0 excess) +
+            (if BitVec.ult ((a0 * excess) + (0 : Word)) (a0 * excess)
+              then (1 : Word) else (0 : Word))) (0 : Word)
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult ((rv64_mulhu a0 excess) +
+          (if BitVec.ult ((a0 * excess) + (0 : Word)) (a0 * excess)
+            then (1 : Word) else (0 : Word))) (rv64_mulhu a0 excess)
+        then (1 : Word) else (0 : Word))
+      a0 (a0 * excess) (rv64_mulhu a0 excess) ((a0 * excess) + (0 : Word))
+      ((rv64_mulhu a0 excess) +
+        (if BitVec.ult ((a0 * excess) + (0 : Word)) (a0 * excess)
+          then (1 : Word) else (0 : Word))) (0 : Word)
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  have hTail := status1_tail excess FR' hFR'
+  apply cpsTripleWithin_weaken
+    (hpre := ?_) (hpost := fun _ hp => hp) hTail
+  intro h hh
+  simp only [mul6PQOVF0, FR', mul6OverflowRest] at hh ⊢
+  xperm_hyp hh
+
+/- The seven multiply-overflow exits have the same ownership shape.  These
+   helpers name the low-word, low-word carry, and high-word carry recurrence
+   used by the generated posts, so the arm-specific adapters below expose only
+   the changing arithmetic values rather than duplicating the ownership chain.
+   The definitions unfold to the emitted expressions in Body10Spec. -/
+@[reducible] def mul6Low (a excess carryIn : Word) : Word :=
+  (a * excess) + carryIn
+
+@[reducible] def mul6LowCarry (a excess carryIn : Word) : Word :=
+  if BitVec.ult (mul6Low a excess carryIn) (a * excess) then
+    (1 : Word) else 0
+
+@[reducible] def mul6HighCarry (a excess carryIn : Word) : Word :=
+  (rv64_mulhu a excess) + mul6LowCarry a excess carryIn
+
+@[reducible] def mul6Low0 (a0 excess : Word) : Word :=
+  mul6Low a0 excess (0 : Word)
+
+@[reducible] def mul6HighCarry0 (a0 excess : Word) : Word :=
+  mul6HighCarry a0 excess (0 : Word)
+
+@[reducible] def mul6Low1 (a0 a1 excess : Word) : Word :=
+  mul6Low a1 excess (mul6HighCarry0 a0 excess)
+
+@[reducible] def mul6HighCarry1 (a0 a1 excess : Word) : Word :=
+  mul6HighCarry a1 excess (mul6HighCarry0 a0 excess)
+
+@[reducible] def mul6Low2 (a0 a1 a2 excess : Word) : Word :=
+  mul6Low a2 excess (mul6HighCarry1 a0 a1 excess)
+
+@[reducible] def mul6HighCarry2 (a0 a1 a2 excess : Word) : Word :=
+  mul6HighCarry a2 excess (mul6HighCarry1 a0 a1 excess)
+
+@[reducible] def mul6Low3 (a0 a1 a2 a3 excess : Word) : Word :=
+  mul6Low a3 excess (mul6HighCarry2 a0 a1 a2 excess)
+
+@[reducible] def mul6HighCarry3 (a0 a1 a2 a3 excess : Word) : Word :=
+  mul6HighCarry a3 excess (mul6HighCarry2 a0 a1 a2 excess)
+
+@[reducible] def mul6Low4 (a0 a1 a2 a3 a4 excess : Word) : Word :=
+  mul6Low a4 excess (mul6HighCarry3 a0 a1 a2 a3 excess)
+
+@[reducible] def mul6HighCarry4 (a0 a1 a2 a3 a4 excess : Word) : Word :=
+  mul6HighCarry a4 excess (mul6HighCarry3 a0 a1 a2 a3 excess)
+
+@[reducible] def mul6Low5 (a0 a1 a2 a3 a4 a5 excess : Word) : Word :=
+  mul6Low a5 excess (mul6HighCarry4 a0 a1 a2 a3 a4 excess)
+
+@[reducible] def mul6HighCarry5 (a0 a1 a2 a3 a4 a5 excess : Word) : Word :=
+  mul6HighCarry a5 excess (mul6HighCarry4 a0 a1 a2 a3 a4 excess)
+
+private theorem mul6Overflow_status1_tail
+    (excess : Word) (Q FR : Assertion) (hFR : FR.pcFree)
+    (hQ : ∀ h, Q h → ((.x10 ↦ᵣ excess) ** FR) h) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      Q ((.x10 ↦ᵣ (1 : Word)) ** FR) := by
+  apply cpsTripleWithin_weaken (hpre := hQ) (hpost := fun _ hp => hp)
+    (status1_tail excess FR hFR)
+
+theorem mul6PQOVF1_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF1 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult (mul6HighCarry1 a0 a1 excess) (rv64_mulhu a1 excess)
+            then (1 : Word) else 0)
+          a1 (a1 * excess) (rv64_mulhu a1 excess) (mul6Low1 a0 a1 excess)
+          (mul6HighCarry1 a0 a1 excess) (mul6HighCarry0 a0 excess)
+          a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) p1 p2 p3 p4 p5
+          s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult (mul6HighCarry1 a0 a1 excess) (rv64_mulhu a1 excess)
+        then (1 : Word) else 0)
+      a1 (a1 * excess) (rv64_mulhu a1 excess) (mul6Low1 a0 a1 excess)
+      (mul6HighCarry1 a0 a1 excess) (mul6HighCarry0 a0 excess)
+      a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) p1 p2 p3 p4 p5
+      s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVF1 newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVF1, FR', mul6OverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1] at hh ⊢
+  xperm_hyp hh
+
+theorem mul6PQOVF2_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF2 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult (mul6HighCarry2 a0 a1 a2 excess) (rv64_mulhu a2 excess)
+            then (1 : Word) else 0)
+          a2 (a2 * excess) (rv64_mulhu a2 excess) (mul6Low2 a0 a1 a2 excess)
+          (mul6HighCarry2 a0 a1 a2 excess) (mul6HighCarry1 a0 a1 excess)
+          a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+          p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult (mul6HighCarry2 a0 a1 a2 excess) (rv64_mulhu a2 excess)
+        then (1 : Word) else 0)
+      a2 (a2 * excess) (rv64_mulhu a2 excess) (mul6Low2 a0 a1 a2 excess)
+      (mul6HighCarry2 a0 a1 a2 excess) (mul6HighCarry1 a0 a1 excess)
+      a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+      p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVF2 newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVF2, FR', mul6OverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1, mul6Low2, mul6HighCarry2] at hh ⊢
+  xperm_hyp hh
+
+theorem mul6PQOVF3_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF3 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult (mul6HighCarry3 a0 a1 a2 a3 excess) (rv64_mulhu a3 excess)
+            then (1 : Word) else 0)
+          a3 (a3 * excess) (rv64_mulhu a3 excess) (mul6Low3 a0 a1 a2 a3 excess)
+          (mul6HighCarry3 a0 a1 a2 a3 excess) (mul6HighCarry2 a0 a1 a2 excess)
+          a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+          (mul6Low2 a0 a1 a2 excess) p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult (mul6HighCarry3 a0 a1 a2 a3 excess) (rv64_mulhu a3 excess)
+        then (1 : Word) else 0)
+      a3 (a3 * excess) (rv64_mulhu a3 excess) (mul6Low3 a0 a1 a2 a3 excess)
+      (mul6HighCarry3 a0 a1 a2 a3 excess) (mul6HighCarry2 a0 a1 a2 excess)
+      a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+      (mul6Low2 a0 a1 a2 excess) p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVF3 newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p3 p4 p5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVF3, FR', mul6OverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1, mul6Low2, mul6HighCarry2,
+    mul6Low3, mul6HighCarry3] at hh ⊢
+  xperm_hyp hh
+
+theorem mul6PQOVF4_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF4 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p4 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult (mul6HighCarry4 a0 a1 a2 a3 a4 excess) (rv64_mulhu a4 excess)
+            then (1 : Word) else 0)
+          a4 (a4 * excess) (rv64_mulhu a4 excess) (mul6Low4 a0 a1 a2 a3 a4 excess)
+          (mul6HighCarry4 a0 a1 a2 a3 a4 excess) (mul6HighCarry3 a0 a1 a2 a3 excess)
+          a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+          (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess) p4 p5
+          s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult (mul6HighCarry4 a0 a1 a2 a3 a4 excess) (rv64_mulhu a4 excess)
+        then (1 : Word) else 0)
+      a4 (a4 * excess) (rv64_mulhu a4 excess) (mul6Low4 a0 a1 a2 a3 a4 excess)
+      (mul6HighCarry4 a0 a1 a2 a3 a4 excess) (mul6HighCarry3 a0 a1 a2 a3 excess)
+      a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+      (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess) p4 p5
+      s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVF4 newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p4 p5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVF4, FR', mul6OverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1, mul6Low2, mul6HighCarry2,
+    mul6Low3, mul6HighCarry3, mul6Low4, mul6HighCarry4] at hh ⊢
+  xperm_hyp hh
+
+theorem mul6PQOVF5_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVF5 newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6OverflowRest newSp excess outPtr iVal AB PB vals
+          (if BitVec.ult (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess) (rv64_mulhu a5 excess)
+            then (1 : Word) else 0)
+          a5 (a5 * excess) (rv64_mulhu a5 excess) (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+          (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess) (mul6HighCarry4 a0 a1 a2 a3 a4 excess)
+          a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+          (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess)
+          (mul6Low4 a0 a1 a2 a3 a4 excess) p5 s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6OverflowRest newSp excess outPtr iVal AB PB vals
+      (if BitVec.ult (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess) (rv64_mulhu a5 excess)
+        then (1 : Word) else 0)
+      a5 (a5 * excess) (rv64_mulhu a5 excess) (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+      (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess) (mul6HighCarry4 a0 a1 a2 a3 a4 excess)
+      a0 a1 a2 a3 a4 a5 (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+      (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess)
+      (mul6Low4 a0 a1 a2 a3 a4 excess) p5 s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVF5 newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVF5, FR', mul6OverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1, mul6Low2, mul6HighCarry2,
+    mul6Low3, mul6HighCarry3, mul6Low4, mul6HighCarry4,
+    mul6Low5, mul6HighCarry5] at hh ⊢
+  xperm_hyp hh
+
+@[reducible] def mul6FinalOverflowRest
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (x5 x6 x7 x28 x29 x30 x31 : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  (((.x31 ↦ᵣ x31) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜x31 ≠ (0 : Word)⌝) **
+    (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+    (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+    (.x5 ↦ᵣ x5) ** (.x6 ↦ᵣ x6) ** (.x7 ↦ᵣ x7) **
+    (.x28 ↦ᵣ x28) ** (.x29 ↦ᵣ x29) ** (.x30 ↦ᵣ x30) **
+    frameSlotsSaved priceFrame newSp vals **
+    (((AB) + signExtend12 0) ↦ₘ a0) **
+    (((AB) + signExtend12 8) ↦ₘ a1) **
+    (((AB) + signExtend12 16) ↦ₘ a2) **
+    (((AB) + signExtend12 24) ↦ₘ a3) **
+    (((AB) + signExtend12 32) ↦ₘ a4) **
+    (((AB) + signExtend12 40) ↦ₘ a5) **
+    (((PB) + signExtend12 0) ↦ₘ p0) **
+    (((PB) + signExtend12 8) ↦ₘ p1) **
+    (((PB) + signExtend12 16) ↦ₘ p2) **
+    (((PB) + signExtend12 24) ↦ₘ p3) **
+    (((PB) + signExtend12 32) ↦ₘ p4) **
+    (((PB) + signExtend12 40) ↦ₘ p5) **
+    (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ s0) **
+    (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ s1) **
+    (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ s2) **
+    (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ s3) **
+    (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ s4) **
+    (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ s5) ** FR)
+
+theorem mul6PQOVFF_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (mul6PQOVFF newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 ** FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (mul6FinalOverflowRest newSp excess outPtr iVal AB PB vals
+          (a5) (a5 * excess) (rv64_mulhu a5 excess)
+          (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+          (if BitVec.ult (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+              (rv64_mulhu a5 excess) then (1 : Word) else 0)
+          (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+          (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+          a0 a1 a2 a3 a4 a5
+          (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+          (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess)
+          (mul6Low4 a0 a1 a2 a3 a4 excess)
+          (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+          s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion :=
+    mul6FinalOverflowRest newSp excess outPtr iVal AB PB vals
+      a5 (a5 * excess) (rv64_mulhu a5 excess)
+      (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+      (if BitVec.ult (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+          (rv64_mulhu a5 excess) then (1 : Word) else 0)
+      (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+      (mul6HighCarry5 a0 a1 a2 a3 a4 a5 excess)
+      a0 a1 a2 a3 a4 a5
+      (mul6Low0 a0 excess) (mul6Low1 a0 a1 excess)
+      (mul6Low2 a0 a1 a2 excess) (mul6Low3 a0 a1 a2 a3 excess)
+      (mul6Low4 a0 a1 a2 a3 a4 excess)
+      (mul6Low5 a0 a1 a2 a3 a4 a5 excess)
+      s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (mul6PQOVFF newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 ** FR) FR' hFR'
+  intro h hh
+  simp only [mul6PQOVFF, FR', mul6FinalOverflowRest,
+    mul6Low, mul6LowCarry, mul6HighCarry, mul6Low0, mul6HighCarry0,
+    mul6Low1, mul6HighCarry1, mul6Low2, mul6HighCarry2,
+    mul6Low3, mul6HighCarry3, mul6Low4, mul6HighCarry4,
+    mul6Low5, mul6HighCarry5] at hh ⊢
+  xperm_hyp hh
+
+/- The carry-overflow post has the same status-register seam as the multiply
+   exits, but its head flag is the ripple carry rather than a product flag.
+   Keep the six resulting sum cells and every live arithmetic register in the
+   residual so the continuation cannot discard the carry computation. -/
+@[reducible] def add6CarryRest
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (c x6 x7 x28 x29 x30 x31 : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 : Word)
+    (t0 t1 t2 t3 t4 t5 : Word) (FR : Assertion) : Assertion :=
+  (((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c ≠ (0 : Word)⌝) **
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+    (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+    (.x6 ↦ᵣ x6) ** (.x7 ↦ᵣ x7) ** (.x28 ↦ᵣ x28) **
+    (.x29 ↦ᵣ x29) ** (.x30 ↦ᵣ x30) ** (.x31 ↦ᵣ x31) **
+    frameSlotsSaved priceFrame newSp vals **
+    ((AB + signExtend12 0) ↦ₘ a0) **
+    ((AB + signExtend12 8) ↦ₘ a1) **
+    ((AB + signExtend12 16) ↦ₘ a2) **
+    ((AB + signExtend12 24) ↦ₘ a3) **
+    ((AB + signExtend12 32) ↦ₘ a4) **
+    ((AB + signExtend12 40) ↦ₘ a5) **
+    ((PB + signExtend12 0) ↦ₘ p0) **
+    ((PB + signExtend12 8) ↦ₘ p1) **
+    ((PB + signExtend12 16) ↦ₘ p2) **
+    ((PB + signExtend12 24) ↦ₘ p3) **
+    ((PB + signExtend12 32) ↦ₘ p4) **
+    ((PB + signExtend12 40) ↦ₘ p5) **
+    (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ t0) **
+    (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ t1) **
+    (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ t2) **
+    (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ t3) **
+    (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ t4) **
+    (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ t5) ** FR))
+
+theorem add6Carry_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (c x6 x7 x28 x29 x30 x31 : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 : Word)
+    (t0 t1 t2 t3 t4 t5 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c ≠ (0 : Word)⌝) **
+        ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+        (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+        (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+        (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+        (.x6 ↦ᵣ x6) ** (.x7 ↦ᵣ x7) ** (.x28 ↦ᵣ x28) **
+        (.x29 ↦ᵣ x29) ** (.x30 ↦ᵣ x30) ** (.x31 ↦ᵣ x31) **
+        frameSlotsSaved priceFrame newSp vals **
+        ((AB + signExtend12 0) ↦ₘ a0) **
+        ((AB + signExtend12 8) ↦ₘ a1) **
+        ((AB + signExtend12 16) ↦ₘ a2) **
+        ((AB + signExtend12 24) ↦ₘ a3) **
+        ((AB + signExtend12 32) ↦ₘ a4) **
+        ((AB + signExtend12 40) ↦ₘ a5) **
+        ((PB + signExtend12 0) ↦ₘ p0) **
+        ((PB + signExtend12 8) ↦ₘ p1) **
+        ((PB + signExtend12 16) ↦ₘ p2) **
+        ((PB + signExtend12 24) ↦ₘ p3) **
+        ((PB + signExtend12 32) ↦ₘ p4) **
+        ((PB + signExtend12 40) ↦ₘ p5) **
+        (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ t0) **
+        (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ t1) **
+        (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ t2) **
+        (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ t3) **
+        (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ t4) **
+        (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ t5) ** FR))
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (add6CarryRest newSp excess outPtr iVal AB PB vals
+          c x6 x7 x28 x29 x30 x31 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          t0 t1 t2 t3 t4 t5 FR)) := by
+  let FR' : Assertion := add6CarryRest newSp excess outPtr iVal AB PB vals
+    c x6 x7 x28 x29 x30 x31 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    t0 t1 t2 t3 t4 t5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜c ≠ (0 : Word)⌝) **
+      ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+      (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+      (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+      (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+      (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+      (.x6 ↦ᵣ x6) ** (.x7 ↦ᵣ x7) ** (.x28 ↦ᵣ x28) **
+      (.x29 ↦ᵣ x29) ** (.x30 ↦ᵣ x30) ** (.x31 ↦ᵣ x31) **
+      frameSlotsSaved priceFrame newSp vals **
+      ((AB + signExtend12 0) ↦ₘ a0) **
+      ((AB + signExtend12 8) ↦ₘ a1) **
+      ((AB + signExtend12 16) ↦ₘ a2) **
+      ((AB + signExtend12 24) ↦ₘ a3) **
+      ((AB + signExtend12 32) ↦ₘ a4) **
+      ((AB + signExtend12 40) ↦ₘ a5) **
+      ((PB + signExtend12 0) ↦ₘ p0) **
+      ((PB + signExtend12 8) ↦ₘ p1) **
+      ((PB + signExtend12 16) ↦ₘ p2) **
+      ((PB + signExtend12 24) ↦ₘ p3) **
+      ((PB + signExtend12 32) ↦ₘ p4) **
+      ((PB + signExtend12 40) ↦ₘ p5) **
+      (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ t0) **
+      (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ t1) **
+      (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ t2) **
+      (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ t3) **
+      (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ t4) **
+      (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ t5) ** FR)) FR' hFR'
+  intro h hh
+  simp only [FR', add6CarryRest] at hh ⊢
+  xperm_hyp hh
+
+/- The quotient-overflow exit uses the same status tail, but is at the other
+   buffer parity: `x19 = PB`, `x20 = AB`, with the divisor product in `x5`
+   and its high word in the flagged `x6`.  Preserve that complete state while
+   removing only the old excess value for the one-instruction continuation. -/
+@[reducible] def qOverflowRest
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (x6 x5 x7 x28 x29 x30 x31 : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  (((.x6 ↦ᵣ x6) ** (.x0 ↦ᵣ (0 : Word)) ** ⌜x6 ≠ (0 : Word)⌝) **
+    ((.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ PB) ** (.x20 ↦ᵣ AB) **
+    (.x21 ↦ᵣ outPtr) ** (.x22 ↦ᵣ (newSp + signExtend12 160)) **
+    (.x5 ↦ᵣ x5) ** (.x7 ↦ᵣ x7) ** (.x28 ↦ᵣ x28) **
+    (.x29 ↦ᵣ x29) ** (.x30 ↦ᵣ x30) ** (.x31 ↦ᵣ x31) **
+    frameSlotsSaved priceFrame newSp vals **
+    ((AB + signExtend12 0) ↦ₘ a0) **
+    ((AB + signExtend12 8) ↦ₘ a1) **
+    ((AB + signExtend12 16) ↦ₘ a2) **
+    ((AB + signExtend12 24) ↦ₘ a3) **
+    ((AB + signExtend12 32) ↦ₘ a4) **
+    ((AB + signExtend12 40) ↦ₘ a5) **
+    ((PB + signExtend12 0) ↦ₘ p0) **
+    ((PB + signExtend12 8) ↦ₘ p1) **
+    ((PB + signExtend12 16) ↦ₘ p2) **
+    ((PB + signExtend12 24) ↦ₘ p3) **
+    ((PB + signExtend12 32) ↦ₘ p4) **
+    ((PB + signExtend12 40) ↦ₘ p5) **
+    (((newSp + signExtend12 160) + signExtend12 0) ↦ₘ s0) **
+    (((newSp + signExtend12 160) + signExtend12 8) ↦ₘ s1) **
+    (((newSp + signExtend12 160) + signExtend12 16) ↦ₘ s2) **
+    (((newSp + signExtend12 160) + signExtend12 24) ↦ₘ s3) **
+    (((newSp + signExtend12 160) + signExtend12 32) ↦ₘ s4) **
+    (((newSp + signExtend12 160) + signExtend12 40) ↦ₘ s5) ** FR))
+
+theorem QOVFDIVP_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v7 v28 v29 v30 v31 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      (QOVFDIVP newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+        v7 v28 v29 v30 v31 FR)
+      ((.x10 ↦ᵣ (1 : Word)) **
+        (qOverflowRest newSp excess outPtr iVal AB PB vals
+          (rv64_mulhu taylorDW iVal) (taylorDW * iVal) v7 v28 v29 v30 v31
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)) := by
+  let FR' : Assertion := qOverflowRest newSp excess outPtr iVal AB PB vals
+    (rv64_mulhu taylorDW iVal) (taylorDW * iVal) v7 v28 v29 v30 v31
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    (QOVFDIVP newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+      v7 v28 v29 v30 v31 FR) FR' hFR'
+  intro h hh
+  simp only [QOVFDIVP, FR', qOverflowRest] at hh ⊢
+  xperm_hyp hh
+
+/- The cap exit also reports status one.  Unlike `roundTerminal`, this
+   residual deliberately does not require the accumulator's nonzero fact:
+   that fact is not part of the `taylor_round` cap post. -/
+@[reducible] def terminalIndexRest
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v7 v28 v29 v30 v31 : Word) (FR : Assertion) : Assertion :=
+  (.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+  ⌜¬ BitVec.ult iVal (496 : Word)⌝ ** (.x0 ↦ᵣ (0 : Word)) **
+    roundFrameNoX10 newSp excess outPtr AB PB vals a5 v7 v28 v29 v30 v31
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+
+theorem terminalIndex_status1_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v7 v28 v29 v30 v31 : Word) (FR : Assertion) (hFR : FR.pcFree) :
+    cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝ **
+        ((.x0 ↦ᵣ (0 : Word)) **
+          roundFrame newSp excess outPtr AB PB vals a5 v7 v28 v29 v30 v31
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+            s0 s1 s2 s3 s4 s5 FR))
+      ((.x10 ↦ᵣ (1 : Word)) **
+        terminalIndexRest newSp excess outPtr iVal AB PB vals
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+          v7 v28 v29 v30 v31 FR) := by
+  let FR' : Assertion := terminalIndexRest newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v7 v28 v29 v30 v31 FR
+  have hFR' : FR'.pcFree := by
+    unfold FR'
+    pcFree
+    exact hFR
+  apply mul6Overflow_status1_tail excess
+    ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+      ⌜¬ BitVec.ult iVal (496 : Word)⌝ **
+      ((.x0 ↦ᵣ (0 : Word)) **
+        roundFrame newSp excess outPtr AB PB vals a5 v7 v28 v29 v30 v31
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)) FR' hFR'
+  intro h hh
+  simp only [FR', terminalIndexRest, roundFrame, roundFrameNoX10] at hh ⊢
+  xperm_hyp hh
+
+/- Apply the terminal-index continuation after the zero-accumulator exit has
+   already been replaced by its output-tail exits.  This small list-level
+   theorem keeps the BGEU arm's source post and its exact one-instruction
+   continuation separate from the arithmetic expressions in `taylor_round`. -/
+private theorem taylor_round_zero_terminal_status1
+    {P Qzero Qterm Qterm' : Assertion}
+    {rest exits : List (Word × Assertion)}
+    (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
+      ((PriceK + 804, Qzero) :: (PriceK + 964, Qterm) :: rest))
+    (hZero : cpsNBranchWithin 4183 (PriceK + 804) priceCode Qzero exits)
+    (hTerm : cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      Qterm Qterm') :
+    cpsNBranchWithin (4028 + 4183 + 1) (PriceK + 144) priceCode P
+      (exits ++ ((PriceK + 968, Qterm') :: rest)) := by
+  have hAll := taylor_round_zero_exitdiv_tail hRound hZero
+  have hTermN := cpsTripleWithin_as_cpsNBranchWithin hTerm
+  have hOut := nb_extend_after_prefix hAll hTermN
+  simpa using hOut
+
+private theorem taylor_round_zero_terminal_status1_weaken
+    {P Qzero Qterm Qzero' Qterm' QtermOut : Assertion}
+    {rest exits : List (Word × Assertion)}
+    (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
+      ((PriceK + 804, Qzero) :: (PriceK + 964, Qterm) :: rest))
+    (hZero : cpsNBranchWithin 4183 (PriceK + 804) priceCode Qzero' exits)
+    (hZero_pre : ∀ h, Qzero h → Qzero' h)
+    (hTerm : cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      Qterm' QtermOut)
+    (hTerm_pre : ∀ h, Qterm h → Qterm' h) :
+    cpsNBranchWithin (4028 + 4183 + 1) (PriceK + 144) priceCode P
+      (exits ++ ((PriceK + 968, QtermOut) :: rest)) := by
+  have hZero' := cpsNBranchWithin_weaken_pre hZero_pre hZero
+  have hTerm' := cpsTripleWithin_weaken
+    (hpre := hTerm_pre) (hpost := fun _ hp => hp) hTerm
+  exact taylor_round_zero_terminal_status1 hRound hZero' hTerm'
+
+private example
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion) (hFR : FR.pcFree)
+    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
+    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
+    {exits : List (Word × Assertion)}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr iVal vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+        o0 o1 o2 o3 AB PB FR) exits) :
+    ∃ (P : Assertion) (es : List (Word × Assertion)),
+      cpsNBranchWithin (4028 + 4183 + 1) (PriceK + 144) priceCode P es := by
+  have hRound := taylor_round newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v5 v6 v7 v28 v29 v30 v31
+      (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR) (by
+      pcFree
+      exact hFR)
+  have hZero := round_zero_exitdiv_tail newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB hTail
+  have hTerm := terminalIndex_status1_tail newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v7 v28 v29 v30 v31
+      (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR) (by
+      pcFree
+      exact hFR)
+  have h := taylor_round_zero_terminal_status1_weaken hRound hZero
+    (by
+      intro h hp
+      simp only [roundZero, roundFrame] at hp ⊢
+      xperm_hyp hp)
+    hTerm
+    (by
+      intro h hp
+      xperm_hyp hp)
+  exact ⟨_, _, h⟩
 
 /- A concrete witness for the completed zero-arm boundary.  This is kept
    beside the adapter because the arm's pure `w = 0` fact and its output
