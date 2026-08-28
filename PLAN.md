@@ -137,6 +137,18 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (segments out0 — #12987/#12897 closed, 2026-08-29)
+
+- ✅ **`zkvm_keccak256_segments` generalized over its initial output
+  buffer** (the second half of the #12896 fix, mirroring #12958):
+  `kssCallerPre`, both body cores and both top triples
+  (`zkvm_keccak256_segments_spec_within{,_short}`) now take
+  `(out0, out0.length = 32)` instead of pinning `List.replicate 32 0`.
+  The unstated pre-clear obligation #12897 measured on both production
+  callers is GONE from the contract; the TxSigningHash stack keeps its
+  concrete zero buffer (its callers do pre-clear) as an explicit
+  instantiation of the generalized spec.  Routines row notes updated.
+
 ### Recent (bundle tranche 2 — append + the cross-entry jump, 2026-08-28)
 
 - ✅ **`receipt_records_append` verified at the FLAT layer** (both arms:
