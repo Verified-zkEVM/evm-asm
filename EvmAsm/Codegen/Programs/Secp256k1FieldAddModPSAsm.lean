@@ -363,6 +363,17 @@ private theorem aInPlaceScratch_eq :
     (aBytes bBytes : List (BitVec 8)) : Nat :=
   (U256AddBeSAsm.u256AddBeInPlaceFn aPtr bPtr aBytes bBytes).body.steps + 1
 
+/-- The aliased body's instruction count does not depend on the pointer or
+    byte arguments, so the no-wraparound size side condition is uniform. -/
+private theorem inPlaceSize_bound (aPtr bPtr : Word)
+    (aBytes bBytes : List (BitVec 8)) :
+    4 * ((U256AddBeSAsm.u256AddBeInPlaceFn aPtr bPtr aBytes bBytes).body.size
+      + 1) ≤ 2 ^ 64 := by
+  have h : (U256AddBeSAsm.u256AddBeInPlaceFn aPtr bPtr aBytes bBytes).body.size
+      = (U256AddBeSAsm.u256AddBeInPlaceFn 0 0 [] []).body.size := rfl
+  rw [h]
+  decide
+
 /-- `u256_add_be`'s first-operand-aliased (`a0 = a2`) whole-routine triple,
     lifted into this routine's code surface.  This is the contract retired
     from orphan status by the fold-back arm below. -/
@@ -394,6 +405,135 @@ private theorem u256AddAInPlaceLifted_spec (ret aPtr bPtr : Word)
       unfold secfAddModPCr secfReduceOnceCr
         U256AddBeAInPlaceSAsm.u256AddBeAInPlaceCr
       code_mem)
+
+
+/-- Body indices 18..22, the carry fold-back arm.  Reached only when the sum
+    overflowed 256 bits; adds `C = 2^256 mod p` back into `secf_tmp0` in place
+    (`a0 = a2 = &secf_tmp0`), which is exactly the aliasing shape discharged by
+    `u256AddAInPlaceLifted_spec`. -/
+private theorem foldBackArm_spec (ret0 v10 v11 v12 : Word)
+    (tmpBytes : List (BitVec 8)) (B : Assertion) (hB : B.pcFree)
+    (hrwTmp : RwRegion.wf ⟨(GuestAddrs.secf_tmp0 : Word), 32⟩)
+    (hroC : Region.wf ⟨(GuestAddrs.secp256k1_c_be : Word),
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes⟩)
+    (hlenTmp : tmpBytes.length = 32) :
+    cpsTripleWithin
+      (4 + (1 + u256AddInPlaceSteps (GuestAddrs.secf_tmp0 : Word)
+        (GuestAddrs.secp256k1_c_be : Word) tmpBytes
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes))
+      (GuestAddrs.secf_add_mod_p + 72 : Word)
+      (GuestAddrs.secf_add_mod_p + 92 : Word) secfAddModPCr
+      (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ v11) **
+        ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret0) **
+        regOwns U256BeFlat.addScratch **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+        globalConst (GuestAddrs.secp256k1_c_be : Word)
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes ** B)
+      (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x10 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry tmpBytes
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_c_be : Word)) **
+        ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 92 : Word)) **
+        regOwns U256BeFlat.addScratch **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word)
+          (U256AddBeSAsm.u256AddBeBytes tmpBytes
+            Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes) **
+        globalConst (GuestAddrs.secp256k1_c_be : Word)
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes ** B) := by
+  -- index 18: mv a0, s3
+  have hmv10 := liftCode (cr' := secfAddModPCr)
+    (mv_spec_gen_within .x10 .x19 (GuestAddrs.secf_tmp0 : Word) v10
+      (GuestAddrs.secf_add_mod_p + 72 : Word) (by decide))
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 72 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 76 : Word) from by decide] at hmv10
+  -- indices 19..20: la a1, secp256k1_c_be
+  have hla := la_materialize_within .x11 v11
+    (GuestAddrs.secf_add_mod_p + 76 : Word) (GuestAddrs.secp256k1_c_be : Word)
+    (cr := secfAddModPCr) (by decide) (by decide)
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 76 : Word) + 8 =
+      (GuestAddrs.secf_add_mod_p + 84 : Word) from by decide] at hla
+  -- index 21: mv a2, s3
+  have hmv12 := liftCode (cr' := secfAddModPCr)
+    (mv_spec_gen_within .x12 .x19 (GuestAddrs.secf_tmp0 : Word) v12
+      (GuestAddrs.secf_add_mod_p + 84 : Word) (by decide))
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 84 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 88 : Word) from by decide] at hmv12
+  -- index 22: the aliased call
+  have hcallee := u256AddAInPlaceLifted_spec
+    (GuestAddrs.secf_add_mod_p + 92 : Word) (GuestAddrs.secf_tmp0 : Word)
+    (GuestAddrs.secp256k1_c_be : Word) tmpBytes
+    Secp256k1FieldSubModPSAsm.secp256k1CBytes
+    hrwTmp hroC hlenTmp (by decide) (by decide) (by decide) (by decide)
+    (inPlaceSize_bound _ _ _ _) (by decide)
+  rw [show (GuestAddrs.secf_add_mod_p + 92 : Word) =
+      (GuestAddrs.secf_add_mod_p + 88 : Word) + 4 from by decide] at hcallee
+  have hcall := callWithin_spec (cr := secfAddModPCr)
+    (P := (((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_c_be : Word)) **
+      ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+      regOwns U256BeFlat.addScratch **
+      bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+      bytesRegion (GuestAddrs.secp256k1_c_be : Word)
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes))
+    (Q := (((.x10 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry tmpBytes
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes) **
+      ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_c_be : Word)) **
+      ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+      regOwns U256BeFlat.addScratch **
+      bytesRegion (GuestAddrs.secf_tmp0 : Word)
+        (U256AddBeSAsm.u256AddBeBytes tmpBytes
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes) **
+      bytesRegion (GuestAddrs.secp256k1_c_be : Word)
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes))
+    (GuestAddrs.secf_add_mod_p + 88 : Word) (GuestAddrs.u256_add_be : Word) ret0
+    (jalOff GuestAddrs.u256_add_be (GuestAddrs.secf_add_mod_p + 88))
+    (u256AddInPlaceSteps (GuestAddrs.secf_tmp0 : Word)
+      (GuestAddrs.secp256k1_c_be : Word) tmpBytes
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes)
+    (by decide) (by unfold secfAddModPCr secfReduceOnceCr; code_mem) (by pcf)
+    hcallee
+  rw [show (GuestAddrs.secf_add_mod_p + 88 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 92 : Word) from by decide] at hcall
+  -- chain 18 ; 19-20 ; 21 ; 22
+  have h1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_frameR
+      (((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+        ((.x1 : Reg) ↦ᵣ ret0) ** regOwns U256BeFlat.addScratch **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+        bytesRegion (GuestAddrs.secp256k1_c_be : Word)
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes ** B)
+      (by pcf; exact hB) hmv10)
+    (cpsTripleWithin_frameR
+      (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x12 : Reg) ↦ᵣ v12) ** ((.x1 : Reg) ↦ᵣ ret0) **
+        regOwns U256BeFlat.addScratch **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+        bytesRegion (GuestAddrs.secp256k1_c_be : Word)
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes ** B)
+      (by pcf; exact hB) hla)
+  have h2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1
+    (cpsTripleWithin_frameR
+      (((.x10 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ (GuestAddrs.secp256k1_c_be : Word)) **
+        ((.x1 : Reg) ↦ᵣ ret0) ** regOwns U256BeFlat.addScratch **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+        bytesRegion (GuestAddrs.secp256k1_c_be : Word)
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes ** B)
+      (by pcf; exact hB) hmv12)
+  have h3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h2
+    (cpsTripleWithin_frameR
+      (((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) ** B)
+      (by pcf; exact hB) hcall)
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by simp only [globalConst] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by simp only [globalConst] at hq ⊢; xperm_hyp hq) h3
 
 
 end Secp256k1FieldAddModPSAsm
