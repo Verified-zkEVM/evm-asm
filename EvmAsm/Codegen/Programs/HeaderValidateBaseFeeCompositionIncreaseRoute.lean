@@ -328,13 +328,36 @@ private theorem k73_incr_br_cast {le le' : List (BitVec 8)} {Z : Assertion}
     call).  NOT included: the add scratch registers — the failure post's
     `tailRestCore` already owns x5-x7/x12/x13/x28-x31 exactly once, so an
     additional `regOwns` block over the same registers would double exact
-    atoms and make the post unsatisfiable. -/
-private def k73_incr_outj (wspK parentPtr gasUsed target : Word)
+    atoms and make the post unsatisfiable.  Public API: the K74 wrapper's
+    enriched (asymmetric) `hk73` post-ambient spells this def. -/
+def k73_incr_outj (wspK parentPtr gasUsed target : Word)
     (_parentBytes A : List (BitVec 8)) (F : Assertion) : Assertion :=
   U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
       parentPtr Expected target (gasUsed - target) (1 : Word) **
     bytesRegion U256MulU64Be.accBase A ** regOwn .x14 ** regOwn .x15 **
     regOwn .x16 ** regOwn .x17 ** F
+
+/-- `k73_incr_outj` without the four callee-saved owns.  The K74 wrapper's
+    eq-call stage keeps its `k74FlatFrame` ambient (the eq routine returns
+    x14--x17 to the caller); this tail plus the `regOwns` prefix is
+    `k73_incr_outj` up to pure permutation — `k73_incr_outj_out_eq`.  Public
+    API: the K74 wrapper instantiates its eq-call ambient with this def. -/
+def k73_incr_outj_tail (wspK parentPtr gasUsed target : Word)
+    (_parentBytes A : List (BitVec 8)) (F : Assertion) : Assertion :=
+  U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      parentPtr Expected target (gasUsed - target) (1 : Word) **
+    bytesRegion U256MulU64Be.accBase A ** F
+
+/-- The permutation equality used by the K74 wrapper: the enriched post
+    ambient is the eq-call's flat-frame ambient (with the tail as inner). -/
+theorem k73_incr_outj_out_eq (wspK parentPtr gasUsed target : Word)
+    (parentBytes A : List (BitVec 8)) (F : Assertion) :
+    k73_incr_outj wspK parentPtr gasUsed target parentBytes A F =
+      k74FlatFrame (k73_incr_outj_tail wspK parentPtr gasUsed target
+        parentBytes A F) := by
+  dsimp only [k73_incr_outj, k73_incr_outj_tail, k74FlatFrame]
+  simp only [regOwns_cons, regOwns_nil, sepConj_emp_right']
+  xperm
 
 /-- First-arm junction cast: the add has run, its output sits at `Expected`,
     and the BEQZ outcome has been folded into the status register.
@@ -620,8 +643,9 @@ private theorem k73_incr_copyState_idem (M W : List (BitVec 8)) (hlen : W.length
     the route's own spine pins (`x8 x9 x18 x19 x20`) and the scratch set the
     spine already owns (`x5 x6 x7 x13 x28 x29 x30 x31`) are deliberately NOT
     here: duplicating an exact `regOwn` atom makes the premise unsatisfiable
-    (each atom pins its singleton cell exactly). -/
-private def k73_incr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
+    (each atom pins its singleton cell exactly).  Public API: the K74
+    wrapper's enriched (asymmetric) `hk73` pre-ambient spells this def. -/
+def k73_incr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
     (accWin : List (BitVec 8)) (F : Assertion) : Assertion :=
   U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12))
     f0 f1 f2 f3 f4 f5 ** bytesRegion U256MulU64Be.accBase accWin **
