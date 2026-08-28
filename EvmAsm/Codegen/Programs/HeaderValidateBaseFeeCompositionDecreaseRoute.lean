@@ -726,7 +726,7 @@ product overflows report status ≠ 0 and take the Route-B failure arm instead,
 so the disjunction stays sound without this condition being a machine fact. -/
 
 /-- Numeric value of one divider step's quotient window. -/
-private theorem k73_decr_quot_val
+theorem k73_decr_quot_val
     (A : List (BitVec 8)) (target : Word)
     (htargetPos : 0 < target.toNat) (hleTarget : target.toNat ≤ 2 ^ 56)
     (halen : A.length = 32) :
@@ -742,7 +742,7 @@ private theorem k73_decr_quot_val
     (Nat.lt_of_le_of_lt (Nat.div_le_self _ _) hb0))
 
 /-- Numeric value of the twice-divided accumulator window the subtract reads. -/
-private theorem k73_decr_quot2_value
+theorem k73_decr_quot2_value
     (A : List (BitVec 8)) (target : Word)
     (htargetPos : 0 < target.toNat) (hleTarget : target.toNat ≤ 2 ^ 56)
     (halen : A.length = 32) :
@@ -787,7 +787,7 @@ private theorem k73_decr_sub_value
 /-- Word-level delta unwrap on the decrease arm: when the used gas sits
     strictly below the target, the register subtraction `target - gasUsed`
     does not wrap, so its numeric value is the plain difference. -/
-private theorem k73_decr_word_delta_toNat (target gasUsed : Word)
+theorem k73_decr_word_delta_toNat (target gasUsed : Word)
     (hlt : gasUsed.toNat < target.toNat) :
     (target - gasUsed).toNat = target.toNat - gasUsed.toNat := by
   rw [BitVec.toNat_sub]
