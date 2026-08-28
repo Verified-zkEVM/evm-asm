@@ -2188,5 +2188,184 @@ def sha256CompressHandle (entry : Word) (rs1 : Reg)
   sound := sha256CompressHandle_sound entry rs1 hrs1 ro B len hrw
     pOff stOff inOff h8p hpfit h8st hstfit h8in hinfit
 
+-- ============================================================================
+-- The TWO-ATOM seam: parameter block separate from the operand arena (#13011)
+-- ============================================================================
+
+/-! ## Why a second shape is needed
+
+    Every seam contract above puts the parameter block and all four operand
+    buffers in ONE `bytesRegion`.  That is satisfiable only when a routine's
+    `.data` happens to be contiguous.  `bnf_mul_mod_p` is: its operands and
+    parameter block are one 232-byte block, which is why the single-window form
+    was enough for the acceptance consumer.  `p256_op_with` is not: its operand
+    buffers and its parameter blocks sit in different arenas, hundreds of
+    megabytes apart, and stating a single window spanning both would mean a
+    caller owning that whole span as one byte list — satisfiable, unusable, and
+    vacuity-adjacent.
+
+    Nothing in the SEMANTICS wants one window.  `csrsWrite` for `0x802`
+    dereferences `s.getMem p`, `p+8`, `p+16`, `p+24`, `p+32` and then
+    `s.readWords` through each; every read only needs to be pinned by SOME
+    owned atom.  So the fix is to widen the seam rather than contort the
+    caller: the parameter block gets its own atom, the five pointer slots are
+    read from it, and the operand reads and the single write stay in the arena.
+
+    The two atoms are separated by `**`, so their disjointness is part of the
+    precondition rather than an extra hypothesis, and the write lands in `ws`
+    with `pws` carried through untouched. -/
+
+/-- **The accelerator step with the parameter block in its own atom.**  Same
+    `csrs 0x802, rs1` (Arith256Mod) as `csrs_arith256Mod_spec_within`, but the
+    `[a*, b*, c*, module*, d*]` block lives in `bytesRegion pB pws` while the
+    operands and the output live in `bytesRegion B ws`.  The two regions may be
+    arbitrarily far apart; `**` already says they do not overlap.
+
+    As in the single-window form the operand offsets may alias each other
+    freely — only decoded entry values appear in the post — and the parameter
+    region is returned byte-for-byte unchanged. -/
+theorem csrs_arith256Mod_twoAtom_spec_within
+    (base : Word) (rs1 : Reg) (hrs1 : Reg.isExposed rs1 = true)
+    (pB : Word) (plen : Nat) (pws : List (BitVec 8))
+    (B : Word) (len : Nat) (ws : List (BitVec 8)) (rf : RegFile)
+    (hpwslen : pws.length = plen)
+    (hwslen : ws.length = len)
+    (hpb8 : pB.toNat % 8 = 0)
+    (hb8 : B.toNat % 8 = 0)
+    (hpvalid : ∀ j, j < plen → isValidMemAddr (pB + BitVec.ofNat 64 j) = true)
+    (hvalid : ∀ j, j < len → isValidMemAddr (B + BitVec.ofNat 64 j) = true)
+    (pOff aOff bOff cOff mOff dOff : Nat)
+    (hp : rf.get rs1 = pB + BitVec.ofNat 64 pOff)
+    (h8p : 8 ∣ pOff) (hpfit : pOff + 40 ≤ plen)
+    (h8a : 8 ∣ aOff) (hafit : aOff + 32 ≤ len)
+    (h8b : 8 ∣ bOff) (hbfit : bOff + 32 ≤ len)
+    (h8c : 8 ∣ cOff) (hcfit : cOff + 32 ≤ len)
+    (h8m : 8 ∣ mOff) (hmfit : mOff + 32 ≤ len)
+    (h8d : 8 ∣ dOff) (hdfit : dOff + 32 ≤ len)
+    (hpa : wsDword pws pOff = B + BitVec.ofNat 64 aOff)
+    (hpb : wsDword pws (pOff + 8) = B + BitVec.ofNat 64 bOff)
+    (hpc : wsDword pws (pOff + 16) = B + BitVec.ofNat 64 cOff)
+    (hpm : wsDword pws (pOff + 24) = B + BitVec.ofNat 64 mOff)
+    (hpd : wsDword pws (pOff + 32) = B + BitVec.ofNat 64 dOff)
+    (hmne : wsNat256 ws mOff ≠ 0) :
+    cpsTripleWithin 1 base (base + 4)
+      (CodeReq.singleton base (.CSRS 0x802 rs1))
+      ((regFileIs rf) ** bytesRegion pB pws ** bytesRegion B ws)
+      ((regFileIs rf) ** bytesRegion pB pws ** bytesRegion B
+        (setBytes ws dOff (leBytes32 (Accel.arith256Mod
+          (wsNat256 ws aOff) (wsNat256 ws bOff)
+          (wsNat256 ws cOff) (wsNat256 ws mOff))))) := by
+  intro R hR s hcr hPR hpcs
+  subst hpcs
+  have hfetch : s.code s.pc = some (.CSRS 0x802 rs1) :=
+    CodeReq.singleton_satisfiedBy.mp hcr
+  rw [sepConj_assoc'] at hPR
+  have hregs : s.getReg rs1 = rf.get rs1 :=
+    holdsFor_regFileIs_getReg hPR hrs1
+  -- the parameter atom in front …
+  have hMemP := hPR
+  rw [sepConj_left_comm, sepConj_assoc'] at hMemP
+  -- … and the arena atom in front
+  have hMem := hMemP
+  rw [sepConj_left_comm] at hMem
+  -- the five parameter slots, read from the PARAMETER region
+  have hsrs1 : s.getReg rs1 = pB + BitVec.ofNat 64 pOff := by rw [hregs, hp]
+  have hslot : ∀ j : Nat, 8 ∣ j → j + 8 ≤ plen →
+      s.getMem (pB + BitVec.ofNat 64 j) = wsDword pws j := fun j h8j hjfit =>
+    holdsFor_bytesRegion_getMem hMemP h8j (by omega)
+  have haddr : ∀ j : Nat, s.getReg rs1 + BitVec.ofNat 64 j
+      = pB + BitVec.ofNat 64 (pOff + j) := fun j => by
+    rw [hsrs1, add_ofNat_add]
+  have hgA : s.getMem (s.getReg rs1) = B + BitVec.ofNat 64 aOff := by
+    rw [hsrs1, hslot pOff h8p (by omega), hpa]
+  have hgB : s.getMem (s.getReg rs1 + 8) = B + BitVec.ofNat 64 bOff := by
+    rw [show (8 : Word) = BitVec.ofNat 64 8 from rfl, haddr 8,
+      hslot (pOff + 8) (by omega) (by omega), hpb]
+  have hgC : s.getMem (s.getReg rs1 + 16) = B + BitVec.ofNat 64 cOff := by
+    rw [show (16 : Word) = BitVec.ofNat 64 16 from rfl, haddr 16,
+      hslot (pOff + 16) (by omega) (by omega), hpc]
+  have hgM : s.getMem (s.getReg rs1 + 24) = B + BitVec.ofNat 64 mOff := by
+    rw [show (24 : Word) = BitVec.ofNat 64 24 from rfl, haddr 24,
+      hslot (pOff + 24) (by omega) (by omega), hpm]
+  have hgD : s.getMem (s.getReg rs1 + 32) = B + BitVec.ofNat 64 dOff := by
+    rw [show (32 : Word) = BitVec.ofNat 64 32 from rfl, haddr 32,
+      hslot (pOff + 32) (by omega) (by omega), hpd]
+  -- the operand decodes, read from the ARENA
+  have hrdA : Accel.leLimbsToNat (s.readWords (s.getMem (s.getReg rs1)) 4)
+      = wsNat256 ws aOff := by
+    rw [hgA]; exact holdsFor_bytesRegion_readNat256 hMem h8a (by omega)
+  have hrdB : Accel.leLimbsToNat (s.readWords (s.getMem (s.getReg rs1 + 8)) 4)
+      = wsNat256 ws bOff := by
+    rw [hgB]; exact holdsFor_bytesRegion_readNat256 hMem h8b (by omega)
+  have hrdC : Accel.leLimbsToNat (s.readWords (s.getMem (s.getReg rs1 + 16)) 4)
+      = wsNat256 ws cOff := by
+    rw [hgC]; exact holdsFor_bytesRegion_readNat256 hMem h8c (by omega)
+  have hrdM : Accel.leLimbsToNat (s.readWords (s.getMem (s.getReg rs1 + 24)) 4)
+      = wsNat256 ws mOff := by
+    rw [hgM]; exact holdsFor_bytesRegion_readNat256 hMem h8m (by omega)
+  -- validity: the parameter block from ITS region, the buffers from the arena
+  have hpvrange : ∀ (k n : Nat), 8 ∣ k → k + 8 * n ≤ plen →
+      MachineState.validDwordRange (pB + BitVec.ofNat 64 k) n = true :=
+    fun k n h8k hkfit => validDwordRange_of_window hpb8 hpvalid h8k hkfit
+  have hvrange : ∀ (k n : Nat), 8 ∣ k → k + 8 * n ≤ len →
+      MachineState.validDwordRange (B + BitVec.ofNat 64 k) n = true :=
+    fun k n h8k hkfit => validDwordRange_of_window hb8 hvalid h8k hkfit
+  have hvmod : (!(Accel.leLimbsToNat
+      (s.readWords (s.getMem (s.getReg rs1 + 24)) 4) == 0)) = true := by
+    rw [hrdM]
+    simpa using hmne
+  have hvalidCsrs : s.csrsValid 0x802 rs1 = true := by
+    rw [csrsValid_arith256]
+    simp only [Bool.and_eq_true]
+    refine ⟨⟨⟨⟨⟨⟨?_, ?_⟩, ?_⟩, ?_⟩, ?_⟩, ?_⟩, hvmod⟩
+    · rw [hsrs1]; exact hpvrange pOff 5 h8p (by omega)
+    · rw [hgA]; exact hvrange aOff 4 h8a (by omega)
+    · rw [hgB]; exact hvrange bOff 4 h8b (by omega)
+    · rw [hgC]; exact hvrange cOff 4 h8c (by omega)
+    · rw [hgM]; exact hvrange mOff 4 h8m (by omega)
+    · rw [hgD]; exact hvrange dOff 4 h8d (by omega)
+  have hstep : step s = some (execInstrBr s (.CSRS 0x802 rs1)) :=
+    step_csrs hfetch hvalidCsrs
+  have hwrite : s.execCsrs 0x802 rs1
+      = s.writeWords (B + BitVec.ofNat 64 dOff)
+          (Accel.natToLeLimbs 4 (Accel.arith256Mod
+            (wsNat256 ws aOff) (wsNat256 ws bOff)
+            (wsNat256 ws cOff) (wsNat256 ws mOff))) := by
+    show s.writeWords (s.csrsWrite 0x802 rs1).1 (s.csrsWrite 0x802 rs1).2 = _
+    rw [csrsWrite_arith256, hgD, hrdA, hrdB, hrdC, hrdM]
+  -- the write lands in the arena; the parameter region rides in the frame
+  have hW := holdsFor_bytesRegion_writeWords
+    (Accel.natToLeLimbs 4 (Accel.arith256Mod
+      (wsNat256 ws aOff) (wsNat256 ws bOff)
+      (wsNat256 ws cOff) (wsNat256 ws mOff)))
+    ws s dOff hMem h8d
+    (by rw [length_natToLeLimbs]; omega)
+  refine ⟨1, Nat.le_refl 1,
+    ((s.execCsrs 0x802 rs1).setPC (s.pc + 4)), ?_, ?_, ?_⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep]
+    rfl
+  · rfl
+  · have hpcf : ((bytesRegion B (setBytes ws dOff (leBytes32 (Accel.arith256Mod
+        (wsNat256 ws aOff) (wsNat256 ws bOff)
+        (wsNat256 ws cOff) (wsNat256 ws mOff)))))
+        ** (bytesRegion pB pws ** ((regFileIs rf) ** R))).pcFree :=
+      pcFree_sepConj (bytesRegion_pcFree _ _)
+        (pcFree_sepConj (bytesRegion_pcFree _ _)
+          (pcFree_sepConj (pcFree_regFileIs _) hR))
+    have hfin := holdsFor_pcFree_setPC (v := s.pc + 4) hpcf hW
+    rw [← hwrite] at hfin
+    -- (rf ** (params ** arena)) ** R  ▸  arena ** (params ** (rf ** R)),
+    -- the shape `holdsFor_bytesRegion_writeWords` hands back.
+    have hperm : ∀ (X Y Z W : Assertion),
+        ((X ** (Y ** Z)) ** W) = (Z ** (Y ** (X ** W))) := by
+      intro X Y Z W
+      rw [sepConj_assoc' X (Y ** Z) W, sepConj_assoc' Y Z W,
+        sepConj_left_comm' X Y (Z ** W), sepConj_left_comm' X Z W,
+        sepConj_left_comm' Y Z (X ** W)]
+    rw [hperm]
+    exact hfin
+
+
 end SAsm
 end EvmAsm.Rv64
