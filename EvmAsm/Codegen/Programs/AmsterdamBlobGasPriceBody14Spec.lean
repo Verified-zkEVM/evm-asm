@@ -287,6 +287,52 @@ theorem taylorLoopInvParity_index_step
         (taylorLoopIndex j + (1 : Word)) oddBase evenBase accC prodC sumC FR := by
   rw [taylorLoopInvParity, taylorLoopIndex_succ, taylorLoopInvParityAt_swap]
 
+/-! The round theorem exposes the three six-limb workspaces as individual
+    dword atoms.  Keep that representation at the boundary, but name the
+    corresponding x0-free entry assertion so the parity invariant can feed
+    the linked round without smuggling the architectural zero register into
+    the caller's frame. -/
+
+@[reducible] def taylorRoundFootprint
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (accC prodC sumC : List Word) (FR : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+  (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+  (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+  (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+  (.x21 ↦ᵣ outPtr) **
+  (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  frameSlotsSaved priceFrame newSp vals **
+  cellsOf AB accC ** cellsOf PB prodC **
+  cellsOf (newSp + signExtend12 (160 : BitVec 12)) sumC ** FR
+
+/-! `taylorRoundFootprint` is deliberately only the entry footprint.  The
+    temporary registers are owned rather than assigned arbitrary values; the
+    concrete values needed by `taylor_round` are introduced when its
+    `regOwns` riders are peeled.  This theorem checks the structural part of
+    the parity-to-round wiring before any branch post is exposed. -/
+theorem taylorLoopInvParityAt_to_taylorRoundFootprint
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (j : Nat) (iVal evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) :
+    ∀ h,
+      taylorLoopInvParityAt newSp excess outPtr vals j iVal
+        evenBase oddBase [a0, a1, a2, a3, a4, a5]
+        [p0, p1, p2, p3, p4, p5] [s0, s1, s2, s3, s4, s5] FR h →
+      taylorRoundFootprint newSp excess outPtr iVal
+        (parityBuffer j evenBase oddBase)
+        (parityBuffer j oddBase evenBase) vals
+        [a0, a1, a2, a3, a4, a5] [p0, p1, p2, p3, p4, p5]
+        [s0, s1, s2, s3, s4, s5] FR h := by
+  intro h hh
+  unfold taylorLoopInvParityAt at hh
+  unfold taylorRoundFootprint
+  simp only [regOwns, sepConj_emp_right'] at hh ⊢
+  simp only [cellsOf_six] at hh ⊢
+  xperm_hyp hh
+
 
 
 /-- One full outer-loop round of the taylor recurrence, PriceK+144..: the
