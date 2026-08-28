@@ -89,9 +89,12 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # linked covered-byte floor to 132052 and the converted-entry floor to 471.
 # GH #12853 adds four live image oracle entries (+572 covered bytes / +4 linked
 # entries), remeasured here as 132624 / 475 with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 132628
+# GH #12204 adds `h_KECCAK256`, the first dispatcher opcode handler with a
+# Program view (+648 covered bytes / +1 linked entry): 132628 / 475 ->
+# 133276 / 476, remeasured with `--write-floor`.
+EXPECTED_COVERED_BYTES_FLOOR = 133276
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 475
+EXPECTED_CONVERTED_COUNT_FLOOR = 476
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
