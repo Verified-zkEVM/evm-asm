@@ -226,4 +226,63 @@ theorem tail_jump_spec (P : Assertion) (hP : P.pcFree) :
   exact cpsTripleWithin_extend_code
     (wMem 30 _ (by rw [wProg_len]; decide) (by rfl)) h
 
+/-! ## §4  Stack geometry
+
+    The prologue drops `sp` by 32 and fills four slots; the core, reached after
+    the epilogue has restored `sp`, wants `memOwn (sp0 - 16)` plus
+    `stackFree (sp0 - 16) 4`, i.e. cells at `sp0 - 48 … sp0 - 16`.  Six owned
+    dwords below `sp0` cover both, with `sp0 - 8` left over and framed. -/
+
+/-- `sp` inside the frame. -/
+abbrev sp1 (sp0 : Word) : Word := sp0 + signExtend12 (-32 : BitVec 12)
+
+theorem sp1_slot0 (sp0 : Word) :
+    sp1 sp0 + signExtend12 (0 : BitVec 12) = sp0 - BitVec.ofNat 64 32 := by
+  show sp0 + signExtend12 (-32 : BitVec 12) + signExtend12 (0 : BitVec 12) = _
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]
+  bv_omega
+
+theorem sp1_slot8 (sp0 : Word) :
+    sp1 sp0 + signExtend12 (8 : BitVec 12) = sp0 - BitVec.ofNat 64 24 := by
+  show sp0 + signExtend12 (-32 : BitVec 12) + signExtend12 (8 : BitVec 12) = _
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+    show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]
+  bv_omega
+
+theorem sp1_slot16 (sp0 : Word) :
+    sp1 sp0 + signExtend12 (16 : BitVec 12) = sp0 - BitVec.ofNat 64 16 := by
+  show sp0 + signExtend12 (-32 : BitVec 12) + signExtend12 (16 : BitVec 12) = _
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+    show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
+  bv_omega
+
+theorem sp1_slot24 (sp0 : Word) :
+    sp1 sp0 + signExtend12 (24 : BitVec 12) = sp0 - BitVec.ofNat 64 8 := by
+  show sp0 + signExtend12 (-32 : BitVec 12) + signExtend12 (24 : BitVec 12) = _
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+    show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide]
+  bv_omega
+
+/-- The epilogue's `addi sp, sp, 32` undoes the prologue's. -/
+theorem sp1_restore (sp0 : Word) :
+    sp1 sp0 + signExtend12 (32 : BitVec 12) = sp0 := by
+  show sp0 + signExtend12 (-32 : BitVec 12) + signExtend12 (32 : BitVec 12) = _
+  rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide,
+    show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]
+  bv_omega
+
+/-- The six owned dwords, split into the four the prologue uses and the two
+    below them that only the core sees. -/
+theorem stackFree6_split (sp0 : Word) :
+    stackFree sp0 6 =
+      (memOwn (sp0 - BitVec.ofNat 64 48) ** memOwn (sp0 - BitVec.ofNat 64 40) **
+        memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
+        memOwn (sp0 - BitVec.ofNat 64 16) ** memOwn (sp0 - BitVec.ofNat 64 8)) := by
+  show (memOwn (sp0 - BitVec.ofNat 64 (8 * 6)) ** memOwn (sp0 - BitVec.ofNat 64 (8 * 5)) **
+      memOwn (sp0 - BitVec.ofNat 64 (8 * 4)) ** memOwn (sp0 - BitVec.ofNat 64 (8 * 3)) **
+      memOwn (sp0 - BitVec.ofNat 64 (8 * 2)) ** memOwn (sp0 - BitVec.ofNat 64 (8 * 1)) **
+      empAssertion) = _
+  rw [sepConj_emp_right']
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
