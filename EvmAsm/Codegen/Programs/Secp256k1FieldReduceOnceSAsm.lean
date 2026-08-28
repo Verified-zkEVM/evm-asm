@@ -122,7 +122,12 @@ private theorem subBranch_to_subPre (src dst flag : Word) (xs orig : List (BitVe
 
 
 
-private def reduceCallerPre (src dst v12 : Word) (xs orig : List (BitVec 8)) : Assertion :=
+/-- Caller-visible entry footprint of `secf_reduce_once`.  PUBLIC (#12319): a
+    caller composing `secfReduceOnceFrame_spec` has to be able to WRITE this
+    assertion in its own chain, which `private` made impossible from another
+    module.  Same reason `blsgEq48Flat_instance` and the `mset_memcpy` controls
+    were made public. -/
+def reduceCallerPre (src dst v12 : Word) (xs orig : List (BitVec 8)) : Assertion :=
   (((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) ** ((.x12 : Reg) ↦ᵣ v12) **
     ((.x0 : Reg) ↦ᵣ (0 : Word)) **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
@@ -161,7 +166,9 @@ private theorem reduceCmpBranchFramed_spec (src dst ret v8 v9 v12 : Word)
       unfold subBranchPostFrame cmpFlagWord
       xperm_hyp hq) hbrF
 
-private def reduceCallerPost (src dst : Word) (xs orig : List (BitVec 8)) : Assertion :=
+/-- Caller-visible exit footprint of `secf_reduce_once`.  PUBLIC for the same
+    reason as `reduceCallerPre` (#12319). -/
+def reduceCallerPost (src dst : Word) (xs orig : List (BitVec 8)) : Assertion :=
   (((.x10 : Reg) ↦ᵣ reduceOnceFlag xs) ** regOwns retScratch **
     bytesRegion dst (reduceOnceBytes xs orig) ** bytesRegion src xs **
     globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
