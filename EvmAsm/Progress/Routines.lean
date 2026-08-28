@@ -384,10 +384,12 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+-- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
+-- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
+import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 
 namespace EvmAsm.Progress
 
@@ -4264,7 +4266,57 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`block_access_lists.py:696`). ⚠️ No Correspondence row is added: "
         ++ "this arm ties to no spec-side VALUE, only to the absence of a "
         ++ "record, so a correspondence verdict would overstate it. Lives in "
-        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`")
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`"),
+  -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
+  -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
+  -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
+  -- `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row
+  -- in scripts/asm-fixtures/MANIFEST.tsv". Both are present in the tree today:
+  -- `guestImageEntries` carries `(GuestAddrs.eip8037_tx_state_gas,
+  -- eip8037TxStateGas_prog)` and MANIFEST.tsv carries `eip8037TxStateGasFunction`
+  -- (cross-checked by `scripts/check-manifest-guestimage.py`, exactly as the entry
+  -- asked for). So the exemption had outlived its reason and is deleted with this row.
+  -- ⚠️ Unlike the entry `mset_memcpy`'s row refutes, this one was TRUE WHEN WRITTEN:
+  -- `git log -S` dates the reason to 2026-08-17, the `guestImageEntries` pairing to
+  -- 2026-08-25 ("pilot-register two linked jaloff callees") and the MANIFEST row to
+  -- 2026-08-26 ("ratchet oracle coverage gates"). That is a SECOND way an exemption
+  -- goes stale — not a false claim, but a true claim the linking ledgers later
+  -- satisfied — and only re-reading BOTH halves (shape and code identity) catches it.
+  routine "eip8037_tx_state_gas" .proven (some "eip8037TxStateGas_spec_within")
+      (notes := "whole-routine `cpsTripleWithin 4` at `P = BitVec.ofNat 64 "
+        ++ "GuestAddrs.eip8037_tx_state_gas` over `etsCode = CodeReq.ofProg P "
+        ++ "eip8037TxStateGas_prog` — byte-for-byte the `GuestImageEntries` pairing "
+        ++ "`(GuestAddrs.eip8037_tx_state_gas, eip8037TxStateGas_prog)`, so this IS "
+        ++ "the image claim, and entry AND CodeReq are both at the anchor "
+        ++ "(whole-routine in the `proof-frontier.py --shape` sense). EXTENT: "
+        ++ "`ets_length` pins `eip8037TxStateGas_prog.length = 4`, and "
+        ++ "`scripts/asm-fixtures/symbol-addresses.tsv` places this symbol "
+        ++ "immediately below `tx_intrinsic_state_gas`, whose address is 0x10 higher "
+        ++ "— `prog.length * 4 = hi - lo`, so the proved program spans the whole "
+        ++ "linked symbol with nothing left over. WHAT IS COVERED: the post is "
+        ++ "COMPLETE and deterministic, not existential — `*outPtr := a0 + a1` at the "
+        ++ "pointer held in `x15`, `t0 := a0 + a1`, `a0 := 0` (the success status "
+        ++ "`tx_intrinsic_state_gas` propagates), with `x1`, `x11`-`x14`, `x15` and "
+        ++ "`x0` all pinned unchanged, exiting at `ra &&& ~~~1`. ⭐ TOTAL over its "
+        ++ "argument types: the sole hypothesis is an aligned return address "
+        ++ "(`hret`), the ordinary ABI obligation — there is NO alignment, "
+        ++ "`isValidByteAccess` or non-overlap side condition on `outPtr`, and "
+        ++ "`a0`/`a1` range over all of `Word`. ⚠️ WHAT IS NOT COVERED. (1) The sum is "
+        ++ "64-bit BITVECTOR addition: the triple asserts `a0 + a1` wrapped, and "
+        ++ "claims NO overflow gate — a caller wanting a mathematical sum must "
+        ++ "supply the bound itself. (2) No spec-side tie: nothing here connects the "
+        ++ "written word to the EIP-8037 state-gas quantity, and no "
+        ++ "`Progress/Correspondence.lean` row is added, because the routine is pure "
+        ++ "register/memory arithmetic and a verdict would overstate it. (3) `a2`-`a4` "
+        ++ "are carried as PRESERVED registers only — they are retired v0.5 ABI slots "
+        ++ "the body ignores, and the triple says nothing about what a caller means by "
+        ++ "them. (4) The callers are out of scope: "
+        ++ "`block_verdict_eip8037_tx_state_gas_net_array` reaches this leaf by a `JAL "
+        ++ "ra` relocation and `tx_intrinsic_state_gas` by the union code map, but "
+        ++ "neither call site is proved here. Satisfiability is witnessed by use: the "
+        ++ "specialization `eip8037TxStateGas_zero_out_spec_within` (`a0 = a1 = 0`, "
+        ++ "hence `*out = 0`) is the form `tx_intrinsic_state_gas`'s success path "
+        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -5866,5 +5918,12 @@ private noncomputable abbrev _amsterdam_divst_384_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
 private noncomputable abbrev _amsterdam_divst_six_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+
+-- #12244: the Amsterdam per-tx state-gas leaf. ⚠️ Cites the FULL
+-- `eip8037TxStateGas_spec_within`, not the `a0 = a1 = 0` specialization
+-- `eip8037TxStateGas_zero_out_spec_within` that `tx_intrinsic_state_gas` consumes —
+-- the specialization is a corollary and is the weaker claim.
+private noncomputable abbrev _eip8037_tx_state_gas_routine_witness :=
+  @EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
 
 end EvmAsm.Progress
