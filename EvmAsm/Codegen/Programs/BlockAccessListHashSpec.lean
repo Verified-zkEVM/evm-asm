@@ -70,6 +70,7 @@ import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.SAsm.CtrlSpecs
+import EvmAsm.Rv64.Tactics.XCancelStruct
 
 namespace EvmAsm.Codegen.BlockAccessListHashSpec
 
@@ -284,5 +285,87 @@ theorem stackFree6_split (sp0 : Word) :
       memOwn (sp0 - BitVec.ofNat 64 (8 * 2)) ** memOwn (sp0 - BitVec.ofNat 64 (8 * 1)) **
       empAssertion) = _
   rw [sepConj_emp_right']
+
+/-! ## §5  Prologue (idx 0..4): drop `sp`, save `ra`, `s0`, `s1`, `s2` -/
+
+/-- A local pc-freeness driver: the built-in `pcf` stops at `bytesRegion` and at
+    an ambient hypothesis, both of which appear in every frame here. -/
+macro "pcf_b" : tactic =>
+  `(tactic| repeat (first
+      | apply pcFree_sepConj
+      | exact pcFree_regIs | exact pcFree_memIs
+      | exact pcFree_regOwn | exact pcFree_memOwn | exact pcFree_emp
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_regOwns _
+      | exact pcFree_stackFree _ _
+      | assumption))
+
+theorem prologue_spec (sp0 ret v8 v9 v18 : Word) (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 5 (At 0) (At 5) allCode
+      ((((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
+        memOwn (sp0 - BitVec.ofNat 64 16) ** memOwn (sp0 - BitVec.ofNat 64 8)) ** R)
+      ((((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+  -- idx 0: addi sp, sp, -32
+  have s0 := cpsTripleWithin_extend_code
+    (wMem 0 (.ADDI .x2 .x2 (-32 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_same_within .x2 sp0 (-32 : BitVec 12) (At 0) (by decide))
+  rw [At_succ 0] at s0
+  have f0 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+      ((.x18 : Reg) ↦ᵣ v18) **
+      memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
+      memOwn (sp0 - BitVec.ofNat 64 16) ** memOwn (sp0 - BitVec.ofNat 64 8) ** R)
+    (by pcf_b) s0
+  -- idx 1: sd ra, 0(sp)
+  have s1 := cpsTripleWithin_extend_code
+    (wMem 1 (.SD .x2 .x1 (0 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (sd_spec_gen_own_within .x2 .x1 (sp1 sp0) ret (0 : BitVec 12) (At 1))
+  rw [At_succ 1, sp1_slot0] at s1
+  have f1 := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+      memOwn (sp0 - BitVec.ofNat 64 24) ** memOwn (sp0 - BitVec.ofNat 64 16) **
+      memOwn (sp0 - BitVec.ofNat 64 8) ** R)
+    (by pcf_b) s1
+  -- idx 2: sd s0, 8(sp)
+  have s2 := cpsTripleWithin_extend_code
+    (wMem 2 (.SD .x2 .x8 (8 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (sd_spec_gen_own_within .x2 .x8 (sp1 sp0) v8 (8 : BitVec 12) (At 2))
+  rw [At_succ 2, sp1_slot8] at s2
+  have f2 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** memOwn (sp0 - BitVec.ofNat 64 16) **
+      memOwn (sp0 - BitVec.ofNat 64 8) ** R)
+    (by pcf_b) s2
+  -- idx 3: sd s1, 16(sp)
+  have s3 := cpsTripleWithin_extend_code
+    (wMem 3 (.SD .x2 .x9 (16 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (sd_spec_gen_own_within .x2 .x9 (sp1 sp0) v9 (16 : BitVec 12) (At 3))
+  rw [At_succ 3, sp1_slot16] at s3
+  have f3 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x18 : Reg) ↦ᵣ v18) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      memOwn (sp0 - BitVec.ofNat 64 8) ** R)
+    (by pcf_b) s3
+  -- idx 4: sd s2, 24(sp)
+  have s4 := cpsTripleWithin_extend_code
+    (wMem 4 (.SD .x2 .x18 (24 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (sd_spec_gen_own_within .x2 .x18 (sp1 sp0) v18 (24 : BitVec 12) (At 4))
+  rw [At_succ 4, sp1_slot24] at s4
+  have f4 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** R)
+    (by pcf_b) s4
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f0 f1
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f2
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f3
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c3 f4
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c4
 
 end EvmAsm.Codegen.BlockAccessListHashSpec
