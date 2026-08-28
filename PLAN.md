@@ -749,6 +749,27 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `BitVec.ofInt 13`) **wrap**. Falsified by `asm_to_program.py symbranch-self-test`,
   a hard gate in `check-asm-to-program.sh`.
 
+  **First consumer: `h_KECCAK256` (`Programs/EvmHashHandlerProg.lean`), the first
+  `h_*` dispatcher handler with a `Program` view** — 162 instructions / 648 bytes,
+  11 `.br` sites. Landing it flushed out two gates that were correct only because
+  nothing had ever carried a `.br`, and both lessons generalise to every remaining
+  handler. (1) `check-fixture-reloc-targets.py`: the `R_RISCV_JAL` naming the callee
+  sits on the pair's `j`, at Program index **i+1**, while the RelocTable indexes the
+  inverted branch at `i` — that branch is a local `.+8` with no relocation at all.
+  (2) ⛔ `_check_b_geometry`: the inverted branch is a B constructor with **no local
+  B site** in the fixture (the source line is a relocation), so it must be dropped
+  from the census — but *not* by shape. "`(8 : BitVec 13)` immediate followed by a
+  `jalOff` jump" reads TRUE on the hand-written `beq …, .+8 ; jal callee`
+  skip-over-a-call idiom, which more than a dozen existing manifest routines already
+  use (`accountDecode`, `storageReadRecord`, `eip7702AuthorityAsOf`, …); measured, it
+  silently deleted a real B site from each. Locate the halves from the converter's
+  own RelocTable `.br` indices instead. A string `rfl` tying the Program back to
+  `OpcodeHandlerSpec.emitSubroutine` is **not** available for any handler: the
+  emitted text uses assembler spellings a `Program` render cannot produce (`137f` /
+  `.L…` labels, `bnez`, `ret`, `zero`). The tie is the byte one —
+  `check-guest-image-program-bytes.py` against the linked ELF — which also keeps the
+  `.s` fixture from going stale, since that ELF is emitted from `emitSubroutine`.
+
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
   separate things, and getting any wrong yields assembly that LINKS CLEANLY while
@@ -945,7 +966,14 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`Evm64/StorageAssertions.lean`, now with `storageSlotIs_eq_flat` +
   `evm_tstore_stack_spec_within` as the first consumer — see "Transient store
   recipe"); `mptNodeIs`/`nodeDbIs` with the
-  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
+  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`) — BOTH halves of
+  the node DB now carry whole-routine machine triples over the linked image:
+  `node_db_lookup_spec_within` (#11800,
+  `Codegen/Programs/NodeDbLookupSpec.lean`) reads the record log, and
+  `node_db_append_grows_db` (#12318,
+  `Codegen/Programs/NodeDbAppendSpec.lean`) establishes the `nodeDbIs` shape
+  that reader consumes, composing the rowed `zkvm_keccak256` and
+  `mset_memcpy` contracts rather than assuming them;
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
   tie (`Evm64/WitnessAssertions.lean`) — now both sides of that pairing, keys
   (`indexOfSection_hashes_eq_build_code_db`) *and* values

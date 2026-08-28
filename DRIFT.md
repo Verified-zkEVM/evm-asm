@@ -51,7 +51,7 @@ row's blockers as unverified rather than current.
 
 ## Guest-image `CodeReq` coverage
 
-`guestImageCodeReq` pins **38.42%** of `.text` — 132628 of 345156 bytes across 475 linked entries, leaving 212528 bytes unpinned.
+`guestImageCodeReq` pins **38.61%** of `.text` — 133276 of 345156 bytes across 476 linked entries, leaving 211880 bytes unpinned.
 
 ⚠️ **This line is DERIVED, not recorded** — computed from `guestImageEntries` and
 `RegionMap.textSizeBytes` at render time (`EvmAsm/Progress/GuestImageCoverage.lean`),

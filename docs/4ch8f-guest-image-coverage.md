@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (87 of 562 today — gas helpers etc.
+not linked** (87 of 563 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x80054444), 345156 bytes (`RegionMap.textSizeBytes = 0x54444`)
 
-- symbols in `.text`: 909 (475 converted, 434 unconverted)
-- covered by converted `_prog`s: 132628 bytes (38.43%)
-- NOT covered: 212528 bytes (61.57%), 435 ranges
+- symbols in `.text`: 909 (476 converted, 433 unconverted)
+- covered by converted `_prog`s: 133276 bytes (38.61%)
+- NOT covered: 211880 bytes (61.39%), 434 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -443,7 +443,6 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x80042ea8` | `0x80042f68` | 192 | `h_JUMP` | UNCONVERTED |
 | `0x80042f68` | `0x8004305c` | 244 | `h_JUMPI` | UNCONVERTED |
 | `0x8004305c` | `0x800430a0` | 68 | `h_PC` | UNCONVERTED |
-| `0x800430a0` | `0x80043328` | 648 | `h_KECCAK256` | UNCONVERTED |
 | `0x80043328` | `0x8004361c` | 756 | `h_LOG0` | UNCONVERTED |
 | `0x8004361c` | `0x80043930` | 788 | `h_LOG1` | UNCONVERTED |
 | `0x80043930` | `0x80043c64` | 820 | `h_LOG2` | UNCONVERTED |

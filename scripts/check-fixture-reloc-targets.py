@@ -57,6 +57,17 @@ def parse_relocs(text, name):
     for el in split_top(''.join(out)):
         em = re.match(r'\(\s*(\d+)\s*,\s*\.(jal|la|jalr)\s+\S+\s+"([^"]+)"', el)
         if em: rel[int(em.group(1))] = em.group(3)
+        # GH #12204: `.br cond rs1 rs2 sym` is a RELAXED far branch — the pair
+        # `b<inv> .+8 ; j sym`.  The reloc kind is recorded on the INVERTED
+        # branch (index i, `emitProgramR`'s skip discipline), but that
+        # instruction is a local `.+8` with no relocation at all: the
+        # R_RISCV_JAL that names the callee sits on the following `j`, at
+        # i + 1.  Index the lean side there, or every `.br` site reads as a
+        # fixture relocation the RelocTable does not account for — which is
+        # how `h_KECCAK256`, the first converted routine to carry `.br`,
+        # would have produced eleven phantom mismatches.
+        bm = re.match(r'\(\s*(\d+)\s*,\s*\.br\s+\S+\s+\S+\s+\S+\s+"([^"]+)"', el)
+        if bm: rel[int(bm.group(1)) + 1] = bm.group(2)
     return rel
 
 def prog_block(text, name):
