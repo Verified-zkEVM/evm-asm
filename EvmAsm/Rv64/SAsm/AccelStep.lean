@@ -2444,14 +2444,20 @@ theorem csrs_arith256Mod_distributed_spec_within
     region is returned byte-for-byte unchanged.
 
     ⚠️ SCOPE.  This is the contract for a routine whose parameter block is
-    segregated from **all** of its operands.  No routine in the image has been
-    MEASURED to have that shape: P-256, the case that motivated the two-atom
-    seam at all, does not — its modulus pointer lands in the same `.data`
-    region as the parameter blocks, so it needs
+    segregated from **all** of its operands.  P-256, the case that motivated
+    the two-atom seam at all, is NOT that shape — its modulus pointer lands in
+    the same `.data` region as the parameter blocks, so it needs
     `csrs_arith256Mod_distributed_spec_within` instead, of which this is the
-    all-`false` instance.  Carried because it costs one application to state
-    and is the natural shape should a segregated consumer appear; not because
-    one is known to exist. -/
+    all-`false` instance.
+
+    What IS measured (`Codegen/Proofs/P256AccelSeamGeometry.lean`,
+    `bn254_fp_segregated_shape`) is that bn254 has the inverse straddle: the
+    `bnp_arith_params` block is `.bss` while the constants it points at are a
+    single `.data` run.  That is this shape — but `bnp_fp_mul` fills three of
+    its five slots from the CALLER's registers, so whether a given call site
+    satisfies it depends on the caller, and no caller has been read.  Carried
+    on that basis: a plausible, partially measured consumer, not a proven
+    one. -/
 theorem csrs_arith256Mod_twoAtom_spec_within
     (base : Word) (rs1 : Reg) (hrs1 : Reg.isExposed rs1 = true)
     (pB : Word) (plen : Nat) (pws : List (BitVec 8))

@@ -207,4 +207,53 @@ theorem p256_mulParams_seam_instance (base : Word) (rf : SAsm.RegFile)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
 
+/-! ## What the neighbouring `CSRS` rows actually look like
+
+    Measured, not assumed.  Of the eleven queue rows the composition queue
+    annotates `⚡ CSRS`, only TWO issue CSR `0x802` (Arith256Mod) at all —
+    `p256_op_with` and `secf_mul_mod_n`.  The other nine issue `0x80B`
+    (Arith384Mod), `0x803`/`0x804` (Secp256k1 Add/Dbl), `0x806`/`0x807`
+    (Bn254 Curve), `0x80C`/`0x80D` (Bls12-381 Curve) or the complex-field
+    CSRs, each of which needs its own step lemma; nothing here reaches them.
+
+    Among the seven `0x802` routines in the image there are three distinct
+    geometries:
+
+    * `p256_op_with` — parameter block and modulus in `.data`, the `a`/`b`/`c`/
+      `d` staging buffers in `.bss`.  Needs the per-pointer distributed form;
+      this is the shape witnessed above.
+    * `secf_mul_mod_n`, `secf_mul_mod_p` — every symbol (`le_a`, `le_b`,
+      `le_d`, `le_zero`, `le_p`, `le_n`, and both parameter blocks) lands in
+      `.data`.  A single region suffices there; the seam was never the
+      obstruction for those two.
+    * `bnp_fp_mul`, `bnp_fp_add` — the inverse straddle: the parameter block is
+      `.bss`, the constants it points at are `.data`.
+
+    The third is the segregated shape, and it is what
+    `csrs_arith256Mod_twoAtom_spec_within` describes — with one caveat that
+    keeps this from being a claim about those rows: `bnp_fp_mul` builds its
+    block from the CALLER's `a1`, `a2`, `a0`, so `a`, `b`, `d` are wherever the
+    caller points.  The segregated shape holds for a caller that passes the
+    `.data` staging buffers; that has not been read off any caller here. -/
+
+/-- Base of the bn254 `.data` field-constant run. -/
+abbrev bnDataBase : Word := (GuestAddrs.bnf_le_a : Word)
+
+/-- The bn254 parameter block, in `.bss` — the inverse of P-256's split. -/
+abbrev bnParamsBase : Word := (GuestAddrs.bnp_arith_params : Word)
+
+/-- The segregated shape, measured: bn254's five parameter pointees sit at
+    fixed offsets of ONE `.data` run, and the block that points at them sits in
+    a different, far-away arena. -/
+theorem bn254_fp_segregated_shape :
+    bnParamsBase.toNat % 8 = 0
+      ∧ bnDataBase.toNat % 8 = 0
+      ∧ ((GuestAddrs.bnf_le_b : Word) = bnDataBase + BitVec.ofNat 64 32)
+      ∧ ((GuestAddrs.bnf_le_d : Word) = bnDataBase + BitVec.ofNat 64 64)
+      ∧ ((GuestAddrs.bnf_le_zero : Word) = bnDataBase + BitVec.ofNat 64 96)
+      ∧ ((GuestAddrs.bnf_le_p : Word) = bnDataBase + BitVec.ofNat 64 160)
+      ∧ bnDataBase.toNat + 0x1000 < bnParamsBase.toNat := by
+  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide⟩
+
 end EvmAsm.Codegen.P256AccelSeamGeometry
