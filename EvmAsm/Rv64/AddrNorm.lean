@@ -4,11 +4,13 @@
 -- This shim re-exports it so evm-asm's existing references keep resolving;
 -- `export` aliases the SAME constants, so no statement changes meaning.
 --
--- The original prelude is preserved deliberately -- aliases do not propagate
--- transitively, so those import edges are what let downstream files still see
--- the names they used to.  See original_prelude() for the full reasoning.
+-- Only the export block below is regenerated. The prelude between the
+-- markers is preserved verbatim and is the source of truth -- aliases do not
+-- propagate transitively, so those import edges are what let downstream files
+-- still see the names they used to. Edit it here if the imports must change.
 --
 -- Regenerate with `scripts/gen-rv64-shims.py`; `--check` gates it in CI.
+-- BEGIN shim prelude (preserved from the original module)
 /-
   EvmAsm.Rv64.AddrNorm
 
@@ -46,6 +48,7 @@ public import RiscvZkvm.Rv64.Logic.AddrNorm
 meta import RiscvZkvm.Rv64.Logic.AddrNorm
 
 @[expose] public section
+-- END shim prelude
 
 namespace EvmAsm.Rv64
 
