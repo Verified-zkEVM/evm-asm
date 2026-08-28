@@ -295,7 +295,7 @@ private theorem nb_extend_each_same_cr {n1 n2 : Nat} {entry : Word}
    prefix form is useful for the round's status arms: each arm is adjacent to
    the remaining concrete exits, but spelling that whole list at every step
    would duplicate the generated postconditions. -/
-private theorem nb_extend_after_prefix {n1 n2 : Nat} {entry mid : Word}
+theorem nb_extend_after_prefix {n1 n2 : Nat} {entry mid : Word}
     {cr : CodeReq} {P Qm : Assertion}
     {preExits rest exits2 : List (Word × Assertion)}
     (h1 : cpsNBranchWithin n1 entry cr P
@@ -326,7 +326,7 @@ private theorem nb_extend_after_prefix {n1 n2 : Nat} {entry mid : Word}
 /- The same operation with one already-transformed exit in front of the
    selected arm.  Keeping this association explicit avoids reopening the
    generated source post list merely to reach the next overflow arm. -/
-private theorem nb_extend_after_second {n1 n2 : Nat} {entry mid : Word}
+theorem nb_extend_after_second {n1 n2 : Nat} {entry mid : Word}
     {cr : CodeReq} {P Qfirst Qm : Assertion}
     {first : Word} {preExits rest exits2 : List (Word × Assertion)}
     (h1 : cpsNBranchWithin n1 entry cr P
@@ -1113,7 +1113,7 @@ theorem terminalIndex_status1_tail
    already been replaced by its output-tail exits.  This small list-level
    theorem keeps the BGEU arm's source post and its exact one-instruction
    continuation separate from the arithmetic expressions in `taylor_round`. -/
-private theorem taylor_round_zero_terminal_status1
+theorem taylor_round_zero_terminal_status1
     {P Qzero Qterm Qterm' : Assertion}
     {rest exits : List (Word × Assertion)}
     (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
@@ -1128,7 +1128,7 @@ private theorem taylor_round_zero_terminal_status1
   have hOut := nb_extend_after_prefix hAll hTermN
   simpa using hOut
 
-private theorem taylor_round_zero_terminal_status1_weaken
+theorem taylor_round_zero_terminal_status1_weaken
     {P Qzero Qterm Qzero' Qterm' QtermOut : Assertion}
     {rest exits : List (Word × Assertion)}
     (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
@@ -1148,7 +1148,7 @@ private theorem taylor_round_zero_terminal_status1_weaken
 /- Continue one more arm after the terminal status tail.  The explicit
    three-entry shape is intentional: it records that the terminal outcome is
    retained before the carry-overflow outcome is replaced by its status tail. -/
-private theorem taylor_round_zero_terminal_carry_status1
+theorem taylor_round_zero_terminal_carry_status1
     {P Qzero Qterm Qcarry Qzero' Qterm' Qcarry' QtermOut QcarryOut : Assertion}
     {rest exits : List (Word × Assertion)}
     (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
