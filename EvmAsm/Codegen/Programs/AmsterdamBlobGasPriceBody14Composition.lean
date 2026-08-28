@@ -323,6 +323,42 @@ private theorem nb_extend_after_prefix {n1 n2 : Nat} {entry mid : Word}
         List.mem_append.mpr (Or.inr (List.mem_append.mpr (Or.inr hrest))),
         hpc1, hQ1⟩
 
+/- The same operation with one already-transformed exit in front of the
+   selected arm.  Keeping this association explicit avoids reopening the
+   generated source post list merely to reach the next overflow arm. -/
+private theorem nb_extend_after_second {n1 n2 : Nat} {entry mid : Word}
+    {cr : CodeReq} {P Qfirst Qm : Assertion}
+    {first : Word} {preExits rest exits2 : List (Word × Assertion)}
+    (h1 : cpsNBranchWithin n1 entry cr P
+      (preExits ++ ((first, Qfirst) :: (mid, Qm) :: rest)))
+    (h2 : cpsNBranchWithin n2 mid cr Qm exits2) :
+    cpsNBranchWithin (n1 + n2) entry cr P
+      (preExits ++ ((first, Qfirst) :: (exits2 ++ rest))) := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨k1, hk1, s1, hstep1, ex, hmem, hpc1, hQ1⟩ :=
+    h1 R hR s hcr hPR hpc
+  simp only [List.mem_append, List.mem_cons] at hmem
+  rcases hmem with hprefix | hfirst | hmid | hrest
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
+      hstep1, ex,
+      List.mem_append.mpr (Or.inl hprefix), hpc1, hQ1⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
+      hstep1, ex,
+      List.mem_append.mpr (Or.inr (List.mem_cons.mpr (Or.inl hfirst))),
+      hpc1, hQ1⟩
+  · subst ex
+    have hcr' := CodeReq.SatisfiedBy_preserved hstep1 hcr
+    obtain ⟨k2, hk2, s2, hstep2, ex2, hmem2, hpc2, hQ2⟩ :=
+      h2 R hR s1 hcr' hQ1 hpc1
+    exact ⟨k1 + k2, Nat.add_le_add hk1 hk2, s2,
+      stepN_add_eq hstep1 hstep2, ex2,
+      List.mem_append.mpr (Or.inr (List.mem_cons.mpr
+        (Or.inr (List.mem_append.mpr (Or.inl hmem2))))), hpc2, hQ2⟩
+  · exact ⟨k1, Nat.le_trans hk1 (Nat.le_add_right n1 n2), s1,
+      hstep1, ex,
+      List.mem_append.mpr (Or.inr (List.mem_cons.mpr
+        (Or.inr (List.mem_append.mpr (Or.inr hrest))))), hpc1, hQ1⟩
+
 /- The zero-accumulator arm reaches the exit-divide window with the concrete
    values produced by the round dispatch: `x5 = w`, `x6 = a5`, and the
    caller's `AB`/`PB` bases in `x19`/`x20`.  This adapter is the first point
@@ -1108,6 +1144,35 @@ private theorem taylor_round_zero_terminal_status1_weaken
   have hTerm' := cpsTripleWithin_weaken
     (hpre := hTerm_pre) (hpost := fun _ hp => hp) hTerm
   exact taylor_round_zero_terminal_status1 hRound hZero' hTerm'
+
+/- Continue one more arm after the terminal status tail.  The explicit
+   three-entry shape is intentional: it records that the terminal outcome is
+   retained before the carry-overflow outcome is replaced by its status tail. -/
+private theorem taylor_round_zero_terminal_carry_status1
+    {P Qzero Qterm Qcarry Qzero' Qterm' Qcarry' QtermOut QcarryOut : Assertion}
+    {rest exits : List (Word × Assertion)}
+    (hRound : cpsNBranchWithin 4028 (PriceK + 144) priceCode P
+      ((PriceK + 804, Qzero) :: (PriceK + 964, Qterm) ::
+        (PriceK + 964, Qcarry) :: rest))
+    (hZero : cpsNBranchWithin 4183 (PriceK + 804) priceCode Qzero' exits)
+    (hZero_pre : ∀ h, Qzero h → Qzero' h)
+    (hTerm : cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      Qterm' QtermOut)
+    (hTerm_pre : ∀ h, Qterm h → Qterm' h)
+    (hCarry : cpsTripleWithin 1 (PriceK + 964) (PriceK + 968) priceCode
+      Qcarry' QcarryOut)
+    (hCarry_pre : ∀ h, Qcarry h → Qcarry' h) :
+    cpsNBranchWithin (4028 + 4183 + 1 + 1) (PriceK + 144) priceCode P
+      (exits ++ ((PriceK + 968, QtermOut) ::
+        ((PriceK + 968, QcarryOut) :: rest))) := by
+  have h1 := taylor_round_zero_terminal_status1_weaken
+    (rest := (PriceK + 964, Qcarry) :: rest)
+    hRound hZero hZero_pre hTerm hTerm_pre
+  have hCarry' := cpsTripleWithin_weaken
+    (hpre := hCarry_pre) (hpost := fun _ hp => hp) hCarry
+  have h3 := nb_extend_after_second h1
+    (cpsTripleWithin_as_cpsNBranchWithin hCarry')
+  simpa [Nat.add_assoc] using h3
 
 /- A concrete witness for the completed zero-arm boundary.  This is kept
    beside the adapter because the arm's pure `w = 0` fact and its output
