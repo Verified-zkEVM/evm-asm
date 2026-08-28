@@ -178,10 +178,26 @@ theorem taylor_round_source_mul4_status1_tail
     (taylorRoundFinalHigh a0 a1 a2 a3 a4 a5 excess)
     (taylorRoundFinalHigh a0 a1 a2 a3 a4 a5 excess) FR
 
-/- Expose the complete source prefix through the quotient-overflow exit.  The
-   remaining head is the QBACK loopback; keeping it existential here lets the
-   first three multiply compositions and the next file consume their own
-   concrete arms without re-normalizing the entire source post. -/
+@[reducible] def taylorRoundSourceQBACKComputed
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word)
+    (_v7 _v28 _v29 _v30 _v31 : Word) (FR : Assertion) : Assertion :=
+  taylorRoundSourceQBACK newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5
+    (roundP0 a0 excess) (roundP1 a0 a1 excess)
+    (roundP2 a0 a1 a2 excess) (roundP3 a0 a1 a2 a3 excess)
+    (roundP4 a0 a1 a2 a3 a4 excess)
+    (roundP5 a0 a1 a2 a3 a4 a5 excess)
+    (roundS0 a0 s0) (roundS1 a0 a1 s0 s1)
+    (roundS2 a0 a1 a2 s0 s1 s2)
+    (roundS3 a0 a1 a2 a3 s0 s1 s2 s3)
+    (roundS4 a0 a1 a2 a3 a4 s0 s1 s2 s3 s4)
+    (roundS5 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5)
+    _v7 _v28 _v29 _v30 _v31 FR
+
+/- Expose the complete source prefix through the quotient-overflow exit and the
+   concrete QBACK loopback.  Only the post-loop tail remains existential, so
+   later siblings cannot accidentally consume an unconstrained source head. -/
 theorem taylor_round_source_head_qovf_of_taylor_round
     (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
@@ -235,6 +251,10 @@ theorem taylor_round_source_head_qovf_of_taylor_round
           (PriceK + 964,
             taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
               a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+              v7 v28 v29 v30 v31 FR) ::
+          (PriceK + 144,
+            taylorRoundSourceQBACKComputed newSp excess outPtr iVal AB PB vals
+              a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
               v7 v28 v29 v30 v31 FR) :: rest) := by
   have h := taylor_round newSp excess outPtr iVal AB PB vals
     a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
@@ -284,10 +304,14 @@ theorem taylor_round_source_head_qovf_of_taylor_round
             taylorRoundSourceMulFF newSp excess outPtr iVal AB PB vals
               a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
               v7 v28 v29 v30 v31 FR) ::
-          (PriceK + 964,
-            taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
-              a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
-              v7 v28 v29 v30 v31 FR) :: xs) →
+            (PriceK + 964,
+              taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
+                a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+                v7 v28 v29 v30 v31 FR) ::
+            (PriceK + 144,
+              taylorRoundSourceQBACKComputed newSp excess outPtr iVal AB PB vals
+                a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+                v7 v28 v29 v30 v31 FR) :: xs) →
       ∃ rest : List (Word × Assertion),
         cpsNBranchWithin 4028 (PriceK + 144) priceCode
           (taylorRoundSourcePre newSp excess outPtr iVal AB PB vals
@@ -336,6 +360,10 @@ theorem taylor_round_source_head_qovf_of_taylor_round
             (PriceK + 964,
               taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
                 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+                v7 v28 v29 v30 v31 FR) ::
+            (PriceK + 144,
+              taylorRoundSourceQBACKComputed newSp excess outPtr iVal AB PB vals
+                a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
                 v7 v28 v29 v30 v31 FR) :: rest) := by
     intro xs hxs
     exact ⟨xs, hxs⟩
@@ -344,7 +372,8 @@ theorem taylor_round_source_head_qovf_of_taylor_round
     taylorRoundSourceCap, taylorRoundSourceCarry, taylorRoundSourceMul0,
     taylorRoundSourceMul1, taylorRoundSourceMul2, taylorRoundSourceMul3,
     taylorRoundSourceMul4, taylorRoundSourceMul5, taylorRoundSourceMulFF,
-    taylorRoundSourceQOVFComputed, taylorRoundSourceQOVF, roundAccum,
+    taylorRoundSourceQOVFComputed, taylorRoundSourceQOVF,
+    taylorRoundSourceQBACKComputed, taylorRoundSourceQBACK, roundAccum,
     roundP0, roundP1, roundP2, roundP3, roundP4, roundP5,
     taylorRoundFinalHigh, taylorRoundFinalOverflow,
     roundS0, roundS1, roundS2, roundS3, roundS4, roundS5] using h
@@ -386,6 +415,10 @@ theorem taylor_round_source_head_qovf_of_taylor_round
         v7 v28 v29 v30 v31 FR),
     (PriceK + 964,
       taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
+        a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+        v7 v28 v29 v30 v31 FR),
+    (PriceK + 144,
+      taylorRoundSourceQBACKComputed newSp excess outPtr iVal AB PB vals
         a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
         v7 v28 v29 v30 v31 FR)]
 
@@ -458,6 +491,10 @@ theorem taylor_round_source_mul234_status1
       v7 v28 v29 v30 v31 FR0
   let sourceQOVF : Assertion :=
     taylorRoundSourceQOVFComputed newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+      v7 v28 v29 v30 v31 FR0
+  let sourceQBACK : Assertion :=
+    taylorRoundSourceQBACKComputed newSp excess outPtr iVal AB PB vals
       a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
       v7 v28 v29 v30 v31 FR0
   let terminalPre : Assertion :=
@@ -582,7 +619,8 @@ theorem taylor_round_source_mul234_status1
     (rest := (PriceK + 964, source0) :: (PriceK + 964, source1) ::
       (PriceK + 964, source2) :: (PriceK + 964, source3) ::
       (PriceK + 964, source4) :: (PriceK + 964, source5) ::
-      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+      (PriceK + 144, sourceQBACK) :: rest)
     hRound hZero hZero_pre hTerm hTerm_pre hCarry hCarry_pre
   have hFirst :
       cpsNBranchWithin (4028 + 4183 + 1 + 1) (PriceK + 144) priceCode
@@ -594,9 +632,10 @@ theorem taylor_round_source_mul234_status1
           ((PriceK + 964, source0) :: (PriceK + 964, source1) ::
             (PriceK + 964, source2) :: (PriceK + 964, source3) ::
             (PriceK + 964, source4) :: (PriceK + 964, source5) ::
-            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)) := by
+            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+            (PriceK + 144, sourceQBACK) :: rest)) := by
     simpa only [terminalOut, carryOut, source0, source1, source2, source3,
-      source4, source5, sourceFF, sourceQOVF,
+      source4, source5, sourceFF, sourceQOVF, sourceQBACK,
       List.cons_append, List.nil_append, List.append_assoc] using hFirst0
   have hMul0 := taylor_round_source_mul0_status1_tail
     newSp excess outPtr iVal AB PB vals
@@ -609,7 +648,7 @@ theorem taylor_round_source_mul234_status1
     (rest := (PriceK + 964, source1) :: (PriceK + 964, source2) ::
       (PriceK + 964, source3) :: (PriceK + 964, source4) ::
       (PriceK + 964, source5) :: (PriceK + 964, sourceFF) ::
-      (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceQOVF) :: (PriceK + 144, sourceQBACK) :: rest)
     hFirst (cpsTripleWithin_as_cpsNBranchWithin hMul0)
   have hAfter0' :
       cpsNBranchWithin (4028 + 4183 + 1 + 1 + 1) (PriceK + 144) priceCode
@@ -621,7 +660,7 @@ theorem taylor_round_source_mul234_status1
           ((PriceK + 964, source1) :: (PriceK + 964, source2) ::
             (PriceK + 964, source3) :: (PriceK + 964, source4) ::
             (PriceK + 964, source5) :: (PriceK + 964, sourceFF) ::
-            (PriceK + 964, sourceQOVF) :: rest)) := by
+            (PriceK + 964, sourceQOVF) :: (PriceK + 144, sourceQBACK) :: rest)) := by
     simpa only [out0, List.cons_append, List.nil_append,
       List.append_assoc, Nat.add_assoc] using hAfter0
   have hMul1 := taylor_round_source_mul1_status1_tail
@@ -634,7 +673,8 @@ theorem taylor_round_source_mul234_status1
     (mid := PriceK + 964) (Qm := source1)
     (rest := (PriceK + 964, source2) :: (PriceK + 964, source3) ::
       (PriceK + 964, source4) :: (PriceK + 964, source5) ::
-      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+      (PriceK + 144, sourceQBACK) :: rest)
     hAfter0' (cpsTripleWithin_as_cpsNBranchWithin hMul1)
   have hAfter1' :
       cpsNBranchWithin (4028 + 4183 + 1 + 1 + 1 + 1) (PriceK + 144)
@@ -647,7 +687,8 @@ theorem taylor_round_source_mul234_status1
           (PriceK + 968, out1)]) ++
           ((PriceK + 964, source2) :: (PriceK + 964, source3) ::
             (PriceK + 964, source4) :: (PriceK + 964, source5) ::
-            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)) := by
+            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+            (PriceK + 144, sourceQBACK) :: rest)) := by
     simpa only [out1, List.cons_append, List.nil_append,
       List.append_assoc, Nat.add_assoc] using hAfter1
   have hMul2 := taylor_round_source_mul2_status1_tail
@@ -661,7 +702,7 @@ theorem taylor_round_source_mul234_status1
     (mid := PriceK + 964) (Qm := source2)
     (rest := (PriceK + 964, source3) :: (PriceK + 964, source4) ::
       (PriceK + 964, source5) :: (PriceK + 964, sourceFF) ::
-      (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceQOVF) :: (PriceK + 144, sourceQBACK) :: rest)
     hAfter1' (cpsTripleWithin_as_cpsNBranchWithin hMul2)
   have hAfter2' :
       cpsNBranchWithin (4028 + 4183 + 1 + 1 + 1 + 1 + 1) (PriceK + 144)
@@ -674,7 +715,7 @@ theorem taylor_round_source_mul234_status1
           (PriceK + 968, out1), (PriceK + 968, out2)]) ++
           ((PriceK + 964, source3) :: (PriceK + 964, source4) ::
             (PriceK + 964, source5) :: (PriceK + 964, sourceFF) ::
-            (PriceK + 964, sourceQOVF) :: rest)) := by
+            (PriceK + 964, sourceQOVF) :: (PriceK + 144, sourceQBACK) :: rest)) := by
     simpa only [out2, List.cons_append, List.nil_append,
       List.append_assoc, Nat.add_assoc] using hAfter2
   have hMul3 := taylor_round_source_mul3_status1_tail
@@ -687,7 +728,8 @@ theorem taylor_round_source_mul234_status1
       (PriceK + 968, out1), (PriceK + 968, out2)])
     (mid := PriceK + 964) (Qm := source3)
     (rest := (PriceK + 964, source4) :: (PriceK + 964, source5) ::
-      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+      (PriceK + 144, sourceQBACK) :: rest)
     hAfter2' (cpsTripleWithin_as_cpsNBranchWithin hMul3)
   have hAfter3' :
       cpsNBranchWithin (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1) (PriceK + 144)
@@ -700,7 +742,8 @@ theorem taylor_round_source_mul234_status1
           (PriceK + 968, out1), (PriceK + 968, out2),
           (PriceK + 968, out3)]) ++
           ((PriceK + 964, source4) :: (PriceK + 964, source5) ::
-            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) :: rest)) := by
+            (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
+            (PriceK + 144, sourceQBACK) :: rest)) := by
     simpa only [out3, List.cons_append, List.nil_append,
       List.append_assoc, Nat.add_assoc] using hAfter3
   have hMul4 := taylor_round_source_mul4_status1_tail
@@ -714,12 +757,12 @@ theorem taylor_round_source_mul234_status1
       (PriceK + 968, out3)])
     (mid := PriceK + 964) (Qm := source4)
     (rest := (PriceK + 964, source5) :: (PriceK + 964, sourceFF) ::
-      (PriceK + 964, sourceQOVF) :: rest)
+      (PriceK + 964, sourceQOVF) :: (PriceK + 144, sourceQBACK) :: rest)
     hAfter3' (cpsTripleWithin_as_cpsNBranchWithin hMul4)
   refine ⟨rest, ?_⟩
   simpa only [FR0, taylorRoundSourceMul234Prefix, terminalOut, carryOut,
     out0, out1, out2, out3, out4, source0, source1, source2, source3,
-    source4, source5, sourceFF, sourceQOVF,
+    source4, source5, sourceFF, sourceQOVF, sourceQBACK,
     List.cons_append, List.nil_append, List.append_assoc, Nat.add_assoc] using hAfter4
 
 #print axioms taylor_round_source_mul2_status1_tail
