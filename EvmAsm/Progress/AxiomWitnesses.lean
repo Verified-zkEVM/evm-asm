@@ -314,6 +314,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
+
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
