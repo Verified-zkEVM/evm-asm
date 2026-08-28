@@ -137,6 +137,32 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (bundle tranche 2 — append + the cross-entry jump, 2026-08-28)
+
+- ✅ **`receipt_records_append` verified at the FLAT layer** (both arms:
+  `receiptRecordsAppend_spec_within_ok`/`_full`,
+  `ReceiptRecordsAppendSpec.lean`).  The dual-writable-region blocker
+  dissolves there: the control block and the separately-pointed record
+  slot are `**`-separated `↦ₘ` dword cells — no DCode dual-`RwRegion`
+  machinery needed.  Composed from `@[spec_gen_rv64]` per-instruction
+  specs with `runBlock`, branch arms via
+  `cpsBranchWithin_{n,}takenPath`.
+- ✅ **The cross-entry tail-jump composition proven**
+  (`receiptRecordsAppendRuntime_spec_within_committed`):
+  `receipt_records_append_runtime_result`'s committed-logs path
+  normalizes `a5 := a5 - a4`, zeroes `a6`/`a7`, `jal x0, .-108` INTO
+  `receipt_records_append`, and returns from there with the record
+  appended — ONE triple over the ONE shared
+  `CodeReq.ofProg bundleBase receiptRecordsBundleProg` (61 insns, all
+  five entries).  This is #12991's flagship: the shared bundle image
+  makes the jump target's code identity free.
+- ✅ All five entries now emit from Lean instruction lists
+  (`emitProgram`, byte-identity assemble+cmp 244 bytes; internal labels
+  became numeric offsets).
+- Remaining (mechanical, recorded in #12991): `receipt_record_nth`'s
+  flat triples (clone of append's read side), the two other
+  runtime-result input cases, and the full-arm runtime composition.
+
 ### Recent (DCode multi-entry bundles — #12991 first consumers, 2026-08-28)
 
 - ✅ **Bundle pattern established** (`ReceiptRecordsSAsm.lean`): the
