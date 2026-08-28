@@ -456,7 +456,6 @@ import EvmAsm.Codegen.Programs.HeaderValidatePostMergeErrorBridge
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeBridgeWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoop
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergePostLoopPhases
-import EvmAsm.Codegen.Programs.ValidateHeaderGasCorrespondence
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
@@ -465,7 +464,6 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody10Spec

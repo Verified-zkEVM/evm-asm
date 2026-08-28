@@ -97,6 +97,12 @@
 #       - `eip8037_tx_state_gas`, `mset_memcpy` — NO `CodeReq.ofProg (GuestAddrs.<sym>)`
 #         anywhere; their triples are anchored through some other base term. Each needs
 #         its statement read before it can be graded.
+#         ⛔ BOTH CLAIMS WERE FALSE, and both symbols are now rowed `.proven`.
+#         `mset_memcpy`'s base was the file-local `msetMemcpyBase`, which UNFOLDS to
+#         `GuestAddrs.mset_memcpy`; `eip8037_tx_state_gas`'s
+#         `Eip8037TxStateGasSpec.P` is `BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`
+#         written out in full. Neither was "some other base term" — both were the
+#         anchor under a different spelling. Read what the abbrev unfolds to.
 #     ⭐ CLOSED for FOUR of the five as of #12244: `secf_zero32`, `secf_is_zero32`,
 #     `secf_be_to_le` and `secf_le_to_be` are rowed, each citing an own-`CodeReq`
 #     `…FlatEntry_spec` sibling rather than the caller-anchored `…Flat_spec` these
@@ -123,7 +129,8 @@
 #     Of the 28, all 28 have a `guestImageEntries` pairing and a UNIQUE theorem name,
 #     and 25 resolve to a single OWN-program CodeReq -- checked by resolving each named
 #     `...Cr` abbrev to its components and testing every component against the image,
-#     the code-identity check `--shape` does NOT do (see the eip8037 entry above).
+#     the code-identity check `--shape` does NOT do (see the `eip8037_tx_state_gas`
+#     note under the TIER A header below; its entry was deleted when #12244 rowed it).
 #     The 3 exceptions are the composite CALLERS blsg2_encode, blsk_g2_wire, bnf_add_mod_p.
 #     ⚠️ A DISTINCTION THAT MATTERS FOR THOSE THREE: a union CodeReq is NOT
 #     automatically unrowable. For a LEAF the union is an artifact of where the proof
@@ -493,10 +500,26 @@
 #   against actual contents of 5 and 56.  They are prose, like the tier column, and
 #   the same rule applies — count the lines, do not read the header.  Corrected here.
 #
-# --- TIER A: flat triple at the guest address; registrable now (1) ---
+# --- TIER A: flat triple at the guest address; registrable now (0) ---
+# ⭐ THIS SECTION'S ONE TIER-A MEMBER IS GONE as of #12244: `eip8037_tx_state_gas` is
+#   rowed `.proven` in Progress/Routines.lean citing `eip8037TxStateGas_spec_within`,
+#   so its exemption was deleted here.  Its reason was a CODE-IDENTITY claim ("no
+#   `guestImageEntries` pairing ... and no `eip8037TxStateGasFunction` row in
+#   MANIFEST.tsv") that was TRUE WHEN WRITTEN (2026-08-17) and that the linking
+#   ledgers satisfied afterwards (`guestImageEntries` pairing 2026-08-25, MANIFEST row
+#   2026-08-26) — a NEW way for an entry to go stale, distinct from the false-shape
+#   claims above, and one only a re-read of BOTH halves (shape and code identity)
+#   catches.
+#   ⚠️ The two `bal_serializer_*` lines that remain under this header grade themselves
+#   tier B in their own reasons; they are not tier-A debt, which is why the header
+#   count reads 0 with two lines below it.
+#   ⚠️ AND the header count is about THIS SECTION only — it is NOT the gate's tally.
+#   `check-registry-coverage.py` computes its own tier-A proxy from the theorem NAME
+#   and, after this change, still reports 1 tier-A: `header_validate_base_fee`, whose
+#   entry sits under a different header in this file.  Sections and the gate's grade
+#   have never agreed here; read the gate's output, not the headers.
 bal_serializer_balance_to_le	tier B — `balanceToLeFn_spec` (Codegen/Programs/BalSerializerLeSAsm.lean) is a structured `Fn.SpecR` at the pinned guest placement `GuestAddrs.bal_serializer_balance_to_le`, proof-first (DCode) generated code with `blockA`/`la`. SpecR is the CALLER-SHAPED (`Stmt.soundR`) contract — `Fn.retSpecFlat` flattens only the leaf (`Fn.Spec`) path, so no flat whole-routine triple exists yet; deriving a SpecR→flat lift (or restating the routine's post at `cpsTripleWithin` level as the `abiFrame` consumers do) is the unblock (#12736)
 bal_serializer_slot_to_le	tier B — same class as `bal_serializer_balance_to_le` directly above: `slotToLeFn_spec` is a structured `Fn.SpecR` at `GuestAddrs.bal_serializer_slot_to_le` (the twin instantiation of the same DCode derivation, `bslDeriv`); blocked on the same SpecR→flat lift (#12736)
-eip8037_tx_state_gas	tier A by SHAPE but NOT yet rowable, and not for the reason this file used to give (#12244): `eip8037TxStateGas_spec_within` IS a whole-routine flat triple — 4 steps over a 4-instruction program ending in JALR x0,x1,0, over `etsCode = CodeReq.ofProg P etsProg` with `P = BitVec.ofNat 64 GuestAddrs.eip8037_tx_state_gas`, and a complete deterministic post (*outPtr := a0+a1, a0 := 0). The blocker is CODE IDENTITY, not shape: there is NO `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row in scripts/asm-fixtures/MANIFEST.tsv, so nothing certifies that `etsProg` is the code the image holds at that address. It IS emitted — concatenated into the image String at BlockVerdict.lean, BlockVerdictV2.lean and TxIntrinsicStateGasProg.lean — which is exactly why it escaped both per-program ledgers. Add the `guestImageEntries` pairing (and let check-manifest-guestimage cross-check it) before rowing. ⚠️ Note the gate's own notion of "linked" is just `def <sym> : Nat := 0x…` in GuestAddrs.lean, which is WEAKER than image membership — that is how a symbol can be reported linked here while absent from guestImageEntries (#11637)
 
 # ⚠️ THE TWO `rlp_content_to_*_strict` ENTRIES BELOW ARE NOT "structured SAsm spec only"
 #   despite sitting under this header — both are flat whole-routine triples at a FREE
