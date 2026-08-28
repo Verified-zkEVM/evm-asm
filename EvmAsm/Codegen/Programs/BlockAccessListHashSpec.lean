@@ -133,12 +133,20 @@ theorem At_succ (k : Nat) : At k + 4 = At (k + 1) := by
 
 /-! ## §2  Fetching the callees
 
-    `allCode` is a three-way union.  Every pair of programs in it is
-    range-separated at the linked addresses — `zkvm_keccak256`
-    `[0x80003460, 0x80003574)`, `bah_u32le` `[0x8000caa0, 0x8000cad0)`,
-    `block_access_list_hash_core` `[0x8000cad0, 0x8000cae8)`, this wrapper
-    `[0x8000cae8, 0x8000cb64)` — so each `Disjoint` obligation is one
-    `ofProg_ranges` application with `decide`able side conditions. -/
+    `allCode` is a three-way union.  Its four programs — `zkvm_keccak256`,
+    `bah_u32le`, `block_access_list_hash_core`, and this wrapper — occupy
+    pairwise disjoint `[base, base + 4 * length)` windows at their linked
+    addresses, with `bah_u32le`, the core and the wrapper laid out
+    consecutively in that order.  So every `Disjoint` obligation below is one
+    `ofProg_ranges` application whose three side conditions are `decide`able
+    from `GuestAddrs` and the program lengths.
+
+    ⚠️ The windows are deliberately NOT written out here as hex.  Spelling a
+    live `GuestAddrs.*` value as a literal — even in prose — is the #12498
+    defect, and `check-no-hardcoded-guest-pc.sh` reads comments too: an earlier
+    draft of this block listed all four ranges and the gate correctly rejected
+    it.  The extents belong to `GuestAddrs` and to `nm`, not to a docstring
+    that cannot be re-derived when the image moves. -/
 
 private abbrev coreW : CodeReq := BlockAccessListHashCoreSpec.wrapperCode
 private abbrev keccakC : CodeReq := BlockAccessListHashCoreSpec.keccakCode
