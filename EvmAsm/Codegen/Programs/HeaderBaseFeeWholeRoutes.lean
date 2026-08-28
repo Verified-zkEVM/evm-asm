@@ -505,7 +505,8 @@ private theorem k73_increase_div_zero_dispatch
         v8 v9 v18 v19 v20 baseBytes accBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k)
       (K73 + 204) (fun _ => False) raIn Q2)
-    (hQ1 : ∀ h, Q1 h → Q h) (hQ2 : ∀ h, Q2 h → Q h)
+    (hQ1 : Crypto.beBytesToNat q2 ≠ 0 → ∀ h, Q1 h → Q h)
+    (hQ2 : Crypto.beBytesToNat q2 = 0 → ∀ h, Q2 h → Q h)
     (hN1 : N1 ≤ N) (hN2 : N2 ≤ N) :
     cpsBranchWithin N (K73 + 172) wholeCode
       (k73IncreaseDivZeroPost spH raIn gasUsed basePtr outPtr target
@@ -517,13 +518,14 @@ private theorem k73_increase_div_zero_dispatch
   unfold k73IncreaseDivZeroPost at hpost
   rcases hpost with ⟨k, hroutePost⟩
   rcases hroutePost with hfirstPost | hsecondPost
-  · have hroute :
+  · obtain ⟨hfp, hn⟩ := (sepConj_pure_right _).1 hfirstPost
+    have hroute :
         (k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes q2 G k ** R) hmem := by
       have hfirstPost' :
           k73IncreaseFirstDivToAddSource spH raIn gasUsed basePtr outPtr target
             v8 v9 v18 v19 v20 baseBytes accBytes q2 G k hleft := by
-        simpa only [k73IncreaseFirstDivToAddSource] using hfirstPost
+        simpa only [k73IncreaseFirstDivToAddSource] using hfp
       exact ⟨hleft, hright, hdisj, hunion, hfirstPost', hRpost⟩
     obtain ⟨k', hk', s', hstep', hcase⟩ :=
       (cpsBranchWithin_mono_nSteps hN1 (hfirst k)) R hR s hcr
@@ -532,8 +534,9 @@ private theorem k73_increase_div_zero_dispatch
     · exact ⟨k', hk', s', hstep', Or.inl ⟨hpcFail, hFail⟩⟩
     · obtain ⟨hmem', hcompat', hQ1post⟩ := hReturn
       exact ⟨k', hk', s', hstep', Or.inr ⟨hpcReturn,
-        ⟨hmem', hcompat', sepConj_mono_left hQ1 hmem' hQ1post⟩⟩⟩
-  · have hroute :
+        ⟨hmem', hcompat', sepConj_mono_left (hQ1 hn) hmem' hQ1post⟩⟩⟩
+  · obtain ⟨hfp, hz⟩ := (sepConj_pure_right _).1 hsecondPost
+    have hroute :
         (k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes
           (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k ** R) hmem := by
@@ -541,7 +544,7 @@ private theorem k73_increase_div_zero_dispatch
           k73IncreaseSecondDivToAddSource spH raIn gasUsed basePtr outPtr target
             v8 v9 v18 v19 v20 baseBytes accBytes
             (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G k hleft := by
-        simpa only [k73IncreaseSecondDivToAddSource] using hsecondPost
+        simpa only [k73IncreaseSecondDivToAddSource] using hfp
       exact ⟨hleft, hright, hdisj, hunion, hsecondPost', hRpost⟩
     obtain ⟨k', hk', s', hstep', hcase⟩ :=
       (cpsBranchWithin_mono_nSteps hN2 (hsecond k)) R hR s hcr
@@ -550,7 +553,7 @@ private theorem k73_increase_div_zero_dispatch
     · exact ⟨k', hk', s', hstep', Or.inl ⟨hpcFail, hFail⟩⟩
     · obtain ⟨hmem', hcompat', hQ2post⟩ := hReturn
       exact ⟨k', hk', s', hstep', Or.inr ⟨hpcReturn,
-        ⟨hmem', hcompat', sepConj_mono_left hQ2 hmem' hQ2post⟩⟩⟩
+        ⟨hmem', hcompat', sepConj_mono_left (hQ2 hz) hmem' hQ2post⟩⟩⟩
 
 private theorem k73_increase_status_finish
     {Nstatus Ncarry Nzero Ntail : Nat}
@@ -692,18 +695,29 @@ private theorem k73_increase_status_finish_from_mul
       v8 v9 v18 v19 v20 baseBytes accBytes outBytes
       (regOwns [.x14, .x15, .x16, .x17] ** G))
 
+/-- The three-way route outcome carries the window-value pures
+`beBytesToNat q2 = 0` / `≠ 0`: the zero-test controls WHICH BYTES the window
+holds (keep window = `AddBe p q2 q2` vs replace image = `AddBe p 1 1`), so
+without the pures the post is PATH-BLIND, and a path-blind post admits
+countermodel states that no local window algebra can kill, because the
+implication quantifies over all states satisfying the post rather than the
+reachable ones. Do not weaken the pures back out. -/
 @[irreducible] def k73IncreaseStatusFinalPost
     (sp0 spH raIn gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (baseBytes accBytes outBytes q2 : List (BitVec 8)) (G : Assertion) : Assertion :=
   fun s =>
-    k73IncreaseCarryFinalPost sp0 spH raIn gasUsed basePtr outPtr target
-      v8 v9 v18 v19 v20 baseBytes accBytes outBytes G s ∨
-    k73IncreaseFirstFinalPost sp0 spH raIn gasUsed basePtr outPtr target
-      v8 v9 v18 v19 v20 baseBytes accBytes q2 G s ∨
-    k73IncreaseSecondFinalPost sp0 spH raIn gasUsed basePtr outPtr target
-      v8 v9 v18 v19 v20 baseBytes accBytes
-      (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G s
+    ((fun s' => k73IncreaseCarryFinalPost sp0 spH raIn gasUsed basePtr outPtr
+        target v8 v9 v18 v19 v20 baseBytes accBytes outBytes G s' ∨
+        k73IncreaseSecondFinalPost sp0 spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes
+          (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G s') **
+      ⌜Crypto.beBytesToNat q2 = 0⌝) s ∨
+    ((fun s' => k73IncreaseCarryFinalPost sp0 spH raIn gasUsed basePtr outPtr
+        target v8 v9 v18 v19 v20 baseBytes accBytes outBytes G s' ∨
+        k73IncreaseFirstFinalPost sp0 spH raIn gasUsed basePtr outPtr target
+          v8 v9 v18 v19 v20 baseBytes accBytes q2 G s') **
+      ⌜Crypto.beBytesToNat q2 ≠ 0⌝) s
 
 /-! The route-specific adapters now compose through the status split.  This
     theorem deliberately keeps the arithmetic/resource premises explicit: a
@@ -783,7 +797,18 @@ private theorem k73_increase_status_div_zero_to_return
   let Qcarry : Assertion := k73IncreaseCarryFinalPost
     sp0 spH raIn gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes accBytes outBytes G
-  let Qzero : Assertion := fun s => Q1 s ∨ Q2 s
+  let Qzero : Assertion := fun s =>
+    ((fun s' => k73IncreaseCarryFinalPost sp0 spH raIn gasUsed basePtr
+        outPtr target v8 v9 v18 v19 v20 baseBytes accBytes outBytes G s' ∨
+        k73IncreaseSecondFinalPost sp0 spH raIn gasUsed basePtr outPtr
+          target v8 v9 v18 v19 v20 baseBytes accBytes
+          (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) G s') **
+      ⌜Crypto.beBytesToNat q2 = 0⌝) s ∨
+    ((fun s' => k73IncreaseCarryFinalPost sp0 spH raIn gasUsed basePtr
+        outPtr target v8 v9 v18 v19 v20 baseBytes accBytes outBytes G s' ∨
+        k73IncreaseFirstFinalPost sp0 spH raIn gasUsed basePtr outPtr
+          target v8 v9 v18 v19 v20 baseBytes accBytes q2 G s') **
+      ⌜Crypto.beBytesToNat q2 ≠ 0⌝) s
   have hFstatus : Fstatus.pcFree := by
     dsimp [Fstatus]
     pcf
@@ -862,8 +887,12 @@ private theorem k73_increase_status_div_zero_to_return
       (1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)))
       Q1 Q2 Qzero hfirst hsecond
-      (by intro h hp; exact Or.inl hp)
-      (by intro h hp; exact Or.inr hp)
+      (by
+        intro hn h hp
+        exact Or.inr ((sepConj_pure_right _).2 ⟨Or.inr hp, hn⟩))
+      (by
+        intro hz h hp
+        exact Or.inl ((sepConj_pure_right _).2 ⟨Or.inr hp, hz⟩))
       (by omega) (by omega)
   have hcarryP : cpsTripleWithin 9 (K73 + 272) raIn wholeCode
       (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
@@ -907,18 +936,20 @@ private theorem k73_increase_status_div_zero_to_return
       regOwn .x10)
     (k73IncreaseDivZeroPost spH raIn gasUsed basePtr outPtr target
       v8 v9 v18 v19 v20 baseBytes accBytes q2 G)
-    Qcarry Qzero (fun s => Qcarry s ∨ Qzero s)
+    Qcarry Qzero Qzero
       hstatus hcarry hzero
     (by
       intro h hp
-      exact Or.inl hp)
+      rcases Classical.em (Crypto.beBytesToNat q2 = 0) with hz | hn
+      · exact Or.inl ((sepConj_pure_right _).2 ⟨Or.inl hp, hz⟩)
+      · exact Or.inr ((sepConj_pure_right _).2 ⟨Or.inl hp, hn⟩))
     (by
       intro h hp
-      exact Or.inr hp)
+      exact hp)
     (by exact hNcarry) (by exact le_refl Ntail)
   unfold k73IncreaseStatusFinalPost k73IncreaseCarryFinalPost
     k73IncreaseFirstFinalPost k73IncreaseSecondFinalPost at ⊢
-  unfold Qcarry Qzero Q1 Q2 k73IncreaseCarryFinalPost
+  unfold Qzero k73IncreaseCarryFinalPost
     k73IncreaseFirstFinalPost k73IncreaseSecondFinalPost at hfinal
   exact hfinal
 

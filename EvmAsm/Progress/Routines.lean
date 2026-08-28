@@ -258,6 +258,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -1881,6 +1882,32 @@ def routineRegistry : List RoutineEntry := [
         ++ "non-vacuity witnesses for the status-zero route, not "
         ++ "a claim that every K73 input is covered; the generic unconstrained "
         ++ "entry theorem remains open. No emitted code changes."),
+  -- #12346 residual 2b: the increase arm's wrapper-vocabulary Route-B
+  -- adapter.  The composed triple is complete over the wrapper contract
+  -- (`k73PreRest` premise, `k73RouteBCallPost` conclusion) but carries the
+  -- symmetric multiply-callee premise `hcallee`, which no pure respeller can
+  -- discharge symbolically (class-b finding on issue 12346: the respeller
+  -- cannot consume `mulWhole_spec` for symbolically-threaded lists), so the
+  -- row is `.conditional`, not `.proven`: the gate excludes every caller that
+  -- cannot itself supply a verified multiply callee.
+  routine "eip1559_calc_base_fee_per_gas" .conditional
+      (some "k73_incr_route_adapter_inhabited")
+      (gate := "carries the multiply-callee premise `hcallee` "
+        ++ "(a `cpsTripleWithin` over `GuestAddrs.u256_mul_u64_be`): "
+        ++ "dischargeable today only at concrete witnesses "
+        ++ "(the witness instantiates it from `mulWhole_spec`); "
+        ++ "a symbolic respeller awaits the increase-side native asymmetric "
+        ++ "contract (follow-up to PR #12978). Static gates: "
+        ++ "`target = gas_limit >>> 1`, `0 < target` (issue #12951), "
+        ++ "`target < gas_used`.")
+      (notes := "wrapper-vocab Route-B adapter for the increase arm "
+        ++ "(`k73_incr_route_adapter`, witness = constructed inhabitance at "
+        ++ "gas_limit = 10,000, gas_used = 7,500, parent fee bytes 0): "
+        ++ "the strengthened `k73IncreaseStatusFinalPost` carries the "
+        ++ "zero-test branch pures (a path-blind post admits countermodel "
+        ++ "states no local window algebra can kill). The concrete witness "
+        ++ "establishes non-vacuity only; it does NOT upgrade the general "
+        ++ "theorem past the `hcallee` gate."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -4206,12 +4233,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 206 := by decide
+theorem routineCount_eq : routineCount = 207 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 43 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -5303,6 +5330,8 @@ private noncomputable abbrev _k73_decr_entry_status_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
 private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
+private noncomputable abbrev _k73_incr_route_adapter_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
