@@ -353,6 +353,49 @@ private theorem saveCarryBranch_spec (carry old20 : Word)
     (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq) hc
 
 
+/-- The three aliasing contracts over `u256_add_be` share one clobber set, so
+    the first-operand-aliased lift's scratch list is literally `addScratch`. -/
+private theorem aInPlaceScratch_eq :
+    U256AddBeAInPlaceSAsm.u256AddBeAInPlaceScratch = U256BeFlat.addScratch := rfl
+
+/-- Step count of the first-operand-aliased `u256_add_be` invocation. -/
+@[irreducible] def u256AddInPlaceSteps (aPtr bPtr : Word)
+    (aBytes bBytes : List (BitVec 8)) : Nat :=
+  (U256AddBeSAsm.u256AddBeInPlaceFn aPtr bPtr aBytes bBytes).body.steps + 1
+
+/-- `u256_add_be`'s first-operand-aliased (`a0 = a2`) whole-routine triple,
+    lifted into this routine's code surface.  This is the contract retired
+    from orphan status by the fold-back arm below. -/
+private theorem u256AddAInPlaceLifted_spec (ret aPtr bPtr : Word)
+    (aBytes bBytes : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨aPtr, 32⟩) (hroB : Region.wf ⟨bPtr, bBytes⟩)
+    (hlenA : aBytes.length = 32) (hlenB : bBytes.length = 32)
+    (hovA : aPtr.toNat + 32 < 2 ^ 64) (hovB : bPtr.toNat + 32 < 2 ^ 64)
+    (hdisj : bPtr.toNat + 32 ≤ aPtr.toNat ∨ aPtr.toNat + 32 ≤ bPtr.toNat)
+    (hsz : 4 * ((U256AddBeSAsm.u256AddBeInPlaceFn aPtr bPtr aBytes bBytes).body.size
+      + 1) ≤ 2 ^ 64)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (u256AddInPlaceSteps aPtr bPtr aBytes bBytes)
+      (GuestAddrs.u256_add_be : Word) ret secfAddModPCr
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
+        ((.x12 : Reg) ↦ᵣ aPtr) ** regOwns U256BeFlat.addScratch **
+        bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry aBytes bBytes aBytes) **
+        ((.x11 : Reg) ↦ᵣ bPtr) ** ((.x12 : Reg) ↦ᵣ aPtr) **
+        regOwns U256BeFlat.addScratch **
+        bytesRegion aPtr (U256AddBeSAsm.u256AddBeBytes aBytes bBytes aBytes) **
+        bytesRegion bPtr bBytes) := by
+  rw [u256AddInPlaceSteps, ← aInPlaceScratch_eq]
+  exact liftCode (cr' := secfAddModPCr)
+    (U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec ret aPtr bPtr aBytes bBytes
+      hrw hroB hlenA hlenB hovA hovB hdisj hsz halign)
+    (by
+      unfold secfAddModPCr secfReduceOnceCr
+        U256AddBeAInPlaceSAsm.u256AddBeAInPlaceCr
+      code_mem)
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
