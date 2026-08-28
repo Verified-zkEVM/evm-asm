@@ -761,4 +761,79 @@ theorem post_spec (b outPtr balStart vhOffW v5 v11 v12 v29 v30 : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c5
 
+/-! ## §12  Epilogue (idx 25..29)
+
+    `ra`, `s0`, `s1`, `s2` come back and `sp` is popped BEFORE the tail jump, so
+    the core runs on the caller's frame with the caller's return address — which
+    is exactly why the routine's exit is the core's exit. -/
+
+theorem epilogue_spec (sp0 ret v8 v9 v18 vRa vs0 vs1 vs2 : Word)
+    (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 5 (At 25) (At 30) allCode
+      ((((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ vRa) ** ((.x8 : Reg) ↦ᵣ vs0) **
+        ((.x9 : Reg) ↦ᵣ vs1) ** ((.x18 : Reg) ↦ᵣ vs2) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R)
+      ((((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+  -- idx 25: ld ra, 0(sp)
+  have s25 := cpsTripleWithin_extend_code
+    (wMem 25 (.LD .x1 .x2 (0 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (ld_spec_gen_within .x1 .x2 (sp1 sp0) vRa ret (0 : BitVec 12) (At 25) (by decide))
+  rw [At_succ 25, sp1_slot0] at s25
+  have f25 := cpsTripleWithin_frameR
+    (((.x8 : Reg) ↦ᵣ vs0) ** ((.x9 : Reg) ↦ᵣ vs1) ** ((.x18 : Reg) ↦ᵣ vs2) **
+      ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) ** ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+      ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) s25
+  -- idx 26: ld s0, 8(sp)
+  have s26 := cpsTripleWithin_extend_code
+    (wMem 26 (.LD .x8 .x2 (8 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (ld_spec_gen_within .x8 .x2 (sp1 sp0) vs0 v8 (8 : BitVec 12) (At 26) (by decide))
+  rw [At_succ 26, sp1_slot8] at s26
+  have f26 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x9 : Reg) ↦ᵣ vs1) ** ((.x18 : Reg) ↦ᵣ vs2) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+      ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) s26
+  -- idx 27: ld s1, 16(sp)
+  have s27 := cpsTripleWithin_extend_code
+    (wMem 27 (.LD .x9 .x2 (16 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (ld_spec_gen_within .x9 .x2 (sp1 sp0) vs1 v9 (16 : BitVec 12) (At 27) (by decide))
+  rw [At_succ 27, sp1_slot16] at s27
+  have f27 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x18 : Reg) ↦ᵣ vs2) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) s27
+  -- idx 28: ld s2, 24(sp)
+  have s28 := cpsTripleWithin_extend_code
+    (wMem 28 (.LD .x18 .x2 (24 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (ld_spec_gen_within .x18 .x2 (sp1 sp0) vs2 v18 (24 : BitVec 12) (At 28) (by decide))
+  rw [At_succ 28, sp1_slot24] at s28
+  have f28 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** R)
+    (by pcf_b) s28
+  -- idx 29: addi sp, sp, 32
+  have s29 := cpsTripleWithin_extend_code
+    (wMem 29 (.ADDI .x2 .x2 (32 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_same_within .x2 (sp1 sp0) (32 : BitVec 12) (At 29) (by decide))
+  rw [At_succ 29, sp1_restore] at s29
+  have f29 := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+      ((.x18 : Reg) ↦ᵣ v18) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) s29
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f25 f26
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f27
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f28
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c3 f29
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c4
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
