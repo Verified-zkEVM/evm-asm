@@ -113,4 +113,54 @@ theorem operandA_not_in_params :
       bssBase ≠ dataBase + BitVec.ofNat 64 aOff := by
   decide
 
+
+/-! ## A satisfiable instance at the real geometry
+
+    The bundle below is the distributed seam's precondition at P-256's measured
+    layout: the parameter region based at the modulus (`p256_le_p`, i.e. the
+    `.data` base plus `modulusOff`), the operand arena at `p256_le_a`, the block
+    at offset 96 of the parameter region, and the modulus selected FROM the
+    parameter region while `a`, `b`, `c`, `d` come from the arena.
+
+    The byte contents are a witness, not the guest's live data — what is real
+    here is the geometry: two far-apart regions, and a pointer set that
+    straddles them. -/
+
+/-- Parameter region base: the modulus, derived symbolically from the `.data`
+    base rather than transcribed. -/
+abbrev pMulBase : Word := dataBase + BitVec.ofNat 64 modulusOff
+
+/-- 136 bytes: the 32-byte modulus, padding to the block, then the five
+    pointers of `pb_mul_p` — four into the arena, one into this region. -/
+def pMulWs : List (BitVec 8) :=
+  ((1 : BitVec 8) :: List.replicate 95 (0 : BitVec 8))
+    ++ dwordBytes bssBase
+    ++ dwordBytes (bssBase + BitVec.ofNat 64 32)
+    ++ dwordBytes (bssBase + BitVec.ofNat 64 96)
+    ++ dwordBytes pMulBase
+    ++ dwordBytes (bssBase + BitVec.ofNat 64 64)
+
+/-- The 128-byte `.bss` staging arena. -/
+def stageWs : List (BitVec 8) := List.replicate 128 (0 : BitVec 8)
+
+/-- **Full-bundle satisfiability.**  Every premise of
+    `csrs_arith256Mod_distributed_spec_within` that depends on the layout or the
+    region contents, discharged simultaneously at the real bases with
+    `srcA = srcB = srcC = false` and `srcM = true`. -/
+theorem p256_mulParams_bundle_satisfiable :
+    pMulWs.length = 136
+      ∧ stageWs.length = 128
+      ∧ pMulBase.toNat % 8 = 0
+      ∧ bssBase.toNat % 8 = 0
+      ∧ (∀ j, j < 136 → isValidMemAddr (pMulBase + BitVec.ofNat 64 j) = true)
+      ∧ (∀ j, j < 128 → isValidMemAddr (bssBase + BitVec.ofNat 64 j) = true)
+      ∧ SAsm.wsDword pMulWs 96 = bssBase + BitVec.ofNat 64 0
+      ∧ SAsm.wsDword pMulWs 104 = bssBase + BitVec.ofNat 64 32
+      ∧ SAsm.wsDword pMulWs 112 = bssBase + BitVec.ofNat 64 96
+      ∧ SAsm.wsDword pMulWs 120 = pMulBase + BitVec.ofNat 64 0
+      ∧ SAsm.wsDword pMulWs 128 = bssBase + BitVec.ofNat 64 64
+      ∧ SAsm.wsNat256 pMulWs 0 ≠ 0 := by
+  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide,
+    by decide, by decide, by decide, by decide, by decide, by decide⟩
+
 end EvmAsm.Codegen.P256AccelSeamGeometry
