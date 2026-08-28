@@ -2441,7 +2441,17 @@ theorem csrs_arith256Mod_distributed_spec_within
 
     As in the single-window form the operand offsets may alias each other
     freely — only decoded entry values appear in the post — and the parameter
-    region is returned byte-for-byte unchanged. -/
+    region is returned byte-for-byte unchanged.
+
+    ⚠️ SCOPE.  This is the contract for a routine whose parameter block is
+    segregated from **all** of its operands.  No routine in the image has been
+    MEASURED to have that shape: P-256, the case that motivated the two-atom
+    seam at all, does not — its modulus pointer lands in the same `.data`
+    region as the parameter blocks, so it needs
+    `csrs_arith256Mod_distributed_spec_within` instead, of which this is the
+    all-`false` instance.  Carried because it costs one application to state
+    and is the natural shape should a segregated consumer appear; not because
+    one is known to exist. -/
 theorem csrs_arith256Mod_twoAtom_spec_within
     (base : Word) (rs1 : Reg) (hrs1 : Reg.isExposed rs1 = true)
     (pB : Word) (plen : Nat) (pws : List (BitVec 8))
