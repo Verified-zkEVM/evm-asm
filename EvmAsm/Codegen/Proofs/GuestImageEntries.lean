@@ -88,6 +88,7 @@ import EvmAsm.Codegen.Programs.EIP7708Logs
 import EvmAsm.Codegen.Programs.Eip7702Authority
 import EvmAsm.Codegen.Programs.Eip7702NonceReuseGuard
 import EvmAsm.Codegen.Programs.EvmCodes
+import EvmAsm.Codegen.Programs.EvmHashHandlerProg
 import EvmAsm.Codegen.Programs.EvmNonce
 import EvmAsm.Codegen.Programs.EvmOpcodes
 import EvmAsm.Codegen.Programs.EvmOpcodesExtcodecopy
@@ -647,6 +648,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.call_frame_forward_gas, callFrameForwardGas_prog),
   (GuestAddrs.nonstorage_effect_latest_balance, nonstorageEffectLatestBalance_prog),
   (GuestAddrs.nonstorage_effect_latest_nonce, nonstorageEffectLatestNonce_prog),
+  (GuestAddrs.h_KECCAK256, hKeccak256_prog),
   (GuestAddrs.derive_withdrawal_requests, deriveWithdrawalRequests_prog),
   (GuestAddrs.derive_consolidation_requests, deriveConsolidationRequests_prog),
   (GuestAddrs.derive_builder_deposit_requests, deriveBuilderDepositRequests_prog),
@@ -658,6 +660,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 475
+#guard guestImageEntries.length = 476
 
 end EvmAsm.Codegen

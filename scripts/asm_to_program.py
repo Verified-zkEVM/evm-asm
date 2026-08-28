@@ -2245,6 +2245,46 @@ def _program_branch_forms(prog_name):
     return expand(prog_name)
 
 
+def _relaxed_branch_ordinals(asm):
+    """Ordinals of the B constructors that are RELAXED far-branch halves.
+
+    GH #12204: a conditional branch to a cross-function symbol is not one
+    instruction.  GNU-as emits the pair `b<inv> .+8 ; j sym`, so the Program
+    holds a B constructor that has NO local B site in the fixture —
+    ``_local_long_b_sites`` classifies that source line as a relocation and
+    skips it.  Returns the positions of those constructors within the
+    Program's B-constructor sequence, so ``_check_b_geometry`` can drop
+    exactly them before pairing source forms against fixture sites.
+
+    Derived from the converter's own resolution (the RelocTable's `.br`
+    indices), NOT from the shape of the rendered line.  A shape test —
+    "`.+8` immediate followed by a `jalOff` jump" — was tried first and reads
+    TRUE on the hand-written `beq …, .+8 ; jal callee` skip-over-a-call idiom,
+    which more than a dozen existing manifest routines already use (measured:
+    accountDecode, storageReadRecord, eip7702AuthorityAsOf, … each lost a real
+    B site from the census).  Keying on the reloc table cannot confuse the two.
+    """
+    _entry, _entry_addr, out, _ext, relocs = _resolve(asm)
+    br_idx = {idx for (idx, kind, _rg, _sym) in relocs if kind == 'br'}
+    if not br_idx:
+        return set(), 0
+    ordinals = set()
+    b_ordinal = 0
+    flat = 0
+    for (lean, _asml) in out:
+        for j, render in enumerate(lean):
+            if _B_SOURCE_FORM_RE.match(render.strip()):
+                if (flat + j) in br_idx:
+                    ordinals.add(b_ordinal)
+                b_ordinal += 1
+        flat += len(lean)
+    if len(ordinals) != len(br_idx):
+        raise ConvError(
+            f'relaxed-branch census: {len(br_idx)} `.br` reloc(s) but '
+            f'{len(ordinals)} matching B constructor(s) in the rendered Program')
+    return ordinals, b_ordinal
+
+
 def _program_uses_stmt_flatten(prog_name):
     """Whether a Program expression splices a structured Stmt via ``flatten``.
 
@@ -2315,6 +2355,23 @@ def _check_b_geometry(path, fn, asm):
         source_forms = _program_branch_forms(prog + '_of')
     else:
         source_forms = _program_branch_forms(prog)
+
+    # GH #12204: drop the inverted halves of relaxed far branches.  They are B
+    # constructors in the Program whose fixture line is a cross-function
+    # `b<cond> rs, sym` — a relocation, excluded from the local-B census below
+    # — so leaving them in makes the two sides unpairable by construction.
+    try:
+        relaxed_ordinals, rendered_b_count = _relaxed_branch_ordinals(asm)
+    except ConvError:
+        relaxed_ordinals, rendered_b_count = set(), 0
+    if relaxed_ordinals:
+        if len(source_forms) != rendered_b_count:
+            raise ConvError(
+                f'{fn}: source has {len(source_forms)} conditional B '
+                f'constructors, the rendered Program has {rendered_b_count} '
+                f'— cannot locate the relaxed far-branch halves')
+        source_forms = [f for k, f in enumerate(source_forms)
+                        if k not in relaxed_ordinals]
 
     # The converter parser sees all local conditional B instructions, not just
     # the long ones.  Pairing the complete sequence makes duplicate offsets
