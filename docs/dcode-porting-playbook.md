@@ -261,12 +261,17 @@ full day+.  The recipe that worked four times
   `idx k`; the slice/range/bound side conditions close by `decide` after
   an `rfl` equation collapsing `flatten base` to the pinned program —
   works with `base` FREE since plain blocks flatten base-independently).
-  No new Stmt node and no new soundness machinery.  Remaining for the
-  receipt bundle: `append`/`nth`/`append_runtime_result` read the control
-  block AND write the separately-pointed record arena — blocked on a
-  dual-writable-region story (single `RwRegion` today); and
-  `append_runtime_result` tail-jumps INTO `append`, the composition that
-  will consume the shared bundle CodeReq non-trivially.
+  No new Stmt node and no new soundness machinery.  Tranche 2
+  (`ReceiptRecordsAppendSpec.lean`): entries the single-`RwRegion` DCode
+  layer cannot express (control block + separately-pointed record arena)
+  go to the FLAT layer instead — `**`-separated `↦ₘ` cells carry any
+  number of regions; `runBlock` over `@[spec_gen_rv64]` per-instruction
+  specs keeps the grind tractable.  The cross-entry tail jump
+  (`append_runtime_result` → `jal .-108` → `append`) is proven as a
+  plain seq over the shared bundle `CodeReq` — DCode and flat triples
+  COEXIST over one image, which is the bundle pattern's real payoff.
+  Remaining: `receipt_record_nth` (clone of append's read side) and the
+  other two runtime-result input cases.
 - CSRS accelerator splices — survey first.
 - `extract_deposit_data` main body — sp-frame + calls
   (`call`/`callAt`); the leaf callees (`edd_be32_eq`, `edd_memcpy`) are
