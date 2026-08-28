@@ -159,9 +159,14 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
 - ✅ All five entries now emit from Lean instruction lists
   (`emitProgram`, byte-identity assemble+cmp 244 bytes; internal labels
   became numeric offsets).
-- Remaining (mechanical, recorded in #12991): `receipt_record_nth`'s
-  flat triples (clone of append's read side), the two other
-  runtime-result input cases, and the full-arm runtime composition.
+- ✅ **Tranche 3 — #12991 COMPLETE**: `receipt_record_nth` verified in
+  both arms (`receiptRecordNth_spec_within_ok`/`_oob`,
+  `ReceiptRecordNthSpec.lean`) and the two remaining runtime-result
+  input cases proven (`receiptRecordsAppendRuntime_spec_within_noLogs`
+  — `a2 = 0`; `…_reverted` — cursor below checkpoint), each composing
+  into `receipt_records_append` over the shared bundle image.  Every
+  entry of the five-entry bundle now carries a verified triple over
+  `receiptRecordsBundleProg`.
 
 ### Recent (DCode multi-entry bundles — #12991 first consumers, 2026-08-28)
 
