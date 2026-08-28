@@ -58,8 +58,6 @@ jobs:
         run: |
           scripts/check-correspondence-deps.sh --self-test
           scripts/check-correspondence-deps.sh
-      - name: Round-trip coverage fence (every Instr ctor has a #guard)
-        run: scripts/check-roundtrip-coverage.sh
       - name: EEST sampler span check (negative control on the --random guard)
         run: scripts/check-eest-sampler-span.py
       - name: "Guest-ELF override guard (negative control; an ignored override ran the default guest, #10617)"
@@ -231,6 +229,11 @@ jobs:
       # "unknown identifier" in whichever proof happened to need it next.
       - name: Rv64 re-export shims match the riscv-zkvm dependency
         run: python3 scripts/gen-rv64-shims.py --check
+
+      # Moved out of source-checks: `Instr` now lives in the dependency, so this
+      # reads .lake/packages/riscv-zkvm and needs a populated package dir.
+      - name: Round-trip coverage fence (every Instr ctor has a #guard)
+        run: scripts/check-roundtrip-coverage.sh
 
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
