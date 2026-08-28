@@ -137,6 +137,57 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (bundle tranche 2 — append + the cross-entry jump, 2026-08-28)
+
+- ✅ **`receipt_records_append` verified at the FLAT layer** (both arms:
+  `receiptRecordsAppend_spec_within_ok`/`_full`,
+  `ReceiptRecordsAppendSpec.lean`).  The dual-writable-region blocker
+  dissolves there: the control block and the separately-pointed record
+  slot are `**`-separated `↦ₘ` dword cells — no DCode dual-`RwRegion`
+  machinery needed.  Composed from `@[spec_gen_rv64]` per-instruction
+  specs with `runBlock`, branch arms via
+  `cpsBranchWithin_{n,}takenPath`.
+- ✅ **The cross-entry tail-jump composition proven**
+  (`receiptRecordsAppendRuntime_spec_within_committed`):
+  `receipt_records_append_runtime_result`'s committed-logs path
+  normalizes `a5 := a5 - a4`, zeroes `a6`/`a7`, `jal x0, .-108` INTO
+  `receipt_records_append`, and returns from there with the record
+  appended — ONE triple over the ONE shared
+  `CodeReq.ofProg bundleBase receiptRecordsBundleProg` (61 insns, all
+  five entries).  This is #12991's flagship: the shared bundle image
+  makes the jump target's code identity free.
+- ✅ All five entries now emit from Lean instruction lists
+  (`emitProgram`, byte-identity assemble+cmp 244 bytes; internal labels
+  became numeric offsets).
+- ✅ **Tranche 3 — #12991 COMPLETE**: `receipt_record_nth` verified in
+  both arms (`receiptRecordNth_spec_within_ok`/`_oob`,
+  `ReceiptRecordNthSpec.lean`) and the two remaining runtime-result
+  input cases proven (`receiptRecordsAppendRuntime_spec_within_noLogs`
+  — `a2 = 0`; `…_reverted` — cursor below checkpoint), each composing
+  into `receipt_records_append` over the shared bundle image.  Every
+  entry of the five-entry bundle now carries a verified triple over
+  `receiptRecordsBundleProg`.
+
+### Recent (DCode multi-entry bundles — #12991 first consumers, 2026-08-28)
+
+- ✅ **Bundle pattern established** (`ReceiptRecordsSAsm.lean`): the
+  ret-path survey's multi-entry gap needs NO new Stmt node — per-entry
+  DCode derivations plus `CodeReq.ofProg_mono_sub` fed to
+  `DCode.retSpec`'s `hcode` gives each entry a triple over the SHARED
+  bundle image (`rrBundleProg`), side conditions by `decide`.
+- ✅ **`receipt_records_init` / `receipt_records_clear` verified**
+  (first store-writing dword consumers: three/one `sd` into the control
+  block, post = exact byte concatenation via the full-cover splice
+  lemma `rr_bytes3`).  Byte-identical (assemble+cmp, 32 bytes); the
+  `ReceiptRecords.lean` slices are now `emitProgram` of the generated
+  programs, renderings pinned by `#guard`.
+- **Remaining receipt entries blocked, and why** (recorded in #12991):
+  `append`/`nth`/`append_runtime_result` need TWO writable regions
+  (control block + separately-pointed record arena) — the DCode layer
+  owns a single `RwRegion`; `append_runtime_result` additionally
+  tail-jumps into `append` (cross-entry composition over the shared
+  CodeReq — the bundle pattern's next exercise once dual-rw lands).
+
 ### Recent (keccak out0 generalization — #12896, 2026-08-27)
 
 - ✅ **#12896 route 2**: `zkvm_keccak256_spec_within` (and the whole
@@ -894,7 +945,14 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`Evm64/StorageAssertions.lean`, now with `storageSlotIs_eq_flat` +
   `evm_tstore_stack_spec_within` as the first consumer — see "Transient store
   recipe"); `mptNodeIs`/`nodeDbIs` with the
-  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
+  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`) — BOTH halves of
+  the node DB now carry whole-routine machine triples over the linked image:
+  `node_db_lookup_spec_within` (#11800,
+  `Codegen/Programs/NodeDbLookupSpec.lean`) reads the record log, and
+  `node_db_append_grows_db` (#12318,
+  `Codegen/Programs/NodeDbAppendSpec.lean`) establishes the `nodeDbIs` shape
+  that reader consumes, composing the rowed `zkvm_keccak256` and
+  `mset_memcpy` contracts rather than assuming them;
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
   tie (`Evm64/WitnessAssertions.lean`) — now both sides of that pairing, keys
   (`indexOfSection_hashes_eq_build_code_db`) *and* values

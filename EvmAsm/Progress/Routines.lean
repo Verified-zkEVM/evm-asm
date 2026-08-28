@@ -320,6 +320,9 @@ import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
 -- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
 import EvmAsm.Codegen.Programs.NodeDbLookupSpec
+-- #12318 callee-composition lane: the APPEND half of the node DB, composing
+-- `zkvm_keccak256` and `mset_memcpy` (both rowed) through `callWithin_spec`.
+import EvmAsm.Codegen.Programs.NodeDbAppendSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
@@ -373,18 +376,20 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceDivisionBridge
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+-- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
+-- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
+import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
 
 namespace EvmAsm.Progress
 
@@ -2314,10 +2319,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "and the counter `a2` lands at 0. ⚠️ NOT total over its argument types — "
         ++ "eight hypotheses, including 8-BYTE ALIGNMENT of both bases and "
         ++ "`isValidByteAccess` over both windows; these are genuine domain "
-        ++ "restrictions. ⚠️ AND, unlike every other row in this block, no LEAN "
-        ++ "PROOF currently applies this triple (its docstring names an intended "
-        ++ "`selfdestruct_balance_transfer` consumer that does not yet exist), so "
-        ++ "satisfiability is not witnessed by use. NB that is a statement about "
+        ++ "restrictions. ⚠️ THE ROW USED TO SAY no Lean proof applied this "
+        ++ "triple; that is STALE as of #12318 — `node_db_append_spec_within` "
+        ++ "(`Codegen/Programs/NodeDbAppendSpec.lean`) composes it for the "
+        ++ "record payload copy, so satisfiability is now witnessed by USE as "
+        ++ "well. The intended `selfdestruct_balance_transfer` consumer named "
+        ++ "in the docstring still does not exist. NB the original caveat was "
+        ++ "a statement about "
         ++ "the triple, NOT about the routine: the machine code IS reached — "
         ++ "`check-rowed-liveness` counts this symbol among the called — so this is "
         ++ "an unused CONTRACT, not dead code. Satisfiability is witnessed "
@@ -4009,6 +4017,73 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`tx_signing_hash_spec_within`) are both rowed; residual "
         ++ "retirement is wrapper re-point onto that triple. Retirement: "
         ++ "`txSigningHashResidualNote`"),
+  -- #12318 callee-composition lane. The APPEND half of the node DB, and the
+  -- statement the `node_db_lookup` row below names as "⚠️ NOT established
+  -- here": that `node_db_append` establishes the `nodeDbIs` shape that triple
+  -- consumes. Graded `.proven`, not `.conditional`: every hypothesis is
+  -- resource/ABI framing (lengths, 8-alignment, in-bounds, no-wrap, valid byte
+  -- access, even return address, the `len = 136*N + rem` partition), and BOTH
+  -- callee contracts are COMPOSED rather than assumed -- `zkvm_keccak256` and
+  -- `mset_memcpy` are `.proven` and ungated, so nothing is inherited.
+  -- ⚠️ ONE hypothesis is content-shaped and is called out in the notes: the
+  -- payload slot's PAD bytes must already be zero. That is the append arena's
+  -- invariant (`mset_db_data` is a `.zero` slab and `*mset_db_top` only
+  -- advances), not an input-domain restriction on the node -- it constrains
+  -- ambient memory the caller owns, and the negative control
+  -- `nodeDbAppend_pad_zero_bites` shows it excludes states rather than holding
+  -- everywhere.
+  routine "node_db_append" .proven (some "node_db_append_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (1 + 4 + ndaBodySteps N rem "
+        ++ "|node| + 4 + 1 + 1)` at `GuestAddrs.node_db_append` over "
+        ++ "`ndaFullCode = ndaCr.union (ndaKeccakCode.union ndaMemcpyCode)`, "
+        ++ "where `ndaCr = CodeReq.ofProg (GuestAddrs.node_db_append) "
+        ++ "nodeDbAppend_prog` IS the `GuestImageEntries` pairing; the other "
+        ++ "two components are the `GuestImageEntries` pairings of "
+        ++ "`zkvm_keccak256` and `mset_memcpy`, so all three are image claims "
+        ++ "and the union is an image claim too. The union is REQUIRED, not a "
+        ++ "convenience: the routine's two `jal`s really do execute those "
+        ++ "images and `callWithin_spec` needs them fetchable from one "
+        ++ "`CodeReq`. ⭐ BOTH CALLEES ARE COMPOSED, NOT ASSUMED: the proof "
+        ++ "consumes `zkvm_keccak256_spec_within` and `mset_memcpy_spec_within` "
+        ++ "-- the second is the first Lean proof to APPLY the `mset_memcpy` "
+        ++ "triple, retiring that row's `no LEAN PROOF currently applies this "
+        ++ "triple` caveat. `abiFrame_spec_own` discharges the 32-byte "
+        ++ "prologue/epilogue via `nodeDbAppend_prog_eq_abiFrame` (`rfl`, a "
+        ++ "byte-level drift guard). Post: the record window at `*mset_db_top` "
+        ++ "holds `keccak256(node) ++ natToBytesLE 8 |node|` in its first 40 "
+        ++ "bytes and `copyIntoRegion` of the node in its payload, "
+        ++ "`*mset_db_top` advances by exactly `((|node|+7) &&& ~7) + 40` and "
+        ++ "`*mset_db_count` by one. The digest is `SpecRef.keccak256`, NOT "
+        ++ "the guest sponge model (`keccakBodyDigest_eq_specref` bridges it). "
+        ++ "`node_db_append_grows_db` restates the same triple in the "
+        ++ "`MptAssertions` vocabulary: `nodeDbIs dbBase nodes` becomes "
+        ++ "`nodeDbIs dbBase (nodes ++ [node])` with the new record landing at "
+        ++ "`dbBase + nodeDbSize nodes` (`nodeDbIs_snoc`) and the earlier "
+        ++ "records untouched, plus `nodeDbTopIs`/`nodeDbCountIs` at the "
+        ++ "extended log -- which is exactly the shape "
+        ++ "`node_db_lookup_spec_within` consumes. ⚠️ NOT COVERED: no capacity "
+        ++ "guard (the routine has none -- see the `sd13v safety boundary` "
+        ++ "note on `nodeDbAppend_prog`; the caller must supply an unused "
+        ++ "`40 + roundUp8 |node|` window), and the payload slot's PAD BYTES "
+        ++ "must already be zero (`hdst0pad`), which is the arena invariant "
+        ++ "rather than something the routine establishes -- it writes "
+        ++ "`|node|` bytes and leaves the rest. Nothing is claimed about WHICH "
+        ++ "node the caller passes. Non-vacuity is a matched set: "
+        ++ "`nodeDbAppend_precondition_reachable` (a nonempty 4-byte node at "
+        ++ "an aligned RAM base satisfies the input-dependent conjuncts), the "
+        ++ "CLOSED instantiation `node_db_append_sample_witness` (empty DB "
+        ++ "gains its first record; every data hypothesis by `decide` at "
+        ++ "numeric addresses), and THREE negative controls -- "
+        ++ "`nodeDbAppend_align_bites` (8-alignment), "
+        ++ "`nodeDbAppend_validity_negative_control` (byte validity) and "
+        ++ "`nodeDbAppend_pad_zero_bites` (the pad-zero premise). ⭐ That the "
+        ++ "published node-DB view IS the one the reader requires is PINNED, "
+        ++ "not asserted: `lookup_db_view_eq` (`rfl`) equates "
+        ++ "`nodeDbCountIs ndaCntLoc ** nodeDbIs mset_db_data` with "
+        ++ "`NodeDbLookupSpec`'s `cntLoc ↦ₘ … ** nodeDbIs dbBase`, so a drift "
+        ++ "in either side's log base or count cell stops the build. Lives in "
+        ++ "`Codegen/Programs/NodeDbAppendSpec.lean` (+ the straight-line "
+        ++ "blocks in `Codegen/Programs/NodeDbAppendBlocks.lean`)"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
   -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
@@ -4042,9 +4117,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "the length of the node `witness_state.py`'s `node_db` maps the hash "
         ++ "to. Non-vacuity is a COMPILED instantiation, "
         ++ "`node_db_lookup_sample_witness`: a closed one-record DB whose post "
-        ++ "is reduced to the HIT arm. ⚠️ NOT established here: that "
-        ++ "`node_db_append` establishes the `nodeDbIs` shape this triple "
-        ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
+        ++ "is reduced to the HIT arm. ⚠️ THE APPEND HALF IS NO LONGER OPEN: "
+        ++ "as of #12318 `node_db_append_grows_db` establishes the `nodeDbIs` "
+        ++ "shape this triple consumes, and `lookup_db_view_eq` pins that the "
+        ++ "two sides agree on the log base and the count cell by `rfl`. Still "
+        ++ "NOT established here: `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
         ++ "derived from the link map"),
   -- #12036. `witness_lookup_by_hash` (155 insn) at
@@ -4189,7 +4266,57 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`block_access_lists.py:696`). ⚠️ No Correspondence row is added: "
         ++ "this arm ties to no spec-side VALUE, only to the absence of a "
         ++ "record, so a correspondence verdict would overstate it. Lives in "
-        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`")
+        ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`"),
+  -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
+  -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
+  -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
+  -- `guestImageEntries` pairing for this symbol and no `eip8037TxStateGasFunction` row
+  -- in scripts/asm-fixtures/MANIFEST.tsv". Both are present in the tree today:
+  -- `guestImageEntries` carries `(GuestAddrs.eip8037_tx_state_gas,
+  -- eip8037TxStateGas_prog)` and MANIFEST.tsv carries `eip8037TxStateGasFunction`
+  -- (cross-checked by `scripts/check-manifest-guestimage.py`, exactly as the entry
+  -- asked for). So the exemption had outlived its reason and is deleted with this row.
+  -- ⚠️ Unlike the entry `mset_memcpy`'s row refutes, this one was TRUE WHEN WRITTEN:
+  -- `git log -S` dates the reason to 2026-08-17, the `guestImageEntries` pairing to
+  -- 2026-08-25 ("pilot-register two linked jaloff callees") and the MANIFEST row to
+  -- 2026-08-26 ("ratchet oracle coverage gates"). That is a SECOND way an exemption
+  -- goes stale — not a false claim, but a true claim the linking ledgers later
+  -- satisfied — and only re-reading BOTH halves (shape and code identity) catches it.
+  routine "eip8037_tx_state_gas" .proven (some "eip8037TxStateGas_spec_within")
+      (notes := "whole-routine `cpsTripleWithin 4` at `P = BitVec.ofNat 64 "
+        ++ "GuestAddrs.eip8037_tx_state_gas` over `etsCode = CodeReq.ofProg P "
+        ++ "eip8037TxStateGas_prog` — byte-for-byte the `GuestImageEntries` pairing "
+        ++ "`(GuestAddrs.eip8037_tx_state_gas, eip8037TxStateGas_prog)`, so this IS "
+        ++ "the image claim, and entry AND CodeReq are both at the anchor "
+        ++ "(whole-routine in the `proof-frontier.py --shape` sense). EXTENT: "
+        ++ "`ets_length` pins `eip8037TxStateGas_prog.length = 4`, and "
+        ++ "`scripts/asm-fixtures/symbol-addresses.tsv` places this symbol "
+        ++ "immediately below `tx_intrinsic_state_gas`, whose address is 0x10 higher "
+        ++ "— `prog.length * 4 = hi - lo`, so the proved program spans the whole "
+        ++ "linked symbol with nothing left over. WHAT IS COVERED: the post is "
+        ++ "COMPLETE and deterministic, not existential — `*outPtr := a0 + a1` at the "
+        ++ "pointer held in `x15`, `t0 := a0 + a1`, `a0 := 0` (the success status "
+        ++ "`tx_intrinsic_state_gas` propagates), with `x1`, `x11`-`x14`, `x15` and "
+        ++ "`x0` all pinned unchanged, exiting at `ra &&& ~~~1`. ⭐ TOTAL over its "
+        ++ "argument types: the sole hypothesis is an aligned return address "
+        ++ "(`hret`), the ordinary ABI obligation — there is NO alignment, "
+        ++ "`isValidByteAccess` or non-overlap side condition on `outPtr`, and "
+        ++ "`a0`/`a1` range over all of `Word`. ⚠️ WHAT IS NOT COVERED. (1) The sum is "
+        ++ "64-bit BITVECTOR addition: the triple asserts `a0 + a1` wrapped, and "
+        ++ "claims NO overflow gate — a caller wanting a mathematical sum must "
+        ++ "supply the bound itself. (2) No spec-side tie: nothing here connects the "
+        ++ "written word to the EIP-8037 state-gas quantity, and no "
+        ++ "`Progress/Correspondence.lean` row is added, because the routine is pure "
+        ++ "register/memory arithmetic and a verdict would overstate it. (3) `a2`-`a4` "
+        ++ "are carried as PRESERVED registers only — they are retired v0.5 ABI slots "
+        ++ "the body ignores, and the triple says nothing about what a caller means by "
+        ++ "them. (4) The callers are out of scope: "
+        ++ "`block_verdict_eip8037_tx_state_gas_net_array` reaches this leaf by a `JAL "
+        ++ "ra` relocation and `tx_intrinsic_state_gas` by the union code map, but "
+        ++ "neither call site is proved here. Satisfiability is witnessed by use: the "
+        ++ "specialization `eip8037TxStateGas_zero_out_spec_within` (`a0 = a1 = 0`, "
+        ++ "hence `*out = 0`) is the form `tx_intrinsic_state_gas`'s success path "
+        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
 ]
 
 /-! ## Counts (kernel-checked) -/
@@ -4206,10 +4333,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 206 := by decide
+theorem routineCount_eq : routineCount = 208 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
 set_option maxRecDepth 16000 in
@@ -4229,7 +4356,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 168 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 170 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5677,6 +5804,25 @@ private noncomputable abbrev _eip7702_auth_signing_hash_preimage_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 private noncomputable abbrev _eip7702_auth_signing_hash_decodes_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
+-- #12318 node-DB APPEND half: the whole-routine triple, its node-DB-vocabulary
+-- restatement, the closed non-vacuity instantiation, the reachability witness
+-- and the three negative controls.
+private noncomputable abbrev _node_db_append_routine_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_spec_within
+private noncomputable abbrev _node_db_append_grows_db_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_grows_db
+private noncomputable abbrev _node_db_append_sample_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_sample_witness
+private noncomputable abbrev _node_db_append_reachable_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_precondition_reachable
+private noncomputable abbrev _node_db_append_align_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
+private noncomputable abbrev _node_db_append_validity_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
+private noncomputable abbrev _node_db_append_pad_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
+private noncomputable abbrev _node_db_append_handoff_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.lookup_db_view_eq
 -- #11800 node-DB half: whole-routine `node_db_lookup` triple, its compiled
 -- non-vacuity instance, and the composition to `SpecRef.build_node_db`.
 private noncomputable abbrev _node_db_lookup_routine_witness :=
@@ -5759,5 +5905,25 @@ private noncomputable abbrev _p256_is_zero_n_routine_witness :=
 -- #12222: the BAL read-half producer's suppressed arm.
 private noncomputable abbrev _account_read_record_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
+
+-- #12851: the machine restoring-division fold is tied to the pure K70 model.
+-- The signed-zero and complementary-comparison representation changes are
+-- discharged inside the bridge; these four witnesses keep the recursive tie
+-- visible to the axiom gate without claiming a whole-routine contract.
+private noncomputable abbrev _amsterdam_divst_bit_run_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
+private noncomputable abbrev _amsterdam_divst_limb_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstLimbFrom_eq_divLimbFrom
+private noncomputable abbrev _amsterdam_divst_384_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
+private noncomputable abbrev _amsterdam_divst_six_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+
+-- #12244: the Amsterdam per-tx state-gas leaf. ⚠️ Cites the FULL
+-- `eip8037TxStateGas_spec_within`, not the `a0 = a1 = 0` specialization
+-- `eip8037TxStateGas_zero_out_spec_within` that `tx_intrinsic_state_gas` consumes —
+-- the specialization is a corollary and is the weaker claim.
+private noncomputable abbrev _eip8037_tx_state_gas_routine_witness :=
+  @EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
 
 end EvmAsm.Progress

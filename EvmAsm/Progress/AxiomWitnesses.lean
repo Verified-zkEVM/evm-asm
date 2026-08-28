@@ -126,6 +126,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.price_setup_spec
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstLimbFrom_eq_divLimbFrom
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
@@ -305,6 +313,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
 
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 
@@ -547,6 +557,22 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.hit_site_entryState_exists
 
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.lookup_db_view_eq
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_precondition_reachable
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_grows_db
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_sample_witness
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_spec_within
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 

@@ -49,7 +49,7 @@
   has. Discharging it is what moves the registry row to `.bridged`.
 -/
 
-import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
 import EvmAsm.Rv64.RLP.WalkDecodeBridge
 
 namespace EvmAsm.Codegen.RlpListCountItemsBridge
