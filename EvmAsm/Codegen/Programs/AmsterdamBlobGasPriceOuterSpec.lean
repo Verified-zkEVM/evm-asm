@@ -15,6 +15,7 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen
 open EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14TerminalSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPrice
 open EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie
@@ -201,6 +202,92 @@ theorem tailOutputBytes_decode_kat :
     (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 32) ↦ₘ q4) **
     (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 40) ↦ₘ q5) ** FR
 
+/- The linked status-1 tail post also owns x0, but the outer exit-divide
+   adapter needs that cell factored uniformly out of both tail exits.  Keep
+   the rest as the exact emitted post, with only the x0 atom removed. -/
+@[reducible] private def tailStatus1NoX0
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (1 : Word)) **
+    (((.x5 ↦ᵣ (q4 ||| q5)) ** ⌜(q4 ||| q5) ≠ (0 : Word)⌝) **
+      ((((newSp + signExtend12 (160 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ q4) **
+       (((newSp + signExtend12 (160 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ q5) **
+       (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ (vals .x1)) **
+       (.x11 ↦ᵣ outPtr) ** (.x8 ↦ᵣ excess) **
+       (.x9 ↦ᵣ taylorDW) ** (.x18 ↦ᵣ v18) **
+       (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
+       (.x21 ↦ᵣ outPtr) **
+       (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+       (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+       (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+       (.x31 ↦ᵣ v31) ** (.x6 ↦ᵣ q5) **
+       frameSlotsSaved priceFrame newSp vals **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+       (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+       (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+       (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 0) ↦ₘ q0) **
+       (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 8) ↦ₘ q1) **
+       (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 16) ↦ₘ q2) **
+       (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 24) ↦ₘ q3) **
+       ((outPtr + BitVec.ofNat 64 0) ↦ₘ o0) **
+       ((outPtr + BitVec.ofNat 64 8) ↦ₘ o1) **
+       ((outPtr + BitVec.ofNat 64 16) ↦ₘ o2) **
+       ((outPtr + BitVec.ofNat 64 24) ↦ₘ o3) ** FR))
+
+@[reducible] private def tailStatus0RestNoX0
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  (.x10 ↦ᵣ (0 : Word)) **
+    (.x21 ↦ᵣ outPtr) **
+    (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+    (.x7 ↦ᵣ ((extractByte q0 0).zeroExtend 64)) **
+    (.x28 ↦ᵣ (outPtr + BitVec.ofNat 64 31)) **
+    (.x29 ↦ᵣ (32 : Word)) **
+    (.x30 ↦ᵣ BitVec.ofNat 64 32) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 0) ↦ₘ q0) **
+    (.x2 ↦ᵣ newSp) **
+    (.x1 ↦ᵣ (vals .x1)) **
+    (.x11 ↦ᵣ outPtr) **
+    (.x8 ↦ᵣ excess) **
+    (.x9 ↦ᵣ taylorDW) **
+    (.x18 ↦ᵣ v18) **
+    (.x19 ↦ᵣ v19) **
+    (.x20 ↦ᵣ v20) **
+    (.x31 ↦ᵣ v31) **
+    (.x5 ↦ᵣ (q4 ||| q5)) **
+    (.x6 ↦ᵣ q5) **
+    frameSlotsSaved priceFrame newSp vals **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ a0) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ a1) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ a2) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ a3) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ a4) **
+    (((newSp + signExtend12 (64 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ a5) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (0 : BitVec 12)) ↦ₘ p0) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (8 : BitVec 12)) ↦ₘ p1) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (16 : BitVec 12)) ↦ₘ p2) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (24 : BitVec 12)) ↦ₘ p3) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (32 : BitVec 12)) ↦ₘ p4) **
+    (((newSp + signExtend12 (112 : BitVec 12)) + signExtend12 (40 : BitVec 12)) ↦ₘ p5) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 8) ↦ₘ q1) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 16) ↦ₘ q2) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 24) ↦ₘ q3) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 32) ↦ₘ q4) **
+    (((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 40) ↦ₘ q5) ** FR
+
 @[reducible] private def tailStatus0Cells
     (outPtr q0 q1 q2 q3 o0 o1 o2 o3 : Word) : Assertion :=
   ((outPtr + BitVec.ofNat 64 0) ↦ₘ tailOutputFullReplaceBE o0 q3) **
@@ -255,6 +342,15 @@ theorem tailOutputBytes_decode_kat :
     a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
     bytesRegion outPtr (tailOutputBytes q0 q1 q2 q3)
 
+@[reducible] private def tailStatus0BytesNoX0
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
+    (FR : Assertion) : Assertion :=
+  tailStatus0RestNoX0 newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
+    bytesRegion outPtr (tailOutputBytes q0 q1 q2 q3)
+
 theorem tailStatus0Cells_to_bytes
     (newSp excess outPtr : Word) (vals : Reg → Word)
     (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
@@ -302,6 +398,23 @@ private theorem cpsNBranchWithin_weaken_second_same_pc
   rcases hex with h1 | h2
   · subst ex
     exact ⟨(pc, Q1), by simp, rfl, fun _ hs => hs⟩
+  · rcases h2 with h2 | hnil
+    · subst ex
+      exact ⟨(pc, Q0'), by simp, rfl, hQ0⟩
+    · simp at hnil
+
+private theorem cpsNBranchWithin_weaken_two_same_pc
+    {n : Nat} {entry pc : Word} {cr : CodeReq} {P Q1 Q0 Q1' Q0' : Assertion}
+    (h : cpsNBranchWithin n entry cr P [(pc, Q1), (pc, Q0)])
+    (hQ1 : ∀ h, Q1 h → Q1' h)
+    (hQ0 : ∀ h, Q0 h → Q0' h) :
+    cpsNBranchWithin n entry cr P [(pc, Q1'), (pc, Q0')] := by
+  apply cpsNBranchWithin_weaken_posts h
+  intro ex hex
+  simp only [List.mem_cons] at hex
+  rcases hex with h1 | h2
+  · subst ex
+    exact ⟨(pc, Q1'), by simp, rfl, hQ1⟩
   · rcases h2 with h2 | hnil
     · subst ex
       exact ⟨(pc, Q0'), by simp, rfl, hQ0⟩
@@ -400,6 +513,51 @@ theorem tail_core_status0_source_of_tail_core
     p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR
     (hTail := hTail)
   exact ⟨_, hAdapt⟩
+
+/- The outer exit-divide continuation appends x0 to every chosen exit.  The
+   linked tail already owns x0 in both posts, so expose the same resource once
+   and only once by changing the two posts to their no-x0 forms. -/
+theorem tail_core_status0_source_of_tail_core_x0_split
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+      p0 p1 p2 p3 p4 p5 : Word)
+    (v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (tailCorePre newSp excess outPtr vals q0 q1 q2 q3 q4 q5
+        o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+        v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR)
+      [(PriceK + 968,
+        tailStatus1NoX0 newSp excess outPtr vals
+          q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+          p0 p1 p2 p3 p4 p5 v7 v18 v19 v20 v28 v29 v30 v31 FR **
+          (.x0 ↦ᵣ (0 : Word))),
+       (PriceK + 968,
+        tailStatus0BytesNoX0 newSp excess outPtr vals
+          q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
+          p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
+          (.x0 ↦ᵣ (0 : Word)))] := by
+  have hTail := EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_core
+    newSp excess outPtr vals
+    q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
+    p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
+  apply cpsNBranchWithin_weaken_two_same_pc hTail
+  · intro h hp
+    simp only [tailStatus1NoX0]
+    xperm_hyp hp
+  · intro h hp
+    unfold tailStatus0BytesNoX0
+    rw [← tailOutputCells_eq_bytesRegion outPtr q0 q1 q2 q3 o3 o2 o1 o0]
+    simp only [tailStatus0RestNoX0, tailOutputFullReplaceBE]
+    xperm_hyp hp
 
 /- The library currently provides the N-branch bulk adapter for nine
    registers.  K70's round owns exactly these seven registers, so keep the
@@ -809,9 +967,334 @@ theorem taylor_round_terminal_496_from_parity_exitdiv
   have hAll := nb_extend_head_same_cr hRound hZero
   simpa [AB, PB, FR0] using hAll
 
+/- The concrete tail inputs produced by `exitdiv` are exactly a `tailCorePre`
+   instance.  Keep this bridge separate from the round composition: it is the
+   point where the synthetic tail theorem is replaced by the linked
+   `tail_core` result, while preserving the explicit x0 factor needed by the
+   exit-divide continuation. -/
+theorem exitdiv_tail_core_x0_split
+    (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (o0 o1 o2 o3 v19 v20 : Word) (FR : Assertion)
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (hFR : FR.pcFree) :
+    cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr iVal vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 o0 o1 o2 o3 v19 v20 FR)
+      [(PriceK + 968,
+        tailStatus1NoX0 newSp excess outPtr vals
+          (exitdivQ0 s0 s1 s2 s3 s4 s5)
+          (exitdivQ1 s0 s1 s2 s3 s4 s5)
+          (exitdivQ2 s0 s1 s2 s3 s4 s5)
+          (exitdivQ3 s0 s1 s2 s3 s4 s5)
+          (exitdivQ4 s0 s1 s2 s3 s4 s5)
+          (exitdivQ5 s0 s1 s2 s3 s4 s5)
+          o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          (exitdivZ0 s0 s1 s2 s3 s4 s5).2.1 iVal v19 v20
+          (exitdivQ0 s0 s1 s2 s3 s4 s5) (0 : Word)
+          (((newSp + signExtend12 (160 : BitVec 12)) + signExtend12 (0 : BitVec 12)) +
+            signExtend12 (-8 : BitVec 12)) (lcnt 5 + signExtend12 (-1 : BitVec 12)) FR **
+          (.x0 ↦ᵣ (0 : Word))),
+       (PriceK + 968,
+        tailStatus0BytesNoX0 newSp excess outPtr vals
+          (exitdivQ0 s0 s1 s2 s3 s4 s5)
+          (exitdivQ1 s0 s1 s2 s3 s4 s5)
+          (exitdivQ2 s0 s1 s2 s3 s4 s5)
+          (exitdivQ3 s0 s1 s2 s3 s4 s5)
+          (exitdivQ4 s0 s1 s2 s3 s4 s5)
+          (exitdivQ5 s0 s1 s2 s3 s4 s5)
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 iVal v19 v20
+          (lcnt 5 + signExtend12 (-1 : BitVec 12)) FR **
+          (.x0 ↦ᵣ (0 : Word)))] := by
+  have hCore := tail_core_status0_source_of_tail_core_x0_split
+    newSp excess outPtr vals
+    (exitdivQ0 s0 s1 s2 s3 s4 s5)
+    (exitdivQ1 s0 s1 s2 s3 s4 s5)
+    (exitdivQ2 s0 s1 s2 s3 s4 s5)
+    (exitdivQ3 s0 s1 s2 s3 s4 s5)
+    (exitdivQ4 s0 s1 s2 s3 s4 s5)
+    (exitdivQ5 s0 s1 s2 s3 s4 s5)
+    o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    taylorDW (exitdivZ0 s0 s1 s2 s3 s4 s5).1
+    (exitdivZ0 s0 s1 s2 s3 s4 s5).2.1 iVal v19 v20
+    (exitdivQ0 s0 s1 s2 s3 s4 s5) (0 : Word)
+    (((newSp + signExtend12 (160 : BitVec 12)) + signExtend12 (0 : BitVec 12)) +
+      signExtend12 (-8 : BitVec 12)) (lcnt 5 + signExtend12 (-1 : BitVec 12))
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
+  simpa only [exitdivTailPre] using hCore
+
+/- Consume the linked tail at the terminal-index round.  The existential is
+   only the list-level packaging needed by the preceding parity adapter; its
+   two members are fixed below to the status-1 and status-0 posts produced by
+   the actual `tail_core` theorem, not an arbitrary continuation premise. -/
+theorem taylor_round_terminal_496_from_parity_exitdiv_tail_core
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hFR : FR.pcFree) (hFRx0 : x0FreeAssertion FR)
+    (hAB : parityBuffer 495 evenBase oddBase =
+      newSp + signExtend12 (64 : BitVec 12))
+    (hPB : parityBuffer 495 oddBase evenBase =
+      newSp + signExtend12 (112 : BitVec 12))
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true) :
+    ∃ exits : List (Word × Assertion),
+      cpsNBranchWithin (17 + 4183) (PriceK + 144) priceCode
+        (taylorLoopInvParityAt newSp excess outPtr vals 495 (496 : Word)
+          evenBase oddBase [a0, a1, a2, a3, a4, a5]
+          [p0, p1, p2, p3, p4, p5] [s0, s1, s2, s3, s4, s5]
+          (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))
+        (exits ++
+          [(PriceK + 968,
+            terminalStatus1Any newSp excess outPtr (496 : Word)
+              (parityBuffer 495 evenBase oddBase)
+              (parityBuffer 495 oddBase evenBase) vals
+              (roundAccum a0 a1 a2 a3 a4 a5)
+              a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+              s2 s3 s4 s5 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))]) := by
+  let AB := parityBuffer 495 evenBase oddBase
+  let PB := parityBuffer 495 oddBase evenBase
+  let Q1 : Assertion :=
+    tailStatus1NoX0 newSp excess outPtr vals
+      (exitdivQ0 s0 s1 s2 s3 s4 s5)
+      (exitdivQ1 s0 s1 s2 s3 s4 s5)
+      (exitdivQ2 s0 s1 s2 s3 s4 s5)
+      (exitdivQ3 s0 s1 s2 s3 s4 s5)
+      (exitdivQ4 s0 s1 s2 s3 s4 s5)
+      (exitdivQ5 s0 s1 s2 s3 s4 s5)
+      o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+      (exitdivZ0 s0 s1 s2 s3 s4 s5).2.1 (496 : Word) AB PB
+      (exitdivQ0 s0 s1 s2 s3 s4 s5) (0 : Word)
+      (((newSp + signExtend12 (160 : BitVec 12)) + signExtend12 (0 : BitVec 12)) +
+        signExtend12 (-8 : BitVec 12)) (lcnt 5 + signExtend12 (-1 : BitVec 12)) FR
+  let Q0 : Assertion :=
+    tailStatus0BytesNoX0 newSp excess outPtr vals
+      (exitdivQ0 s0 s1 s2 s3 s4 s5)
+      (exitdivQ1 s0 s1 s2 s3 s4 s5)
+      (exitdivQ2 s0 s1 s2 s3 s4 s5)
+      (exitdivQ3 s0 s1 s2 s3 s4 s5)
+      (exitdivQ4 s0 s1 s2 s3 s4 s5)
+      (exitdivQ5 s0 s1 s2 s3 s4 s5)
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+      (496 : Word) AB PB
+      (lcnt 5 + signExtend12 (-1 : BitVec 12)) FR
+  let exits : List (Word × Assertion) :=
+    [(PriceK + 968, Q1), (PriceK + 968, Q0)]
+  have hTail0 := exitdiv_tail_core_x0_split
+    newSp excess outPtr (496 : Word) vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    o0 o1 o2 o3 AB PB FR
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid hFR
+  have hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr (496 : Word) vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 o0 o1 o2 o3 AB PB FR)
+      (exits.map (fun ex => (ex.1, ex.2 ** regIs .x0 (0 : Word)))) := by
+    simpa [AB, PB, Q1, Q0, exits] using hTail0
+  have hOut := taylor_round_terminal_496_from_parity_exitdiv
+    newSp excess outPtr vals evenBase oddBase
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+    s2 s3 s4 s5 o0 o1 o2 o3 FR hFR hFRx0 hAB hPB hTail
+  exact ⟨exits, hOut⟩
+
+/- The terminal adapter's entry is not accepted merely because its CPS type
+   elaborates.  Exhibit one joint heap for the actual parity invariant, with
+   all three six-word buffers and the saved frame cells nonempty.  In
+   particular, the scratch `regOwn` atoms are supplied once each and `x0` is
+   absent, matching the x0-free continuation interface above. -/
+private inductive terminalWitnessResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private inductive terminalWitnessAtom where
+  | regVal (r : Reg) (v : Word)
+  | regOwn (r : Reg)
+  | memVal (a : Word) (v : Word) (valid : isValidDwordAccess a = true)
+  deriving DecidableEq
+
+private def terminalWitnessAtomResource : terminalWitnessAtom → terminalWitnessResource
+  | .regVal r _ => .reg r
+  | .regOwn r => .reg r
+  | .memVal a _ _ => .mem a
+
+private def terminalWitnessAtomAssertion : terminalWitnessAtom → Assertion
+  | .regVal r v => r ↦ᵣ v
+  | .regOwn r => regOwn r
+  | .memVal a v _ => a ↦ₘ v
+
+private def terminalWitnessAtomHeap : terminalWitnessAtom → PartialState
+  | .regVal r v => PartialState.singletonReg r v
+  | .regOwn r => PartialState.singletonReg r 0
+  | .memVal a v _ => PartialState.singletonMem a v
+
+private theorem terminalWitnessSingletonReg_disjoint
+    {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem terminalWitnessSingletonMem_disjoint
+    {a1 a2 : Word} {v1 v2 : Word} (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem terminalWitnessReg_mem_disjoint
+    {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) := by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem terminalWitnessMem_reg_disjoint
+    {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  terminalWitnessReg_mem_disjoint.symm
+
+private theorem terminalWitnessAtomHeap_disjoint_of_resource_ne
+    {x y : terminalWitnessAtom}
+    (h : terminalWitnessAtomResource x ≠ terminalWitnessAtomResource y) :
+    (terminalWitnessAtomHeap x).Disjoint (terminalWitnessAtomHeap y) := by
+  cases x <;> cases y
+  · apply terminalWitnessSingletonReg_disjoint
+    simpa [terminalWitnessAtomResource] using h
+  · apply terminalWitnessSingletonReg_disjoint
+    simpa [terminalWitnessAtomResource] using h
+  · exact terminalWitnessReg_mem_disjoint
+  · apply terminalWitnessSingletonReg_disjoint
+    simpa [terminalWitnessAtomResource] using h
+  · apply terminalWitnessSingletonReg_disjoint
+    simpa [terminalWitnessAtomResource] using h
+  · exact terminalWitnessReg_mem_disjoint
+  · exact terminalWitnessMem_reg_disjoint
+  · exact terminalWitnessMem_reg_disjoint
+  · apply terminalWitnessSingletonMem_disjoint
+    simpa [terminalWitnessAtomResource] using h
+
+private def terminalWitnessAtoms : List terminalWitnessAtom :=
+  [ .regVal .x2 roundWitnessSp
+  , .regVal .x1 0
+  , .regVal .x10 0
+  , .regVal .x11 roundWitnessOut
+  , .regVal .x8 0
+  , .regVal .x9 taylorDW
+  , .regVal .x18 496
+  , .regVal .x19 roundWitnessAB
+  , .regVal .x20 roundWitnessPB
+  , .regVal .x21 roundWitnessOut
+  , .regVal .x22 roundWitnessSum
+  , .memVal (roundWitnessSp + signExtend12 (0 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (8 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (16 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (24 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (32 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (40 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (48 : BitVec 12)) 0 (by decide)
+  , .memVal (roundWitnessSp + signExtend12 (56 : BitVec 12)) 0 (by decide)
+  , .regOwn .x5, .regOwn .x6, .regOwn .x7
+  , .regOwn .x28, .regOwn .x29, .regOwn .x30, .regOwn .x31
+  , .memVal roundWitnessAB 0 (by decide)
+  , .memVal (roundWitnessAB + (8 : Word)) 0 (by decide)
+  , .memVal (roundWitnessAB + (16 : Word)) 0 (by decide)
+  , .memVal (roundWitnessAB + (24 : Word)) 0 (by decide)
+  , .memVal (roundWitnessAB + (32 : Word)) 0 (by decide)
+  , .memVal (roundWitnessAB + (40 : Word)) 0 (by decide)
+  , .memVal roundWitnessPB 0 (by decide)
+  , .memVal (roundWitnessPB + (8 : Word)) 0 (by decide)
+  , .memVal (roundWitnessPB + (16 : Word)) 0 (by decide)
+  , .memVal (roundWitnessPB + (24 : Word)) 0 (by decide)
+  , .memVal (roundWitnessPB + (32 : Word)) 0 (by decide)
+  , .memVal (roundWitnessPB + (40 : Word)) 0 (by decide)
+  , .memVal roundWitnessSum 0 (by decide)
+  , .memVal (roundWitnessSum + (8 : Word)) 0 (by decide)
+  , .memVal (roundWitnessSum + (16 : Word)) 0 (by decide)
+  , .memVal (roundWitnessSum + (24 : Word)) 0 (by decide)
+  , .memVal (roundWitnessSum + (32 : Word)) 0 (by decide)
+  , .memVal (roundWitnessSum + (40 : Word)) 0 (by decide) ]
+
+private def terminalWitnessAtomsAssert : Assertion :=
+  terminalWitnessAtoms.foldr
+    (fun x acc => terminalWitnessAtomAssertion x ** acc) empAssertion
+
+private def terminalWitnessHeap : PartialState :=
+  terminalWitnessAtoms.foldr
+    (fun x acc => (terminalWitnessAtomHeap x).union acc) PartialState.empty
+
+private theorem terminalWitnessAtoms_pairwise :
+    terminalWitnessAtoms.Pairwise
+      (fun x y => terminalWitnessAtomResource x ≠ terminalWitnessAtomResource y) := by
+  unfold terminalWitnessAtoms terminalWitnessAtomResource
+    roundWitnessSp roundWitnessAB roundWitnessPB roundWitnessSum roundWitnessOut
+  decide
+
+private theorem terminalWitnessAtoms_hsat :
+    terminalWitnessAtomsAssert terminalWitnessHeap := by
+  apply sepConj_foldr_satisfiable terminalWitnessAtomAssertion
+    terminalWitnessAtomHeap terminalWitnessAtoms
+  · intro x hx
+    cases x with
+    | regVal r v => exact rfl
+    | regOwn r => exact ⟨0, rfl⟩
+    | memVal a v hvalid => exact ⟨rfl, hvalid⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => terminalWitnessAtomHeap_disjoint_of_resource_ne h)
+      terminalWitnessAtoms_pairwise
+
+theorem taylor_loop_inv_parity_at_496_inhabited :
+    ∃ h : PartialState,
+      taylorLoopInvParityAt roundWitnessSp 0 roundWitnessOut roundWitnessVals
+        495 (496 : Word) roundWitnessPB roundWitnessAB
+        [0, 0, 0, 0, 0, 0] [0, 0, 0, 0, 0, 0] [0, 0, 0, 0, 0, 0]
+        empAssertion h := by
+  refine ⟨terminalWitnessHeap, ?_⟩
+  simpa [taylorLoopInvParityAt, terminalWitnessAtomsAssert,
+    terminalWitnessAtoms, terminalWitnessAtomAssertion,
+    terminalWitnessHeap, terminalWitnessAtomHeap,
+    frameSlotsSaved, priceFrame, roundWitnessVals,
+    roundWitnessSp, roundWitnessAB, roundWitnessPB, roundWitnessSum,
+        roundWitnessOut, cellsOf_six, sepConj_emp_right', sepConj_assoc',
+    EvmAsm.Rv64.SAsm.regOwns, parityBuffer,
+    EvmAsm.Rv64.AddrNorm.se12_0, EvmAsm.Rv64.AddrNorm.se12_8,
+    EvmAsm.Rv64.AddrNorm.se12_16, EvmAsm.Rv64.AddrNorm.se12_24,
+    EvmAsm.Rv64.AddrNorm.se12_32, EvmAsm.Rv64.AddrNorm.se12_40,
+    EvmAsm.Rv64.AddrNorm.se12_48, EvmAsm.Rv64.AddrNorm.se12_56] using terminalWitnessAtoms_hsat
+
 #print axioms taylor_round_terminal_496_from_footprint
 #print axioms taylor_round_terminal_496_from_parity
 #print axioms terminal_zero_any_to_exitdiv
 #print axioms taylor_round_terminal_496_from_parity_exitdiv
+#print axioms taylor_round_terminal_496_from_parity_exitdiv_tail_core
+#print axioms taylor_loop_inv_parity_at_496_inhabited
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
