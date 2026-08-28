@@ -190,6 +190,46 @@ private theorem setup_spec (aPtr bPtr outPtr ret v8 v9 v18 v19 : Word) :
     (fun _ hq => by xperm_hyp hq) h6
 
 
+/-- Step count of one `u256_add_be` invocation, kept opaque so the arithmetic
+    in the composed step counts stays readable. -/
+@[irreducible] def u256AddSteps (aPtr bPtr outPtr : Word)
+    (aBytes bBytes orig : List (BitVec 8)) : Nat :=
+  (U256AddBeSAsm.u256AddBeFn aPtr bPtr outPtr aBytes bBytes orig).body.steps + 1
+
+/-- `u256_add_be`'s all-distinct whole-routine triple, lifted from its own
+    `ofProg` code surface into this routine's six-way union.  The mathematical
+    content is entirely `U256BeFlat.u256AddBeFlat_spec`; only the `CodeReq`
+    changes. -/
+private theorem u256AddCarryFlat_spec (ret aPtr bPtr outPtr : Word)
+    (aBytes bBytes orig : List (BitVec 8))
+    (hrw : RwRegion.wf ⟨outPtr, 32⟩)
+    (hroA : Region.wf ⟨aPtr, aBytes⟩) (hroB : Region.wf ⟨bPtr, bBytes⟩)
+    (hlenA : aBytes.length = 32) (hlenB : bBytes.length = 32)
+    (hlenOrig : orig.length = 32)
+    (hovA : aPtr.toNat + 32 < 2 ^ 64) (hovB : bPtr.toNat + 32 < 2 ^ 64)
+    (hovOut : outPtr.toNat + 32 < 2 ^ 64)
+    (hdisjA : aPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ aPtr.toNat)
+    (hdisjB : bPtr.toNat + 32 ≤ outPtr.toNat ∨ outPtr.toNat + 32 ≤ bPtr.toNat)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (u256AddSteps aPtr bPtr outPtr aBytes bBytes orig)
+      (GuestAddrs.u256_add_be : Word) ret secfAddModPCr
+      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ aPtr) ** ((.x11 : Reg) ↦ᵣ bPtr) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns U256BeFlat.addScratch **
+        bytesRegion outPtr orig **
+        bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes)
+      (((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry aBytes bBytes orig) **
+        ((.x11 : Reg) ↦ᵣ bPtr) ** ((.x12 : Reg) ↦ᵣ outPtr) **
+        regOwns U256BeFlat.addScratch **
+        bytesRegion outPtr (U256AddBeSAsm.u256AddBeBytes aBytes bBytes orig) **
+        bytesRegion aPtr aBytes ** bytesRegion bPtr bBytes) := by
+  rw [u256AddSteps]
+  exact liftCode (cr' := secfAddModPCr)
+    (U256BeFlat.u256AddBeFlat_spec ret aPtr bPtr outPtr aBytes bBytes orig
+      hrw hroA hroB hlenA hlenB hlenOrig hovA hovB hovOut hdisjA hdisjB halign)
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
