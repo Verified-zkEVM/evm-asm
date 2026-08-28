@@ -211,7 +211,7 @@ theorem algorithmQ1dV5_rhatd_post
           = ((q1c.toNat - 1) + 1) * dHi.toNat := by rw [← this]
         _ = (q1c.toNat - 1) * dHi.toNat + dHi.toNat := by ring
     have h_pre' : q1c.toNat * dHi.toNat + rhatc.toNat = uHi.toNat := by
-      rw [hq1c, hdHi, hrhatc] at *; exact h_pre
+      rw [hq1c, hdHi, hrhatc]; exact h_pre
     omega
   · -- No-fire: Q1d = Q1c, Rhatd = Rhatc.
     rw [algorithmQ1dV5_eq_q1c_of_phase1b_no_fire uHi uLo vTop h_fire,

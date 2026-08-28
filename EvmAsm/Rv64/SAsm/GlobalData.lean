@@ -114,16 +114,16 @@ def blockVCsAt (ro : Region) (rwBase : Word) (pc : Word) (rf : RegFile)
 
 theorem execInstrRFAt_eq_execInstrRF (ro : Region) (rwBase pc : Word)
     (rf : RegFile) (ws : List (BitVec 8)) (i : Instr)
-    (h : i.isAuipc = false) :
+    (h : Instr.isAuipc i = false) :
     execInstrRFAt ro rwBase pc rf ws i = execInstrRF ro rwBase rf ws i := by
   cases i <;> first | rfl | simp [Instr.isAuipc] at h
 
-theorem instrOkAt_eq_instrOk (i : Instr) (h : i.isAuipc = false) :
+theorem instrOkAt_eq_instrOk (i : Instr) (h : Instr.isAuipc i = false) :
     instrOkAt i = instrOk i := by
   cases i <;> first | rfl | simp [Instr.isAuipc] at h
 
 theorem execBlockAt_eq_execBlock (ro : Region) (rwBase : Word)
-    (instrs : List Instr) (h : instrs.all (fun i => !i.isAuipc) = true) :
+    (instrs : List Instr) (h : instrs.all (fun i => !Instr.isAuipc i) = true) :
     ∀ (pc : Word) (rf : RegFile) (ws : List (BitVec 8)),
       execBlockAt ro rwBase pc rf ws instrs = execBlock ro rwBase rf ws instrs := by
   induction instrs with
@@ -136,7 +136,7 @@ theorem execBlockAt_eq_execBlock (ro : Region) (rwBase : Word)
       exact ih (by simp only [List.all_eq_true] at h ⊢; exact h.2) (pc + 4) _ _
 
 theorem blockVCsAt_iff_blockVCs (ro : Region) (rwBase : Word)
-    (instrs : List Instr) (h : instrs.all (fun i => !i.isAuipc) = true) :
+    (instrs : List Instr) (h : instrs.all (fun i => !Instr.isAuipc i) = true) :
     ∀ (pc : Word) (rf : RegFile) (ws : List (BitVec 8)),
       blockVCsAt ro rwBase pc rf ws instrs ↔ blockVCs ro rwBase rf ws instrs := by
   induction instrs with
@@ -204,7 +204,7 @@ theorem execInstrRFAt_sound {i : Instr} (ro : Region) (rw : RwRegion)
       ((regFileIs (execInstrRFAt ro rw.base base rf ws i).1) **
         (bytesRegion ro.base ro.bytes **
           bytesRegion rw.base (execInstrRFAt ro rw.base base rf ws i).2)) := by
-  by_cases hau : i.isAuipc = true
+  by_cases hau : Instr.isAuipc i = true
   · obtain ⟨rd, imm, rfl⟩ : ∃ rd imm, i = .AUIPC rd imm := by
       cases i <;> simp [Instr.isAuipc] at hau
       exact ⟨_, _, rfl⟩
@@ -218,7 +218,7 @@ theorem execInstrRFAt_sound {i : Instr} (ro : Region) (rw : RwRegion)
       (bytesRegion ro.base ro.bytes ** bytesRegion rw.base ws)
       (pcFree_sepConj (bytesRegion_pcFree _ _) (bytesRegion_pcFree _ _))
       (regFile_auipc_spec_within rd imm rf base hrd)
-  · have hau' : i.isAuipc = false := by simpa using hau
+  · have hau' : Instr.isAuipc i = false := by simpa using hau
     rw [show (execInstrRFAt ro rw.base base rf ws i)
       = execInstrRF ro rw.base rf ws i from
       execInstrRFAt_eq_execInstrRF ro rw.base base rf ws i hau']
@@ -229,7 +229,7 @@ theorem execInstrRFAt_sound {i : Instr} (ro : Region) (rw : RwRegion)
 theorem execInstrRFAt_ws_length (ro : Region) (rwBase pc : Word)
     (rf : RegFile) (ws : List (BitVec 8)) (i : Instr) :
     (execInstrRFAt ro rwBase pc rf ws i).2.length = ws.length := by
-  by_cases hau : i.isAuipc = true
+  by_cases hau : Instr.isAuipc i = true
   · obtain ⟨rd, imm, rfl⟩ : ∃ rd imm, i = .AUIPC rd imm := by
       cases i <;> simp [Instr.isAuipc] at hau
       exact ⟨_, _, rfl⟩

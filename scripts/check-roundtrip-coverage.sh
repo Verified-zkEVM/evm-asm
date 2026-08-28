@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # check-roundtrip-coverage.sh — regression fence (Phase 3, R-E4) asserting
-# that every `Instr` constructor declared in EvmAsm/Rv64/Basic.lean has at
+# that every `Instr` constructor declared by the riscv-zkvm dependency has at
 # least one `#guard emitInstr (.<Ctor> …)` example in
 # EvmAsm/Codegen/RoundTripTests.lean.
 #
@@ -15,13 +15,18 @@
 #   scripts/check-roundtrip-coverage.sh           # exit 1 on any uncovered ctor
 #   scripts/check-roundtrip-coverage.sh --report  # always exit 0; print summary
 #
-# Pure bash + grep/sed, no external deps — runs in CI and as a pre-commit hook
-# without setup. Source-only (no `lake build` needed).
+# Pure bash + grep/sed, no external deps.
+#
+# `Instr` moved to the riscv-zkvm dependency (RiscvZkvm.Rv64.Basic); evm-asm's
+# EvmAsm/Rv64/Basic.lean is now a re-export shim and declares no constructors.
+# So this reads the dependency's source, which means it needs `.lake/packages`
+# populated and therefore runs in the build job rather than source-checks.
+# It still fails closed: parsing zero constructors is an error, not a skip.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-BASIC="$ROOT/EvmAsm/Rv64/Basic.lean"
+BASIC="$ROOT/.lake/packages/riscv-zkvm/RiscvZkvm/Rv64/Basic.lean"
 TESTS="$ROOT/EvmAsm/Codegen/RoundTripTests.lean"
 
 mode="enforce"
