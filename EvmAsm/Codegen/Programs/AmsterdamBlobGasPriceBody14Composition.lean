@@ -1109,46 +1109,6 @@ private theorem taylor_round_zero_terminal_status1_weaken
     (hpre := hTerm_pre) (hpost := fun _ hp => hp) hTerm
   exact taylor_round_zero_terminal_status1 hRound hZero' hTerm'
 
-private example
-    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
-    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
-    (v5 v6 v7 v28 v29 v30 v31 : Word)
-    (o0 o1 o2 o3 : Word) (FR : Assertion) (hFR : FR.pcFree)
-    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
-    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
-    {exits : List (Word × Assertion)}
-    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
-      (exitdivTailPre newSp excess outPtr iVal vals
-        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-        o0 o1 o2 o3 AB PB FR) exits) :
-    ∃ (P : Assertion) (es : List (Word × Assertion)),
-      cpsNBranchWithin (4028 + 4183 + 1) (PriceK + 144) priceCode P es := by
-  have hRound := taylor_round newSp excess outPtr iVal AB PB vals
-    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-    v5 v6 v7 v28 v29 v30 v31
-      (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR) (by
-      pcFree
-      exact hFR)
-  have hZero := round_zero_exitdiv_tail newSp excess outPtr iVal AB PB vals
-    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-    v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB hTail
-  have hTerm := terminalIndex_status1_tail newSp excess outPtr iVal AB PB vals
-    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-    v7 v28 v29 v30 v31
-      (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR) (by
-      pcFree
-      exact hFR)
-  have h := taylor_round_zero_terminal_status1_weaken hRound hZero
-    (by
-      intro h hp
-      simp only [roundZero, roundFrame] at hp ⊢
-      xperm_hyp hp)
-    hTerm
-    (by
-      intro h hp
-      xperm_hyp hp)
-  exact ⟨_, _, h⟩
-
 /- A concrete witness for the completed zero-arm boundary.  This is kept
    beside the adapter because the arm's pure `w = 0` fact and its output
    cells are part of the applied precondition, not facts supplied by a later
