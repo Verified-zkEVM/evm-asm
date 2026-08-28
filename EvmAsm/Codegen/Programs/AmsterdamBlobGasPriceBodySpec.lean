@@ -263,6 +263,51 @@ theorem loop_test_bgeu_branch (iVal v5 : Word) :
   exact cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 204) amsterdamBlobGasPriceU256_prog 51
       (.BGEU .x18 .x5 (760 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+/-- The terminal-index specialization of the linked `li t0,496; bgeu s2,t0`
+    pair.  The linked artifact `70ce14de6cd119437d05785633ec3f03b4b535fa73f4eb5c77d6f2f924b31959`
+    has `li t0,496` at `0x8000b414` (`PriceK+200`) and
+    `bgeu s2,t0,0x8000b710` at `0x8000b418` (`PriceK+204`, `PriceK+964`). -/
+theorem loop_test_bgeu_terminal_496 (iVal : Word) (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 1 (PriceK + 204) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  apply cpsBranchWithin_takenPath (loop_test_bgeu_branch iVal (496 : Word))
+  intro _ hQf
+  obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+  have h_ult := ((sepConj_pure_right _).1 h_pure).2
+  simp [h_i] at h_ult
+
+/-- The two-instruction terminal-index round, including `li t0,496` at
+    `PriceK+200` and the taken `bgeu s2,t0` at `PriceK+204`.  The linked
+    artifact cited above places the taken edge at `0x8000b710` (`PriceK+964`). -/
+theorem loop_test_li_bgeu_terminal_496 (iVal vOld : Word)
+    (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 2 (PriceK + 200) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  have hLi := li_spec_gen_within .x5 vOld (496 : Word) (PriceK + 200) (by decide)
+  have hLiF : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x5 ↦ᵣ vOld) ** (.x18 ↦ᵣ iVal))
+      ((.x5 ↦ᵣ (496 : Word)) ** (.x18 ↦ᵣ iVal)) := by
+    refine cpsTripleWithin_extend_code ?_
+      (cpsTripleWithin_frameR (.x18 ↦ᵣ iVal) (by pcFree) hLi)
+    intro a i hi
+    have hins : amsterdamBlobGasPriceU256_prog[50]'(by decide) =
+        .LI .x5 (496 : Word) := by decide
+    show priceCode a = some i
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 200)
+      amsterdamBlobGasPriceU256_prog 50 (.LI .x5 (496 : Word))
+      (by decide) (by decide) hins (by decide) a i hi
+  have hLiF' : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word))) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hLiF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hLiF' (loop_test_bgeu_terminal_496 iVal h_i)
+
 /-! ## add6 window (instrs 52..107): 6-limb ripple-carry `sum += acc` with carry-out branch. -/
 /-- Add-with-carry parts: `rAdc x y c` is the limb sum, `rCry x y c` the carry-out bit. -/
 @[reducible] private def rAdc (x y c : Word) : Word := (x + y) + c
@@ -397,6 +442,9 @@ theorem add6_carry_branch (c : Word) :
 #print axioms loop_test_or_chain_spec
 #print axioms loop_test_beqz_branch
 #print axioms loop_test_bgeu_branch
+#print axioms loop_test_bgeu_terminal_496
+#print axioms loop_test_li_bgeu_terminal_496
+
 #print axioms add6_core
 #print axioms add6_carry_branch
 

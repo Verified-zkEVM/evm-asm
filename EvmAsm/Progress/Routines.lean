@@ -376,6 +376,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceDivisionBridge
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P1
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4P3
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody4Spec
@@ -5758,5 +5759,18 @@ private noncomputable abbrev _p256_is_zero_n_routine_witness :=
 -- #12222: the BAL read-half producer's suppressed arm.
 private noncomputable abbrev _account_read_record_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
+
+-- #12851: the machine restoring-division fold is tied to the pure K70 model.
+-- The signed-zero and complementary-comparison representation changes are
+-- discharged inside the bridge; these four witnesses keep the recursive tie
+-- visible to the axiom gate without claiming a whole-routine contract.
+private noncomputable abbrev _amsterdam_divst_bit_run_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
+private noncomputable abbrev _amsterdam_divst_limb_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstLimbFrom_eq_divLimbFrom
+private noncomputable abbrev _amsterdam_divst_384_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
+private noncomputable abbrev _amsterdam_divst_six_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
 
 end EvmAsm.Progress

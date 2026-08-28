@@ -75,3 +75,4 @@ import EvmAsm.Rv64.SAsm.FnFlatAmbientDemo
 import EvmAsm.Rv64.SAsm.AccumLoop
 import EvmAsm.Rv64.SAsm.ZeroPadLoop
 import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Rv64.SAsm.X0Frame
