@@ -122,7 +122,11 @@ open private Zk3 from EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
     mentioning the CALLER's node pointer remain hypotheses — those a caller
     can actually satisfy. -/
 
-private theorem zk3_toNat : Zk3.toNat = 2745483488 := by decide
+-- ⚠️ A BOUND, not the value: writing `Zk3.toNat = <address>` would materialise a
+-- layout address as a literal, which `check-layout-literals.sh` correctly
+-- rejects (#12586). The sponge's `rem` tail reaches at most 135 bytes past the
+-- scratch base, so a 32-bit bound is all the no-wrap obligation needs.
+private theorem zk3_lt : Zk3.toNat < 2 ^ 32 := by decide
 
 set_option maxRecDepth 100000 in
 /-- Every byte offset the sponge can touch on the `rem` tail (`rem ≤ 135`,
@@ -172,7 +176,7 @@ theorem nda_keccak_call_spec (spVal vRa nodePtr : Word)
     (by decide) hlen hrem_le hhash0 hos
     (by decide) (by decide) hNbound hrem64
     hb8i
-    (by intro n hn; rw [zk3_toNat]; omega)
+    (by intro n hn; have h := zk3_lt; omega)
     hoveri
     (by
       intro n hn
