@@ -38,13 +38,15 @@ local instance : DecidableEq Program :=
 theorem wcidxCmp32_prog_eq :
     wcidxCmp32_prog = widxCmp32Prog := rfl
 
-/-- ⛔ Negative control: the deployed code-index swap is NOT the old
-    proved swap variant (register allocation differs), so
-    `widx_swap_records_spec` does not transfer — mirror of
-    `widxSwapProg_ne` in `MptWitnessIndexFlatEntry.lean`.  The deployed
-    allocation is proved in `Programs/WcidxSwapRecordsSAsm.lean`. -/
-theorem wcidxSwapRecords_prog_ne :
-    wcidxSwapRecords_prog ≠ widxSwapProg := by decide
+/-- The deployed code-index swap IS the (reconciled, #12990) proved swap
+    program: after `widxSwapProg` was transposed onto the image's
+    `x31`-counter register allocation, the two clones coincide, so
+    `widx_swap_records_spec` now TRANSFERS to the code-index copy at any
+    base (previously a ⛔ negative control, `wcidxSwapRecords_prog_ne`).
+    The clone's own DCode proof in `Programs/WcidxSwapRecordsSAsm.lean`
+    is unaffected. -/
+theorem wcidxSwapRecords_prog_eq :
+    wcidxSwapRecords_prog = widxSwapProg := by decide
 
 /-- `wcidx_cmp32`: 32-byte unsigned compare over code-index hashes —
     the `widx_cmp32` triple, transferred to the clone at any base. -/

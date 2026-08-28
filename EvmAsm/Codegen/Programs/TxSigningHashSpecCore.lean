@@ -330,13 +330,16 @@ theorem tsh_kss_in_fullCode
     cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB' ret fullCode
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os
+      (List.replicate 32 (0 : BitVec 8)) v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost_multi segsBase outputBase segs A source) := by
   intro vals newSp
   have h := zkvm_keccak256_segments_spec_within sp0 ret segsBase outputBase
-    segs os v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos hcount hsegs source
+    segs os (List.replicate 32 (0 : BitVec 8))
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA halign_ret hos
+    (by simp only [List.length_replicate]) hcount hsegs source
   exact cpsTripleWithin_extend_code kss_mono h
 
 /-- Factor `ra` out of `regsAt kssFrame` for `callWithin_spec`. -/
@@ -363,7 +366,8 @@ def tshKssCallPre (sp0 newSp segsBase outputBase : Word) (segs : List KssSeg)
     (A : Assertion) (source : KssSource := kssDefaultSource) : Assertion :=
   (.x2 ↦ᵣ sp0) ** tshKssSregs v8 v9 v18 v19 v20 v21 v22 **
     frameSlotsOwn kssFrame newSp **
-    kssCallerPre segsBase outputBase segs os v5 v6 v7 A source
+    kssCallerPre segsBase outputBase segs os
+      (List.replicate 32 (0 : BitVec 8)) v5 v6 v7 A source
 
 /-- Call-site post without `ra`. -/
 def tshKssCallPost (sp0 newSp ret segsBase outputBase : Word) (segs : List KssSeg)
@@ -383,7 +387,7 @@ theorem tshKssCallPre_pcFree (sp0 newSp segsBase outputBase : Word)
   exact pcFree_sepConj pcFree_regIs
     (pcFree_sepConj (tshKssSregs_pcFree _ _ _ _ _ _ _)
       (pcFree_sepConj (pcFree_frameSlotsOwn _ _)
-        (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)))
+        (kssCallerPre_pcFree _ _ _ _ _ _ _ _ _ hA source)))
 
 /-- Reshape the lifted segments triple so `ra` is the `callWithin` head. -/
 theorem tsh_kss_ra_factored
@@ -415,7 +419,8 @@ theorem tsh_kss_ra_factored
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsOwn kssFrame newSp **
-      kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+      kssCallerPre segsBase outputBase segs os
+      (List.replicate 32 (0 : BitVec 8)) v5 v6 v7 A source)
     ((.x2 ↦ᵣ sp0) **
       regsAt kssFrame (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
       frameSlotsSaved kssFrame newSp (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **

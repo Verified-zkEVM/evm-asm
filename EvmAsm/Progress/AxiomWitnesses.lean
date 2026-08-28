@@ -164,6 +164,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
 
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+
 #print axioms EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
@@ -283,6 +287,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.CallFrameBaseSAsm.frameBase_spec
 
 #print axioms EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
+
+#print axioms EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
 
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
 
@@ -639,6 +645,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.widxCmp32Entry_spec
 
 #print axioms EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+
+#print axioms EvmAsm.Codegen.Proofs.widxSwapRecordsEntry_spec
 
 #print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
