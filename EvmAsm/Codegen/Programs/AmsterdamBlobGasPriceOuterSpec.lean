@@ -1,0 +1,224 @@
+/- Outer-loop assembly adapters for K70 (#12851).
+
+   The first adapter below is deliberately small: it closes the terminal-index
+   round before the recurrence fold is attempted.  The seven loop-scratch
+   registers are owned by the parity invariant, while the linked terminal
+   theorem consumes concrete values.  The existential exit posts retain those
+   values for the subsequent exit-divide and outer-loop adapters.
+-/
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
+
+namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
+
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen
+open EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14TerminalSpec
+open EvmAsm.Codegen.AmsterdamBlobGasPrice
+
+set_option maxRecDepth 8000
+
+/- The library currently provides the N-branch bulk adapter for nine
+   registers.  K70's round owns exactly these seven registers, so keep the
+   smaller adapter local rather than manufacturing two unrelated resources. -/
+private theorem nbranch_regOwn7
+    {n : Nat} {entry : Word} {r1 r2 r3 r4 r5 r6 r7 : Reg}
+    {P : Assertion} {exits : List (Word × Assertion)} {cr : CodeReq}
+    (h : ∀ v1 v2 v3 v4 v5 v6 v7, cpsNBranchWithin n entry cr
+      (P ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3) **
+       (r4 ↦ᵣ v4) ** (r5 ↦ᵣ v5) ** (r6 ↦ᵣ v6) **
+       (r7 ↦ᵣ v7)) exits) :
+    cpsNBranchWithin n entry cr
+      (P ** regOwn r1 ** regOwn r2 ** regOwn r3 **
+       regOwn r4 ** regOwn r5 ** regOwn r6 ** regOwn r7) exits := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hPR
+  obtain ⟨g0, g1, d1, u1, hP0, hO1⟩ := hPP
+  obtain ⟨g2, g3, d2, u2, ⟨v1, hv1⟩, hO2⟩ := hO1
+  obtain ⟨g4, g5, d3, u3, ⟨v2, hv2⟩, hO3⟩ := hO2
+  obtain ⟨g6, g7, d4, u4, ⟨v3, hv3⟩, hO4⟩ := hO3
+  obtain ⟨g8, g9, d5, u5, ⟨v4, hv4⟩, hO5⟩ := hO4
+  obtain ⟨g10, g11, d6, u6, ⟨v5, hv5⟩, hO6⟩ := hO5
+  obtain ⟨g12, g13, d7, u7, ⟨v6, hv6⟩, ⟨v7, hv7⟩⟩ := hO6
+  exact h v1 v2 v3 v4 v5 v6 v7 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu,
+      ⟨g0, g1, d1, u1, hP0, g2, g3, d2, u2, hv1,
+       g4, g5, d3, u3, hv2, g6, g7, d4, u4, hv3,
+       g8, g9, d5, u5, hv4, g10, g11, d6, u6, hv5,
+       g12, g13, d7, u7, hv6, hv7⟩, hRb⟩ hpc
+
+@[reducible] def terminalCore
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** (.x1 ↦ᵣ vals .x1) **
+  (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+  (.x8 ↦ᵣ excess) ** (.x9 ↦ᵣ taylorDW) **
+  (.x18 ↦ᵣ iVal) ** (.x19 ↦ᵣ AB) ** (.x20 ↦ᵣ PB) **
+  (.x21 ↦ᵣ outPtr) **
+  (.x22 ↦ᵣ (newSp + signExtend12 (160 : BitVec 12))) **
+  frameSlotsSaved priceFrame newSp vals **
+  cellsOf AB [a0, a1, a2, a3, a4, a5] **
+  cellsOf PB [p0, p1, p2, p3, p4, p5] **
+  cellsOf (newSp + signExtend12 (160 : BitVec 12))
+    [s0, s1, s2, s3, s4, s5] ** FR
+
+@[reducible] def terminalZeroAny
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (w a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  fun h => ∃ v7 v28 v29 v30 v31 : Word,
+    roundZeroNoX0 newSp excess outPtr iVal AB PB vals w
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+      s2 s3 s4 s5 v7 v28 v29 v30 v31 FR h
+
+@[reducible] def terminalStatus1Any
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (w a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) : Assertion :=
+  fun h => ∃ v7 v28 v29 v30 v31 : Word,
+    roundTerminalStatus1NoX0 newSp excess outPtr iVal AB PB vals w
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+      s2 s3 s4 s5 v7 v28 v29 v30 v31 FR h
+
+/- The linked terminal round consumes concrete values for the seven owned
+   scratch registers.  Package the five values which its posts retain; the
+   subsequent exit-divide adapter destructures them before it continues. -/
+theorem taylor_round_terminal_496_from_footprint
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree)
+    (h_i : iVal = (496 : Word)) :
+    cpsNBranchWithin 17 (PriceK + 144) priceCode
+      (taylorRoundFootprint newSp excess outPtr iVal AB PB vals
+        [a0, a1, a2, a3, a4, a5] [p0, p1, p2, p3, p4, p5]
+        [s0, s1, s2, s3, s4, s5] FR)
+      [ (PriceK + 804,
+          terminalZeroAny newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR),
+        (PriceK + 968,
+          terminalStatus1Any newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR) ] := by
+  let core := terminalCore newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR
+  let exits : List (Word × Assertion) := [
+    (PriceK + 804,
+      terminalZeroAny newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR),
+    (PriceK + 968,
+      terminalStatus1Any newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR)]
+  have hConcrete : ∀ v5 v6 v7 v28 v29 v30 v31 : Word,
+      cpsNBranchWithin 17 (PriceK + 144) priceCode
+        (core ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+          (.x31 ↦ᵣ v31)) exits := by
+    intro v5 v6 v7 v28 v29 v30 v31
+    have hBranch := taylor_round_terminal_496_status1_drop_x0
+      newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+      v5 v6 v7 v28 v29 v30 v31 FR hFR h_i
+    have hN := cpsBranchWithin_as_cpsNBranchWithin hBranch
+    have hN' := cpsNBranchWithin_weaken_pre (P' :=
+        core ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) **
+          (.x31 ↦ᵣ v31)) (fun h hp => by
+      simp only [core, terminalCore, roundEntryNoX0, roundFrame,
+        EvmAsm.Rv64.AddrNorm.se12_0,
+        EvmAsm.Rv64.AddrNorm.se12_8, EvmAsm.Rv64.AddrNorm.se12_16,
+        EvmAsm.Rv64.AddrNorm.se12_24, EvmAsm.Rv64.AddrNorm.se12_32,
+        EvmAsm.Rv64.AddrNorm.se12_40,
+        EvmAsm.Rv64.AddrNorm.word_add_zero] at hp ⊢
+      rw [cellsOf_six, cellsOf_six, cellsOf_six] at hp
+      xperm_hyp hp) hN
+    refine cpsNBranchWithin_weaken_posts hN' ?_
+    intro ex hex
+    have hex' : ex =
+        (PriceK + 804,
+          roundZeroNoX0 newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+            s2 s3 s4 s5 v7 v28 v29 v30 v31 FR) ∨
+      ex =
+        (PriceK + 968,
+          roundTerminalStatus1NoX0 newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+            s2 s3 s4 s5 v7 v28 v29 v30 v31 FR) := by
+      simpa [hBranch] using hex
+    rcases hex' with rfl | rfl
+    · refine ⟨_, List.Mem.head _, rfl, ?_⟩
+      intro h hh
+      exact ⟨v7, v28, v29, v30, v31, hh⟩
+    · refine ⟨_, List.Mem.tail _ (List.Mem.head _), rfl, ?_⟩
+      intro h hh
+      exact ⟨v7, v28, v29, v30, v31, hh⟩
+  have hOwned := nbranch_regOwn7 (P := core)
+    (r1 := .x5) (r2 := .x6) (r3 := .x7) (r4 := .x28)
+    (r5 := .x29) (r6 := .x30) (r7 := .x31) hConcrete
+  have hFinal := cpsNBranchWithin_weaken_pre
+    (P' := taylorRoundFootprint newSp excess outPtr iVal AB PB vals
+      [a0, a1, a2, a3, a4, a5] [p0, p1, p2, p3, p4, p5]
+      [s0, s1, s2, s3, s4, s5] FR)
+    (fun h hp => by
+      simp only [taylorRoundFootprint, regOwns, sepConj_emp_right', core,
+        terminalCore] at hp ⊢
+      xperm_hyp hp) hOwned
+  simpa [exits] using hFinal
+
+/- The terminal-index arm is reached from the actual parity invariant at the
+   last loop index.  Keep this adapter separate from the value-packaging
+   theorem above: its post is still the explicit terminal relation consumed
+   by `round_zero_exitdiv_tail`, so the five scratch witnesses are available
+   to that continuation rather than being treated as dead state. -/
+theorem taylor_round_terminal_496_from_parity
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (FR : Assertion) (hFR : FR.pcFree) :
+    cpsNBranchWithin 17 (PriceK + 144) priceCode
+      (taylorLoopInvParityAt newSp excess outPtr vals 495 (496 : Word)
+        evenBase oddBase [a0, a1, a2, a3, a4, a5]
+        [p0, p1, p2, p3, p4, p5] [s0, s1, s2, s3, s4, s5] FR)
+      [ (PriceK + 804,
+          terminalZeroAny newSp excess outPtr (496 : Word)
+            (parityBuffer 495 evenBase oddBase)
+            (parityBuffer 495 oddBase evenBase) vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR),
+        (PriceK + 968,
+          terminalStatus1Any newSp excess outPtr (496 : Word)
+            (parityBuffer 495 evenBase oddBase)
+            (parityBuffer 495 oddBase evenBase) vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR) ] := by
+  let AB := parityBuffer 495 evenBase oddBase
+  let PB := parityBuffer 495 oddBase evenBase
+  have hRound := taylor_round_terminal_496_from_footprint
+    newSp excess outPtr (496 : Word) AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR hFR
+    (by decide)
+  have hPre : ∀ h,
+      taylorLoopInvParityAt newSp excess outPtr vals 495 (496 : Word)
+        evenBase oddBase [a0, a1, a2, a3, a4, a5]
+        [p0, p1, p2, p3, p4, p5] [s0, s1, s2, s3, s4, s5] FR h →
+      taylorRoundFootprint newSp excess outPtr (496 : Word) AB PB vals
+        [a0, a1, a2, a3, a4, a5] [p0, p1, p2, p3, p4, p5]
+        [s0, s1, s2, s3, s4, s5] FR h := by
+    intro h hh
+    simpa [AB, PB] using
+      (taylorLoopInvParityAt_to_taylorRoundFootprint
+        newSp excess outPtr vals 495 (496 : Word) evenBase oddBase
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR h hh)
+  have hFinal := cpsNBranchWithin_weaken_pre hPre hRound
+  simpa [AB, PB] using hFinal
+
+#print axioms taylor_round_terminal_496_from_footprint
+#print axioms taylor_round_terminal_496_from_parity
+
+end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
