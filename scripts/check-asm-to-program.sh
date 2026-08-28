@@ -39,6 +39,14 @@ python3 scripts/asm_to_program.py symbranch-self-test
 # than the manifest-facing Codegen module; exercise the declaring-module
 # locator before the toolchain probe so this leg cannot silently skip.
 python3 scripts/asm_to_program.py declaring-module-self-test
+# GH #12204 step 3. A GNU-as local code label is dot-prefixed, and `ga_name`
+# drops the dot because a dot cannot start a Lean identifier — so every
+# `GuestAddrs` REFERENCE has to apply the same mangling the generator applies.
+# Three render sites did not, which is invisible on the ~1400 global symbols and
+# breaks the moment a routine's ENTRY is a local label (`.dispatch_loop`).
+# Pure-Python, above the probe, and `asm_cmp` cannot catch it: byte identity is
+# blind to the NAME in the render.
+python3 scripts/asm_to_program.py dotentry-self-test
 if ! command -v riscv64-unknown-elf-as >/dev/null 2>&1 \
    && ! command -v riscv64-elf-as >/dev/null 2>&1; then
   echo "check-asm-to-program: no riscv64-{unknown-,}elf-as found; skipping (install to enable)"

@@ -608,7 +608,7 @@ def pc_expr(entry, offset):
     they are not present in the monolithic guest link.
     """
     if entry in SYMMAP:
-        return f"({GA}.{entry} + {offset})"
+        return f"({GA}.{ga_name(entry)} + {offset})"
     return str(0x80000000 + offset)
 
 def render_insn(mn, ops, off_of):
@@ -727,8 +727,8 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals,
         externals[sym] = SYMMAP[sym]
         pc = entry_addr + cur
         pcx = pc_expr(entry, cur)
-        lean = [f".AUIPC {reg(rg)} (laHi {GA}.{sym} {pcx})",
-                f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
+        lean = [f".AUIPC {reg(rg)} (laHi {GA}.{ga_name(sym)} {pcx})",
+                f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{ga_name(sym)} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
         asm = [f"auipc {xr(rg)}, 0x{hi:x}", f"addi {xr(rg)}, {xr(rg)}, {lo}"]
         return lean, asm, ('la', reg(rg), sym)
@@ -750,7 +750,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals,
             raise ConvError(f"unresolved branch/jump target {tgt!r}")
         externals[tgt] = SYMMAP[tgt]
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
-        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} {pc_expr(entry, cur)})"]
+        lean = [f".JAL {reg(rd)} (jalOff {GA}.{ga_name(tgt)} {pc_expr(entry, cur)})"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
     if mn == 'li' and not fits(parse_imm(ops[1]), 12):
@@ -3060,6 +3060,90 @@ def symbranch_self_test():
           "in-reach targets are refused, never wrapped")
 
 
+# --------------------------------------------------------------------------- #
+# GH #12204 step 3: a DOT-PREFIXED entry symbol.                              #
+# --------------------------------------------------------------------------- #
+_DOTENTRY_ASM = """.dot_entry:
+  la x6, dot_data
+  jal x1, dot_callee
+  ret
+"""
+
+# Synthetic addresses, for the same reason `_SYMBRANCH_SYMS` uses them: the test
+# must not move when the guest relayouts.  `.dot_entry` is dot-prefixed because
+# that is the shape the shipped dispatcher's loop entry has (`.dispatch_loop`),
+# and it is the only shape under which these three render sites can go wrong.
+_DOTENTRY_SYMS = {
+    '.dot_entry':  0x80000000,
+    'dot_data':    0x80001000,
+    'dot_callee':  0x80002000,
+}
+
+
+def dotentry_self_test():
+    """GH #12204 step 3: `GuestAddrs` references must be spelled `ga_name(sym)`.
+
+    `gen_guest_addrs` emits one constant per symbol under `ga_name`, which drops
+    the leading dot of a GNU-as local code label because a dot cannot start a
+    Lean identifier.  Every *reference* therefore has to apply the same mangling
+    or it names a constant that does not exist.
+
+    Three render sites used the RAW symbol: the PC base (`pc_expr`), the `la`
+    target and the cross-function `jal` target.  On the ~1400 non-dot symbols
+    `ga_name` is the identity, so the bug was invisible — it appears the moment a
+    routine's ENTRY is a local label, which is exactly `.dispatch_loop`, the
+    entry of the loop #12204 step 3 converts.  The symptom is a render reading
+    `GuestAddrs..dispatch_loop`: not a Lean identifier, and not caught by
+    `asm_cmp`, which compares BYTES and is blind to the name in the render.
+
+    Pure Python; no toolchain, so it never skips.
+    """
+    fails = []
+
+    def check(what, got, want):
+        if got != want:
+            fails.append(f"{what}: got {got!r} want {want!r}")
+
+    # -- the mangling contract itself, both directions -----------------------
+    check("ga_name drops a leading dot", ga_name('.dot_entry'), 'dot_entry')
+    check("ga_name is the identity on a global", ga_name('dot_entry'), 'dot_entry')
+
+    with _symmap_patch(_DOTENTRY_SYMS):
+        entry, entry_addr, out, externals, relocs = _resolve(_DOTENTRY_ASM)
+        renders = [r for (lean, _a) in out for r in lean]
+
+        check("entry keeps its source spelling", entry, '.dot_entry')
+
+        # -- THE REGRESSION: no render may contain a double dot ---------------
+        doubled = [r for r in renders if f"{GA}.." in r]
+        check("no render names GuestAddrs..<dotted symbol>", doubled, [])
+
+        # -- the PC base, on both instructions of the `la` pair ---------------
+        check("la hi names the mangled entry as its PC base", renders[0],
+              ".AUIPC .x6 (laHi GuestAddrs.dot_data (GuestAddrs.dot_entry + 0))")
+        check("la lo names the mangled entry as its PC base", renders[1],
+              ".ADDI .x6 .x6 (laLo GuestAddrs.dot_data (GuestAddrs.dot_entry + 0))")
+
+        # -- the cross-function jal, measured from its OWN pc (entry + 8) -----
+        check("cross-jal names the mangled entry as its PC base", renders[2],
+              ".JAL .x1 (jalOff GuestAddrs.dot_callee (GuestAddrs.dot_entry + 8))")
+
+        # -- every GuestAddrs name emitted here must be one gen_guest_addrs
+        #    would actually define, i.e. a legal Lean identifier ------------
+        named = re.findall(re.escape(GA) + r"\.([A-Za-z0-9_.]+)", " ".join(renders))
+        check("every referenced GuestAddrs name is a legal Lean identifier",
+              [n for n in named if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n)],
+              [])
+
+    if fails:
+        for f in fails:
+            print(f"dotentry-self-test: FAIL {f}", file=sys.stderr)
+        sys.exit(1)
+    print("dotentry-self-test: OK \u2014 a dot-prefixed entry renders as "
+          "GuestAddrs.<name>, matching what gen_guest_addrs defines; no "
+          "reference spells GuestAddrs..<sym>")
+
+
 def declaring_module_self_test():
     """Exercise leg (b)'s verified-first declaring-module lookup.
 
@@ -3152,7 +3236,7 @@ def declaring_module_self_test():
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','declaring-module-self-test'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','dotentry-self-test','declaring-module-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
@@ -3163,6 +3247,9 @@ def main():
         return
     if args.command=='symbranch-self-test':
         symbranch_self_test()
+        return
+    if args.command=='dotentry-self-test':
+        dotentry_self_test()
         return
     if args.command=='declaring-module-self-test':
         declaring_module_self_test()
