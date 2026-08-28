@@ -307,13 +307,14 @@ theorem k73_incr_machine_bytes_eq_written_replace
 /-! ## Increase-arm Route-B junction casts -/
 
 /-- Wrapper-side ambient atoms the machine exits omit (caller frame,
-    header bytes, scratch registers) that the Route-B posts require. -/
+    header bytes) that the Route-B posts require.  The scratch set the
+    wrapper spine already owns (`x5 x6 x7 x13 x28 x29 x30 x31`) is
+    deliberately NOT here: duplicating an exact `regOwn` atom makes the
+    assertion unsatisfiable (each atom pins its singleton cell exactly). -/
 private def k73_incr_piggyback (wspH old8 headerPtr : Word)
     (headerBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   frameSlotsSaved hvbfFrame wspH (hvbfSaved (H + 40) old8) **
-    bytesRegion headerPtr headerBytes ** regOwn .x13 ** regOwn .x5 **
-    regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 **
-    regOwn .x31 ** F
+    bytesRegion headerPtr headerBytes ** F
 
 /-- Window-content cast at the `Expected` cell. -/
 private theorem k73_incr_br_cast {le le' : List (BitVec 8)} {Z : Assertion}
@@ -554,16 +555,17 @@ private def k73_incr_q2 (TOK : List (BitVec 8)) (target : Word) : List (BitVec 8
 
 
 /-- Ambient envelope for the increase adapter premise: everything the
-    wrapper world owns around the route (callee-saved frame, multiply
-    scratch window, the increase piggyback). -/
+    wrapper world owns around the route (multiply scratch window, multiply
+    callee-saved registers, and the trailing envelope `F`).  The registers
+    the route's own spine pins (`x8 x9 x18 x19 x20`) and the scratch set the
+    spine already owns (`x5 x6 x7 x13 x28 x29 x30 x31`) are deliberately NOT
+    here: duplicating an exact `regOwn` atom makes the premise unsatisfiable
+    (each atom pins its singleton cell exactly). -/
 private def k73_incr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
     (accWin : List (BitVec 8)) (F : Assertion) : Assertion :=
-  regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 **
-    U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12))
-      f0 f1 f2 f3 f4 f5 ** bytesRegion U256MulU64Be.accBase accWin **
-    regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
-    regOwn .x13 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 **
-    regOwn .x29 ** regOwn .x30 ** regOwn .x31 ** F
+  U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12))
+    f0 f1 f2 f3 f4 f5 ** bytesRegion U256MulU64Be.accBase accWin **
+  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** F
 
 /-- The increase route's taken leg is vacuous under `0 < target.toNat`
     (the div-zero status exit is unreachable), so the two-leg branch with
@@ -787,12 +789,107 @@ private theorem k73_incr_pre_eq
     (f0 f1 f2 f3 f4 f5 : Word) (F : Assertion) : ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes (H + 40) old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 accWin F)) =
       k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
         headerPtr v9 old18 v19 v20 parentBytes expectedBytes
-        (EvmAsm.Codegen.U256MulU64Be.frameSlots (spK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 ** bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** regOwn .x8 ** regOwn .x9 **
-          regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x14 ** regOwn .x15 **
+        (EvmAsm.Codegen.U256MulU64Be.frameSlots (spK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 ** bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** regOwn .x14 ** regOwn .x15 **
           regOwn .x16 ** regOwn .x17 ** k73_incr_piggyback spH old8 headerPtr headerBytes F) := by
     dsimp only [k73HeadPre, k73PreRest]
     dsimp only [k73_incr_env, k73_incr_piggyback]
     xperm
+
+/-- The increase funnel in isolation: consumes the whole-route triple over
+    the `k73HeadPre`/`k73IncreaseStatusFinalPost` spelling and the premise
+    equality, and produces the wrapper-vocabulary Route-B conclusion over
+    `wholeCode`.  Kept in its own declaration so its elaboration budget is
+    not shared with the 58-argument hw application in the adapter. -/
+private theorem k73_incr_funnel_close
+    (spH spK old8 headerPtr parentPtr gasLimit gasUsed : Word)
+    (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (parentBytes expectedBytes headerBytes accWin outWin : List (BitVec 8))
+    (F : Assertion) (Nstatus Ntail : Nat)
+    (hbranch : cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) wholeCode
+      (k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
+        headerPtr v9 old18 v19 v20 parentBytes
+        (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
+        (U256MulU64Be.frameSlots (spK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
+          bytesRegion U256MulU64Be.accBase accWin **
+          (regOwns [.x14, .x15, .x16, .x17] **
+            (k73_incr_piggyback spH old8 headerPtr headerBytes F))))
+      (k73IncreaseStatusFinalPost spH spK (H + 40) gasUsed
+        parentPtr Expected (gasLimit >>> 1) headerPtr v9 old18 v19 v20
+        parentBytes accWin
+        (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
+        (k73_incr_q2 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
+          (gasLimit >>> 1))
+        (k73_incr_piggyback spH old8 headerPtr headerBytes F)))
+    (hlt : (gasLimit >>> 1).toNat < gasUsed.toNat)
+    (htargetPos : 0 < (gasLimit >>> 1).toNat)
+    (hleTarget : (gasLimit >>> 1).toNat ≤ 2 ^ 56)
+    (hlenP : parentBytes.length = 32)
+    (hlenOutWin : outWin.length = 32)
+    (hMulFit : EvmAsm.Stateless.SpecRef.bytesBEtoNat parentBytes *
+        (gasUsed - (gasLimit >>> 1)).toNat < 2 ^ 256)
+    (hexp : expectedBytes =
+      k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) :
+    cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) wholeCode
+      ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20
+        gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
+        (H + 40) old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 accWin F))
+      ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost spH spK (H + 40) old8 headerPtr
+        v9 old18 (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr
+        parentBytes headerBytes
+        (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes
+          accWin F)) := by
+  subst hexp
+  have hpreEq := k73_incr_pre_eq spH spK headerPtr old8 gasLimit gasUsed
+    parentPtr v9 old18 v19 v20 parentBytes expectedBytes headerBytes accWin
+    f0 f1 f2 f3 f4 f5 F
+  have hlenTO : (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin).length = 32 :=
+    EvmAsm.Codegen.U256MulU64Be.copyState_len _ _ 32 hlenOutWin
+  have hvalA2 : EvmAsm.Crypto.beBytesToNat (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
+      = (EvmAsm.Crypto.beBytesToNat parentBytes *
+          ((gasLimit >>> 1) - gasUsed).toNat) % 2 ^ 256 :=
+    EvmAsm.Codegen.U256MulU64Be.beBytesToNat_mulOutput parentBytes outWin
+      ((gasLimit >>> 1) - gasUsed) hlenP hlenOutWin
+  refine cpsTripleWithin_weaken (fun s hp => hpreEq ▸ hp) (fun s hq => ?_) hbranch
+  by_cases hpz : EvmAsm.Crypto.beBytesToNat (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1)) = 0
+  · -- replace case: the double-quot window is zero, the clamp fires
+    have hcast := k73_incr_machine_bytes_eq_written_replace rfl hlt htargetPos
+      hleTarget hlenP hlenTO hMulFit hvalA2 hpz
+    rcases hq with hc | hf | hs
+    · have hM := k73_incr_carry_routeB_fail spH spK old8 headerPtr parentPtr
+        v9 old18 v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin ((k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin))
+        expectedBytes F s hc
+      have hMu := k73_incr_arm_unify spH spK headerPtr parentPtr v9 old18 v19
+        v20 gasUsed gasUsed (gasLimit >>> 1) parentBytes accWin outWin
+        expectedBytes F hM
+      obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hMu
+      exact ⟨sa, sb, had, hud, hx1, Or.inr harm⟩
+    · exact k73_incr_first_routeB spH spK old8 headerPtr parentPtr v9 old18
+        v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin
+        (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1))
+        expectedBytes F hcast s hf
+    · exact k73_incr_second_routeB spH spK old8 headerPtr parentPtr v9 old18
+        v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) expectedBytes F hcast s hs
+  · -- keep case: the double-quot window is nonzero, the clamp is invisible
+    have hpNZ : EvmAsm.Crypto.beBytesToNat (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1)) ≠ 0 := hpz
+    have hcast := k73_incr_machine_bytes_eq_written_keep rfl hlt htargetPos
+      hleTarget hlenP hlenTO hMulFit hvalA2 hpNZ
+    rcases hq with hc | hf | hs
+    · have hM := k73_incr_carry_routeB_fail spH spK old8 headerPtr parentPtr
+        v9 old18 v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin ((k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin))
+        expectedBytes F s hc
+      have hMu := k73_incr_arm_unify spH spK headerPtr parentPtr v9 old18 v19
+        v20 gasUsed gasUsed (gasLimit >>> 1) parentBytes accWin outWin
+        expectedBytes F hM
+      obtain ⟨sa, sb, had, hud, hx1, harm⟩ := hMu
+      exact ⟨sa, sb, had, hud, hx1, Or.inr harm⟩
+    · exact k73_incr_first_routeB spH spK old8 headerPtr parentPtr v9 old18
+        v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin
+        (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1))
+        expectedBytes F hcast s hf
+    · exact k73_incr_second_routeB spH spK old8 headerPtr parentPtr v9 old18
+        v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin
+        (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) expectedBytes F hcast s hs
 
 set_option maxRecDepth 8000 in
 /-- Wrapper-vocabulary Route-B adapter for the increase arm: the whole
@@ -827,6 +924,8 @@ theorem k73_incr_route_adapter {cr : CodeReq}
     (hExpectedLen : expectedBytes.length = 32)
     (hlenAcc : accWin.length = 40)
     (hlenOutWin : outWin.length = 32)
+    (hexp : expectedBytes =
+      k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
     (halignA : parentPtr.toNat % 8 = 0)
     (hoverA : parentPtr.toNat + 32 < 2 ^ 64)
     (hvalidA : ∀ j, j < 32 → isValidByteAccess
@@ -904,8 +1003,6 @@ theorem k73_incr_route_adapter {cr : CodeReq}
   have hcallRet : ((K73 + 188 : Word) + 4) &&& ~~~(1 : Word) = K73 + 188 + 4 := by
     decide
   have hsaved : (k73Saved (H + 40) headerPtr v9 old18 v19 v20) .x1 = H + 40 := rfl
-  have hpreEq := k73_incr_pre_eq spH spK headerPtr old8 gasLimit gasUsed parentPtr v9 old18 v19 v20
-      parentBytes expectedBytes headerBytes accWin f0 f1 f2 f3 f4 f5 F
   have hwTri := k73_incr_hw_triple spH spK (H + 40) gasLimit gasUsed (gasLimit >>> 1) parentPtr Expected
     headerPtr v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 parentBytes accWin (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin)
     (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1))
@@ -914,18 +1011,11 @@ theorem k73_incr_route_adapter {cr : CodeReq}
     hGenv hsp' rfl hne hlt hret hsaved hcallee hrw hlenTO rfl rfl hlen1 hlen2
     hoverOut htargetPos hsz1 hsz2 hret1 hret2 hroBase hlenP hoverA hdisj
     hszAddQ2 hszAddOne hcallRet hNstatus hNq2 hNq1 hNcarry
-  refine cpsTripleWithin_weaken (fun s hp => hpreEq ▸ hp) (fun s hq => ?_) hwTri
-  by_cases hpz : EvmAsm.Crypto.beBytesToNat (k73_incr_q1 (k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin) (gasLimit >>> 1)) = 0
-  · -- replace case: the double-quot window is zero, the clamp fires
-    have hcast := k73_incr_machine_bytes_eq_written_replace rfl hlt htargetPos
-      hleTarget hlenP hlenTO hMulFit hvalA2 hpz
-    rcases hq with hc | hf | hs
-    · have hM := k73_incr_carry_routeB_fail spH spK old8 headerPtr parentPtr
-        v9 old18 v19 v20 gasUsed (gasLimit >>> 1) parentBytes accWin ((k73_incr_outT parentBytes ((gasLimit >>> 1) - gasUsed) outWin))
-        expectedBytes F s hc
-      have hMu := k73_incr_arm_unify spH spK headerPtr parentPtr v9 old18 v19
-        v20 gasUsed gasUsed (gasLimit >>> 1) parentBytes accWin outWin
-        expectedBytes F hM
+  exact cpsTripleWithin_extend_code hk73Mono
+    (k73_incr_funnel_close spH spK old8 headerPtr parentPtr gasLimit gasUsed
+      v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 parentBytes expectedBytes headerBytes
+      accWin outWin F Nstatus Ntail hwTri hlt htargetPos hleTarget hlenP
+      hlenOutWin hMulFit hexp)
 
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
