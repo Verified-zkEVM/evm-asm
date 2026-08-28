@@ -284,6 +284,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
 
+#print axioms EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
+
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
 
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value

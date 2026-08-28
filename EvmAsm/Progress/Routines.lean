@@ -146,6 +146,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -3002,6 +3003,26 @@ def routineRegistry : List RoutineEntry := [
         ++ "machine model has one writable-region resource — offsets are "
         ++ "explicit, not existentially hidden. Lives in "
         ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12988: the allowlist's stated blocker ("needs the Fn.retSpecFlat lift")
+  -- was an UN-INSTANTIATED adapter, not missing machinery — the routine's
+  -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
+  -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
+  -- threading, no proof content changed).
+  routine "call_frame_forward_gas" .proven
+      (some "callFrameForwardGasFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.call_frame_forward_gas` over "
+        ++ "`CodeReq.ofProg … callFrameForwardGas_prog` (the emitted program; "
+        ++ "the address/program pairing is registered in guestImageEntries): "
+        ++ "EIP-150 gas forwarding — on return `a1 = cffgCap requested "
+        ++ "gas_left` (the all-but-one-64th cap) and `a0 = cap + stipend "
+        ++ "value_nonzero` (CALL_STIPEND 2300 when value moves). Register-only "
+        ++ "leaf; `a2` and the temporaries return as `regOwn` riders. DERIVED "
+        ++ "from the proof-first `callFrameForwardGasFn_spec` by "
+        ++ "`Fn.retSpecFlat`; `cffgCap_eq_capped` ties the cap to "
+        ++ "`message_call_gas`'s `capped` at `s = 0`. Total over its argument "
+        ++ "types: the sole hypothesis is an aligned return address. Lives in "
+        ++ "`Codegen/Proofs/CallFrameForwardGasFlatEntry.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -4509,10 +4530,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 212 := by decide
+theorem routineCount_eq : routineCount = 213 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 163 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 164 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
 set_option maxRecDepth 16000 in
@@ -4532,7 +4553,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 172 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 173 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5783,6 +5804,9 @@ private noncomputable abbrev _widx_record_ptr_routine_witness :=
 -- #12990: the third widx sibling, after the x6/x31 reconciliation.
 private noncomputable abbrev _widx_swap_records_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxSwapRecordsEntry_spec
+-- #12988: the un-instantiated Fn.retSpecFlat adapter, instantiated.
+private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
+  @EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
 -- `bncZero64Fn_spec` it is derived from.
 private noncomputable abbrev _bnc_zero64_routine_witness :=

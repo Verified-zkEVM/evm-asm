@@ -137,6 +137,24 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (call_frame_forward_gas rowed — #12988 tranche 1, 2026-08-29)
+
+- ✅ **`call_frame_forward_gas` `.proven`** (213/164/173): the allowlist's
+  stated blocker ("needs the `Fn.retSpecFlat` lift") was an
+  UN-INSTANTIATED adapter — the routine's contract was a plain `Fn.Spec`
+  all along.  `callFrameForwardGasFlat_spec`
+  (`Proofs/CallFrameForwardGasFlatEntry.lean`) derives the flat EIP-150
+  gas-forwarding triple at the guest address; the derivation's reaches
+  gained an `A = empAssertion` pin (adapter eliminator requirement, pure
+  threading).  Allowlist exemption retired.
+- ⚠️ **The generic SpecR→flat lift is a GRANULARITY wall, not effort**
+  (recorded in #12988 and the twins' allowlist reasons): `asrtR = asrtM
+  ** regOwn x1` FORGETS `ra`, so no adapter can append the ret epilogue;
+  a pinned-`ra` soundness variant means re-walking `Stmt.soundR`'s
+  ~2200-line induction (#12770 family).  The bal twins' unblock is a
+  DIRECT flat proof (13 insns, `beqCountLoop_spec`, the
+  `afpCopyLoop_spec` recipe) — #12988 tranche 2.
+
 ### Recent (widx_swap_records reconciled and rowed — #12990, 2026-08-29)
 
 - ✅ **#12990**: the historical `x6`/`x31` loop-counter mismatch between
