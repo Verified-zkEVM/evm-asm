@@ -926,6 +926,32 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSectionSpec.swsU32lePresFlat_spec
 
+#print axioms EvmAsm.Codegen.SystemCallStagingBase.sscProgL_spans_symbol
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscExecStatus_ne_one
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_eq_one_iff
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_mem_three
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ardCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscpCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.stage_system_call_spec_within
+
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
