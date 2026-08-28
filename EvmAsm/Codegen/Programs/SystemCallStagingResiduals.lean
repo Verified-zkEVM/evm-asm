@@ -53,9 +53,9 @@
     exactly that: it reads `t1` at index 8, `a2` at index 9 (the empty-code
     gate) and `a4` at index 10, and forwards `a1`/`a3` to the payload stager.
   * `SscpCallShape` pins `s0` (`x8`), read at index 27 (`addi t1, s0, 8`).
-    `stageSystemCallPayload_prog` (SystemCallStaging.lean:...) opens
-    `addi sp,-48` + `sd ra/s0/s1/s2/s3/s4` at 0/8/16/24/32/40 and closes with
-    the matching six `ld` + `addi sp,48`, so `s0` is genuinely callee-saved.
+    `stageSystemCallPayload_prog` opens `addi sp,-48` + `sd ra/s0/s1/s2/s3/s4`
+    at 0/8/16/24/32/40 and closes with the matching six `ld` + `addi sp,48`, so
+    `s0` is genuinely callee-saved.
   * All three pin `ssc_saved_ra ↦ ret` and `ssc_saved_s0 ↦ v8`, and
     `SscpCallShape` additionally pins `system_call_mode ↦ 1`.  Basis: a
     whole-image grep of the emitted `la` reloc tables for the symbols
@@ -67,6 +67,17 @@
     `runtime_dispatcher_call`, not under `account_read_record` or
     `stage_system_call_payload`.  The guest addresses every global through a
     named `la`, so that grep is the write set.
+
+    ⚠️ WHERE TO LOOK for the other three cells.  `system_call_returndata_len`,
+    `runtime_tx_auth_exec_fn` and `rdg_halt_kind` are pinned across the payload
+    call too, but through `SscpCallShape`'s FRAME PARAMETER `F` rather than
+    through `sscpCallEntry`/`sscpCallReturn`, because the shape is stated once
+    and `F` is what the caller instantiates.  `stage_system_call_spec_within`
+    instantiates it as `(SccLen ↦ₘ 0) ** (RtAuthFn ↦ₘ 0) ** (RdgHalt ↦ₘ 0) **
+    memOwn RdInPtr ** A` — the three zeroes this routine wrote at indices 14,
+    21 and 24.  Same grep, same basis; a reader auditing what the payload
+    stager is assumed to preserve must read that instantiation, not only this
+    file.
 
   ⚠️ THE STRONGEST ASSUMPTION IN THIS FILE, stated plainly: `RdcCallShape`
   claims the whole EVM interpreter leaves `ssc_saved_ra` and `ssc_saved_s0`
