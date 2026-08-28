@@ -320,6 +320,9 @@ import EvmAsm.Codegen.Programs.MptNodeKindWrap
 import EvmAsm.Codegen.Programs.MptNodeKindWire
 -- #11800 node-DB half: whole-routine machine triple for `node_db_lookup`.
 import EvmAsm.Codegen.Programs.NodeDbLookupSpec
+-- #12318 callee-composition lane: the APPEND half of the node DB, composing
+-- `zkvm_keccak256` and `mset_memcpy` (both rowed) through `callWithin_spec`.
+import EvmAsm.Codegen.Programs.NodeDbAppendSpec
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
@@ -2314,10 +2317,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "and the counter `a2` lands at 0. ⚠️ NOT total over its argument types — "
         ++ "eight hypotheses, including 8-BYTE ALIGNMENT of both bases and "
         ++ "`isValidByteAccess` over both windows; these are genuine domain "
-        ++ "restrictions. ⚠️ AND, unlike every other row in this block, no LEAN "
-        ++ "PROOF currently applies this triple (its docstring names an intended "
-        ++ "`selfdestruct_balance_transfer` consumer that does not yet exist), so "
-        ++ "satisfiability is not witnessed by use. NB that is a statement about "
+        ++ "restrictions. ⚠️ THE ROW USED TO SAY no Lean proof applied this "
+        ++ "triple; that is STALE as of #12318 — `node_db_append_spec_within` "
+        ++ "(`Codegen/Programs/NodeDbAppendSpec.lean`) composes it for the "
+        ++ "record payload copy, so satisfiability is now witnessed by USE as "
+        ++ "well. The intended `selfdestruct_balance_transfer` consumer named "
+        ++ "in the docstring still does not exist. NB the original caveat was "
+        ++ "a statement about "
         ++ "the triple, NOT about the routine: the machine code IS reached — "
         ++ "`check-rowed-liveness` counts this symbol among the called — so this is "
         ++ "an unused CONTRACT, not dead code. Satisfiability is witnessed "
@@ -4009,6 +4015,67 @@ def routineRegistry : List RoutineEntry := [
         ++ "(`tx_signing_hash_spec_within`) are both rowed; residual "
         ++ "retirement is wrapper re-point onto that triple. Retirement: "
         ++ "`txSigningHashResidualNote`"),
+  -- #12318 callee-composition lane. The APPEND half of the node DB, and the
+  -- statement the `node_db_lookup` row below names as "⚠️ NOT established
+  -- here": that `node_db_append` establishes the `nodeDbIs` shape that triple
+  -- consumes. Graded `.proven`, not `.conditional`: every hypothesis is
+  -- resource/ABI framing (lengths, 8-alignment, in-bounds, no-wrap, valid byte
+  -- access, even return address, the `len = 136*N + rem` partition), and BOTH
+  -- callee contracts are COMPOSED rather than assumed -- `zkvm_keccak256` and
+  -- `mset_memcpy` are `.proven` and ungated, so nothing is inherited.
+  -- ⚠️ ONE hypothesis is content-shaped and is called out in the notes: the
+  -- payload slot's PAD bytes must already be zero. That is the append arena's
+  -- invariant (`mset_db_data` is a `.zero` slab and `*mset_db_top` only
+  -- advances), not an input-domain restriction on the node -- it constrains
+  -- ambient memory the caller owns, and the negative control
+  -- `nodeDbAppend_pad_zero_bites` shows it excludes states rather than holding
+  -- everywhere.
+  routine "node_db_append" .proven (some "node_db_append_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (1 + 4 + ndaBodySteps N rem "
+        ++ "|node| + 4 + 1 + 1)` at `GuestAddrs.node_db_append` over "
+        ++ "`ndaFullCode = ndaCr.union (ndaKeccakCode.union ndaMemcpyCode)`, "
+        ++ "where `ndaCr = CodeReq.ofProg (GuestAddrs.node_db_append) "
+        ++ "nodeDbAppend_prog` IS the `GuestImageEntries` pairing; the other "
+        ++ "two components are the `GuestImageEntries` pairings of "
+        ++ "`zkvm_keccak256` and `mset_memcpy`, so all three are image claims "
+        ++ "and the union is an image claim too. The union is REQUIRED, not a "
+        ++ "convenience: the routine's two `jal`s really do execute those "
+        ++ "images and `callWithin_spec` needs them fetchable from one "
+        ++ "`CodeReq`. ⭐ BOTH CALLEES ARE COMPOSED, NOT ASSUMED: the proof "
+        ++ "consumes `zkvm_keccak256_spec_within` and `mset_memcpy_spec_within` "
+        ++ "-- the second is the first Lean proof to APPLY the `mset_memcpy` "
+        ++ "triple, retiring that row's `no LEAN PROOF currently applies this "
+        ++ "triple` caveat. `abiFrame_spec_own` discharges the 32-byte "
+        ++ "prologue/epilogue via `nodeDbAppend_prog_eq_abiFrame` (`rfl`, a "
+        ++ "byte-level drift guard). Post: the record window at `*mset_db_top` "
+        ++ "holds `keccak256(node) ++ natToBytesLE 8 |node|` in its first 40 "
+        ++ "bytes and `copyIntoRegion` of the node in its payload, "
+        ++ "`*mset_db_top` advances by exactly `((|node|+7) &&& ~7) + 40` and "
+        ++ "`*mset_db_count` by one. The digest is `SpecRef.keccak256`, NOT "
+        ++ "the guest sponge model (`keccakBodyDigest_eq_specref` bridges it). "
+        ++ "`node_db_append_grows_db` restates the same triple in the "
+        ++ "`MptAssertions` vocabulary: `nodeDbIs dbBase nodes` becomes "
+        ++ "`nodeDbIs dbBase (nodes ++ [node])` with the new record landing at "
+        ++ "`dbBase + nodeDbSize nodes` (`nodeDbIs_snoc`) and the earlier "
+        ++ "records untouched, plus `nodeDbTopIs`/`nodeDbCountIs` at the "
+        ++ "extended log -- which is exactly the shape "
+        ++ "`node_db_lookup_spec_within` consumes. ⚠️ NOT COVERED: no capacity "
+        ++ "guard (the routine has none -- see the `sd13v safety boundary` "
+        ++ "note on `nodeDbAppend_prog`; the caller must supply an unused "
+        ++ "`40 + roundUp8 |node|` window), and the payload slot's PAD BYTES "
+        ++ "must already be zero (`hdst0pad`), which is the arena invariant "
+        ++ "rather than something the routine establishes -- it writes "
+        ++ "`|node|` bytes and leaves the rest. Nothing is claimed about WHICH "
+        ++ "node the caller passes. Non-vacuity is a matched set: "
+        ++ "`nodeDbAppend_precondition_reachable` (a nonempty 4-byte node at "
+        ++ "an aligned RAM base satisfies the input-dependent conjuncts), the "
+        ++ "CLOSED instantiation `node_db_append_sample_witness` (empty DB "
+        ++ "gains its first record; every data hypothesis by `decide` at "
+        ++ "numeric addresses), and THREE negative controls -- "
+        ++ "`nodeDbAppend_align_bites` (8-alignment), "
+        ++ "`nodeDbAppend_validity_negative_control` (byte validity) and "
+        ++ "`nodeDbAppend_pad_zero_bites` (the pad-zero premise). Lives in "
+        ++ "`Codegen/Programs/NodeDbAppendSpec.lean`"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
   -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
@@ -4206,10 +4273,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 206 := by decide
+theorem routineCount_eq : routineCount = 207 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 160 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 161 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
 set_option maxRecDepth 16000 in
@@ -4229,7 +4296,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 168 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 169 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5677,6 +5744,23 @@ private noncomputable abbrev _eip7702_auth_signing_hash_preimage_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 private noncomputable abbrev _eip7702_auth_signing_hash_decodes_witness :=
   @EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_decodes
+-- #12318 node-DB APPEND half: the whole-routine triple, its node-DB-vocabulary
+-- restatement, the closed non-vacuity instantiation, the reachability witness
+-- and the three negative controls.
+private noncomputable abbrev _node_db_append_routine_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_spec_within
+private noncomputable abbrev _node_db_append_grows_db_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_grows_db
+private noncomputable abbrev _node_db_append_sample_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_sample_witness
+private noncomputable abbrev _node_db_append_reachable_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_precondition_reachable
+private noncomputable abbrev _node_db_append_align_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
+private noncomputable abbrev _node_db_append_validity_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
+private noncomputable abbrev _node_db_append_pad_control_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
 -- #11800 node-DB half: whole-routine `node_db_lookup` triple, its compiled
 -- non-vacuity instance, and the composition to `SpecRef.build_node_db`.
 private noncomputable abbrev _node_db_lookup_routine_witness :=

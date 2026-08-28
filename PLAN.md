@@ -914,7 +914,14 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`Evm64/StorageAssertions.lean`, now with `storageSlotIs_eq_flat` +
   `evm_tstore_stack_spec_within` as the first consumer — see "Transient store
   recipe"); `mptNodeIs`/`nodeDbIs` with the
-  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`);
+  `build_node_db` lookup tie (`Evm64/MptAssertions.lean`) — BOTH halves of
+  the node DB now carry whole-routine machine triples over the linked image:
+  `node_db_lookup_spec_within` (#11800,
+  `Codegen/Programs/NodeDbLookupSpec.lean`) reads the record log, and
+  `node_db_append_grows_db` (#12318,
+  `Codegen/Programs/NodeDbAppendSpec.lean`) establishes the `nodeDbIs` shape
+  that reader consumes, composing the rowed `zkvm_keccak256` and
+  `mset_memcpy` contracts rather than assuming them;
   `witnessSectionIs`/`witnessIndexIs`/`codeDbIs` with the `build_code_db`
   tie (`Evm64/WitnessAssertions.lean`) — now both sides of that pairing, keys
   (`indexOfSection_hashes_eq_build_code_db`) *and* values

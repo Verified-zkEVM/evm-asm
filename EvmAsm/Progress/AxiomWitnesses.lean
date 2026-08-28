@@ -556,6 +556,20 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
 
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_precondition_reachable
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_grows_db
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_sample_witness
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_spec_within
+
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_sample_witness
