@@ -323,6 +323,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12318 callee-composition lane: the APPEND half of the node DB, composing
 -- `zkvm_keccak256` and `mset_memcpy` (both rowed) through `callWithin_spec`.
 import EvmAsm.Codegen.Programs.NodeDbAppendSpec
+import EvmAsm.Codegen.Programs.BlockAccessListHashBahOffset
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
@@ -2013,6 +2014,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "written there and removed. The stale allowlist entry claiming this "
         ++ "symbol still needed `Fn.retSpecFlat` is what hid it. Its non-vacuity "
         ++ "is in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- #12318: the OFFSET form of `bah_u32le`, added because the flat row above
+  -- does not reach either call site. `bahU32leFlat_spec` is derived through the
+  -- SAsm `Fn` framework, whose `Region.wf` pins the region base — and therefore
+  -- `a0` — to a dword-aligned address; `block_access_list_hash` passes
+  -- `sszBase + 588` and `sszBase + 20`, and the linked `sszBase` is
+  -- `INPUT_MEM_START` (8-aligned), so `a0 % 8 = 4` at BOTH sites. Composing the
+  -- flat form would have meant assuming `sszBase % 8 = 4` — satisfiable, but
+  -- false at the linked call site. Same defect and same remedy as `bgv_u32le`
+  -- (#11578); the single-instruction engine `bytesRegion_lbu_cursor_imm_within`
+  -- is REUSED from that module rather than reproved.
+  routine "bah_u32le" .conditional (some "bah_u32le_offset_spec_within")
+      (notes := "offset-form triple at `GuestAddrs.bah_u32le` over `bahCr = "
+        ++ "CodeReq.ofProg … bahU32le_prog` — definitionally the `bahU32leCr` "
+        ++ "the flat row uses (`bahCr_eq_flatCr`), so both rows are about the "
+        ++ "same image claim. `a0 = listBase + off` with `off` ARBITRARY and "
+        ++ "possibly unaligned; the alignment obligation moves to the PARENT "
+        ++ "region base. Post: `a0 = leU32 (bs.drop off) 0`, region pinned "
+        ++ "intact, `t0`/`t1` released to `regOwn`. Fuel 12. ⚠️ Graded "
+        ++ "`.conditional` to match the `bgv_u32le` offset row, whose premise "
+        ++ "this one mirrors exactly: `h_align listBase.toNat % 8 = 0` is a "
+        ++ "CALLER assumption about an ABI-supplied region base, not a static "
+        ++ "`GuestAddrs` pin discharged by `decide`. Read purely as resource "
+        ++ "framing it would be `.proven`; the two rows should move together "
+        ++ "if that reading is adopted. Non-vacuity is stated at the REAL "
+        ++ "call-site geometry rather than at an invented address: "
+        ++ "`bah_u32le_offset_precondition_reachable` satisfies all four "
+        ++ "premises at `listBase = INPUT_MEM_START`, `off = 20` — the very "
+        ++ "pointer the flat form cannot reach — and its last conjunct records "
+        ++ "that `a0` there is NOT dword-aligned. Controls: "
+        ++ "`bah_u32le_offset_align_bites` (a parent base one byte into a dword "
+        ++ "fails `h_align`, so the premise excludes inputs) and "
+        ++ "`bah_u32le_call_site_pointers_unaligned` (both linked call-site "
+        ++ "pointers `sszBase + 588` / `sszBase + 20` are `≡ 4 (mod 8)`, which "
+        ++ "is the fact this row exists for and which would otherwise rot in "
+        ++ "prose)"),
   -- Second of the four allowlist entries whose ONLY obstacle was a union CodeReq.
   routine "secf_is_zero32" .proven (some "secfIsZero32FlatEntry_spec")
       (notes := "whole-routine triple at `GuestAddrs.secf_is_zero32` over "
@@ -4333,12 +4369,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 208 := by decide
+theorem routineCount_eq : routineCount = 209 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 43 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4657,6 +4693,12 @@ private noncomputable abbrev _mpt_node_kind_reachable_witness :=
   @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_precondition_reachable
 private noncomputable abbrev _bgv_u32le_offset_reachable_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
+private noncomputable abbrev _bah_u32le_offset_reachable_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_precondition_reachable
+private noncomputable abbrev _bah_u32le_offset_align_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_align_bites
+private noncomputable abbrev _bah_u32le_call_site_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_call_site_pointers_unaligned
 private noncomputable abbrev _blsg_eq48_flat_instance_witness :=
   @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
 private noncomputable abbrev _assemble_execution_requests_gate_reachable_witness :=
@@ -5453,6 +5495,11 @@ private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 private noncomputable abbrev _bah_u32le_routine_witness :=
   @EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
+-- #12318: the offset form, the one `block_access_list_hash` can actually call.
+private noncomputable abbrev _bah_u32le_offset_routine_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_spec_within
+private noncomputable abbrev _bah_u32le_offset_cr_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bahCr_eq_flatCr
 -- ⚠️ `…FlatEntry_spec` again, NOT the `pdCr`-anchored twin.
 private noncomputable abbrev _secf_is_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
