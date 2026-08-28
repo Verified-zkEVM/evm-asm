@@ -147,6 +147,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
+import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -3023,6 +3024,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "`message_call_gas`'s `capped` at `s = 0`. Total over its argument "
         ++ "types: the sole hypothesis is an aligned return address. Lives in "
         ++ "`Codegen/Proofs/CallFrameForwardGasFlatEntry.lean`"),
+  -- #12988 tranche 2: the two serializer twins, via a DIRECT flat proof
+  -- (parametric over placement, instantiated twice). The structured
+  -- `Fn.SpecR` contracts remain as the DCode-generated specs; the generic
+  -- SpecR→flat lift is blocked by the asrtR granularity wall (asrtR
+  -- forgets `ra`), recorded in #12988.
+  routine "bal_serializer_slot_to_le" .proven
+      (some "balSerializerSlotToLeFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.bal_serializer_slot_to_le` over "
+        ++ "`CodeReq.ofProg … balSerializerSlotToLe_prog` (the emitted "
+        ++ "program, 12 insns): reverses the 32-byte big-endian buffer at "
+        ++ "`a0` into the `bal_serializer_slot_le` scratch (BE → LE), source "
+        ++ "intact, scratch = `(bs.take 32).reverse`. Direct flat proof "
+        ++ "(`countdownLoop_spec` over the region-level byte lemmas), "
+        ++ "parametric over placement with the `la` identity as hypothesis "
+        ++ "(`bslFlat_spec`), instantiated here where it closes by `rfl`. "
+        ++ "Lives in `Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  routine "bal_serializer_balance_to_le" .proven
+      (some "balSerializerBalanceToLeFlat_spec")
+      (notes := "twin instantiation of `bslFlat_spec` at "
+        ++ "`GuestAddrs.bal_serializer_balance_to_le` (target scratch "
+        ++ "`bal_serializer_balance_le`) — see the "
+        ++ "`bal_serializer_slot_to_le` row directly above; the two differ "
+        ++ "only in their `la` immediates and placement. Lives in "
+        ++ "`Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -4530,10 +4556,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 213 := by decide
+theorem routineCount_eq : routineCount = 215 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 164 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
 set_option maxRecDepth 16000 in
@@ -4553,7 +4579,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 173 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 175 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5807,6 +5833,11 @@ private noncomputable abbrev _widx_swap_records_routine_witness :=
 -- #12988: the un-instantiated Fn.retSpecFlat adapter, instantiated.
 private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
   @EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
+-- #12988 tranche 2: the serializer twins' direct flat proofs.
+private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
 -- `bncZero64Fn_spec` it is derived from.
 private noncomputable abbrev _bnc_zero64_routine_witness :=
