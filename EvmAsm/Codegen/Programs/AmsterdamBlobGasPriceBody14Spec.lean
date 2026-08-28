@@ -39,26 +39,26 @@ set_option maxRecDepth 8000
     round sees the sixth low product in `x28`, not the incoming `v28`; the
     short definitions also keep the two exit assertions readable. -/
 
-@[reducible] private def roundP0 (a0 excess : Word) : Word :=
+@[reducible] def roundP0 (a0 excess : Word) : Word :=
   (a0 * excess) + (0 : Word)
 
-@[reducible] private def roundP1 (a0 a1 excess : Word) : Word :=
+@[reducible] def roundP1 (a0 a1 excess : Word) : Word :=
   (a1 * excess) + (rv64_mulhu a0 excess +
     if BitVec.ult (roundP0 a0 excess) (a0 * excess) then (1 : Word) else 0)
 
-@[reducible] private def roundP2 (a0 a1 a2 excess : Word) : Word :=
+@[reducible] def roundP2 (a0 a1 a2 excess : Word) : Word :=
   (a2 * excess) + (rv64_mulhu a1 excess +
     if BitVec.ult (roundP1 a0 a1 excess) (a1 * excess) then (1 : Word) else 0)
 
-@[reducible] private def roundP3 (a0 a1 a2 a3 excess : Word) : Word :=
+@[reducible] def roundP3 (a0 a1 a2 a3 excess : Word) : Word :=
   (a3 * excess) + (rv64_mulhu a2 excess +
     if BitVec.ult (roundP2 a0 a1 a2 excess) (a2 * excess) then (1 : Word) else 0)
 
-@[reducible] private def roundP4 (a0 a1 a2 a3 a4 excess : Word) : Word :=
+@[reducible] def roundP4 (a0 a1 a2 a3 a4 excess : Word) : Word :=
   (a4 * excess) + (rv64_mulhu a3 excess +
     if BitVec.ult (roundP3 a0 a1 a2 a3 excess) (a3 * excess) then (1 : Word) else 0)
 
-@[reducible] private def roundP5 (a0 a1 a2 a3 a4 a5 excess : Word) : Word :=
+@[reducible] def roundP5 (a0 a1 a2 a3 a4 a5 excess : Word) : Word :=
   (a5 * excess) + (rv64_mulhu a4 excess +
     if BitVec.ult (roundP4 a0 a1 a2 a3 a4 excess) (a4 * excess) then (1 : Word) else 0)
 
@@ -87,7 +87,7 @@ set_option maxRecDepth 8000
     (roundHigh a0 a1 a2 a3 a4 a5 excess)
     (roundHigh a0 a1 a2 a3 a4 a5 excess) FR
 
-@[reducible] private def QBACKP
+@[reducible] def QBACKP
     (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
       v7 v28 v29 v30 v31 : Word) (FR : Assertion) : Assertion :=
@@ -95,16 +95,16 @@ set_option maxRecDepth 8000
     newSp excess outPtr iVal AB PB vals a0 a1 a2 a3 a4 a5
     p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 v7 v28 v29 v30 v31 FR
 
-@[reducible] private def roundS0 (a0 s0 : Word) : Word := (a0 + s0) + (0 : Word)
-@[reducible] private def roundS1 (a0 a1 s0 s1 : Word) : Word :=
+@[reducible] def roundS0 (a0 s0 : Word) : Word := (a0 + s0) + (0 : Word)
+@[reducible] def roundS1 (a0 a1 s0 s1 : Word) : Word :=
   (a1 + s1) + rCry a0 s0 (0 : Word)
-@[reducible] private def roundS2 (a0 a1 a2 s0 s1 s2 : Word) : Word :=
+@[reducible] def roundS2 (a0 a1 a2 s0 s1 s2 : Word) : Word :=
   (a2 + s2) + rCry a1 s1 (rCry a0 s0 (0 : Word))
-@[reducible] private def roundS3 (a0 a1 a2 a3 s0 s1 s2 s3 : Word) : Word :=
+@[reducible] def roundS3 (a0 a1 a2 a3 s0 s1 s2 s3 : Word) : Word :=
   (a3 + s3) + rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))
-@[reducible] private def roundS4 (a0 a1 a2 a3 a4 s0 s1 s2 s3 s4 : Word) : Word :=
+@[reducible] def roundS4 (a0 a1 a2 a3 a4 s0 s1 s2 s3 s4 : Word) : Word :=
   (a4 + s4) + rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))
-@[reducible] private def roundS5 (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) : Word :=
+@[reducible] def roundS5 (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) : Word :=
   (a5 + s5) + rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))
 
 @[reducible] private def roundQOVF
@@ -123,7 +123,7 @@ set_option maxRecDepth 8000
     (roundHigh a0 a1 a2 a3 a4 a5 excess)
     (roundHigh a0 a1 a2 a3 a4 a5 excess) FR
 
-@[reducible] private def roundQBACK
+@[reducible] def roundQBACK
     (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) (FR : Assertion) : Assertion :=
   QBACKP newSp excess outPtr iVal AB PB vals a0 a1 a2 a3 a4 a5
@@ -138,6 +138,29 @@ set_option maxRecDepth 8000
     (roundOverflow a0 a1 a2 a3 a4 a5 excess)
     (roundHigh a0 a1 a2 a3 a4 a5 excess)
     (roundHigh a0 a1 a2 a3 a4 a5 excess) FR
+
+/-! Public name for the round's back-edge post.  The concrete scratch values
+    remain hidden behind the machine post; consumers only need the swapped
+    six-cell buffers and the incremented index exposed by the adapter. -/
+@[reducible] def taylorRoundBackedgePost
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) (FR : Assertion) : Assertion :=
+  roundQBACK newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 FR
+
+@[reducible] def taylorRoundBackedgeQuotient
+    (iVal excess a0 a1 a2 a3 a4 a5 : Word) : List Word :=
+  (EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix (taylorDW * iVal)
+    (roundP0 a0 excess) (roundP1 a0 a1 excess) (roundP2 a0 a1 a2 excess)
+    (roundP3 a0 a1 a2 a3 excess) (roundP4 a0 a1 a2 a3 a4 excess)
+    (roundP5 a0 a1 a2 a3 a4 a5 excess)).1
+
+@[reducible] def taylorRoundBackedgeSum
+    (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word) : List Word :=
+  [roundS0 a0 s0, roundS1 a0 a1 s0 s1, roundS2 a0 a1 a2 s0 s1 s2,
+    roundS3 a0 a1 a2 a3 s0 s1 s2 s3,
+    roundS4 a0 a1 a2 a3 a4 s0 s1 s2 s3 s4,
+    roundS5 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5]
 
 /-! Body13 carries the same instruction window, but its generic core leaves
     the incoming x28 parameter in the Q exits.  The linked final multiply has
