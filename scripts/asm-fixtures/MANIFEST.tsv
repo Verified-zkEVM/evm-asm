@@ -291,6 +291,7 @@ frameDepthPopFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
 frameDepthPushFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
 frameLoadRegsFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
 frameSaveRegsFunction	EvmAsm/Codegen/Programs/CallFrameSwitch.lean
+hKeccak256Function	EvmAsm/Codegen/Programs/EvmHashHandlerProg.lean
 hasCodeOrNonceAtHeaderStateRootFunction	EvmAsm/Codegen/Programs/EvmCodes.lean
 headerComputeSummaryStructFunction	EvmAsm/Codegen/Programs/HeaderSummaryStruct.lean
 headerExtendedDecodeArityCheckFunction	EvmAsm/Codegen/Programs/HeaderDecode.lean

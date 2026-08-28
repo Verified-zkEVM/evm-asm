@@ -27,6 +27,7 @@ bal_rlp_emit_list_header	issue=12705	linked+pinned callee jal'd from 6 registere
 bal_rlp_emit_scalar	issue=12705	linked+pinned callee jal'd from 5 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 bal_rlp_list_header_len	issue=12705	linked+pinned callee jal'd from 7 registered entries but has no guestImageEntries row (cr-track hole, #12403)
 bal_rlp_scalar_rlp_len	issue=12705	linked+pinned callee jal'd from 9 registered entries but has no guestImageEntries row (cr-track hole, #12403)
+exit_outofgas	issue=12204	interpreter EXIT JOIN, not a callable routine: a GNU-as local code label inside the dispatcher's out-of-gas path, reached by the 11 relaxed far branches of h_KECCAK256 (the first transcribed h_* handler). It has no entry ABI and so can never be a converted guestImageEntries first component; the handler triple must treat it as a terminal exit rather than compose through it. Closes when the dispatcher exit block itself is transcribed (#12204 lane).
 extract_deposit_data	issue=12705	linked+pinned callee jal'd from 1 registered entry but has no guestImageEntries row (cr-track hole, #12403)
 keccak_absorb	issue=12705	linked+pinned callee jal'd from 1 registered entry but has no guestImageEntries row (cr-track hole, #12403)
 keccak_final	issue=12705	linked+pinned callee from 1 registered entry; standalone Function starts with .globl and needs export-preserving conversion convention

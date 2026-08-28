@@ -238,7 +238,17 @@ guest_addrs_missing="$(comm -23 \
   <(grep -E '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS" |
       sed -E 's/^def ([A-Za-z0-9_]+) : Nat := 0x.*/\1/' | sort -u) \
   <("$READELF" -sW "$ELF" |
-      awk 'NF >= 8 && $7 != "UND" && $4 != "SECTION" && $4 != "FILE" && $8 !~ /^\$/ {print $8}' |
+      awk 'NF >= 8 && $7 != "UND" && $4 != "SECTION" && $4 != "FILE" && $8 !~ /^\$/ {
+             print $8
+             # GH #12204: a GNU-as LOCAL code label is dot-prefixed in the ELF
+             # (`.exit_outofgas`), and a dot cannot start a Lean identifier, so
+             # `gen_guest_addrs` emits it under `ga_name` -- i.e. with the dot
+             # dropped. Offer the mangled spelling too, or every such symbol
+             # reads as "absent from ELF" while sitting in the symbol table.
+             # Both spellings are offered rather than replacing the raw one, so
+             # this can only ACCEPT a name, never hide a genuinely missing one.
+             if (substr($8, 1, 1) == ".") print substr($8, 2)
+           }' |
       sort -u))"
 if [[ -z "$guest_addrs_missing" ]]; then
   guest_addrs_count="$(grep -cE '^def [A-Za-z0-9_]+ : Nat := 0x' "$GUEST_ADDRS")"
