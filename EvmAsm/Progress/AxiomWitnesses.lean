@@ -168,6 +168,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bahCr_eq_flatCr
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_call_site_pointers_unaligned
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_align_bites
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_spec_within
+
 #print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
