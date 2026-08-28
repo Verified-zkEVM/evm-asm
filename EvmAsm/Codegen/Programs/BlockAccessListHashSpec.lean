@@ -836,4 +836,273 @@ theorem epilogue_spec (sp0 ret v8 v9 v18 vRa vs0 vs1 vs2 : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c4
 
+/-! ## §13  The body, idx 0..29
+
+    Everything from the first `addi sp` to the last `addi sp`, with both calls
+    composed.  `t0`/`t1` come back from each call OWNED, and the suffix is
+    proved for every value they might hold — that is what
+    `cpsTripleWithin_of_forall_regIs_to_regOwn` is for. -/
+
+/-- idx 18..29: place the core's arguments, then restore and pop. -/
+theorem tail2_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
+    (v5 v8 v9 v11 v12 v18 v29 v30 : Word)
+    (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 12 (At 18) (At 30) allCode
+      ((((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) ** ((.x11 : Reg) ↦ᵣ v11) **
+        ((.x12 : Reg) ↦ᵣ v12) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x18 : Reg) ↦ᵣ npr b) ** ((.x5 : Reg) ↦ᵣ v5) **
+        ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 18) **
+        ((.x8 : Reg) ↦ᵣ b) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R)
+      ((((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x5 : Reg) ↦ᵣ balStartLoc) **
+        ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+  have hpost := post_spec b outPtr ((execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) (SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) v5 v11 v12 v29 v30
+    (((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 18) ** ((.x8 : Reg) ↦ᵣ b) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b)
+  have hepi := epilogue_spec sp0 ret v8 v9 v18 (At 18) b outPtr (npr b)
+    (((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+      ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+      ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x5 : Reg) ↦ᵣ balStartLoc) **
+      ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) **
+      (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** R)
+    (by pcf_b)
+  have c := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hpost hepi
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c
+
+/-- idx 11..29: everything between the first call's return and the tail jump.
+    `t0` comes back from the second call OWNED, so the part after it is proved
+    for EVERY value it might hold and then repackaged. -/
+theorem suffix_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
+    (v5 v6 v8 v9 v12 v18 v28 v29 v30 : Word)
+    (R : Assertion) (hR : R.pcFree)
+    (h_align : b.toNat % 8 = 0)
+    (h_fit : 592 ≤ hdr.length)
+    (h_over : b.toNat + 591 < 2 ^ 64)
+    (h_valid : ∀ k, k < hdr.length →
+      isValidByteAccess (b + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 31 (At 11) (At 30) allCode
+      ((((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) ** ((.x18 : Reg) ↦ᵣ npr b) **
+        ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x5 : Reg) ↦ᵣ v5) **
+        ((.x6 : Reg) ↦ᵣ v6) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        memOwn balStartLoc ** bytesRegion b hdr **
+        ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 11) **
+        ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+        ((.x30 : Reg) ↦ᵣ v30) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R)
+      ((((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x5 : Reg) ↦ᵣ balStartLoc) ** regOwn .x6 **
+        ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** bytesRegion b hdr **
+        ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+  -- idx 11..16
+  have hmid := mid_spec b (SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) v5 v28 v29
+    (((.x6 : Reg) ↦ᵣ v6) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion b hdr **
+      ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 11) ** ((.x8 : Reg) ↦ᵣ b) **
+      ((.x9 : Reg) ↦ᵣ outPtr) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+      ((.x12 : Reg) ↦ᵣ v12) ** ((.x30 : Reg) ↦ᵣ v30) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b)
+  -- idx 17
+  have hc2 := call2_spec b hdr (At 11) balStartLoc v6
+    (((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+      ((.x18 : Reg) ↦ᵣ npr b) ** ((.x28 : Reg) ↦ᵣ execP b) **
+      ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** ((.x30 : Reg) ↦ᵣ v30) **
+      (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) h_align (by omega) (by omega) h_valid
+  -- idx 18..29, for every value `t0` might come back holding
+  have htail : ∀ v5', cpsTripleWithin 12 (At 18) (At 30) allCode
+      ((((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+        ((.x12 : Reg) ↦ᵣ v12) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((.x18 : Reg) ↦ᵣ npr b) **
+        ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** ((.x30 : Reg) ↦ᵣ v30) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 18) **
+        ((.x8 : Reg) ↦ᵣ b) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) **
+        (((.x28 : Reg) ↦ᵣ execP b) ** regOwn .x6 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion b hdr ** R)) **
+        ((.x5 : Reg) ↦ᵣ v5'))
+      ((((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0) - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x5 : Reg) ↦ᵣ balStartLoc) **
+        ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) ** ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) **
+        (((.x28 : Reg) ↦ᵣ execP b) ** regOwn .x6 **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion b hdr ** R)) := by
+    intro v5'
+    have h := tail2_spec sp0 ret b outPtr hdr v5' v8 v9 outPtr v12 v18
+      ((execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) v30
+      (((.x28 : Reg) ↦ᵣ execP b) ** regOwn .x6 **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion b hdr ** R)
+      (by pcf_b)
+    exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun _ hq => by xcancel_struct hq) h
+  have hown := cpsTripleWithin_of_forall_regIs_to_regOwn htail
+  have c1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hmid hc2
+  have c2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) c1 hown
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c2
+
+theorem body_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
+    (v5 v6 v8 v9 v12 v18 v28 v29 v30 : Word)
+    (R : Assertion) (hR : R.pcFree)
+    (h_align : b.toNat % 8 = 0)
+    (h_fit : 592 ≤ hdr.length)
+    (h_over : b.toNat + 591 < 2 ^ 64)
+    (h_valid : ∀ k, k < hdr.length →
+      isValidByteAccess (b + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 54 (At 0) (At 30) allCode
+      ((((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+        ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+        ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
+        memOwn (sp0 - BitVec.ofNat 64 16) ** memOwn (sp0 - BitVec.ofNat 64 8) **
+        memOwn balStartLoc ** bytesRegion b hdr) ** R)
+      ((((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)
+          - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x5 : Reg) ↦ᵣ balStartLoc) ** regOwn .x6 **
+        ((.x28 : Reg) ↦ᵣ execP b) **
+        ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        bytesRegion b hdr **
+        ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+  -- idx 0..4
+  have hpro := prologue_spec sp0 ret v8 v9 v18
+    (((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+      ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x28 : Reg) ↦ᵣ v28) **
+      ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      memOwn balStartLoc ** bytesRegion b hdr ** R)
+    (by pcf_b)
+  -- idx 5..9
+  have hset := setup_spec b outPtr v8 v9 v18 v28
+    (((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x12 : Reg) ↦ᵣ v12) **
+      ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x29 : Reg) ↦ᵣ v29) **
+      ((.x30 : Reg) ↦ᵣ v30) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      memOwn balStartLoc **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) **
+      bytesRegion b hdr ** R)
+    (by pcf_b)
+  -- idx 10
+  have hc1 := call1_spec b hdr ret v5 v6
+    (((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+      ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) ** ((.x18 : Reg) ↦ᵣ npr b) **
+      ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+      memOwn balStartLoc **
+      ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+      ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) ** ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R)
+    (by pcf_b) h_align (by omega) (by omega) h_valid
+  -- idx 11..29, for every pair of values the leaf may leave in `t0`/`t1`
+  -- idx 11..29, for every pair of values the leaf may leave in `t0`/`t1`.
+  -- The two peels need one reassociation between them: `of_forall` only ever
+  -- sees the LAST conjunct, so `t0` comes off first and `t1` after the shuffle.
+  have hsuf6 : ∀ v6', cpsTripleWithin 31 (At 11) (At 30) allCode
+      (((((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) **
+          ((.x18 : Reg) ↦ᵣ npr b) ** ((.x28 : Reg) ↦ᵣ execP b) **
+          ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          memOwn balStartLoc ** bytesRegion b hdr **
+          ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 11) **
+          ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+          ((.x30 : Reg) ↦ᵣ v30) **
+          ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) **
+          ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+          ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+          ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R) ** regOwn .x5) **
+        ((.x6 : Reg) ↦ᵣ v6'))
+      ((((.x10 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x11 : Reg) ↦ᵣ ((npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)
+          - (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0))) **
+        ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x5 : Reg) ↦ᵣ balStartLoc) ** regOwn .x6 **
+        ((.x28 : Reg) ↦ᵣ execP b) **
+        ((.x29 : Reg) ↦ᵣ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        ((.x30 : Reg) ↦ᵣ (npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0)) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        (balStartLoc ↦ₘ (execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0)) **
+        bytesRegion b hdr **
+        ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) ** ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+        ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+        ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18)) ** R) := by
+    intro v6'
+    refine cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x5)
+        (P := (((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) **
+            ((.x18 : Reg) ↦ᵣ npr b) ** ((.x28 : Reg) ↦ᵣ execP b) **
+            ((.x29 : Reg) ↦ᵣ v29) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            memOwn balStartLoc ** bytesRegion b hdr **
+            ((.x2 : Reg) ↦ᵣ sp1 sp0) ** ((.x1 : Reg) ↦ᵣ At 11) **
+            ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+            ((.x30 : Reg) ↦ᵣ v30) **
+            ((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) **
+            ((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+            ((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+            ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** R) **
+          ((.x6 : Reg) ↦ᵣ v6'))
+        (fun v5' => ?_))
+    exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun _ hq => by xcancel_struct hq)
+      (suffix_spec sp0 ret b outPtr hdr v5' v6' v8 v9 v12 v18 (execP b) v29 v30
+        R hR h_align h_fit h_over h_valid)
+  have hsuf := cpsTripleWithin_of_forall_regIs_to_regOwn hsuf6
+  have c1 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) hpro hset
+  have c2 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) c1 hc1
+  have c3 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by xcancel_struct hp) c2 hsuf
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c3
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
