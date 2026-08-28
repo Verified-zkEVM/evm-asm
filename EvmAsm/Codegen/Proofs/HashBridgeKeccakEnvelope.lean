@@ -119,9 +119,7 @@ private theorem mem_dword2_of_bytesRegion (bs : List (BitVec 8))
   obtain ⟨rfl, -⟩ := hp3
   obtain ⟨rfl, -⟩ := hp5
   subst hp6
-  simp [PartialState.union, PartialState.singletonMem, PartialState.empty,
-    show ((envBase + 8 + 8 : Word) == envBase) = false from by decide,
-    show ((envBase + 8 + 8 : Word) == envBase + 8) = false from by decide]
+  simp +decide [PartialState.union, PartialState.singletonMem, PartialState.empty]
 
 /-- **Satisfiable instance.**  The envelope region — 20 address bytes plus a
     nonzero four-byte tail — is satisfied by a real heap. -/
@@ -146,6 +144,26 @@ theorem exactRegion_false_on_nonzero_tail (h : PartialState)
   have h2 := mem_dword2_of_bytesRegion _ (by decide) h hex
   rw [h1] at h2
   exact bacp_dword2_differs (Option.some.inj h2)
+
+/-- **Instance ⋆ control, linked.**  There is a heap on which the new seam's
+    input resource holds and the old seam's does not.  The padding bytes in it
+    are nonzero (`bacpTail4` starts `0xc0`), so this cannot be re-proved by
+    quietly reintroducing the zero-padding assumption. -/
+theorem envelope_sat_and_exact_fails :
+    ∃ h, bytesRegion envBase (bacpAddr20 ++ bacpTail4) h
+      ∧ ¬ bytesRegion envBase bacpAddr20 h :=
+  envelope_region_sat.imp
+    (fun h hh => ⟨hh, exactRegion_false_on_nonzero_tail h hh⟩)
+
+/-- Spelled out, and decidable: the **exactly-sized** region pins the top four
+    bytes of the shared third dword — the four buffer bytes following the
+    address — to `0x00`; the **envelope** region carries their real, nonzero
+    values.  That zero-pinning is the content claim #13014 is about. -/
+theorem exact_region_zero_pads_but_envelope_does_not :
+    (packBytes (((bacpAddr20.drop 8).drop 8).take 8)).toNat >>> 32 = 0 ∧
+      (packBytes ((((bacpAddr20 ++ bacpTail4).drop 8).drop 8).take 8)).toNat
+        >>> 32 ≠ 0 := by
+  decide
 
 /-- The old seam's length hypothesis fails on exactly this data (`24 ≠ 20`),
     while the new seam's fits (`20 ≤ 24`). -/
