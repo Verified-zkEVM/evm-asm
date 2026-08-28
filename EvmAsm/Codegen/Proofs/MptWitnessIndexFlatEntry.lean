@@ -32,12 +32,11 @@
     data label is link-layout dependent; supplying the image's own `laHi`/`laLo` for
     `widx_records` relative to `widx_record_ptr + 12` is what pins them.
 
-  ⛔ **`widx_swap_records` is deliberately NOT here.** Its `widxSwapProg` and the
-  image's `widxSwapRecords_prog` are DIFFERENT programs — the proved variant uses `x6`
-  as the loop counter where the image uses `x31` — and `widxSwapProg ≠
-  widxSwapRecords_prog` is `decide`-checkable. So that triple is about a variant of the
-  routine, not the linked code, and instantiating its base would NOT make it the image
-  claim. Rowing it would be an overclaim; it stays unrowed with that reason recorded.
+  `widx_swap_records` is here too (#12990): the historical register mismatch — the
+  proved variant used `x6` as the loop counter where the image uses `x31` — was
+  reconciled by transposing `x6`/`x31` throughout the proof, so `widxSwapProg =
+  widxSwapRecords_prog` is now `decide`-checkable and the triple instantiates at the
+  guest entry exactly like its two siblings.
 -/
 
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
@@ -65,11 +64,10 @@ theorem widxRecordPtrProg_eq :
   -- parameterised body at those immediates — so `rfl` is the right (and cheaper) tool.
   rfl
 
-/-- ⛔ Negative control for the module header's claim: the swap routine's proved
-    program is NOT the image's, so no instantiation makes that triple the image claim.
-    Kept as a theorem so the claim cannot rot silently — if the two are ever
-    reconciled, this fails and the note above must be revisited. -/
-theorem widxSwapProg_ne : widxSwapProg ≠ widxSwapRecords_prog := by decide
+/-- The proved `widx_swap_records` program IS the image's (#12990: the historical
+    `x6`/`x31` loop-counter mismatch was reconciled by transposing the proof onto the
+    image's register assignment). -/
+theorem widxSwapProg_eq : widxSwapProg = widxSwapRecords_prog := by decide
 
 /-! ## The rowable entry triples -/
 
@@ -139,5 +137,27 @@ theorem widxRecordPtrEntry_spec (ret : Word) (rf : RegFile)
     (laHi GuestAddrs.widx_records (GuestAddrs.widx_record_ptr + 12))
     (laLo GuestAddrs.widx_records (GuestAddrs.widx_record_ptr + 12)) rf halign
   rwa [widxRecordPtrProg_eq] at h
+
+/-- **`widx_swap_records`, whole-routine flat triple at the guest entry.**
+
+    Swaps two six-dword index records in place inside the arena; on return `a0`/`a1`
+    point one record past the swapped pair, the counter `x31` is zero, `x5`/`x6` are
+    clobbered (owned), and the arena holds `widxSwapMem arena qa qb 6`. Anchored over
+    `CodeReq.ofProg (GuestAddrs.widx_swap_records) widxSwapRecords_prog` — the image's
+    own program, via `widxSwapProg_eq` (#12990). -/
+theorem widxSwapRecordsEntry_spec
+    (arenaBase : Word) (arena : List (BitVec 8)) (qa qb : Nat) (ret : Word)
+    (hneq : arenaBase + BitVec.ofNat 64 (8 * qa) ≠
+      arenaBase + BitVec.ofNat 64 (8 * qb))
+    (hA : 8 * (qa + 6) + 8 ≤ arena.length)
+    (hB : 8 * (qb + 6) + 8 ≤ arena.length)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin 58 (GuestAddrs.widx_swap_records : Word) ret
+      (CodeReq.ofProg (GuestAddrs.widx_swap_records : Word) widxSwapRecords_prog)
+      (widxSwapInv arenaBase arena qa qb ret 0)
+      (widxSwapPost arenaBase arena qa qb ret) := by
+  have h := widx_swap_records_spec (GuestAddrs.widx_swap_records : Word)
+    arenaBase arena qa qb ret hneq hA hB halignRet
+  rwa [widxSwapProg_eq] at h
 
 end EvmAsm.Codegen.Proofs

@@ -137,6 +137,20 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (widx_swap_records reconciled and rowed — #12990, 2026-08-29)
+
+- ✅ **#12990**: the historical `x6`/`x31` loop-counter mismatch between
+  `widxSwapProg` (proved) and `widxSwapRecords_prog` (image) is
+  reconciled — the proof transposed onto the image's register
+  assignment compiled UNCHANGED, `widxSwapProg_ne` became the positive
+  `widxSwapProg_eq`, and `widxSwapRecordsEntry_spec` instantiates at
+  `GuestAddrs.widx_swap_records` like its two siblings.  `.proven` row
+  added (212/163/172), allowlist exemption retired.  Bonus: the
+  code-index clone's program now coincides too
+  (`wcidxSwapRecords_prog_eq`, was a ⛔ negative control), so
+  `widx_swap_records_spec` transfers to `wcidx_swap_records` at any
+  base.
+
 ### Recent (segments out0 — #12987/#12897 closed, 2026-08-29)
 
 - ✅ **`zkvm_keccak256_segments` generalized over its initial output
