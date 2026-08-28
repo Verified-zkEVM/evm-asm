@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Programs.U256AddBeAInPlaceSAsm
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
@@ -258,6 +259,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -323,6 +325,7 @@ import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 -- #12318 callee-composition lane: the APPEND half of the node DB, composing
 -- `zkvm_keccak256` and `mset_memcpy` (both rowed) through `callWithin_spec`.
 import EvmAsm.Codegen.Programs.NodeDbAppendSpec
+import EvmAsm.Codegen.Programs.BlockAccessListHashBahOffset
 -- #12036: `witness_lookup_by_hash` ABI frame, telemetry idiom, and the
 -- whole-routine triple on the `section_len = 0` domain.
 import EvmAsm.Codegen.Programs.WitnessLookupByHashSpec
@@ -340,6 +343,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
+import EvmAsm.Codegen.Programs.SystemCallStagingTop
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashVal
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
@@ -1886,6 +1890,32 @@ def routineRegistry : List RoutineEntry := [
         ++ "non-vacuity witnesses for the status-zero route, not "
         ++ "a claim that every K73 input is covered; the generic unconstrained "
         ++ "entry theorem remains open. No emitted code changes."),
+  -- #12346 residual 2b: the increase arm's wrapper-vocabulary Route-B
+  -- adapter.  The composed triple is complete over the wrapper contract
+  -- (`k73PreRest` premise, `k73RouteBCallPost` conclusion) but carries the
+  -- symmetric multiply-callee premise `hcallee`, which no pure respeller can
+  -- discharge symbolically (class-b finding on issue 12346: the respeller
+  -- cannot consume `mulWhole_spec` for symbolically-threaded lists), so the
+  -- row is `.conditional`, not `.proven`: the gate excludes every caller that
+  -- cannot itself supply a verified multiply callee.
+  routine "eip1559_calc_base_fee_per_gas" .conditional
+      (some "k73_incr_route_adapter_inhabited")
+      (gate := "carries the multiply-callee premise `hcallee` "
+        ++ "(a `cpsTripleWithin` over `GuestAddrs.u256_mul_u64_be`): "
+        ++ "dischargeable today only at concrete witnesses "
+        ++ "(the witness instantiates it from `mulWhole_spec`); "
+        ++ "a symbolic respeller awaits the increase-side native asymmetric "
+        ++ "contract (follow-up to PR #12978). Static gates: "
+        ++ "`target = gas_limit >>> 1`, `0 < target` (issue #12951), "
+        ++ "`target < gas_used`.")
+      (notes := "wrapper-vocab Route-B adapter for the increase arm "
+        ++ "(`k73_incr_route_adapter`, witness = constructed inhabitance at "
+        ++ "gas_limit = 10,000, gas_used = 7,500, parent fee bytes 0): "
+        ++ "the strengthened `k73IncreaseStatusFinalPost` carries the "
+        ++ "zero-test branch pures (a path-blind post admits countermodel "
+        ++ "states no local window algebra can kill). The concrete witness "
+        ++ "establishes non-vacuity only; it does NOT upgrade the general "
+        ++ "theorem past the `hcallee` gate."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -2013,6 +2043,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "written there and removed. The stale allowlist entry claiming this "
         ++ "symbol still needed `Fn.retSpecFlat` is what hid it. Its non-vacuity "
         ++ "is in `Codegen/Proofs/AmbientFreeFlatTriples.lean`"),
+  -- #12318: the OFFSET form of `bah_u32le`, added because the flat row above
+  -- does not reach either call site. `bahU32leFlat_spec` is derived through the
+  -- SAsm `Fn` framework, whose `Region.wf` pins the region base — and therefore
+  -- `a0` — to a dword-aligned address; `block_access_list_hash` passes
+  -- `sszBase + 588` and `sszBase + 20`, and the linked `sszBase` is
+  -- `INPUT_MEM_START` (8-aligned), so `a0 % 8 = 4` at BOTH sites. Composing the
+  -- flat form would have meant assuming `sszBase % 8 = 4` — satisfiable, but
+  -- false at the linked call site. Same defect and same remedy as `bgv_u32le`
+  -- (#11578); the single-instruction engine `bytesRegion_lbu_cursor_imm_within`
+  -- is REUSED from that module rather than reproved.
+  routine "bah_u32le" .conditional (some "bah_u32le_offset_spec_within")
+      (notes := "offset-form triple at `GuestAddrs.bah_u32le` over `bahCr = "
+        ++ "CodeReq.ofProg … bahU32le_prog` — definitionally the `bahU32leCr` "
+        ++ "the flat row uses (`bahCr_eq_flatCr`), so both rows are about the "
+        ++ "same image claim. `a0 = listBase + off` with `off` ARBITRARY and "
+        ++ "possibly unaligned; the alignment obligation moves to the PARENT "
+        ++ "region base. Post: `a0 = leU32 (bs.drop off) 0`, region pinned "
+        ++ "intact, `t0`/`t1` released to `regOwn`. Fuel 12. ⚠️ Graded "
+        ++ "`.conditional` to match the `bgv_u32le` offset row, whose premise "
+        ++ "this one mirrors exactly: `h_align listBase.toNat % 8 = 0` is a "
+        ++ "CALLER assumption about an ABI-supplied region base, not a static "
+        ++ "`GuestAddrs` pin discharged by `decide`. Read purely as resource "
+        ++ "framing it would be `.proven`; the two rows should move together "
+        ++ "if that reading is adopted. Non-vacuity is stated at the REAL "
+        ++ "call-site geometry rather than at an invented address: "
+        ++ "`bah_u32le_offset_precondition_reachable` satisfies all four "
+        ++ "premises at `listBase = INPUT_MEM_START`, `off = 20` — the very "
+        ++ "pointer the flat form cannot reach — and its last conjunct records "
+        ++ "that `a0` there is NOT dword-aligned. Controls: "
+        ++ "`bah_u32le_offset_align_bites` (a parent base one byte into a dword "
+        ++ "fails `h_align`, so the premise excludes inputs) and "
+        ++ "`bah_u32le_call_site_pointers_unaligned` (both linked call-site "
+        ++ "pointers `sszBase + 588` / `sszBase + 20` are `≡ 4 (mod 8)`, which "
+        ++ "is the fact this row exists for and which would otherwise rot in "
+        ++ "prose)"),
   -- Second of the four allowlist entries whose ONLY obstacle was a union CodeReq.
   routine "secf_is_zero32" .proven (some "secfIsZero32FlatEntry_spec")
       (notes := "whole-routine triple at `GuestAddrs.secf_is_zero32` over "
@@ -3917,6 +3982,91 @@ def routineRegistry : List RoutineEntry := [
         ++ "this triple ties to no spec-side VALUE and a correspondence "
         ++ "verdict would overstate it"),
 
+  -- #12206 item 1: `stage_system_call` whole-routine triple. 71 instructions
+  -- at 0x80053730 (284 bytes, `ret` at 0x80053848; extent from `riscv64-elf-nm`
+  -- cross-checked by `sscProgL_spans_symbol`), NO loop, NO ABI stack frame
+  -- (`ra`/`s0` spill to the dedicated BSS cells `ssc_saved_ra`/`ssc_saved_s0`),
+  -- and THREE callees, none of them composable. Three exit codes, all in the
+  -- post, all written by this routine's own `li` instructions.
+  routine "stage_system_call" .conditional
+      (some "stage_system_call_spec_within")
+      (gate := "NO input-domain gate at all: the routine reads no caller "
+        ++ "memory, so `halign` (even return address, the ordinary ABI "
+        ++ "obligation) is the only non-residual hypothesis. THREE RESIDUALS, "
+        ++ "every one an UNPROVEN-CALLEE DEPENDENCY rather than an "
+        ++ "input-domain restriction: `h_ard : ArdCallShape` at index 7 "
+        ++ "(0x8005374c, `account_read_record` — that routine IS rowed, but "
+        ++ "`accountReadRecordSuppressedFlat_spec` is gated to the SUPPRESSED "
+        ++ "arm, `runtime_tx_account_read_suppress ≠ 0`, which this caller "
+        ++ "does not establish, so the three arms that gate excludes are "
+        ++ "exactly the ones the fall-through reaches and there is nothing to "
+        ++ "compose); `h_sscp : SscpCallShape` at index 25 (0x80053794, "
+        ++ "`stage_system_call_payload` — `_prog` exists, 141 instructions, "
+        ++ "but no triple and no row); `h_rdc : RdcCallShape` at index 31 "
+        ++ "(0x800537ac, `runtime_dispatcher_call` — the whole EVM "
+        ++ "interpreter, standing #12204 blocker). Each shape leaves what its "
+        ++ "callee COMPUTES abstract — the payload status `stP`, the "
+        ++ "return-data length `retLen` and the halt kind `hk` are universally "
+        ++ "quantified by the theorem — so the whole post is proved against "
+        ++ "ANY callee behaviour. What each shape DOES pin was measured "
+        ++ "against the callee's emitted text, not assumed: `ArdCallShape` "
+        ++ "pins t1/a1/a2/a3/a4 (`accountReadRecord_prog` saves and restores "
+        ++ "t0-t6 and only reads a0); `SscpCallShape` pins s0 "
+        ++ "(`stageSystemCallPayload_prog` saves ra/s0/s1/s2/s3/s4); all three "
+        ++ "pin `ssc_saved_ra`/`ssc_saved_s0`, and that last one — the "
+        ++ "interpreter not touching the two spill cells — is the STRONGEST "
+        ++ "thing assumed here, is why those cells are dedicated rather than "
+        ++ "shared, and is why the routine is not re-entrant. Non-vacuity: "
+        ++ "`ard_residual_reachable`, `sscp_residual_reachable` and "
+        ++ "`rdc_residual_reachable` discharge every computable conjunct of "
+        ++ "each shape at the REAL call site, with three negative controls "
+        ++ "where the same bundle is provably FALSE at a different `jal` site "
+        ++ "of this same routine — `ard_residual_wrong_site`, "
+        ++ "`sscp_residual_wrong_site`, `rdc_residual_wrong_site` — which is "
+        ++ "what shows the reloc conjunct ties each shape to ITS site rather "
+        ++ "than to any `jal` at all. `ardCall_balanced` / `sscpCall_balanced` "
+        ++ "additionally show each shape's post demands nothing its pre does "
+        ++ "not supply (no atom named twice, so the footprint is not "
+        ++ "self-contradictory)")
+      (notes := "`cpsTripleWithin (sscFuel fArd fSscp fRdc)` = 61 own steps "
+        ++ "plus the three residual fuels, at `GuestAddrs.stage_system_call` "
+        ++ "with exit `ret`, over `sscCode = CodeReq.ofProg B "
+        ++ "stageSystemCall_prog`. NO callee union — all three calls stand "
+        ++ "under residuals, each of which carries its own `cr` obligation for "
+        ++ "the `jal`, the same posture `rhvCode` takes toward "
+        ++ "`execution_requests_hash`. No `abiFrame_spec`: this routine has no "
+        ++ "stack frame, so all 71 instructions are chained by hand across a "
+        ++ "forward DAG with two early exits into a shared failure epilogue "
+        ++ "(index 56) and a three-way verdict cascade joining at index 64. "
+        ++ "THREE EXIT CODES via `sscStatus codeLen stP hk`: `a2 = 1` STAGING "
+        ++ "failure (`beqz a2` at 0x80053754 taken on empty predeploy code, or "
+        ++ "`bnez a0` at 0x80053798 taken on payload reject; `li a2, 1` at "
+        ++ "0x8005382c); `a2 = 2` EXECUTION failure (dispatch ran, "
+        ++ "`rdg_halt_kind` outside {0,1,5}; `li a2, 2` at 0x80053800); "
+        ++ "`a2 = 0` SUCCESS (`rdg_halt_kind` in {0,1,5} = "
+        ++ "STOP/RETURN/SELFDESTRUCT; `li a2, 0` at 0x80053808). ⚠️ THE POINT "
+        ++ "OF THIS ROW: all three are written by `li` instructions of THIS "
+        ++ "routine, so `sscStatus_mem_three` (`a2` is 0, 1 or 2) and "
+        ++ "`sscStatus_eq_one_iff` (`a2 = 1` iff `codeLen = 0` or `stP` is "
+        ++ "nonzero) are CALLEE-INDEPENDENT — they hold for every "
+        ++ "instantiation of the three residuals. That is exactly the #11810 "
+        ++ "guarantee the unchecked 4788/2935 callers depend on: they reject "
+        ++ "only `a2 = 1` and must ignore `a2 = 2`, so collapsing the classes "
+        ++ "is a soundness bug. Also callee-independent and in the post: on "
+        ++ "the staging-failure path `a1 = 0` and "
+        ++ "`a0 = &system_call_returndata`; on every path "
+        ++ "`system_call_mode = 0` and `ra`/`s0` come back from the two spill "
+        ++ "cells. FOOTPRINT: seven BSS cells (`ssc_saved_ra`, `ssc_saved_s0`, "
+        ++ "`system_call_mode`, `system_call_returndata_len`, "
+        ++ "`runtime_tx_auth_exec_fn`, `rdg_halt_kind`, "
+        ++ "`runtime_dispatcher_input_ptr`) plus `sscScratchOwn`, which names "
+        ++ "every register the routine does not itself track so that no caller "
+        ++ "can pin one a callee clobbers (the #10688 trap). ⚠️ No "
+        ++ "Correspondence row: everything the callees compute is abstract "
+        ++ "under the three residuals, so this triple ties to no spec-side "
+        ++ "VALUE and a correspondence verdict would overstate it. Split "
+        ++ "across `SystemCallStaging{Base,Residuals,Top}`"),
+
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
   -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
   -- `payloadLen < 2^56` gate. Keccak gather ungated via
@@ -4333,12 +4483,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 208 := by decide
+theorem routineCount_eq : routineCount = 211 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 42 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4356,7 +4506,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 170 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 171 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4657,6 +4807,12 @@ private noncomputable abbrev _mpt_node_kind_reachable_witness :=
   @EvmAsm.Codegen.MptNodeKindSpec.mpt_node_kind_precondition_reachable
 private noncomputable abbrev _bgv_u32le_offset_reachable_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashBgvOffset.bgv_u32le_offset_precondition_reachable
+private noncomputable abbrev _bah_u32le_offset_reachable_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_precondition_reachable
+private noncomputable abbrev _bah_u32le_offset_align_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_align_bites
+private noncomputable abbrev _bah_u32le_call_site_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_call_site_pointers_unaligned
 private noncomputable abbrev _blsg_eq48_flat_instance_witness :=
   @EvmAsm.Codegen.AmbientLifted.blsgEq48Flat_instance
 private noncomputable abbrev _assemble_execution_requests_gate_reachable_witness :=
@@ -5383,6 +5539,13 @@ private noncomputable abbrev _u256_eq_routine_witness :=
 -- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+-- #12319: the FIRST-OPERAND-ALIASED (`a0 = a2`) contract over the SAME
+-- `u256_add_be` text. No Routines ROW: `u256_add_be` already has one, and this
+-- is a second contract on that routine rather than a second routine. Witnessed
+-- anyway so `check-axioms` covers the module (same pattern as the
+-- `_erh_hash_one_*` phase witnesses above).
+private noncomputable abbrev _u256_add_be_a_inplace_witness :=
+  @EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
@@ -5430,6 +5593,8 @@ private noncomputable abbrev _k73_decr_entry_status_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
 private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
+private noncomputable abbrev _k73_incr_route_adapter_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -5453,6 +5618,11 @@ private noncomputable abbrev _secf_get_bit_lsb_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldGetBitLsbSAsm.secfGetBitLsbFlat_spec
 private noncomputable abbrev _bah_u32le_routine_witness :=
   @EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
+-- #12318: the offset form, the one `block_access_list_hash` can actually call.
+private noncomputable abbrev _bah_u32le_offset_routine_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_spec_within
+private noncomputable abbrev _bah_u32le_offset_cr_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashBahOffset.bahCr_eq_flatCr
 -- ⚠️ `…FlatEntry_spec` again, NOT the `pdCr`-anchored twin.
 private noncomputable abbrev _secf_is_zero32_routine_witness :=
   @EvmAsm.Codegen.AmbientFree.secfIsZero32FlatEntry_spec
@@ -5773,6 +5943,36 @@ private noncomputable abbrev _requests_hash_verify_residual_reachable_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
 private noncomputable abbrev _requests_hash_verify_gate_unaligned_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+-- #12206 item 1: `stage_system_call` whole routine (imported above). The three
+-- residuals' reachability instances AND all three negative controls get
+-- witnesses, so the axiom gate audits the non-vacuity evidence and not only the
+-- triple (#12857).
+private noncomputable abbrev _stage_system_call_routine_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.stage_system_call_spec_within
+private noncomputable abbrev _stage_system_call_ard_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ard_residual_reachable
+private noncomputable abbrev _stage_system_call_sscp_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_reachable
+private noncomputable abbrev _stage_system_call_rdc_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_reachable
+private noncomputable abbrev _stage_system_call_ard_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ard_residual_wrong_site
+private noncomputable abbrev _stage_system_call_sscp_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_wrong_site
+private noncomputable abbrev _stage_system_call_rdc_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_wrong_site
+private noncomputable abbrev _stage_system_call_ard_balanced_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ardCall_balanced
+private noncomputable abbrev _stage_system_call_sscp_balanced_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscpCall_balanced
+private noncomputable abbrev _stage_system_call_status_three_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_mem_three
+private noncomputable abbrev _stage_system_call_status_one_iff_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_eq_one_iff
+private noncomputable abbrev _stage_system_call_execstatus_ne_one_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscExecStatus_ne_one
+private noncomputable abbrev _stage_system_call_extent_witness :=
+  @EvmAsm.Codegen.SystemCallStagingBase.sscProgL_spans_symbol
 private noncomputable abbrev _requests_hash_verify_gate_short_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
 private noncomputable abbrev _requests_hash_verify_residual_wrong_site_witness :=

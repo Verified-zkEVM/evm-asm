@@ -254,9 +254,136 @@ theorem k73_increase_status2_spec_within
       have hbase := (sepConj_pure_left s).1 hq'' |>.2
       xperm_hyp hbase) hnt
 
-/-! The `u256_is_zero` branch joins the unchanged quotient path with the -/
+/-! ### Window-value zero bridges
+
+The zero-test branch decision is driven by the `u256_is_zero` flag, whose
+value is a function of the window bytes.  These bridges relate the flag to
+`beBytesToNat` of the 32-byte window so the branch pures can ride the post:
+without them the post is PATH-BLIND, and a path-blind post admits
+countermodel states that no local window algebra can kill, because the
+implication quantifies over all states satisfying the post rather than the
+reachable ones. -/
+
+theorem k73_wb_beBytes_eq_zero_iff (l : List (BitVec 8)) :
+    EvmAsm.Crypto.beBytesToNat l = 0 ↔ ∀ b ∈ l, (b : BitVec 8) = 0 := by
+  induction l with
+  | nil => simp [EvmAsm.Crypto.beBytesToNat]
+  | cons b bs ih =>
+    rw [EvmAsm.Crypto.beBytesToNat_cons]
+    constructor
+    · intro h
+      have hpow : 0 < 256 ^ bs.length := by positivity
+      have hmul : b.toNat * 256 ^ bs.length = 0 := by omega
+      have hb0 : b.toNat = 0 := by
+        rcases Nat.mul_eq_zero.mp hmul with hz | hp
+        · exact hz
+        · exact absurd hp (by omega)
+      have hb : (b : BitVec 8) = 0 := BitVec.eq_of_toNat_eq (by simp [hb0])
+      have hrz : EvmAsm.Crypto.beBytesToNat bs = 0 := by omega
+      intro c hc
+      rcases List.mem_cons.mp hc with rfl | hbs
+      · exact hb
+      · exact (ih.mp hrz) c hbs
+    · intro h
+      have hb0 : (b : BitVec 8) = 0 := h b (by simp)
+      have hrz : EvmAsm.Crypto.beBytesToNat bs = 0 :=
+        ih.mpr fun c hc => h c (List.mem_cons_of_mem _ hc)
+      have ht : b.toNat = 0 := by rw [hb0]; rfl
+      rw [ht, hrz]
+      simp
+
+theorem k73_wb_packBytes_eq_zero_iff {c : List (BitVec 8)} (hc : c.length = 8) :
+    packBytes c = 0 ↔ ∀ b ∈ c, (b : BitVec 8) = 0 := by
+  constructor
+  · intro h b hb
+    obtain ⟨j, hj, hbj⟩ := List.mem_iff_getElem.mp hb
+    have hpack : extractByte (packBytes c) j = b := by
+      rw [extractByte_packBytes c j (by omega) (by simp [hc]; omega)]
+      exact hbj
+    have hz : ∀ k : Nat, extractByte (0 : Word) k = 0 := by
+      intro k
+      simp [EvmAsm.Rv64.extractByte]
+    rw [h, hz] at hpack
+    exact hpack.symm
+  · intro h
+    have hrep : c = List.replicate 8 0 := by
+      apply List.ext_get
+      · simp [hc]
+      · intro n hn1 hn2
+        have hbz : c[n] = 0 := h (c[n]) (List.getElem_mem (by simpa [hc] using hn1))
+        show c[n] = (List.replicate 8 0)[n]
+        rw [hbz, List.getElem_replicate (by simpa using hn2)]
+    rw [hrep]
+    rfl
+
+/-- A length-32 window tests zero exactly when all four of its 8-byte
+chunks are zero. -/
+theorem k73_wb_window_zero_iff (q2 : List (BitVec 8)) (hlen : q2.length = 32) :
+    EvmAsm.Crypto.beBytesToNat q2 = 0 ↔
+      packBytes (q2.take 8) = 0 ∧ packBytes ((q2.drop 8).take 8) = 0 ∧
+        packBytes ((q2.drop 16).take 8) = 0 ∧
+        packBytes ((q2.drop 24).take 8) = 0 := by
+  have hlen1 : (q2.take 8).length = 8 := by
+    rw [List.length_take]; simp only [hlen]; omega
+  have hlen2 : ((q2.drop 8).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop]; simp only [hlen]; omega
+  have hlen3 : ((q2.drop 16).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop]; simp only [hlen]; omega
+  have hlen4 : ((q2.drop 24).take 8).length = 8 := by
+    rw [List.length_take, List.length_drop]; simp only [hlen]; omega
+  constructor
+  · intro h
+    have hall := (k73_wb_beBytes_eq_zero_iff q2).mp h
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · exact (k73_wb_packBytes_eq_zero_iff hlen1).mpr
+        fun b hb => hall b (List.mem_of_mem_take hb)
+    · exact (k73_wb_packBytes_eq_zero_iff hlen2).mpr
+        fun b hb => hall b (List.mem_of_mem_drop (List.mem_of_mem_take hb))
+    · exact (k73_wb_packBytes_eq_zero_iff hlen3).mpr
+        fun b hb => hall b (List.mem_of_mem_drop (List.mem_of_mem_take hb))
+    · exact (k73_wb_packBytes_eq_zero_iff hlen4).mpr
+        fun b hb => hall b (List.mem_of_mem_drop (List.mem_of_mem_take hb))
+  · intro h
+    obtain ⟨h0, h1, h2, h3⟩ := h
+    have z0 := (k73_wb_packBytes_eq_zero_iff hlen1).mp h0
+    have z1 := (k73_wb_packBytes_eq_zero_iff hlen2).mp h1
+    have z2 := (k73_wb_packBytes_eq_zero_iff hlen3).mp h2
+    have z3 := (k73_wb_packBytes_eq_zero_iff hlen4).mp h3
+    refine (k73_wb_beBytes_eq_zero_iff q2).mpr ?_
+    intro b hb
+    obtain ⟨j, hj, hjb⟩ := List.mem_iff_getElem.mp hb
+    rcases Nat.lt_or_ge j 8 with hj8 | hj8
+    · refine z0 b (List.mem_iff_getElem.mpr ⟨j, by omega, ?_⟩)
+      simp only [List.getElem_take]
+      exact hjb
+    rcases Nat.lt_or_ge j 16 with h16 | h16
+    · refine z1 b (List.mem_iff_getElem.mpr ⟨j - 8, by omega, ?_⟩)
+      rw [List.getElem_take, ← hjb, List.getElem_drop]
+      congr 1
+      omega
+    rcases Nat.lt_or_ge j 24 with h24 | h24
+    · refine z2 b (List.mem_iff_getElem.mpr ⟨j - 16, by omega, ?_⟩)
+      rw [List.getElem_take, ← hjb, List.getElem_drop]
+      congr 1
+      omega
+    · refine z3 b (List.mem_iff_getElem.mpr ⟨j - 24, by omega, ?_⟩)
+      rw [List.getElem_take, ← hjb, List.getElem_drop]
+      congr 1
+      omega
+
+/-! The `u256_is_zero` branch joins the unchanged quotient path with the
+replaced path.  The strengthened form pins the incoming flag to `v10` and
+requires it to be the honest `u256_is_zero` result of the window; the branch
+pures then ride the post (KEEP carries a nonzero window, REPLACE a zero
+window).  Without the pures the post is PATH-BLIND, and a path-blind post
+admits countermodel states that no local window algebra can kill, because
+the implication quantifies over all states satisfying the post rather than
+the reachable ones. -/
 theorem k73_increase_zero_branch_spec_within
     (ptr : Word) (q2 : List (BitVec 8)) (F : Assertion)
+    (v10 : Word)
+    (hflag : v10 =
+      (if EvmAsm.Crypto.beBytesToNat q2 = 0 then (1 : Word) else 0))
     (hrw : RwRegion.wf ⟨ptr, 32⟩) (hlen : q2.length = 32)
     (hF : F.pcFree) :
     cpsTripleWithin
@@ -265,19 +392,20 @@ theorem k73_increase_zero_branch_spec_within
       (K73 + 136) (K73 + 172) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
         ((.x9 : Reg) ↦ᵣ ptr) **
-        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x10 : Reg) ↦ᵣ v10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F)
       (fun s =>
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
           ((.x9 : Reg) ↦ᵣ ptr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
           ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
-          bytesRegion ptr q2 ** F) s ∨
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+          bytesRegion ptr q2 ** F) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+        ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
           ((.x9 : Reg) ↦ᵣ ptr) **
           regOwns exposedRegs **
-          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) s) := by
+          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) **
+          ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s) := by
   let Base : Assertion :=
     ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
@@ -290,8 +418,8 @@ theorem k73_increase_zero_branch_spec_within
     exact hF
   have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 136) wholeCode
       (Rest ** ((.x10 : Reg) ↦ᵣ old10))
-      (K73 + 172) (Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
-      (K73 + 140) (Rest ** ((.x10 : Reg) ↦ᵣ old10)) := by
+      (K73 + 172) ((Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word))) ** ⌜old10 = (0 : Word)⌝)
+      (K73 + 140) ((Rest ** ((.x10 : Reg) ↦ᵣ old10)) ** ⌜old10 ≠ (0 : Word)⌝) := by
     intro old10
     have hbeq := beq_spec_gen_within .x10 .x0 (36 : BitVec 13)
       old10 (0 : Word) (K73 + 136)
@@ -308,60 +436,77 @@ theorem k73_increase_zero_branch_spec_within
         obtain ⟨hq, hzero⟩ := (sepConj_pure_right _).1 hq'
         rw [hzero] at hq
         dsimp [Rest, Base] at hq ⊢
+        refine (sepConj_pure_right _).2 ⟨?_, hzero⟩
         xperm_hyp hq)
       (fun s hq => by
         have hq' :
             (((((.x10 : Reg) ↦ᵣ old10) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) **
                 Base) ** ⌜old10 ≠ (0 : Word)⌝) s := by
           simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hq
-        obtain ⟨hq, _hne⟩ := (sepConj_pure_right _).1 hq'
+        obtain ⟨hq, hne⟩ := (sepConj_pure_right _).1 hq'
         dsimp [Rest, Base] at hq ⊢
+        refine (sepConj_pure_right _).2 ⟨?_, hne⟩
         xperm_hyp hq) hbeqF
-  have hraw' : ∀ old10, cpsBranchWithin 1 (K73 + 136) wholeCode
-      (Rest ** ((.x10 : Reg) ↦ᵣ old10))
-      (K73 + 172) (Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
-      (K73 + 140) (Rest ** regOwn .x10) := by
-    intro old10
-    have h := hraw old10
-    exact cpsBranchWithin_weaken (fun _ hp => hp)
-      (fun _ hq => hq)
-      (fun s hq => sepConj_mono_right (regIs_implies_regOwn .x10) s hq) h
-  have hbr := cpsBranchWithin_of_forall_regIs_to_regOwn
-    (r := .x10) (P := Rest)
-    (Q_t := Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word)))
-    (Q_f := Rest ** regOwn .x10) hraw'
+  have htk : cpsBranchWithin 1 (K73 + 136) wholeCode
+      (Rest ** ((.x10 : Reg) ↦ᵣ v10))
+      (K73 + 172)
+      ((Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word))) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝)
+      (K73 + 140)
+      ((Rest ** ((.x10 : Reg) ↦ᵣ v10)) ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) := by
+    have h := hraw v10
+    refine cpsBranchWithin_weaken (fun _ hp => hp) ?_ ?_ h
+    · intro s hq
+      obtain ⟨hq, hv0⟩ := (sepConj_pure_right _).1 hq
+      by_cases hz : EvmAsm.Crypto.beBytesToNat q2 = 0
+      · rw [if_pos hz] at hflag
+        rw [hflag] at hv0
+        simp at hv0
+      · refine (sepConj_pure_right _).2 ⟨?_, hz⟩
+        xperm_hyp hq
+    · intro s hq
+      obtain ⟨hq, hvne⟩ := (sepConj_pure_right _).1 hq
+      by_cases hz : EvmAsm.Crypto.beBytesToNat q2 = 0
+      · refine (sepConj_pure_right _).2 ⟨?_, hz⟩
+        xperm_hyp hq
+      · rw [if_neg hz] at hflag
+        exact absurd hflag hvne
   let TakenPost : Assertion :=
-    Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word))
+    (Rest ** ((.x10 : Reg) ↦ᵣ (0 : Word))) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝
   let ReplacePost : Assertion :=
     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
       ((.x9 : Reg) ↦ᵣ ptr) **
       regOwns exposedRegs **
       bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F
-  let JoinedPost : Assertion := fun s => TakenPost s ∨ ReplacePost s
+  let JoinedPost : Assertion :=
+    fun s => TakenPost s ∨ (ReplacePost ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s
   have ht0 := cpsTripleWithin_refl (addr := K73 + 172)
     (P := TakenPost) (Q := JoinedPost) (fun _ h => Or.inl h)
   have ht := cpsTripleWithin_extend_code
     (cr' := wholeCode)
     (fun a i hi => by simp [CodeReq.empty] at hi) ht0
   have hf0 := k73_increase_replace_route_spec_within ptr q2 F hrw hlen hF
-  have hf := cpsTripleWithin_weaken (Q' := JoinedPost) (fun _ hp => hp)
-    (fun s hq => Or.inr hq) hf0
-  have ht' := cpsTripleWithin_mono_nSteps
-    (nSteps' := 2 + (1 +
-      (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1) + 1)
-    (by omega) ht
+  have hzpcf : (⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝).pcFree := by pcf
+  have hf := cpsTripleWithin_frameR ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝ hzpcf hf0
   have hf' : cpsTripleWithin
       (2 + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1) + 1)
       (K73 + 140) (K73 + 172) wholeCode
-      (Rest ** regOwn .x10) JoinedPost := by
-    refine cpsTripleWithin_weaken
-      (P' := Rest ** regOwn .x10) (Q' := JoinedPost)
-      (fun _ hp => by
-        dsimp [Rest, Base] at hp ⊢
-        xperm_hyp hp)
-      (fun _ hq => hq) hf
-  have hmerge := cpsBranchWithin_merge_same_cr hbr ht' hf'
+      ((Rest ** ((.x10 : Reg) ↦ᵣ v10)) ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝)
+      JoinedPost := by
+    refine cpsTripleWithin_weaken (Q' := JoinedPost) (fun s hp => ?_)
+      (fun s hq => Or.inr hq) hf
+    obtain ⟨hp, hpu⟩ := (sepConj_pure_right _).1 hp
+    dsimp [Rest, Base] at hp ⊢
+    refine (sepConj_pure_right _).2 ⟨?_, hpu⟩
+    have hx : (Rest ** regOwn .x10) s :=
+      sepConj_mono_right (regIs_implies_regOwn .x10) s hp
+    dsimp [Rest, Base] at hx
+    xperm_hyp hx
+  have ht' := cpsTripleWithin_mono_nSteps
+    (nSteps' := 2 + (1 +
+      (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1) + 1)
+    (by omega) ht
+  have hmerge := cpsBranchWithin_merge_same_cr htk ht' hf'
   dsimp [Base, Rest, TakenPost, ReplacePost, JoinedPost] at hmerge ⊢
   simpa only [show (1 + 1 : Nat) = 2 by decide,
     sepConj_assoc', sepConj_comm', sepConj_left_comm'] using hmerge
@@ -378,7 +523,11 @@ theorem k73_increase_zero_test_spec_within
         bytesRegion ptr q2 ** F)
       (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (if packBytes ((q2.drop 0).take 8) = 0 ∧
+            packBytes ((q2.drop 8).take 8) = 0 ∧
+              packBytes ((q2.drop 16).take 8) = 0 ∧
+                packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else
+          0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ packBytes ((q2.drop 0).take 8)) **
           ((ptr + 8) ↦ₘ packBytes ((q2.drop 8).take 8)) **
@@ -401,7 +550,7 @@ theorem k73_increase_zero_test_spec_within
     pcf
     exact hF
   have hstatus := k73_increase_status2_spec_within Pstatus hPstatus
-  have hzero := k73_increase_is_zero_call_spec_within
+  have hzero := k73_increase_is_zero_call_spec_within_result
     ptr oldRa
     (packBytes ((q2.drop 0).take 8))
     (packBytes ((q2.drop 8).take 8))
@@ -421,14 +570,22 @@ theorem k73_increase_zero_test_spec_within
         bytesRegion ptr q2 ** F)
       (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (if packBytes ((q2.drop 0).take 8) = 0 ∧
+            packBytes ((q2.drop 8).take 8) = 0 ∧
+              packBytes ((q2.drop 16).take 8) = 0 ∧
+                packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else
+          0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F) := by
     refine cpsTripleWithin_weaken
       (P' := ((.x20 : Reg) ↦ᵣ (1 : Word)) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Pstatus)
       (Q' := ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (if packBytes ((q2.drop 0).take 8) = 0 ∧
+            packBytes ((q2.drop 8).take 8) = 0 ∧
+              packBytes ((q2.drop 16).take 8) = 0 ∧
+                packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else
+          0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F)
       (fun _ hp => by
         dsimp [Frame, Pstatus] at hp ⊢
@@ -461,15 +618,16 @@ theorem k73_increase_zero_test_branch_spec_within
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F)
       (fun s =>
-        (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
           ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
           ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
-          bytesRegion ptr q2 ** F) s ∨
-        (((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion ptr q2 ** F) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+        ((((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
           ((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ ptr) **
           regOwns exposedRegs **
-          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) s) := by
+          bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) **
+          ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s) := by
   let Cells : Assertion :=
     (ptr ↦ₘ packBytes ((q2.drop 0).take 8)) **
       ((ptr + 8) ↦ₘ packBytes ((q2.drop 8).take 8)) **
@@ -477,6 +635,18 @@ theorem k73_increase_zero_test_branch_spec_within
       ((ptr + 24) ↦ₘ packBytes ((q2.drop 24).take 8))
   have hcells : bytesRegion ptr q2 = Cells := by
     simpa [Cells] using k73_bytes4cells ptr q2 hlen
+  let vflag : Word :=
+    (if packBytes ((q2.drop 0).take 8) = 0 ∧
+          packBytes ((q2.drop 8).take 8) = 0 ∧
+            packBytes ((q2.drop 16).take 8) = 0 ∧
+              packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else 0)
+  have hflag : vflag =
+      (if EvmAsm.Crypto.beBytesToNat q2 = 0 then (1 : Word) else 0) := by
+    dsimp only [vflag]
+    have h0 : (q2.drop 0).take 8 = q2.take 8 := by simp
+    rw [h0]
+    congr 1
+    exact propext (Iff.symm (k73_wb_window_zero_iff q2 hlen))
   let Fbranch : Assertion := ((.x20 : Reg) ↦ᵣ (1 : Word)) ** F
   have hFbranch : Fbranch.pcFree := by
     dsimp [Fbranch]
@@ -485,7 +655,7 @@ theorem k73_increase_zero_test_branch_spec_within
   let BranchPre : Assertion :=
     ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-      regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x10 : Reg) ↦ᵣ vflag) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch ** Cells ** F
   let TakenPost : Assertion :=
     ((.x20 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -498,9 +668,11 @@ theorem k73_increase_zero_test_branch_spec_within
       ((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ ptr) **
       regOwns exposedRegs **
       bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F
-  let BranchPost : Assertion := fun s => TakenPost s ∨ ReplacePost s
+  let BranchPost : Assertion :=
+    fun s => (TakenPost ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+      (ReplacePost ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s
   have hbranch := k73_increase_zero_branch_spec_within
-    ptr q2 Fbranch hrw hlen hFbranch
+    ptr q2 Fbranch vflag hflag hrw hlen hFbranch
   have hbranch' : cpsTripleWithin
       (1 + (((1 + 1) + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1))
@@ -514,8 +686,14 @@ theorem k73_increase_zero_test_branch_spec_within
       (fun s hq => by
         dsimp [BranchPost, TakenPost, ReplacePost, Fbranch] at hq ⊢
         obtain hq | hq := hq
-        · exact Or.inl (by xperm_hyp hq)
-        · exact Or.inr (by xperm_hyp hq)) hbranch
+        · refine Or.inl ?_
+          obtain ⟨hq, hpur⟩ := (sepConj_pure_right _).1 hq
+          refine (sepConj_pure_right _).2 ⟨?_, hpur⟩
+          xperm_hyp hq
+        · refine Or.inr ?_
+          obtain ⟨hq, hpur⟩ := (sepConj_pure_right _).1 hq
+          refine (sepConj_pure_right _).2 ⟨?_, hpur⟩
+          xperm_hyp hq) hbranch
   have hzero := k73_increase_zero_test_spec_within
     ptr oldRa old10 q2 F hlen hF
   have hseq := cpsTripleWithin_seq_same_cr hzero hbranch'
@@ -788,19 +966,19 @@ theorem k73_increase_div_zero_branch_spec_within
       (fun s => ∃ k : Nat, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
         baseBytes accBytes outBytes G k s)
       (fun s => ∃ k : Nat,
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
           ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
           bytesRegion outPtr q2 **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k) s ∨
-        (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            baseBytes accBytes G k) ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+        ((((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           regOwns exposedRegs **
           bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k) s) := by
+            baseBytes accBytes G k) ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s) := by
   let q1' := u256DivU64BeQuotBytes outBytes outBytes target
   let q2' := u256DivU64BeQuotBytes q1' q1' 8
   have hdiv := k73_increase_div_pair_spec_within
@@ -833,19 +1011,19 @@ theorem k73_increase_div_zero_branch_spec_within
       (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
         baseBytes accBytes outBytes G k)
       (fun s => ∃ k' : Nat,
-          (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+          ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
           ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
           bytesRegion outPtr q2 **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k') s ∨
-          (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            baseBytes accBytes G k') ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+          ((((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           regOwns exposedRegs **
           bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k') s) := by
+            baseBytes accBytes G k') ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s) := by
     intro k
     let CoreFrame : Assertion :=
       k73IncreaseDivPairCoreFrame spH gasUsed basePtr outPtr target
@@ -881,19 +1059,19 @@ theorem k73_increase_div_zero_branch_spec_within
         k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
           baseBytes accBytes G k)
       (Q' := fun s => ∃ k' : Nat,
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
           ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
           bytesRegion outPtr q2 **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k') s ∨
-          (((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            baseBytes accBytes G k') ** ⌜EvmAsm.Crypto.beBytesToNat q2 ≠ 0⌝) s ∨
+          ((((.x1 : Reg) ↦ᵣ (K73 + 152)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           regOwns exposedRegs **
           bytesRegion outPtr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) **
           ((.x18 : Reg) ↦ᵣ target) **
           k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
-            baseBytes accBytes G k') s)
+            baseBytes accBytes G k') ** ⌜EvmAsm.Crypto.beBytesToNat q2 = 0⌝) s)
       (fun _ hp => by
         rw [hframe_split] at hp
         dsimp [Fbranch, CoreFrame] at hp ⊢
@@ -905,12 +1083,16 @@ theorem k73_increase_div_zero_branch_spec_within
       (fun s hq => by
         obtain hq | hq := hq
         · refine ⟨k, Or.inl ?_⟩
+          obtain ⟨hqc, hpur⟩ := (sepConj_pure_right _).1 hq
+          refine (sepConj_pure_right _).2 ⟨?_, hpur⟩
           simp only [k73IncreaseDivPairFrame, Fbranch, CoreFrame,
-            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
-          xperm_hyp hq
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hqc ⊢
+          xperm_hyp hqc
         · refine ⟨k, Or.inr ?_⟩
+          obtain ⟨hqc, hpur⟩ := (sepConj_pure_right _).1 hq
+          refine (sepConj_pure_right _).2 ⟨?_, hpur⟩
           simp only [k73IncreaseDivPairFrame, Fbranch, CoreFrame,
-            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
-          xperm_hyp hq) hbranch
+            sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hqc ⊢
+          xperm_hyp hqc) hbranch
   exact cpsTripleWithin_seq_exists_same_cr hdiv' hcont
 end EvmAsm.Codegen.HeaderBaseFeeSpec
