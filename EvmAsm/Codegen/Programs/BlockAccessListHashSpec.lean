@@ -463,4 +463,53 @@ theorem setup_spec (b outPtr v8 v9 v18 v28 : Word) (R : Assertion) (hR : R.pcFre
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c4
 
+/-! ## §8  The two `bah_u32le` calls
+
+    Both are `jal ra, bah_u32le` with `a0` an INTERIOR, 4-mod-8 pointer into the
+    SSZ region, so both consume `bah_u32le_offset_spec_within` and neither could
+    consume the flat `Region.wf` form.  The leaf leaves `t0`/`t1` owned. -/
+
+theorem call1_spec (b : Word) (hdr : List (BitVec 8)) (vRa v5 v6 : Word)
+    (R : Assertion) (hR : R.pcFree)
+    (h_align : b.toNat % 8 = 0)
+    (h_fit : 588 + 4 ≤ hdr.length)
+    (h_over : b.toNat + (588 + 3) < 2 ^ 64)
+    (h_valid : ∀ k, k < hdr.length →
+      isValidByteAccess (b + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin (1 + 12) (At 10) (At 11) allCode
+      ((((.x1 : Reg) ↦ᵣ vRa) ** ((.x10 : Reg) ↦ᵣ (b + BitVec.ofNat 64 588)) **
+        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion b hdr) ** R)
+      ((((.x1 : Reg) ↦ᵣ At 11) **
+        ((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) **
+        regOwn .x5 ** regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        bytesRegion b hdr) ** R) := by
+  have hcallee0 := bah_u32le_offset_spec_within b 588 hdr (At 11) v5 v6
+    h_align h_fit h_over h_valid
+  rw [show ((At 11 : Word) &&& ~~~(1 : Word)) = At 11 from by decide] at hcallee0
+  have hcallee := cpsTripleWithin_extend_code bahMem hcallee0
+  have hframed := cpsTripleWithin_frameR R hR hcallee
+  have hcallee' :
+      cpsTripleWithin 12 BlockAccessListHashBahOffset.BahB (At 10 + 4) allCode
+        (((.x1 : Reg) ↦ᵣ (At 10 + 4)) **
+          (((.x10 : Reg) ↦ᵣ (b + BitVec.ofNat 64 588)) ** ((.x5 : Reg) ↦ᵣ v5) **
+            ((.x6 : Reg) ↦ᵣ v6) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            bytesRegion b hdr ** R))
+        (((.x1 : Reg) ↦ᵣ (At 10 + 4)) **
+          (((.x10 : Reg) ↦ᵣ SgLoadU32leSAsm.leU32 (hdr.drop 588) 0) **
+            regOwn .x5 ** regOwn .x6 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+            bytesRegion b hdr ** R)) := by
+    rw [At_succ 10]
+    exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+      (fun _ hq => by xcancel_struct hq) hframed
+  have hcall := callWithin_spec (At 10) BlockAccessListHashBahOffset.BahB vRa
+    (jalOff GuestAddrs.bah_u32le (GuestAddrs.block_access_list_hash + 40)) 12
+    (by decide)
+    (wMem 10 _ (by rw [wProg_len]; decide) (by rfl))
+    (by pcf_b)
+    hcallee'
+  rw [At_succ 10] at hcall
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) hcall
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
