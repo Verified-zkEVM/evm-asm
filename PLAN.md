@@ -137,6 +137,21 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#12988 COMPLETE — all three rows, 2026-08-29)
+
+- ✅ **Tranche 2: the serializer twins rowed** (215/166/175):
+  `bslFlat_spec` (`Proofs/BalSerializerLeFlatEntry.lean`) proves the
+  shared 12-instruction routine ONCE, parametric over placement with the
+  `la` identity as a hypothesis — prologue (AUIPC/ADDI + counter +
+  cursor), the 32-iteration reverse byte copy as a `countdownLoop_spec`
+  instance over the region-level byte lemmas
+  (`bytesRegion_{lbu,sb}_within`), window laws reused from
+  `SwrRevLeBeSAsm` (`revWin`) — then instantiated at both guest
+  placements where the identity closes by `rfl`.  All four twins'
+  allowlist lines retired.  Learned: `runBlock` choked on the AUIPC
+  prologue (manual frameR/seq composition instead), and `xperm` wants
+  NAMED regOwns lists (`bslScratch`), not literals.
+
 ### Recent (call_frame_forward_gas rowed — #12988 tranche 1, 2026-08-29)
 
 - ✅ **`call_frame_forward_gas` `.proven`** (213/164/173): the allowlist's

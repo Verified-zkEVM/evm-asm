@@ -164,6 +164,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
 
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+
 #print axioms EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
