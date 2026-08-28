@@ -711,6 +711,37 @@ def load(tsv_path: str):
                 "backcalls": int(p[5]),
                 "accel": p[6] == "1",
             })
+
+    # ⛔ STALENESS GUARD (#12318).  The column check above catches a dump from
+    # BEFORE the shape-dump format changed; it cannot catch a dump that is
+    # well-formed but simply OLD.  That case is worse, because it fails
+    # silently: a stale dump's addresses no longer match `GuestAddrs`, so
+    # `addr_to_symbol` misses and every affected row is reported as `?<addr>`,
+    # unnameable and therefore unclaimable.
+    #
+    # Measured on a dump four days old: 291 of 294 lane rows were `?`-named and
+    # the lane reported **4** startable rows instead of **27** — a 7x
+    # under-count that reads exactly like a real measurement, with no warning
+    # anywhere.  Anyone acting on it would conclude the lane was nearly
+    # exhausted.
+    #
+    # A healthy dump resolves nearly everything: entries are image entries and
+    # image entries have `GuestAddrs` symbols.  A handful of misses is normal
+    # (an entry can be paired at an interior address); a third of them is a
+    # stale file.
+    unresolved = sum(1 for r in rows if r["symbol"].startswith("?"))
+    if rows and unresolved * 3 > len(rows):
+        raise SystemExit(
+            f"callee-composition-queue: {tsv_path} looks STALE — "
+            f"{unresolved} of {len(rows)} entries have no GuestAddrs symbol.\n"
+            "  A well-formed but out-of-date dump degrades SILENTLY: unresolved\n"
+            "  rows are reported as `?<addr>`, so the lane under-counts instead of\n"
+            "  failing. Regenerate:\n"
+            "    lake build EvmAsm.Tests.GuestImageShapeDump\n"
+            "    lake env lean scripts/lean/GuestImageShapeDumpRun.lean > " + tsv_path + "\n"
+            "  If these entries genuinely have no symbol, raise the threshold here\n"
+            "  deliberately rather than deleting the check."
+        )
     return rows
 
 

@@ -259,13 +259,34 @@ def residual_blocks(paths):
 _ROW_SPLIT = re.compile(r"(?m)^  routine \"")
 _ROW_HEAD = re.compile(r'([A-Za-z0-9_]+)"\s+\.(\w+)')
 GATED_TIERS = ("conditional", "execSpec")
+# The registry list's own delimiters.  A row's block runs to the NEXT row, so
+# the LAST row's block ran to end of file without this bound — see below.
+_REGISTRY_START = re.compile(r"(?m)^def routineRegistry\b")
+_REGISTRY_END = re.compile(r"(?m)^\]\s*$")
 
 
 def registry_gate_blocks(src: str):
     """[(label, text)] for `.conditional`/`.execSpec` rows — the row's own
     gate/notes prose.  A gated row that names another routine is saying "my
     claim stops where that routine starts"; converting the named routine is
-    what lets the gate move."""
+    what lets the gate move.
+
+    ⚠️ The scan is BOUNDED at the registry list's closing `]`.  Splitting on
+    the next `  routine "` gives every row a well-formed block except the last
+    one, whose block used to run to end of file and swallow the count theorems
+    and ~700 witness `abbrev`s — so every routine merely NAMED anywhere in that
+    tail was credited a gate it does not have.  Worse, the miscredit was
+    conditional on the tier of whichever row happened to sit last: appending a
+    `.proven` row dropped the tail from the scan and silently moved two
+    symbols' scores and ranks (`rlp_walk_init`, `rlp_content_to_u64`), which is
+    how this surfaced (#12244).  The bound makes the parse independent of row
+    order.  If neither delimiter is found the whole string is scanned, which is
+    what the self-test's synthetic fragments rely on."""
+    start = _REGISTRY_START.search(src)
+    if start:
+        end = _REGISTRY_END.search(src, start.end())
+        if end:
+            src = src[start.end():end.start()]
     out = []
     for block in _ROW_SPLIT.split(src)[1:]:
         m = _ROW_HEAD.match(block)
@@ -815,13 +836,34 @@ def run_self_test() -> int:
         '  routine "c" .conditional (some "c_spec")\n      (gate := "needs z_r"),\n')
     check([g[0] for g in gated] == ["c/c_spec"], f"gate rows {gated}")
 
+    # 5b. The LAST row's block must stop at the registry's closing `]` instead
+    # of running to end of file (#12244).  Both legs matter: the tail must be
+    # excluded, and the row itself must still be found.  Negative control: the
+    # same source with the bound removed DOES leak the tail, so this pins a
+    # real behaviour rather than restating the parse.
+    bounded_src = ('def routineRegistry : List RoutineEntry := [\n'
+                   '  routine "c" .conditional (some "c_spec")\n'
+                   '      (gate := "needs z_r"),\n'
+                   ']\n\n'
+                   'private noncomputable abbrev _q_r_routine_witness := @Q\n')
+    bounded = registry_gate_blocks(bounded_src)
+    check([g[0] for g in bounded] == ["c/c_spec"],
+          f"bounded scan lost the last row: {bounded}")
+    check("z_r" in bounded[0][1] and "q_r" not in bounded[0][1],
+          "last gated row's block must stop at the registry `]`, keeping its "
+          "own gate prose and dropping the file tail")
+    leaked = registry_gate_blocks(bounded_src.replace("\n]\n", "\n", 1))
+    check("q_r" in leaked[0][1],
+          "negative control did not leak: without the `]` the tail should be "
+          "swallowed, so the bound above is proving nothing")
+
     if problems:
         for msg in problems:
             print(f"SELF-TEST FAIL: {msg}")
         return 1
     print("self-test PASS: symbol boundaries, blockedBy-only obligation parse, "
           "demand-over-cost weight ordering, `.replace` derivation shape, "
-          "gated-tier row filter.")
+          "gated-tier row filter, registry-`]` block bound (+ leak control).")
     return 0
 
 

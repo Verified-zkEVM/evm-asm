@@ -306,20 +306,16 @@ theorem receiptRecordsClear_retSpec (ctl : Word) (ws0 : List (BitVec 8))
   DCode.retSpec (rrcDeriv ctl ws0) base ret
     Region.empty_wf hrw halign (fun _ _ h => h)
 
-/-! ## The bundle: both entries over ONE shared CodeReq (#12991)
+/-! ## The bundle: entries over ONE shared CodeReq (#12991)
 
-    The emitted unit places `receipt_records_clear` immediately after
-    `receipt_records_init`; the bundle program is their concatenation and
-    each entry's triple lifts to `CodeReq.ofProg bundleBase rrBundleProg`
-    via `CodeReq.ofProg_mono_sub` — a caller that owns the bundle image
-    once can invoke either entry with no further code-identity argument. -/
+    The emitted unit is the five-entry `receiptRecordsBundleProg`
+    (init @0, clear @5, append @8, append_runtime_result @28, nth @36);
+    each entry's triple lifts to
+    `CodeReq.ofProg bundleBase receiptRecordsBundleProg` via
+    `CodeReq.ofProg_mono_sub` — a caller that owns the bundle image once
+    can invoke any entry with no further code-identity argument. -/
 
-/-- The ported prefix of the receipt-record bundle. -/
-def rrBundleProg : Program :=
-  (receiptRecordsInit_prog : List Instr)
-    ++ (receiptRecordsClear_prog : List Instr)
-
-#guard (rrBundleProg : List Instr).length = 8
+#guard (receiptRecordsBundleProg : List Instr).length = 61
 
 /-- Instruction offset of `receipt_records_clear` inside the bundle. -/
 def rrClearIdx : Nat := 5
@@ -330,7 +326,7 @@ theorem receiptRecordsInit_bundleSpec (ctl cap rbase : Word)
     (hrw : (RwRegion.mk ctl 24).wf)
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin (rriDeriv ctl cap rbase ws0).stmt.steps bundleBase ret
-      (CodeReq.ofProg bundleBase rrBundleProg)
+      (CodeReq.ofProg bundleBase receiptRecordsBundleProg)
       (((.x1 : Reg) ↦ᵣ ret)
         ** asrtM Region.empty (RwRegion.mk ctl 24)
           (fun rf ws A => rf.get .x10 = ctl ∧ rf.get .x11 = cap ∧
@@ -344,7 +340,7 @@ theorem receiptRecordsInit_bundleSpec (ctl cap rbase : Word)
     Region.empty_wf hrw halign
     (fun a i h =>
       CodeReq.ofProg_mono_sub bundleBase bundleBase
-        (rrBundleProg : List Instr)
+        (receiptRecordsBundleProg : List Instr)
         (receiptRecordsInit_prog : List Instr) 0
         (by rw [Nat.mul_zero]; exact (BitVec.add_zero _).symm)
         (by decide) (by decide) (by decide) a i
@@ -359,7 +355,7 @@ theorem receiptRecordsClear_bundleSpec (ctl : Word) (ws0 : List (BitVec 8))
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin (rrcDeriv ctl ws0).stmt.steps
       (bundleBase + BitVec.ofNat 64 (4 * rrClearIdx)) ret
-      (CodeReq.ofProg bundleBase rrBundleProg)
+      (CodeReq.ofProg bundleBase receiptRecordsBundleProg)
       (((.x1 : Reg) ↦ᵣ ret)
         ** asrtM Region.empty (RwRegion.mk ctl 8)
           (fun rf ws A => rf.get .x10 = ctl ∧ ws = ws0 ∧
@@ -374,7 +370,7 @@ theorem receiptRecordsClear_bundleSpec (ctl : Word) (ws0 : List (BitVec 8))
     (fun a i h =>
       CodeReq.ofProg_mono_sub bundleBase
         (bundleBase + BitVec.ofNat 64 (4 * rrClearIdx))
-        (rrBundleProg : List Instr)
+        (receiptRecordsBundleProg : List Instr)
         (receiptRecordsClear_prog : List Instr) rrClearIdx
         rfl (by decide) (by decide) (by decide) a i
         ((show (rrcDeriv ctl ws0).stmt.flatten
