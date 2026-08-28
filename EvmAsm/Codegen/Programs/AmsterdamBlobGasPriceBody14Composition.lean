@@ -318,6 +318,197 @@ theorem taylor_round_zero_exitdiv_tail
       (exits ++ rest) :=
   nb_extend_head_same_cr hRound hZero
 
+/- A concrete witness for the completed zero-arm boundary.  This is kept
+   beside the adapter because the arm's pure `w = 0` fact and its output
+   cells are part of the applied precondition, not facts supplied by a later
+   caller proof.  The four output cells also make the witness explicitly
+   non-empty on the continuation boundary. -/
+
+def roundWitnessSp : Word := (0xa004ff30 : Word)
+def roundWitnessAB : Word := roundWitnessSp + signExtend12 (64 : BitVec 12)
+def roundWitnessPB : Word := roundWitnessSp + signExtend12 (112 : BitVec 12)
+def roundWitnessSum : Word := roundWitnessSp + signExtend12 (160 : BitVec 12)
+def roundWitnessOut : Word := (0xa0010100 : Word)
+
+def roundWitnessVals : Reg → Word := fun _ => 0
+
+private inductive WitnessResource where
+  | pure
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private inductive WitnessAtom where
+  | pure
+  | regVal (r : Reg) (v : Word)
+  | memVal (a : Word) (v : Word) (valid : isValidDwordAccess a = true)
+  deriving DecidableEq
+
+private def witnessAtomResource : WitnessAtom → WitnessResource
+  | .pure => .pure
+  | .regVal r _ => .reg r
+  | .memVal a _ _ => .mem a
+
+private def witnessAtomAssertion : WitnessAtom → Assertion
+  | .pure => ⌜(0 : Word) = 0⌝
+  | .regVal r v => r ↦ᵣ v
+  | .memVal a v _ => a ↦ₘ v
+
+private def witnessAtomHeap : WitnessAtom → PartialState
+  | .pure => PartialState.empty
+  | .regVal r v => PartialState.singletonReg r v
+  | .memVal a v _ => PartialState.singletonMem a v
+
+private theorem witnessSingletonReg_disjoint
+    {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem witnessSingletonMem_disjoint
+    {a1 a2 : Word} {v1 v2 : Word} (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem witnessReg_mem_disjoint {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) := by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem witnessMem_reg_disjoint {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  witnessReg_mem_disjoint.symm
+
+private theorem witnessAtomHeap_disjoint_of_resource_ne {x y : WitnessAtom}
+    (h : witnessAtomResource x ≠ witnessAtomResource y) :
+    (witnessAtomHeap x).Disjoint (witnessAtomHeap y) := by
+  cases x with
+  | pure => exact PartialState.Disjoint_empty_left
+  | regVal r v =>
+      cases y with
+      | pure => exact PartialState.Disjoint_empty_right
+      | regVal r' v' =>
+          apply witnessSingletonReg_disjoint
+          simpa [witnessAtomResource] using h
+      | memVal a v' hvalid => exact witnessReg_mem_disjoint
+  | memVal a v hvalid =>
+      cases y with
+      | pure => exact PartialState.Disjoint_empty_right
+      | regVal r v' => exact witnessMem_reg_disjoint
+      | memVal a' v' hvalid' =>
+          apply witnessSingletonMem_disjoint
+          simpa [witnessAtomResource] using h
+
+private def roundWitnessAtoms : List WitnessAtom :=
+  [ .regVal .x18 1, .regVal .x5 0, .regVal .x0 0, .pure,
+    .regVal .x2 roundWitnessSp, .regVal .x1 0,
+    .regVal .x10 0, .regVal .x11 roundWitnessOut,
+    .regVal .x8 0, .regVal .x9 taylorDW,
+    .regVal .x19 roundWitnessAB, .regVal .x20 roundWitnessPB,
+    .regVal .x21 roundWitnessOut, .regVal .x22 roundWitnessSum,
+    .regVal .x6 0, .regVal .x7 0, .regVal .x28 0,
+    .regVal .x29 0, .regVal .x30 0, .regVal .x31 0,
+    .memVal (roundWitnessSp + signExtend12 (0 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (8 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (16 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (24 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (32 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (40 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (48 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSp + signExtend12 (56 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (0 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (8 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (16 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (24 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (32 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessAB + signExtend12 (40 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (0 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (8 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (16 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (24 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (32 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessPB + signExtend12 (40 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (0 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (8 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (16 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (24 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (32 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessSum + signExtend12 (40 : BitVec 12)) 0 (by decide),
+    .memVal (roundWitnessOut + BitVec.ofNat 64 0) 0 (by decide),
+    .memVal (roundWitnessOut + BitVec.ofNat 64 8) 0 (by decide),
+    .memVal (roundWitnessOut + BitVec.ofNat 64 16) 0 (by decide),
+    .memVal (roundWitnessOut + BitVec.ofNat 64 24) 0 (by decide) ]
+
+private def roundWitnessAtomsAssert : Assertion :=
+  roundWitnessAtoms.foldr
+    (fun x acc => witnessAtomAssertion x ** acc) empAssertion
+
+private def roundWitnessHeap : PartialState :=
+  roundWitnessAtoms.foldr
+    (fun x acc => (witnessAtomHeap x).union acc) PartialState.empty
+
+private theorem roundWitnessAtoms_pairwise :
+    roundWitnessAtoms.Pairwise
+      (fun x y => witnessAtomResource x ≠ witnessAtomResource y) := by
+  unfold roundWitnessAtoms witnessAtomResource roundWitnessSp roundWitnessAB
+    roundWitnessPB roundWitnessSum roundWitnessOut
+  decide
+
+private theorem roundWitnessAtoms_hsat :
+    roundWitnessAtomsAssert roundWitnessHeap := by
+  apply sepConj_foldr_satisfiable witnessAtomAssertion witnessAtomHeap
+    roundWitnessAtoms
+  · intro x hx
+    cases x with
+    | pure => exact ⟨rfl, by decide⟩
+    | regVal r v => exact rfl
+    | memVal a v hvalid => exact ⟨rfl, hvalid⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => witnessAtomHeap_disjoint_of_resource_ne h)
+      roundWitnessAtoms_pairwise
+
+theorem round_zero_pre_inhabited :
+    ∃ h : PartialState,
+      roundZero roundWitnessSp 0 roundWitnessOut 1 roundWitnessAB roundWitnessPB
+        roundWitnessVals
+        0 0 0 0 0 0 0
+        0 0 0 0 0 0
+        0 0 0 0 0 0
+        0 0 0 0 0
+        (exitdivOutputCells roundWitnessOut 0 0 0 0) h := by
+  refine ⟨roundWitnessHeap, ?_⟩
+  simpa [roundZero, roundFrame, frameSlotsSaved, priceFrame,
+    roundWitnessAtomsAssert, roundWitnessAtoms, witnessAtomAssertion,
+    roundWitnessHeap, witnessAtomHeap, roundWitnessVals,
+    roundWitnessSp, roundWitnessAB, roundWitnessPB, roundWitnessSum,
+    roundWitnessOut, exitdivOutputCells, sepConj_emp_right', sepConj_assoc'] using
+    roundWitnessAtoms_hsat
+
+theorem roundWitness_output_present :
+    roundWitnessHeap.mem roundWitnessOut = some (0 : Word) := by
+  unfold roundWitnessHeap roundWitnessAtoms witnessAtomHeap
+    roundWitnessOut roundWitnessSp roundWitnessAB roundWitnessPB roundWitnessSum
+  decide
+
 #print axioms exitdiv_seq_tail
 #print axioms round_zero_exitdiv_tail
 #print axioms taylor_round_zero_exitdiv_tail
