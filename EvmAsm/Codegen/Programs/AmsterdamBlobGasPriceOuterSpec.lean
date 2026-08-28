@@ -218,7 +218,162 @@ theorem taylor_round_terminal_496_from_parity
   have hFinal := cpsNBranchWithin_weaken_pre hPre hRound
   simpa [AB, PB] using hFinal
 
+/- The zero arm is consumed immediately by `round_zero_exitdiv_tail`.  That
+   continuation needs the five scratch values, so this adapter destructures
+   `terminalZeroAny` and threads each value through the exit-divide proof. -/
+private theorem outer_x0Free_sepConj {P Q : Assertion}
+    (hP : x0FreeAssertion P) (hQ : x0FreeAssertion Q) :
+    x0FreeAssertion (P ** Q) := by
+  intro h hh
+  obtain ⟨h1, h2, hd, hu, hp, hq⟩ := hh
+  have h1x := hP h1 hp
+  have h2x := hQ h2 hq
+  rw [← hu]
+  simp [PartialState.union, h1x, h2x]
+
+private theorem outer_x0Free_regIs {r : Reg} {v : Word} (hr : r ≠ .x0) :
+    x0FreeAssertion (regIs r v) := by
+  intro h hh
+  rw [hh]
+  simp [PartialState.singletonReg, Ne.symm hr]
+
+private theorem outer_x0Free_memIs {a v : Word} :
+    x0FreeAssertion (memIs a v) := by
+  intro h hh
+  rw [hh.1]
+  rfl
+
+private theorem outer_x0Free_frameSlotsSaved
+    (frame : FrameDesc) (newSp : Word) (vals : Reg → Word) :
+    x0FreeAssertion (frameSlotsSaved frame newSp vals) := by
+  induction frame with
+  | nil =>
+      intro h hh
+      rw [hh]
+      rfl
+  | cons p rest ih =>
+      simpa only [frameSlotsSaved_cons] using
+        outer_x0Free_sepConj outer_x0Free_memIs ih
+
+private theorem outer_x0Free_roundFrame :
+    ∀ (newSp excess outPtr AB PB : Word) (vals : Reg → Word)
+      (v6 v7 v28 v29 v30 v31 : Word)
+      (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+      (FR : Assertion) (_hFR : x0FreeAssertion FR),
+      x0FreeAssertion
+      (roundFrame newSp excess outPtr AB PB vals v6 v7 v28 v29 v30 v31
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR) := by
+  intro newSp excess outPtr AB PB vals v6 v7 v28 v29 v30 v31
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 FR _hFR
+  unfold roundFrame
+  repeat' first
+    | apply outer_x0Free_sepConj
+    | exact outer_x0Free_regIs (by decide)
+    | exact outer_x0Free_memIs
+    | exact outer_x0Free_frameSlotsSaved _ _ _
+    | assumption
+
+private theorem outer_x0Free_pure {P : Prop} : x0FreeAssertion (⌜P⌝) := by
+  intro h hh
+  rw [hh.1]
+  rfl
+
+private theorem outer_x0Free_roundZeroNoX0
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (w a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v7 v28 v29 v30 v31 : Word) (FR : Assertion)
+    (hFR : x0FreeAssertion FR) :
+    x0FreeAssertion (roundZeroNoX0 newSp excess outPtr iVal AB PB vals w
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+      s2 s3 s4 s5 v7 v28 v29 v30 v31 FR) := by
+  unfold roundZeroNoX0
+  repeat' first
+    | apply outer_x0Free_sepConj
+    | exact outer_x0Free_regIs (by decide)
+    | exact outer_x0Free_memIs
+    | exact outer_x0Free_frameSlotsSaved _ _ _
+    | exact outer_x0Free_pure
+    | exact outer_x0Free_roundFrame _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+    | assumption
+
+private theorem outer_x0Free_exitdivOutputCells
+    (outPtr o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hFR : x0FreeAssertion FR) :
+    x0FreeAssertion (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR) := by
+  unfold exitdivOutputCells
+  repeat' first
+    | apply outer_x0Free_sepConj
+    | exact outer_x0Free_memIs
+    | assumption
+
+theorem terminal_zero_any_to_exitdiv
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hFR : FR.pcFree) (hFRx0 : x0FreeAssertion FR)
+    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
+    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
+    {exits : List (Word × Assertion)}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr iVal vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 o0 o1 o2 o3 AB PB FR)
+      (exits.map (fun ex => (ex.1, ex.2 ** regIs .x0 (0 : Word))))) :
+    cpsNBranchWithin 4183 (PriceK + 804) priceCode
+      (terminalZeroAny newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))
+      exits := by
+  let FR0 : Assertion := exitdivOutputCells outPtr o0 o1 o2 o3 ** FR
+  have hFR0Free : x0FreeAssertion FR0 := by
+    unfold FR0
+    exact outer_x0Free_exitdivOutputCells outPtr o0 o1 o2 o3 FR hFRx0
+  have hZero : ∀ v7 v28 v29 v30 v31 : Word,
+      cpsNBranchWithin 4183 (PriceK + 804) priceCode
+        (roundZeroNoX0 newSp excess outPtr iVal AB PB vals
+          (roundAccum a0 a1 a2 a3 a4 a5)
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+          s2 s3 s4 s5 v7 v28 v29 v30 v31 FR0) exits := by
+    intro v7 v28 v29 v30 v31
+    have hZeroX := round_zero_exitdiv_tail
+      newSp excess outPtr iVal AB PB vals
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+      s2 s3 s4 s5 v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB
+      (exits := exits.map (fun ex => (ex.1, ex.2 ** regIs .x0 (0 : Word))))
+      hTail
+    have hZeroX' :
+        cpsNBranchWithin 4183 (PriceK + 804) priceCode
+          ((roundZeroNoX0 newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+            s2 s3 s4 s5 v7 v28 v29 v30 v31 FR0) **
+            regIs .x0 (0 : Word))
+          (exits.map (fun ex => (ex.1, ex.2 ** regIs .x0 (0 : Word)))) := by
+      refine cpsNBranchWithin_weaken_pre ?_ hZeroX
+      intro h hp
+      simp only [roundZeroNoX0, roundZero] at hp ⊢
+      xperm_hyp hp
+    have hZeroFree := outer_x0Free_roundZeroNoX0
+      newSp excess outPtr iVal AB PB vals
+      (roundAccum a0 a1 a2 a3 a4 a5)
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+      s2 s3 s4 s5 v7 v28 v29 v30 v31 FR0 hFR0Free
+    have hDrop := cpsNBranchWithin_drop_x0
+      (P := roundZeroNoX0 newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 v7 v28 v29 v30 v31 FR0)
+      (exits := exits) hZeroFree hZeroX'
+    simpa [FR0] using hDrop
+  intro R hR s hcr hP hpc
+  obtain ⟨hp, hcompat, h1, h2, hd, hu, hPP, hRb⟩ := hP
+  obtain ⟨v7, v28, v29, v30, v31, hv⟩ := hPP
+  exact hZero v7 v28 v29 v30 v31 R hR s hcr
+    ⟨hp, hcompat, h1, h2, hd, hu, hv, hRb⟩ hpc
+
 #print axioms taylor_round_terminal_496_from_footprint
 #print axioms taylor_round_terminal_496_from_parity
+#print axioms terminal_zero_any_to_exitdiv
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
