@@ -200,6 +200,226 @@ Un-exposing it is still worth doing for hygiene (it makes "unexposed" the
 default, so a `def` added later is not silently exposed), but do not report it as
 a build-time improvement.
 
+#### ⚠️ …but `def` COUNT is only a proxy, and a bad one. Body SIZE is the win.
+
+The three files above happen to vary in count and size together. They do not in
+general, and the corrective case is stark:
+
+| file | plain `def`s | public `.olean` |
+| --- | ---: | ---: |
+| `EL/Withdrawal.lean` | **1** | **−209 288 B (−71.9 %)** |
+| `Stateless/VM/Precompiles.lean` | 141 (111 left unexposed) | −81 768 B (−12.2 %) |
+
+`EL/Withdrawal.lean` is 100 lines holding one `structure` and one `def` —
+`decodeWithdrawal`, an RLP decoder whose body elaborates to an enormous term. It
+alone was **more than half** of its tranche's 408 KB, and 2.5x what
+`Precompiles.lean` gave from 111 hidden definitions.
+
+⇒ Rank candidates by the **size of the bodies you are withholding**, not by how
+many there are. A single large decoder, interpreter step, or table-valued
+definition outweighs a hundred small ones. Counting `def`s is a cheap first
+filter — nothing more. (This also explains the `Evm64` leaf result below better
+than its structural story alone: those files hold many *small* definitions.)
+
+### ⚠️ Where the win is NOT: `Evm64` leaf opcodes
+
+The `def`-count predictor tells you what a file *could* save. It does not tell
+you whether the file will survive the build, and in `Evm64` those two pull in
+opposite directions. Measured over one 82-file tranche across 15 leaf-opcode
+directories (`Calldata`, `Shift`, `MLoad`, `MStore`, `Code`, `Env`, `Push`,
+`Terminating`, `ReturnData`, `AddMod`, `Byte`, `And`, `Xor`, `Slt`, `Sgt`):
+
+| | |
+| --- | ---: |
+| files un-exposed and still building | **10 of 82 (12 %)** |
+| public `.olean` over those 10 | 704 672 → 677 208 B (**−3.9 %**) |
+| share of the ~131 MB migrated public total | **0.02 %** |
+| downstream modules freed from body-edit invalidation | 128 of 3045 (4.2 %) |
+| full builds spent converging | 5 |
+
+Two of the ten got **larger** (`Calldata/StageProgram` +240 B, `Env/Semantics`
++176 B): for a small body, the re-exported `.axiomInfo` costs more than the body
+did. Un-exposing is not monotone in bytes.
+
+**The mechanism, and why it generalises to the rest of `Evm64`.** Exposure mass
+and cross-module value-reasoning are *correlated here*. The big definitions in
+`Evm64` are big because they are RISC-V **programs** and **argument decoders**,
+and those are exactly what downstream `unfold`s — `Calldata/CopySpec.lean:247`
+does `unfold evm_calldatacopy` to split the program into preamble and loop. The
+files that survived un-exposure are `*Spec`-shaped, whose public half is mostly
+theorem *statements* — interface no matter what you do. So the files with
+something to save are the ones that cannot save it.
+
+⇒ Do **not** grind the remaining ~640 `Evm64` def-bearing files. Extrapolating
+this tranche gives ~78 sticking files for ~210 KB, at ~40 full builds of
+convergence. Spend the effort where large definitions are *not* value-reasoned —
+`Stateless/SpecRef` is the demonstrated case (`IncrementalMptWrite.lean`, −64 %
+on one file, more than 7× this entire tranche).
+
+### Where the win IS: `Stateless/SpecRef`
+
+The same loop, run over `Stateless/SpecRef`, gives the opposite answer — and the
+contrast is the useful part, because the two tranches differ by 33x on a
+directory a quarter the size:
+
+| | Evm64 leaves | `Stateless/SpecRef` |
+| --- | ---: | ---: |
+| files un-exposed, still building | 10 of 82 | **13 of 37** |
+| plain `def`s kept out of the interface | 40 | **268** |
+| public `.olean` | 704 672 → 677 208 B (−3.9 %) | 1 475 448 → **575 696 B (−61.0 %)** |
+
+Per file, the precompiles dominate: `PrecompilesBls` **−79.0 %**,
+`PrecompilesBlsMap` −77.6 %, `PrecompilesHash` −75.2 %, `ElExecute` −75.3 %,
+`Precompiles` −72.8 %, `PrecompilesCurve` −69.6 %, and `PrecompilesPairing`
+−59.0 % on the largest single file (262 896 → 107 656 B).
+
+**Why this directory and not that one.** `SpecRef` is the reference-implementation
+layer; downstream *characterises* these definitions through correspondence
+theorems rather than reducing through them, so the bodies leave the interface
+cleanly. `Evm64`'s large definitions are RISC-V programs and argument decoders,
+which is exactly what downstream `unfold`s. Same attribute, opposite outcome —
+so **classify a directory by how downstream reasons about it, not by how many
+`def`s it has.**
+
+⇒ When picking the next tranche, ask which one it resembles.
+
+### ⚠️ `Codegen` binds the ceiling from outside the batch
+
+Excluding `Codegen` from a batch does **not** protect it: it *consumes* `SpecRef`,
+and its `by decide` / `rfl` pins reduce transitively into these bodies.  Round 2
+of the `SpecRef` tranche failed almost entirely inside `Codegen`
+(`MemoryBudgetGuard`, `RequestsHashParams`,
+`BlockVerdictTxStateGasArrayModel`) with `decide` failures and `maxRecDepth`,
+and that alone forced back the five largest files in the directory —
+`InstructionsCore` (118 `def`s), `Ssz` (85), `Transactions` (60),
+`InstructionsEnv` (57), `Gas` (57): **377 `def`s**, well over the 268 that
+survived.
+
+So the remaining prize is not more un-exposing; it is those `Codegen` kernel
+pins. Re-stating them so they do not reduce through `SpecRef` is a *semantic*
+change to a kernel-checked proof, not a section-attribute edit — scope it as its
+own piece of work, never as collateral inside an exposure PR.
+
+### The surgical fallback: expose the declaration, not the file
+
+When a failure **names** a definition — `Expected a definition with an exposed
+body`, or ``unfold`` failed to unfold `f` — re-exposing the whole file
+overpays. Put `@[expose]` on that one declaration inside the plain
+`public section`, with the consumer named in a comment above it:
+
+```lean
+-- `@[expose]`: `SpecRef/HeaderRoundTrip.lean` unfolds this body.
+@[expose]
+def getNChecked (maxBytes : Option Nat) (b : Bytes) : Except SpecError Nat := …
+```
+
+Six such lines in `SpecRef/Stateless.lean` kept its other 18 `def`s out of the
+interface (the file still measures **−41.7 %**), and one in
+`Evm64/Calldata/CopyProgram.lean` saved that file. Note the asymmetry that makes
+this worth trying: `decide`/`maxRecDepth` failures name nothing and reduce
+through a whole closure, so they are the ones that genuinely cost a file.
+
+### `EL` is bridge-shaped: expect it to wash out
+
+Third tranche, 96 files across `Stateless/VM`, `Stateless/State`, `Crypto` and
+`EL`. Ninety needed exposure; **six** survived, for −408 136 B (**−34.4 %**).
+`EL` in particular washed out almost completely, and the shape is systematic:
+
+* `*InputBridge` / `*ResultBridge` failed in round 2;
+* `*EcallBridge` survived round 2 only to fail in round 3, once their consumers
+  were rebuilt against the new interfaces;
+* `EL/Conformance/*` failed throughout.
+
+A bridge exists to be reduced through, so its bodies are interface by
+construction. **Pre-filter `EL/*Bridge*.lean` out of a batch** rather than
+spending a build round per wave rediscovering it. `Stateless/State/*Assertions`
+also failed as expected — those are the `@[irreducible]` assertion bundles.
+
+### The most actionable error message in this work
+
+An in-file `rfl`/`decide` lemma that is *exported* forces its own file's
+definitions to stay exposed, and Lean says so exactly:
+
+```
+Not a definitional equality: the left-hand side
+  gasCost 0 0 0 0
+is not definitionally equal to the right-hand side
+  500
+Note: This theorem is exported from the current module. This requires that all
+definitions that need to be unfolded to prove this theorem must be exposed.
+```
+
+This names the culprit, so it is always worth the surgical treatment.
+`Stateless/VM/Precompiles.lean` produced 21 of these; the LHS/RHS heads named
+only **seven** distinct helpers (`bufferRead`, `emptyOutput`, `gasCost`,
+`outputFromVerified`, `successOutput`, `successWordOutput`, `zeroWordOutput`),
+recurring once per precompile namespace — 28 sites. Exposing those kept ~111 of
+the file's 141 `def`s hidden.
+
+⚠️ **Then the transitivity trap fires one round later.** `gasCost` was exposed
+and `gasCost 0 0 0 0 = 500` *still* failed, because the reduction runs on
+through `complexity` and `iterations`, which were not. Exposing a definition
+does not expose what it calls — expect to chase the closure by one or two more
+rounds, and read each round's LHS heads rather than assuming the first set was
+complete.
+
+### ⛔ Neither `def` count NOR `.olean` size predicts the win — a negative result
+
+A fourth tranche took the 63 **top-level** `EvmAsm/Evm64/*.lean` files, which
+looked like the best remaining target by every available proxy: 11.4 MB of
+public `.olean` between them, and the handler files ranking near the top on
+bytes-per-source-line (~1 600–1 700). Thirteen build rounds later, 23 files were
+un-exposed and green. The measured result:
+
+| | |
+| --- | ---: |
+| public `.olean` over the 23 | 3 176 632 → 3 154 216 B (**−0.7 %**, 22 KB) |
+| the large handler files | **exactly 0** |
+| downstream cone-edges freed | 111 |
+
+`ComparisonHandlers` (315 888 B), `ArithmeticHandlers` (281 624), `BitwiseHandlers`
+(275 056), `ShiftHandlers` (243 728) each moved **not one byte**. The changes
+were reverted; only this finding was kept.
+
+**Why zero.** Their public `.olean` is dominated by *theorem statements*, which
+are interface no matter what, plus the handful of definitions that had to be
+exposed anyway. Once `binaryHandler`, each `*HandlerTable`, `dupHandler`,
+`swapHandler` and friends were exposed to keep the build green, nothing of
+substance was left to withhold.
+
+⇒ **Bytes-per-line is not a valid ranking either.** It cannot tell a large `def`
+body from a pile of large theorem statements, and in a proof-heavy repo the
+latter dominates. There is no cheap static proxy for this: the quantity that
+matters is the size of the definition bodies that are *not* value-reasoned, and
+you only learn it by un-exposing and measuring.
+
+⇒ Practical rule: **spend at most one or two rounds probing a new directory.** If
+the survivors are not showing a large delta by then, stop — the tail is
+worthless, and it is a long tail (this one ran to thirteen rounds).
+
+### The four failure shapes, in order of how much they cost you
+
+1. **`Invalid simp theorem \`f\`: Expected a definition with an exposed body`**
+   and **`` `unfold` failed to unfold `f` ``** — names `f`. Cheapest. Note `f`
+   may live in *another* file: expose it where it is DEFINED, not where the
+   error was reported.
+2. **`Not a definitional equality` + `Note: This theorem is exported from the
+   current module…`** — an exported in-file `rfl`/`decide` lemma. The LHS/RHS
+   head symbols name the culprits.
+3. **`Tactic \`introN\` failed: There are no additional binders…`** — a
+   `Prop`-valued definition that downstream `intro`s through, so it must unfold
+   to its pi-type (`InterpreterSimulation.HandlerMatchesSpec`). Names nothing;
+   read the goal.
+4. **`decide` failures and `maximum recursion depth`** — name nothing and reduce
+   through an entire closure. These are the ones that genuinely cost a whole
+   file; do not try to chase them declaration by declaration.
+
+⚠️ Shapes 1–3 all recur one round later via the **transitivity trap**: exposing a
+definition does not expose what it calls. Measured instances — `gasCost` →
+`complexity`/`iterations`; `ltHandler` → `binaryHandler`; `execSpecPushByte`
+named from a *different* file. Budget two or three extra rounds per batch, and
+re-read each round's named heads rather than assuming the first set was closed.
+
 ### Relationship to `@[irreducible]`
 
 `@[irreducible]` asks the elaborator not to unfold; *unexposed* means downstream
@@ -694,8 +914,8 @@ recorded the bug rather than fixed it.
 
 ## 8. The Sail boundary
 
-`EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import Out`, the vendored
-Sail-extracted model, which is not migrated (0 of 116 files) and whose own
+`EvmAsm/Rv64/SailEquiv/StateRel.lean` does `import RiscvZkvm.Sail.InstsEnd` from the release-pinned
+`riscv-zkvm` dependency. That generated model is not migrated (0 of 116 files), and its own
 dependency — the upstream `Sail` runtime — is not ours to migrate. By
 downward-closure that blocks exactly **24 modules**: the 22 SailEquiv leaves,
 `StateRel` itself, plus `EvmAsm/Rv64.lean` and `EvmAsm.lean`.

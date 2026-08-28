@@ -26,7 +26,7 @@ module
 
 public import EvmAsm.Stateless.SpecRef.ElExecute
 
-@[expose] public section
+public section
 
 namespace EvmAsm.Stateless.SpecRef
 

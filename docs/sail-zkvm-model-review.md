@@ -1,5 +1,9 @@
 # Review: the Sail RISC-V model, the Lean export, and the import surface
 
+> Historical review of the pre-split extraction. The maintained model and its
+> current provenance are in
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **Status:** Findings report (2026-06-24). Companion to
 [`sail-zkvm-integration-design.md`](sail-zkvm-integration-design.md). Produced by
 a four-way deep review of: (1) the generated Lean model we consume

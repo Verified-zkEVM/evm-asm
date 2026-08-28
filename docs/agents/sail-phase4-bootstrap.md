@@ -1,5 +1,9 @@
 # Sail-zkVM integration — Phase 4 bootstrap (consolidated sim theorem + gates)
 
+> Historical bootstrap record. Extraction integrity and emulator validation
+> gates now live in
+> [`Verified-zkEVM/riscv-zkvm`](https://github.com/Verified-zkEVM/riscv-zkvm).
+
 **For:** the next session. **Supersedes** the ordering in `sail-phase3-bootstrap.md`
 (whose "start with P4" was corrected by the review, and whose item-0 trust-hygiene is now
 **done**). **Read `sail-adversarial-review.md` first** — it is the evidence base for why the

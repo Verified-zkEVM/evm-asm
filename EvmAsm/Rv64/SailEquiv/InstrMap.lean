@@ -37,7 +37,7 @@
 
 import EvmAsm.Rv64.SailEquiv.StateRel
 
-open Out.Functions
+open RiscvZkvm.Sail.Functions
 
 namespace EvmAsm.Rv64.SailEquiv
 

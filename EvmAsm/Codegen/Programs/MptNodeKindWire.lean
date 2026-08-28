@@ -25,7 +25,7 @@
 import EvmAsm.Codegen.Programs.MptNodeKindSpec
 import EvmAsm.Codegen.Programs.RlpDecodeFullyForward
 import EvmAsm.Codegen.Programs.RlpWalkDeterminism
-import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmBase
+import EvmAsm.Codegen.Programs.RlpListCountItemsSAsmCode
 import EvmAsm.Codegen.Programs.BalAccountNonstorageFinalsWalk
 import EvmAsm.Evm64.MptAssertions
 
