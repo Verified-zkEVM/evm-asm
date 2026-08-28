@@ -1897,9 +1897,12 @@ def routineRegistry : List RoutineEntry := [
   -- disjoint call-site geometry (aPtr = parentPtr, outPtr = Expected are
   -- separate windows); the respeller's copyState idempotency gap is closed by
   -- a proven list lemma, and the wrapper's accumulator window is the
-  -- constructed product image. The row stays `.conditional` for the honest
-  -- static input-domain gates: `0 < target` (issue #12951) and
-  -- `target < gas_used` restrict real input regions.
+   -- constructed product image. The row stays `.conditional` for the honest
+   -- static input-domain gates: `target = gas_limit >>> 1` and
+   -- `target < gas_used` SELECT this arm (the spec branches three ways on
+   -- parent_gas_used vs parent_gas_target, and the equal/decreasing arms have
+   -- their own routes), while `0 < target` (issue #12951) is a genuine
+   -- domain gate — a live soundness question, not a formality.
   routine "eip1559_calc_base_fee_per_gas" .conditional
       (some "k73_incr_route_adapter_inhabited")
       (gate := "the multiply callee is discharged internally from the "
@@ -1907,8 +1910,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "`k73_incr_callee_discharged`). Remaining static gates: "
         ++ "ABI facts (8-byte alignment, 32-byte validity of the parent-fee "
         ++ "and expected-window regions, window disjointness), "
-        ++ "`target = gas_limit >>> 1`, `0 < target` (issue #12951), "
-        ++ "`target < gas_used`.")
+        ++ "`target = gas_limit >>> 1` and `target < gas_used` (these "
+        ++ "SELECT this arm — the equal/decreasing arms have their own "
+        ++ "routes), and `0 < target` (issue #12951 — genuine domain gate, "
+        ++ "live soundness question).")
       (notes := "wrapper-vocab Route-B adapter for the increase arm "
         ++ "(`k73_incr_route_adapter`, witness = constructed inhabitance at "
         ++ "gas_limit = 10,000, gas_used = 7,500, parent fee bytes 0): "
