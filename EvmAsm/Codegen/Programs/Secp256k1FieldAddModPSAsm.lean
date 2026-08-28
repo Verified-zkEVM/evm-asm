@@ -312,6 +312,47 @@ private theorem setupFirstCall_spec (xPtr yPtr dst ret v8 v9 v18 v19 v20 : Word)
     (fun _ hq => by xperm_hyp hq) hc
 
 
+/-- Body indices 16..17: latch the carry-out into `s4` and branch on it.
+    `beq s4, x0, +24` from `secf_add_mod_p + 68` targets `+92` (index 23, the
+    reduce setup) when the sum did not carry, and falls through to `+72`
+    (index 18, the fold-back arm) when it did. -/
+private theorem saveCarryBranch_spec (carry old20 : Word)
+    (P : Assertion) (hP : P.pcFree) :
+    cpsBranchWithin 2 (GuestAddrs.secf_add_mod_p + 64 : Word) secfAddModPCr
+      (((.x20 : Reg) ↦ᵣ old20) ** ((.x10 : Reg) ↦ᵣ carry) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** P)
+      (GuestAddrs.secf_add_mod_p + 92 : Word)
+      (((.x20 : Reg) ↦ᵣ carry) ** ((.x10 : Reg) ↦ᵣ carry) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜carry = 0⌝ ** P)
+      (GuestAddrs.secf_add_mod_p + 72 : Word)
+      (((.x20 : Reg) ↦ᵣ carry) ** ((.x10 : Reg) ↦ᵣ carry) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ⌜carry ≠ 0⌝ ** P) := by
+  have hmv := liftCode (cr' := secfAddModPCr)
+    (mv_spec_gen_within .x20 .x10 carry old20
+      (GuestAddrs.secf_add_mod_p + 64 : Word) (by decide))
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 64 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 68 : Word) from by decide] at hmv
+  have hmvF := cpsTripleWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** P) (by exact pcFree_sepConj (by pcf) hP) hmv
+  have hbr := cpsBranchWithin_frameR (((.x10 : Reg) ↦ᵣ carry) ** P)
+    (pcFree_sepConj (by pcf) hP)
+    (cpsBranchWithin_extend_code (cr' := secfAddModPCr)
+      (h := beq_spec_gen_within .x20 .x0 (24 : BitVec 13) carry (0 : Word)
+        (GuestAddrs.secf_add_mod_p + 68 : Word))
+      (hmono := by unfold secfAddModPCr secfReduceOnceCr; code_mem))
+  rw [show (GuestAddrs.secf_add_mod_p + 68 : Word) + signExtend13 (24 : BitVec 13) =
+      (GuestAddrs.secf_add_mod_p + 92 : Word) from by
+        rw [show signExtend13 (24 : BitVec 13) = (24 : Word) from by decide]
+        decide,
+    show (GuestAddrs.secf_add_mod_p + 68 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 72 : Word) from by decide] at hbr
+  have hc := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hmvF hbr
+  exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq) hc
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
