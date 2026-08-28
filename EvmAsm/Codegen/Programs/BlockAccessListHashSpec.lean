@@ -512,4 +512,95 @@ theorem call1_spec (b : Word) (hdr : List (BitVec 8)) (vRa v5 v6 : Word)
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) hcall
 
+/-! ## §9  Between the calls (idx 11..16)
+
+    `t3` and `t4` are recomputed because `bah_u32le` owns them, `bal_start` is
+    spilled to `bah_bal_start` (the one piece of state that crosses the second
+    call), and `a0` is pointed at the `vh_off` field. -/
+
+private theorem la13_hi :
+    Codegen.laHi GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 52)
+      = Rv64.laHi (At 13) balStartLoc := by decide
+
+private theorem la13_lo :
+    Codegen.laLo GuestAddrs.bah_bal_start (GuestAddrs.block_access_list_hash + 52)
+      = Rv64.laLo (At 13) balStartLoc := by decide
+
+private theorem la13_range : laInRange (At 13) balStartLoc := by decide
+
+theorem mid_spec (b balOffW v5 v28 v29 : Word) (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 6 (At 11) (At 17) allCode
+      ((((.x10 : Reg) ↦ᵣ balOffW) ** ((.x18 : Reg) ↦ᵣ npr b) **
+        ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x5 : Reg) ↦ᵣ v5) **
+        memOwn balStartLoc) ** R)
+      ((((.x10 : Reg) ↦ᵣ (b + BitVec.ofNat 64 20)) ** ((.x18 : Reg) ↦ᵣ npr b) **
+        ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ (execP b + balOffW)) **
+        ((.x5 : Reg) ↦ᵣ balStartLoc) **
+        (balStartLoc ↦ₘ (execP b + balOffW))) ** R) := by
+  -- idx 11: addi t3, s2, 44
+  have s11 := cpsTripleWithin_extend_code
+    (wMem 11 (.ADDI .x28 .x18 (44 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_within .x28 .x18 v28 (npr b) (44 : BitVec 12) (At 11) (by decide))
+  rw [At_succ 11] at s11
+  have f11 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ balOffW) ** ((.x29 : Reg) ↦ᵣ v29) ** ((.x5 : Reg) ↦ᵣ v5) **
+      memOwn balStartLoc ** R)
+    (by pcf_b) s11
+  -- idx 12: add t4, t3, a0
+  have s12 := cpsTripleWithin_extend_code
+    (wMem 12 (.ADD .x29 .x28 .x10) (by rw [wProg_len]; decide) (by rfl))
+    (add_spec_within .x29 .x28 .x10 (execP b) balOffW v29 (At 12) (by decide))
+  rw [At_succ 12] at s12
+  have f12 := cpsTripleWithin_frameR
+    (((.x18 : Reg) ↦ᵣ npr b) ** ((.x5 : Reg) ↦ᵣ v5) ** memOwn balStartLoc ** R)
+    (by pcf_b) s12
+  -- idx 13..14: la t0, bah_bal_start
+  have s13 := la_materialize_within .x5 v5 (At 13) balStartLoc (by decide) la13_range
+    (by
+      rw [show Rv64.laHi (At 13) balStartLoc
+          = Codegen.laHi GuestAddrs.bah_bal_start
+              (GuestAddrs.block_access_list_hash + 52) from la13_hi.symm]
+      exact wMem 13 _ (by rw [wProg_len]; decide) (by rfl))
+    (by
+      rw [show Rv64.laLo (At 13) balStartLoc
+          = Codegen.laLo GuestAddrs.bah_bal_start
+              (GuestAddrs.block_access_list_hash + 52) from la13_lo.symm,
+        At_succ 13]
+      exact wMem 14 _ (by rw [wProg_len]; decide) (by rfl))
+  rw [show (At 13 + 8 : Word) = At 15 from by
+    have h := At_add 13 2
+    rwa [show BitVec.ofNat 64 (4 * 2) = (8 : Word) from rfl] at h] at s13
+  have f13 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ balOffW) ** ((.x18 : Reg) ↦ᵣ npr b) **
+      ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ (execP b + balOffW)) **
+      memOwn balStartLoc ** R)
+    (by pcf_b) s13
+  -- idx 15: sd t4, 0(t0)
+  have s15 := cpsTripleWithin_extend_code
+    (wMem 15 (.SD .x5 .x29 (0 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (sd_spec_gen_own_within .x5 .x29 balStartLoc (execP b + balOffW)
+      (0 : BitVec 12) (At 15))
+  rw [At_succ 15,
+    show balStartLoc + signExtend12 (0 : BitVec 12) = balStartLoc from by
+      rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide]; bv_omega] at s15
+  have f15 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ balOffW) ** ((.x18 : Reg) ↦ᵣ npr b) **
+      ((.x28 : Reg) ↦ᵣ execP b) ** R)
+    (by pcf_b) s15
+  -- idx 16: addi a0, s2, 4
+  have s16 := cpsTripleWithin_extend_code
+    (wMem 16 (.ADDI .x10 .x18 (4 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_within .x10 .x18 balOffW (npr b) (4 : BitVec 12) (At 16) (by decide))
+  rw [At_succ 16, field2_addr] at s16
+  have f16 := cpsTripleWithin_frameR
+    (((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ (execP b + balOffW)) **
+      ((.x5 : Reg) ↦ᵣ balStartLoc) ** (balStartLoc ↦ₘ (execP b + balOffW)) ** R)
+    (by pcf_b) s16
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f11 f12
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f13
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f15
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c3 f16
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c4
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
