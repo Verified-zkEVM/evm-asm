@@ -137,6 +137,26 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (DCode multi-entry bundles — #12991 first consumers, 2026-08-28)
+
+- ✅ **Bundle pattern established** (`ReceiptRecordsSAsm.lean`): the
+  ret-path survey's multi-entry gap needs NO new Stmt node — per-entry
+  DCode derivations plus `CodeReq.ofProg_mono_sub` fed to
+  `DCode.retSpec`'s `hcode` gives each entry a triple over the SHARED
+  bundle image (`rrBundleProg`), side conditions by `decide`.
+- ✅ **`receipt_records_init` / `receipt_records_clear` verified**
+  (first store-writing dword consumers: three/one `sd` into the control
+  block, post = exact byte concatenation via the full-cover splice
+  lemma `rr_bytes3`).  Byte-identical (assemble+cmp, 32 bytes); the
+  `ReceiptRecords.lean` slices are now `emitProgram` of the generated
+  programs, renderings pinned by `#guard`.
+- **Remaining receipt entries blocked, and why** (recorded in #12991):
+  `append`/`nth`/`append_runtime_result` need TWO writable regions
+  (control block + separately-pointed record arena) — the DCode layer
+  owns a single `RwRegion`; `append_runtime_result` additionally
+  tail-jumps into `append` (cross-entry composition over the shared
+  CodeReq — the bundle pattern's next exercise once dual-rw lands).
+
 ### Recent (keccak out0 generalization — #12896, 2026-08-27)
 
 - ✅ **#12896 route 2**: `zkvm_keccak256_spec_within` (and the whole
