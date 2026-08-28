@@ -884,6 +884,86 @@ private theorem reduceTail_spec (newSp xPtr yPtr dst v1 v10 v11 : Word)
     (fun _ hq => by xperm_hyp hq) h3
 
 
+/-- Peel three ownership atoms at the tail of a precondition into concrete
+    values.  Used where the branch join releases `ra`/`a0`/`a1`, all of which
+    the tail then overwrites. -/
+private theorem peel3 {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {REST Q : Assertion} {r1 r2 r3 : Reg}
+    (h : ∀ v1 v2 v3, cpsTripleWithin n entry exit_ cr
+      (REST ** (r1 ↦ᵣ v1) ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3)) Q) :
+    cpsTripleWithin n entry exit_ cr
+      (REST ** regOwn r1 ** regOwn r2 ** regOwn r3) Q := by
+  have h1 : ∀ v2 v3, cpsTripleWithin n entry exit_ cr
+      (REST ** regOwn r1 ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3)) Q := by
+    intro v2 v3
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := r1) (Q := Q)
+        (P := (REST ** (r2 ↦ᵣ v2) ** (r3 ↦ᵣ v3)))
+        (fun v1 => cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (h v1 v2 v3)))
+  have h2 : ∀ v3, cpsTripleWithin n entry exit_ cr
+      (REST ** regOwn r1 ** regOwn r2 ** (r3 ↦ᵣ v3)) Q := by
+    intro v3
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+      (cpsTripleWithin_of_forall_regIs_to_regOwn (r := r2) (Q := Q)
+        (P := (REST ** regOwn r1 ** (r3 ↦ᵣ v3)))
+        (fun v2 => cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+          (fun _ hq => hq) (h1 v2 v3)))
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_of_forall_regIs_to_regOwn (r := r3) (Q := Q)
+      (P := (REST ** regOwn r1 ** regOwn r2))
+      (fun v3 => cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+        (fun _ hq => hq) (h2 v3)))
+
+/-- `reduceTail_spec` with `ra`/`a0`/`a1` in the ownership form the branch join
+    leaves them in. -/
+private theorem reduceTailOwn_spec (newSp xPtr yPtr dst : Word)
+    (tmpFinal outOrig : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hroTmp : Region.wf ⟨(GuestAddrs.secf_tmp0 : Word), tmpFinal⟩)
+    (hrwDst : RwRegion.wf ⟨dst, 32⟩)
+    (hlenTmp : tmpFinal.length = 32) (hlenOut : outOrig.length = 32)
+    (hovDst : dst.toNat + 32 < 2 ^ 64)
+    (hdisjTD : (GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secf_tmp0 : Word).toNat)
+    (hdisjP : (GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secp256k1_p_be : Word).toNat) :
+    cpsTripleWithin
+      (2 + (1 + reduceOnceSteps (GuestAddrs.secf_tmp0 : Word) dst tmpFinal outOrig)
+        + 1)
+      (GuestAddrs.secf_add_mod_p + 92 : Word)
+      (GuestAddrs.secf_add_mod_p + 108 : Word) secfAddModPCr
+      ((((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ xPtr) **
+          ((.x9 : Reg) ↦ᵣ yPtr) ** ((.x18 : Reg) ↦ᵣ dst) **
+          ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns U256BeFlat.addScratch **
+          bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpFinal **
+          bytesRegion dst outOrig **
+          globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+          memOwn (GuestAddrs.secf_cmp : Word) **
+          frameSlotsOwn secfReduceOnceFrame
+            (newSp + signExtend12 (-32 : BitVec 12)) ** A) **
+        regOwn .x1 ** regOwn .x10 ** regOwn .x11)
+      (((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ xPtr) **
+        ((.x9 : Reg) ↦ᵣ yPtr) ** ((.x18 : Reg) ↦ᵣ dst) **
+        ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 104 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
+        bytesRegion dst (reduceOnceBytes tmpFinal outOrig) **
+        bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpFinal **
+        globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((GuestAddrs.secf_cmp : Word) ↦ₘ cmpFlagWord tmpFinal) **
+        frameSlotsSaved secfReduceOnceFrame
+          (newSp + signExtend12 (-32 : BitVec 12))
+          (secfReduceOnceVals (GuestAddrs.secf_add_mod_p + 104 : Word)
+            xPtr yPtr) ** A) := by
+  refine peel3 (r1 := .x1) (r2 := .x10) (r3 := .x11) (fun v1 v10 v11 => ?_)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (reduceTail_spec newSp xPtr yPtr dst v1 v10 v11 tmpFinal outOrig A hA
+      hroTmp hrwDst hlenTmp hlenOut hovDst hdisjTD hdisjP)
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
