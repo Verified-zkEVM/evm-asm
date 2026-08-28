@@ -253,8 +253,20 @@ full day+.  The recipe that worked four times
   `be_to_le`/`le_to_be` are memcpy-like (existing shapes), `cmpge` needs
   a two-break scan (check `while2BreakJoin` or the ret-tail variants).
 - `receipt_records_*`, `edd_*` bundles — multi-entry ABI (several entry
-  points into one blob); needs `Fn`-level packaging of several
-  `retSpec`s at offsets into one flatten, not a new Stmt node.
+  points into one blob).  ✅ PATTERN ESTABLISHED (#12991,
+  `ReceiptRecordsSAsm.lean`): per-entry DCode derivations, then state each
+  entry's triple over the SHARED bundle image by instantiating
+  `DCode.retSpec`'s `hcode` inclusion with `CodeReq.ofProg_mono_sub`
+  (bundle program = concatenation, entry k at instruction index
+  `idx k`; the slice/range/bound side conditions close by `decide` after
+  an `rfl` equation collapsing `flatten base` to the pinned program —
+  works with `base` FREE since plain blocks flatten base-independently).
+  No new Stmt node and no new soundness machinery.  Remaining for the
+  receipt bundle: `append`/`nth`/`append_runtime_result` read the control
+  block AND write the separately-pointed record arena — blocked on a
+  dual-writable-region story (single `RwRegion` today); and
+  `append_runtime_result` tail-jumps INTO `append`, the composition that
+  will consume the shared bundle CodeReq non-trivially.
 - CSRS accelerator splices — survey first.
 - `extract_deposit_data` main body — sp-frame + calls
   (`call`/`callAt`); the leaf callees (`edd_be32_eq`, `edd_memcpy`) are

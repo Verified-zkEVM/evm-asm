@@ -10,6 +10,10 @@ module
 
 public import EvmAsm.Rv64.Program
 public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public meta import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.ReceiptRecordsProgs
+public meta import EvmAsm.Codegen.Programs.ReceiptRecordsProgs
 
 @[expose] public section
 
@@ -38,17 +42,29 @@ open EvmAsm.Rv64.Program
     The helper surface is deliberately small: init, append, append from a
     runtime execution result, and nth-copy. -/
 
+-- Drift guards (build-time evaluation): the exact renderings of the two
+-- verified DCode programs.  The assemble+cmp byte-identity check against
+-- the previous hand-written text was run against THESE strings; if the
+-- emitter or a program changes, the pins fail and the check must be rerun.
+#guard emitProgram receiptRecordsInitProg ==
+  "  sd x0, 0(x10)\n  sd x11, 8(x10)\n  sd x12, 16(x10)\n"
+    ++ "  li x10, 0\n  jalr x0, 0(x1)"
+#guard emitProgram receiptRecordsClearProg ==
+  "  sd x0, 0(x10)\n  li x10, 0\n  jalr x0, 0(x1)"
+
 def receiptRecordsFunction : String :=
+  -- `receipt_records_init` and `receipt_records_clear` are emitted from
+  -- the verified DCode programs (`ReceiptRecordsSAsm.rriDeriv` /
+  -- `rrcDeriv`, specs `receiptRecordsInit_retSpec` /
+  -- `receiptRecordsClear_retSpec`, bundle-level
+  -- `receiptRecords{Init,Clear}_bundleSpec`); byte-identity with the
+  -- previous hand-written text checked by assemble+cmp, the renderings
+  -- pinned above.  The remaining three entries stay hand-written until
+  -- the dual-writable-region story lands (#12991).
   "receipt_records_init:\n" ++
-  "  sd zero, 0(a0)              # count = 0\n" ++
-  "  sd a1, 8(a0)                # capacity\n" ++
-  "  sd a2, 16(a0)               # record base\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
+  emitProgram receiptRecordsInitProg ++ "\n" ++
   "receipt_records_clear:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
+  emitProgram receiptRecordsClearProg ++ "\n" ++
   "receipt_records_append:\n" ++
   "  ld t0, 0(a0)                # count\n" ++
   "  ld t1, 8(a0)                # capacity\n" ++
