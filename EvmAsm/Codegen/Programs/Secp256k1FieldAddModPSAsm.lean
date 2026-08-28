@@ -536,6 +536,159 @@ private theorem foldBackArm_spec (ret0 v10 v11 v12 : Word)
     (fun _ hq => by simp only [globalConst] at hq ⊢; xperm_hyp hq) h3
 
 
+/-- The contents of `secf_tmp0` where the two branch arms meet: the wrapping
+    sum when it did not carry, and the sum with `C = 2^256 mod p` folded back
+    in when it did.  This is the exact branch semantics of the emitted code. -/
+def addModPTmpBytes (xs ys tmpOrig : List (BitVec 8)) : List (BitVec 8) :=
+  if U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig = 0 then
+    U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig
+  else
+    U256AddBeSAsm.u256AddBeBytes
+      (U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig)
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes
+      (U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig)
+
+/-- `ra`, `a0` and `a1` hold different values on the two arms; all three are
+    overwritten before they are next read, so the join releases them to
+    ownership. -/
+private theorem regs_to_own3 (v1 v10 v11 : Word) (P : Assertion) :
+    ∀ h, (((.x1 : Reg) ↦ᵣ v1) ** ((.x10 : Reg) ↦ᵣ v10) **
+        ((.x11 : Reg) ↦ᵣ v11) ** P) h →
+      (regOwn .x1 ** regOwn .x10 ** regOwn .x11 ** P) h :=
+  sepConj_mono (regIs_to_regOwn .x1 v1)
+    (sepConj_mono (regIs_to_regOwn .x10 v10)
+      (sepConj_mono_left (regIs_to_regOwn .x11 v11)))
+
+/-- State where the two arms meet, at `secf_add_mod_p + 92` (index 23). -/
+private def addJoinPost (xPtr yPtr dst : Word)
+    (xs ys tmpOrig : List (BitVec 8)) (A : Assertion) : Assertion :=
+  ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) ** ((.x18 : Reg) ↦ᵣ dst) **
+  ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+  ((.x20 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwn .x1 ** regOwn .x10 ** regOwn .x11 **
+  ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+  regOwns U256BeFlat.addScratch **
+  bytesRegion (GuestAddrs.secf_tmp0 : Word) (addModPTmpBytes xs ys tmpOrig) **
+  bytesRegion xPtr xs ** bytesRegion yPtr ys **
+  globalConst (GuestAddrs.secp256k1_c_be : Word)
+    Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A
+
+/-- Body indices 16..22: the carry test and, on the carrying path, the
+    fold-back arm — merged at `secf_add_mod_p + 92`. -/
+private theorem carryBranchJoin_spec (xPtr yPtr dst old20 : Word)
+    (xs ys tmpOrig : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hrwTmp : RwRegion.wf ⟨(GuestAddrs.secf_tmp0 : Word), 32⟩)
+    (hroC : Region.wf ⟨(GuestAddrs.secp256k1_c_be : Word),
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes⟩)
+    (hlenTmp : tmpOrig.length = 32) :
+    cpsTripleWithin
+      (2 + (4 + (1 + u256AddInPlaceSteps (GuestAddrs.secf_tmp0 : Word)
+        (GuestAddrs.secp256k1_c_be : Word)
+        (U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig)
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes)))
+      (GuestAddrs.secf_add_mod_p + 64 : Word)
+      (GuestAddrs.secf_add_mod_p + 92 : Word) secfAddModPCr
+      (((.x20 : Reg) ↦ᵣ old20) **
+        ((.x10 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        (((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+          ((.x18 : Reg) ↦ᵣ dst) **
+          ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 64 : Word)) **
+          ((.x11 : Reg) ↦ᵣ yPtr) **
+          ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          regOwns U256BeFlat.addScratch **
+          bytesRegion (GuestAddrs.secf_tmp0 : Word)
+            (U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig) **
+          bytesRegion xPtr xs ** bytesRegion yPtr ys **
+          globalConst (GuestAddrs.secp256k1_c_be : Word)
+            Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A))
+      (addJoinPost xPtr yPtr dst xs ys tmpOrig A) := by
+  set carry := U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig with hcarry
+  set tmpBytes := U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig with htmpBytes
+  set ctx : Assertion :=
+    ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+    ((.x18 : Reg) ↦ᵣ dst) **
+    ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+    ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 64 : Word)) **
+    ((.x11 : Reg) ↦ᵣ yPtr) **
+    ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+    regOwns U256BeFlat.addScratch **
+    bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+    bytesRegion xPtr xs ** bytesRegion yPtr ys **
+    globalConst (GuestAddrs.secp256k1_c_be : Word)
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A with hctx
+  have hbr := saveCarryBranch_spec carry old20 ctx (by rw [hctx]; pcf; exact hA)
+  refine retJoinStation_spec (cond := carry = 0)
+    (PT := (((.x20 : Reg) ↦ᵣ carry) ** ((.x10 : Reg) ↦ᵣ carry) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx))
+    (PF := (((.x20 : Reg) ↦ᵣ carry) ** ((.x10 : Reg) ↦ᵣ carry) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx)) hbr
+    (fun h hp => by xperm_hyp hp) (fun h hp => by xperm_hyp hp) ?_ ?_
+  · -- no carry: the temporary already holds the answer; nothing to run
+    intro hzero
+    have hrefl : cpsTripleWithin 0 (GuestAddrs.secf_add_mod_p + 92 : Word)
+        (GuestAddrs.secf_add_mod_p + 92 : Word) secfAddModPCr
+        (((.x20 : Reg) ↦ᵣ carry) ** ((.x10 : Reg) ↦ᵣ carry) **
+          ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ctx)
+        (addJoinPost xPtr yPtr dst xs ys tmpOrig A) := by
+      refine liftCode (cr' := secfAddModPCr)
+        (cpsTripleWithin_refl (fun h hp => ?_))
+        (by intro a i hmem; simp [CodeReq.empty] at hmem)
+      rw [hctx] at hp
+      have hp1 := regs_to_own3 (GuestAddrs.secf_add_mod_p + 64 : Word) carry yPtr
+        (((.x20 : Reg) ↦ᵣ carry) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+          ((.x18 : Reg) ↦ᵣ dst) **
+          ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          regOwns U256BeFlat.addScratch **
+          bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpBytes **
+          bytesRegion xPtr xs ** bytesRegion yPtr ys **
+          globalConst (GuestAddrs.secp256k1_c_be : Word)
+            Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A) h (by xperm_hyp hp)
+      unfold addJoinPost
+      rw [show addModPTmpBytes xs ys tmpOrig = tmpBytes from by
+        unfold addModPTmpBytes; rw [← hcarry, if_pos hzero]]
+      xperm_hyp hp1
+    exact cpsTripleWithin_mono_nSteps (by omega) hrefl
+  · -- carry: run the fold-back arm
+    intro hnzero
+    have harm := foldBackArm_spec (GuestAddrs.secf_add_mod_p + 64 : Word)
+      carry yPtr (GuestAddrs.secf_tmp0 : Word) tmpBytes
+      (((.x20 : Reg) ↦ᵣ carry) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+        ((.x18 : Reg) ↦ᵣ dst) ** bytesRegion xPtr xs **
+        bytesRegion yPtr ys ** A)
+      (by pcf; exact hA) hrwTmp hroC
+      (U256BeFlat.u256AddBeBytes_length xs ys tmpOrig hlenTmp)
+    refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) harm
+    · rw [hctx] at hp; xperm_hyp hp
+    · have hq1 := regs_to_own3 (GuestAddrs.secf_add_mod_p + 92 : Word)
+        (U256AddBeSAsm.u256AddBeCarry tmpBytes
+          Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes)
+        (GuestAddrs.secp256k1_c_be : Word)
+        (((.x20 : Reg) ↦ᵣ carry) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+          ((.x18 : Reg) ↦ᵣ dst) **
+          ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          ((.x12 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+          regOwns U256BeFlat.addScratch **
+          bytesRegion (GuestAddrs.secf_tmp0 : Word)
+            (U256AddBeSAsm.u256AddBeBytes tmpBytes
+              Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes) **
+          bytesRegion xPtr xs ** bytesRegion yPtr ys **
+          globalConst (GuestAddrs.secp256k1_c_be : Word)
+            Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A) h (by xperm_hyp hq)
+      unfold addJoinPost
+      rw [show addModPTmpBytes xs ys tmpOrig
+          = U256AddBeSAsm.u256AddBeBytes tmpBytes
+              Secp256k1FieldSubModPSAsm.secp256k1CBytes tmpBytes from by
+        unfold addModPTmpBytes; rw [← hcarry, if_neg hnzero]]
+      xperm_hyp hq1
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
