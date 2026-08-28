@@ -318,6 +318,53 @@ theorem taylor_round_zero_exitdiv_tail
       (exits ++ rest) :=
   nb_extend_head_same_cr hRound hZero
 
+/- Replace the zero-accumulator exit in the terminal-index BGEU round.  The
+   linked artifact takes this arm through `li t0, 496` at `0x8000b414` and
+   `bgeu` at `0x8000b418`, targeting `0x8000b710`.  The status-1 terminal
+   exit remains in the list, so this is an arm-for-arm composition rather
+   than a theorem that silently drops the alternate branch. -/
+theorem taylor_round_terminal_496_status1_exitdiv_tail
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hFR : FR.pcFree) (h_i : iVal = (496 : Word))
+    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
+    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
+    {exits : List (Word × Assertion)}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr iVal vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+        o0 o1 o2 o3 AB PB FR) exits) :
+    cpsNBranchWithin (17 + 4183) (PriceK + 144) priceCode
+      (roundEntry newSp excess outPtr iVal AB PB vals
+        v5 v6 v7 v28 v29 v30 v31
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+        (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))
+      (exits ++
+        [(PriceK + 968,
+          roundTerminalStatus1 newSp excess outPtr iVal AB PB vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+            v7 v28 v29 v30 v31
+            (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))]) := by
+  let FR0 : Assertion := exitdivOutputCells outPtr o0 o1 o2 o3 ** FR
+  have hFR0 : FR0.pcFree := by
+    unfold FR0
+    pcFree
+    exact hFR
+  have hRound := taylor_round_terminal_496_status1
+    newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v5 v6 v7 v28 v29 v30 v31 FR0 hFR0 h_i
+  have hRoundN := cpsBranchWithin_as_cpsNBranchWithin hRound
+  have hZero := round_zero_exitdiv_tail
+    newSp excess outPtr iVal AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB hTail
+  have hAll := nb_extend_head_same_cr hRoundN hZero
+  simpa [FR0] using hAll
+
 /- A concrete witness for the completed zero-arm boundary.  This is kept
    beside the adapter because the arm's pure `w = 0` fact and its output
    cells are part of the applied precondition, not facts supplied by a later
@@ -512,5 +559,6 @@ theorem roundWitness_output_present :
 #print axioms exitdiv_seq_tail
 #print axioms round_zero_exitdiv_tail
 #print axioms taylor_round_zero_exitdiv_tail
+#print axioms taylor_round_terminal_496_status1_exitdiv_tail
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
