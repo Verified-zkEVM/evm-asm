@@ -238,6 +238,16 @@ def priceOutputOwn (outPtr : Word) : Assertion :=
   memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) **
     memOwn (outPtr + 24)
 
+/-- ABI geometry required by the Amsterdam price body for its 32-byte output.
+    The pointer value in `x11` does not establish these facts, so they travel
+    as an explicit pure premise of the caller contract.  The static linked
+    callers discharge this predicate by `decide`; dynamic callers must provide
+    the corresponding ABI facts at their own call sites. -/
+def priceOutputGeometry (outPtr : Word) : Prop :=
+  outPtr.toNat % 8 = 0 ∧
+    outPtr.toNat + 32 < 2 ^ 64 ∧
+    ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true
+
 /-- The three 48-byte work windows used by the inlined Amsterdam price loop.
     These are ownership tokens, not value assertions: the setup window writes
     all eighteen dwords before the first loop test, so callers need to provide
@@ -270,11 +280,12 @@ def priceOutputPost (status outPtr : Word)
 def priceEntryRest
     (sp0 ret : Word) (vals : Reg → Word)
     (excess outPtr : Word) (scratch : Assertion) : Assertion :=
-  (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
-  frameSlotsOwn priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) **
-  priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
-  regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
-  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch
+  ⌜priceOutputGeometry outPtr⌝ **
+  ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
+    frameSlotsOwn priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) **
+    priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+    regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+    regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
 
 def priceCalleePost
     (sp0 ret : Word) (vals : Reg → Word)
@@ -397,8 +408,16 @@ private theorem priceEntryRest_sample_from_entryPre :
       (priceSamplePrefix **
         (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix)) h := by
     simpa only [sepConj_assoc'] using hown
+  have hgeom : priceOutputGeometry sampleOutPtr := by
+    unfold priceOutputGeometry
+    decide
+  have hwithgeom :
+      (⌜priceOutputGeometry sampleOutPtr⌝ **
+        (priceSamplePrefix **
+          (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix))) h := by
+    exact (sepConj_pure_left h).2 ⟨hgeom, hown'⟩
   simpa [priceEntryRest, priceScratch, priceSamplePrefix, priceSampleSuffix,
-    sampleNewSp, sepConj_assoc'] using hown'
+    sampleNewSp, sepConj_assoc'] using hwithgeom
 
 /-- The price premise is not an uninhabited symbolic shape: it has the
     concrete non-overlapping layout used by the existing Amsterdam witness.
@@ -409,6 +428,20 @@ theorem priceEntryRest_inhabited :
       (0 : Word) sampleOutPtr priceScratch).holdsFor sampleState := by
   obtain ⟨h, hcompat, hp⟩ := entryState_exists.2.2
   exact ⟨h, hcompat, priceEntryRest_sample_from_entryPre h hp⟩
+
+/-- The header-validation caller's static output cell satisfies all three
+    output-buffer ABI facts required by the body. -/
+theorem price_output_geometry_hvebg_threshold :
+    priceOutputGeometry (GuestAddrs.hvebg_threshold : Word) := by
+  unfold priceOutputGeometry
+  decide
+
+/-- The block-verdict gas-gate caller's static output cell satisfies all three
+    output-buffer ABI facts required by the body. -/
+theorem price_output_geometry_bsg_blob_price_be :
+    priceOutputGeometry (GuestAddrs.bsg_blob_price_be : Word) := by
+  unfold priceOutputGeometry
+  decide
 
 /-! ## ABI shell
 
@@ -853,4 +886,3 @@ theorem k70_abi_from_body
     xperm_hyp hq
 
 end EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
-
