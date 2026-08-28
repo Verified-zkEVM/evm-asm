@@ -200,6 +200,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashMono
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashValPrefix
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
 import EvmAsm.Codegen.Programs.BlockAccessListHashBahOffset
+import EvmAsm.Codegen.Programs.BlockAccessListHashSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgv
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashReads
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashFiveReads
@@ -286,6 +287,7 @@ import EvmAsm.Codegen.Programs.Bls12Fq12IsZeroSAsm
 import EvmAsm.Codegen.Programs.Bls12PtCopySAsm
 import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
 import EvmAsm.Codegen.Programs.U256AddBeSAsm
+import EvmAsm.Codegen.Programs.U256AddBeAInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256SubBeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
@@ -477,6 +479,9 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Footprint
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14TerminalSpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Backedge
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Composition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms

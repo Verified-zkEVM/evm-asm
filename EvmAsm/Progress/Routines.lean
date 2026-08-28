@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Programs.U256AddBeAInPlaceSAsm
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
@@ -3841,6 +3842,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "arena. ORDER is load-bearing and pinned: the post is "
         ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order. "
         ++ "Non-vacuity: `kss_sample_witness_multi` (same 3-segment gather). "
+        ++ "Output buffer contents on entry are ARBITRARY (`out0`, any 32 "
+        ++ "bytes -- the #12897/#12987 fix): every byte is overwritten, so "
+        ++ "callers need not pre-clear and repeated calls are covered. "
         ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
         ++ "separate row; this row closes the segments leg of #12113's "
         ++ "`h_tsh` residual until the EIP-7702 wrapper re-points to the "
@@ -5545,6 +5549,13 @@ private noncomputable abbrev _u256_eq_routine_witness :=
 -- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+-- #12319: the FIRST-OPERAND-ALIASED (`a0 = a2`) contract over the SAME
+-- `u256_add_be` text. No Routines ROW: `u256_add_be` already has one, and this
+-- is a second contract on that routine rather than a second routine. Witnessed
+-- anyway so `check-axioms` covers the module (same pattern as the
+-- `_erh_hash_one_*` phase witnesses above).
+private noncomputable abbrev _u256_add_be_a_inplace_witness :=
+  @EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
