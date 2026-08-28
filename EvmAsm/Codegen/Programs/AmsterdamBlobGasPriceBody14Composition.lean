@@ -1369,5 +1369,7 @@ theorem roundWitness_output_present :
 #print axioms round_zero_exitdiv_tail
 #print axioms taylor_round_zero_exitdiv_tail
 #print axioms taylor_round_terminal_496_status1_exitdiv_tail
+#print axioms round_zero_pre_inhabited
+#print axioms roundWitness_output_present
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
