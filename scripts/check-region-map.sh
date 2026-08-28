@@ -241,7 +241,8 @@ guest_addrs_missing="$(comm -23 \
       awk 'NF >= 8 && $7 != "UND" && $4 != "SECTION" && $4 != "FILE" && $8 !~ /^\$/ {
              print $8
              # GH #12204: a GNU-as LOCAL code label is dot-prefixed in the ELF
-             # (`.dispatch_loop`), and a dot cannot start a Lean identifier, so
+             # (`.dispatch_loop`, `.exit_outofgas`), and a dot cannot start a
+             # Lean identifier, so
              # `gen_guest_addrs` emits it under `ga_name` -- i.e. with the dot
              # dropped. Offer the mangled spelling too, or every such symbol
              # reads as "absent from ELF" while sitting in the symbol table.
