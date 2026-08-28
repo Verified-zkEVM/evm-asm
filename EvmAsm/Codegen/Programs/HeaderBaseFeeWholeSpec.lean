@@ -991,7 +991,7 @@ theorem k73_increase_div_pair_spec_within
     `u256_is_zero`.  The divider owns the exposed scratch registers, so this
     adapter deliberately peels that ownership to arbitrary concrete values
     for the callee and re-owns the complete scratch set afterwards. -/
-theorem k73_increase_is_zero_call_spec_within
+theorem k73_increase_is_zero_call_spec_within_result
     (ptr oldRa : Word) (w0 w1 w2 w3 : Word) (F : Assertion)
     (hF : F.pcFree) :
     ∀ old10, cpsTripleWithin 11 (K73 + 128) (K73 + 136) wholeCode
@@ -1001,7 +1001,7 @@ theorem k73_increase_is_zero_call_spec_within
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
       (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-        regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+        ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
@@ -1063,7 +1063,7 @@ theorem k73_increase_is_zero_call_spec_within
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch))
-      (((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+      (((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regOwns u256DivU64BeScratch)) := by
@@ -1138,12 +1138,12 @@ theorem k73_increase_is_zero_call_spec_within
           ((.x28 : Reg) ↦ᵣ v28) ** regAtomsOf vf tail **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) s →
-        (regOwn .x10 ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        (((.x10 : Reg) ↦ᵣ v10) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
           regOwn .x28 ** regOwns tail **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) s := by
       intro v10 v5 v6 v7 v28 s hs
-      exact sepConj_mono (regIs_implies_regOwn .x10)
+      exact sepConj_mono (fun _ h => h)
         (sepConj_mono (regIs_implies_regOwn .x5)
           (sepConj_mono (regIs_implies_regOwn .x6)
             (sepConj_mono (regIs_implies_regOwn .x7)
@@ -1155,7 +1155,7 @@ theorem k73_increase_is_zero_call_spec_within
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch)
-      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regOwns u256DivU64BeScratch)
@@ -1184,7 +1184,7 @@ theorem k73_increase_is_zero_call_spec_within
     (P := ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** regOwn .x10 **
+    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
       regOwns u256DivU64BeScratch)) hcallAny
@@ -1198,7 +1198,7 @@ theorem k73_increase_is_zero_call_spec_within
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
     (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
-      regOwn .x10 ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
+      ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
