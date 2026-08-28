@@ -372,8 +372,64 @@ theorem terminal_zero_any_to_exitdiv
   exact hZero v7 v28 v29 v30 v31 R hR s hcr
     ⟨hp, hcompat, h1, h2, hd, hu, hv, hRb⟩ hpc
 
+/- The actual terminal BGEU arm carries the exit-divide output cells in the
+   caller frame.  Frame those cells before invoking the parity adapter, then
+   consume only the zero arm; the nonzero status arm stays as the second
+   branch.  This is the first list-level composition that checks the five
+   retained scratch values at their real consumer boundary. -/
+theorem taylor_round_terminal_496_from_parity_exitdiv
+    (newSp excess outPtr : Word) (vals : Reg → Word)
+    (evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hFR : FR.pcFree) (hFRx0 : x0FreeAssertion FR)
+    (hAB : parityBuffer 495 evenBase oddBase =
+      newSp + signExtend12 (64 : BitVec 12))
+    (hPB : parityBuffer 495 oddBase evenBase =
+      newSp + signExtend12 (112 : BitVec 12))
+    {exits : List (Word × Assertion)}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr (496 : Word) vals
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 o0 o1 o2 o3
+        (parityBuffer 495 evenBase oddBase)
+        (parityBuffer 495 oddBase evenBase) FR)
+      (exits.map (fun ex => (ex.1, ex.2 ** regIs .x0 (0 : Word))))) :
+    cpsNBranchWithin (17 + 4183) (PriceK + 144) priceCode
+      (taylorLoopInvParityAt newSp excess outPtr vals 495 (496 : Word)
+        evenBase oddBase [a0, a1, a2, a3, a4, a5]
+        [p0, p1, p2, p3, p4, p5] [s0, s1, s2, s3, s4, s5]
+        (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))
+      (exits ++
+        [(PriceK + 968,
+          terminalStatus1Any newSp excess outPtr (496 : Word)
+            (parityBuffer 495 evenBase oddBase)
+            (parityBuffer 495 oddBase evenBase) vals
+            (roundAccum a0 a1 a2 a3 a4 a5)
+            a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+            s2 s3 s4 s5 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))]) := by
+  let AB := parityBuffer 495 evenBase oddBase
+  let PB := parityBuffer 495 oddBase evenBase
+  let FR0 : Assertion := exitdivOutputCells outPtr o0 o1 o2 o3 ** FR
+  have hFR0 : FR0.pcFree := by
+    unfold FR0
+    pcFree
+    exact hFR
+  have hRound := taylor_round_terminal_496_from_parity
+    newSp excess outPtr vals evenBase oddBase
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    FR0 hFR0
+  have hZero := terminal_zero_any_to_exitdiv
+    newSp excess outPtr (496 : Word) AB PB vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+    o0 o1 o2 o3 FR hFR hFRx0 (by simpa [AB] using hAB)
+    (by simpa [PB] using hPB) hTail
+  have hAll := nb_extend_head_same_cr hRound hZero
+  simpa [AB, PB, FR0] using hAll
+
 #print axioms taylor_round_terminal_496_from_footprint
 #print axioms taylor_round_terminal_496_from_parity
 #print axioms terminal_zero_any_to_exitdiv
+#print axioms taylor_round_terminal_496_from_parity_exitdiv
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
