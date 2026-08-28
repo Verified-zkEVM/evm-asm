@@ -200,6 +200,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashMono
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashValPrefix
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgvOffset
 import EvmAsm.Codegen.Programs.BlockAccessListHashBahOffset
+import EvmAsm.Codegen.Programs.BlockAccessListHashSpec
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashBgv
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashReads
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashFiveReads

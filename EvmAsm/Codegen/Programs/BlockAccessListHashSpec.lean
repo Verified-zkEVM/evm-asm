@@ -1105,4 +1105,40 @@ theorem body_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c3
 
+/-! ## §14  What remains: the hand-off to the core
+
+    `body_spec` ▸ `tail_jump_spec` ▸ `block_access_list_hash_core_spec_within`
+    is the whole routine.  The first two are proved above and the third is
+    rowed `.proven`; what is NOT done here is the assertion plumbing that turns
+    `body_spec`'s post into the core's precondition.  Spelled out so the next
+    step is mechanical rather than exploratory, the obligations are:
+
+    * `x11`: the body leaves `bal_end - bal_start`; the core wants
+      `BitVec.ofNat 64 input.length`.  Bridged by a hypothesis
+      `h_len : (npr b + vh_off) - (execP b + bal_off) = BitVec.ofNat 64 input.length`
+      relating the witness's declared extent to the slab actually presented.
+
+    * `regOwns keccakBodyFreeTemps` (`[x5, x6, x7, x13..x17, x30, x31]`): `x6`
+      arrives already owned from the second call, `x5` (`= bah_bal_start`) and
+      `x30` (`= bal_end`) arrive PINNED and need `regIs_implies_regOwn`, and
+      `x7`, `x13..x17`, `x31` ride through untouched from the caller.
+
+    * `memOwn (sp0 - 16) ** stackFree (sp0 - 16) 4`, i.e. cells at
+      `sp0 - 48 … sp0 - 16`: three of them come back from the epilogue as
+      `↦ₘ` (still holding `ra`, `s0`, `s1`) and need `memIs_implies_memOwn`;
+      the other two are the extra pair in `stackFree sp0 6`
+      (`stackFree6_split`).  `sp0 - 8` is left over and belongs in the core's
+      ambient `A`.
+
+    * `regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20)`: exactly the four
+      callee-saved values the epilogue restored, with `x20` never touched.
+
+    ⚠️ The scope note in this module's header applies to that step and not
+    before it: the slab region `bytesRegion bal_start input` is presented as its
+    own atom with `8 ∣ input.length` stated explicitly, so that no assumption
+    about the bytes after the slab can enter by the back door.  If a future
+    version of this proof finds it needs those bytes to be zero, that is #13014
+    proper and does not belong here.
+-/
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
