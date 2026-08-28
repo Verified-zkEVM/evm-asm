@@ -1,5 +1,4 @@
 /- Composition adapter for the K70 exit-divide and output tail windows. -/
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody6Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14TerminalSpec
 
