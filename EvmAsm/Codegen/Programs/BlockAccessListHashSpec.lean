@@ -368,4 +368,99 @@ theorem prologue_spec (sp0 ret v8 v9 v18 : Word) (R : Assertion) (hR : R.pcFree)
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c4
 
+/-! ## §6  SSZ navigation addresses
+
+    The guest reaches the two `u32` fields by three chained `addi`s.  These
+    lemmas put the results in the `base + BitVec.ofNat 64 off` form that
+    `bah_u32le_offset_spec_within` consumes, which is where the offsets `588`
+    and `20` — and hence the `≡ 4 (mod 8)` misalignment — become explicit. -/
+
+/-- `NPR = sszBase + 16`. -/
+abbrev npr (b : Word) : Word := b + signExtend12 (16 : BitVec 12)
+
+/-- `exec_payload = NPR + 44 = sszBase + 60`. -/
+abbrev execP (b : Word) : Word := npr b + signExtend12 (44 : BitVec 12)
+
+theorem field1_addr (b : Word) :
+    execP b + signExtend12 (528 : BitVec 12) = b + BitVec.ofNat 64 588 := by
+  show b + signExtend12 (16 : BitVec 12) + signExtend12 (44 : BitVec 12)
+      + signExtend12 (528 : BitVec 12) = _
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+    show signExtend12 (44 : BitVec 12) = (44 : Word) from by decide,
+    show signExtend12 (528 : BitVec 12) = (528 : Word) from by decide,
+    show (BitVec.ofNat 64 588 : Word) = (588 : Word) from by decide]
+  bv_omega
+
+theorem field2_addr (b : Word) :
+    npr b + signExtend12 (4 : BitVec 12) = b + BitVec.ofNat 64 20 := by
+  show b + signExtend12 (16 : BitVec 12) + signExtend12 (4 : BitVec 12) = _
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+    show signExtend12 (4 : BitVec 12) = (4 : Word) from by decide,
+    show (BitVec.ofNat 64 20 : Word) = (20 : Word) from by decide]
+  bv_omega
+
+/-! ## §7  Body before the first call (idx 5..9)
+
+    `s0 := a0` (the SSZ base), `s1 := a1` (the digest destination), `s2 := NPR`,
+    `t3 := exec_payload`, `a0 := &bal_off`. -/
+
+theorem setup_spec (b outPtr v8 v9 v18 v28 : Word) (R : Assertion) (hR : R.pcFree) :
+    cpsTripleWithin 5 (At 5) (At 10) allCode
+      ((((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x8 : Reg) ↦ᵣ v8) **
+        ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) ** ((.x28 : Reg) ↦ᵣ v28)) ** R)
+      ((((.x10 : Reg) ↦ᵣ (b + BitVec.ofNat 64 588)) ** ((.x11 : Reg) ↦ᵣ outPtr) **
+        ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) ** ((.x18 : Reg) ↦ᵣ npr b) **
+        ((.x28 : Reg) ↦ᵣ execP b)) ** R) := by
+  -- idx 5: mv s0, a0
+  have s5 := cpsTripleWithin_extend_code
+    (wMem 5 (.MV .x8 .x10) (by rw [wProg_len]; decide) (by rfl))
+    (mv_spec_gen_within .x8 .x10 b v8 (At 5) (by decide))
+  rw [At_succ 5] at s5
+  have f5 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+      ((.x28 : Reg) ↦ᵣ v28) ** R)
+    (by pcf_b) s5
+  -- idx 6: mv s1, a1
+  have s6 := cpsTripleWithin_extend_code
+    (wMem 6 (.MV .x9 .x11) (by rw [wProg_len]; decide) (by rfl))
+    (mv_spec_gen_within .x9 .x11 outPtr v9 (At 6) (by decide))
+  rw [At_succ 6] at s6
+  have f6 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ b) ** ((.x8 : Reg) ↦ᵣ b) ** ((.x18 : Reg) ↦ᵣ v18) **
+      ((.x28 : Reg) ↦ᵣ v28) ** R)
+    (by pcf_b) s6
+  -- idx 7: addi s2, s0, 16
+  have s7 := cpsTripleWithin_extend_code
+    (wMem 7 (.ADDI .x18 .x8 (16 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_within .x18 .x8 v18 b (16 : BitVec 12) (At 7) (by decide))
+  rw [At_succ 7] at s7
+  have f7 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x28 : Reg) ↦ᵣ v28) ** R)
+    (by pcf_b) s7
+  -- idx 8: addi t3, s2, 44
+  have s8 := cpsTripleWithin_extend_code
+    (wMem 8 (.ADDI .x28 .x18 (44 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_within .x28 .x18 v28 (npr b) (44 : BitVec 12) (At 8) (by decide))
+  rw [At_succ 8] at s8
+  have f8 := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x8 : Reg) ↦ᵣ b) **
+      ((.x9 : Reg) ↦ᵣ outPtr) ** R)
+    (by pcf_b) s8
+  -- idx 9: addi a0, t3, 528
+  have s9 := cpsTripleWithin_extend_code
+    (wMem 9 (.ADDI .x10 .x28 (528 : BitVec 12)) (by rw [wProg_len]; decide) (by rfl))
+    (addi_spec_gen_within .x10 .x28 b (execP b) (528 : BitVec 12) (At 9) (by decide))
+  rw [At_succ 9, field1_addr] at s9
+  have f9 := cpsTripleWithin_frameR
+    (((.x11 : Reg) ↦ᵣ outPtr) ** ((.x8 : Reg) ↦ᵣ b) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+      ((.x18 : Reg) ↦ᵣ npr b) ** R)
+    (by pcf_b) s9
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) f5 f6
+  have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c1 f7
+  have c3 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c2 f8
+  have c4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xcancel_struct hp) c3 f9
+  exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
+    (fun _ hq => by xcancel_struct hq) c4
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
