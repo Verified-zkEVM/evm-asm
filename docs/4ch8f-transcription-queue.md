@@ -68,7 +68,7 @@ exactly what its specification told it to find. Everything in §2 stands on
 evidence that predates it.
 
 **A signal scoring zero is not a broken signal.** The residual scanner reads
-110 `Residual`-named declarations today and 0
+120 `Residual`-named declarations today and 1
 of them name an unconverted routine. When that second figure is 0 it is a
 result, not a bug: every named discharge owner in the tree
 (`witnessLookupResidualNote`, `zkvmSha256ResidualNote`, `hpDecodeResidualNote`,
@@ -82,35 +82,35 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 29)
+## 2. The queue (top 25 of 30)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
-| 4 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 5 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 6 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 7 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 8 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 9 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 10 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 11 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 12 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
-| 13 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
-| 14 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 15 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 16 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
-| 17 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
-| 18 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
-| 19 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
-| 20 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
-| 21 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
-| 22 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 23 | `_start` | 100 | obl 8 | label-string | 6336 |
-| 24 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
-| 25 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
+| 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
+| 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
+| 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
+| 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 16 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 17 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
+| 18 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
+| 19 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
+| 20 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 21 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
+| 22 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
+| 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
+| 24 | `_start` | 100 | obl 8 | label-string | 6336 |
+| 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
 
 Reading the columns: **demand** is the score; **evidence** is what produced it
 (`obl N` = obligation N's blocker list, `#N` = open issue, `gate N` = N gated
@@ -253,7 +253,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-200 unconverted routines have call sites but are named by no obligation,
+199 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -352,41 +352,42 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 57484 B of 211868 B unconverted
+Named-set cost: 58192 B of 211868 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (29 rows)
+## 8. Full named table (30 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
-| 4 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 5 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 6 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 7 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 8 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 9 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 10 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 11 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
-| 12 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
-| 13 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
-| 14 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
-| 15 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
-| 16 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
-| 17 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
-| 18 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
-| 19 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
-| 20 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
-| 21 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
-| 22 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
-| 23 | `_start` | 100 | obl 8 | label-string | 6336 |
-| 24 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
-| 25 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
-| 26 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
-| 27 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 28 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 29 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
+| 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
+| 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
+| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
+| 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
+| 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
+| 16 | `h_SSTORE` | 100 | obl 5 | handler-spec | 2188 |
+| 17 | `h_RETURN` | 100 | obl 5 | handler-spec | 2456 |
+| 18 | `h_DELEGATECALL` | 100 | obl 5 | handler-spec | 3172 |
+| 19 | `h_STATICCALL` | 100 | obl 5 | handler-spec | 3172 |
+| 20 | `h_CREATE` | 100 | obl 5 | handler-spec | 3528 |
+| 21 | `h_CREATE2` | 100 | obl 5 | handler-spec | 3592 |
+| 22 | `h_CALLCODE` | 100 | obl 5 | handler-spec | 4472 |
+| 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
+| 24 | `_start` | 100 | obl 8 | label-string | 6336 |
+| 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
+| 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
+| 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
+| 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
+| 29 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 30 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
