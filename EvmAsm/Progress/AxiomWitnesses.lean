@@ -992,6 +992,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within
 
+#print axioms EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
+
 #print axioms EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
 
 #print axioms EvmAsm.Codegen.U256BeFlat.u256FromU64BeFlat_spec
