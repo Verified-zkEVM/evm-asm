@@ -1892,19 +1892,21 @@ def routineRegistry : List RoutineEntry := [
   -- #12346 residual 2b: the increase arm's wrapper-vocabulary Route-B
   -- adapter.  The composed triple is complete over the wrapper contract
   -- (`k73PreRest` premise, `k73RouteBCallPost` conclusion) but carries the
-  -- symmetric multiply-callee premise `hcallee`, which no pure respeller can
-  -- discharge symbolically (class-b finding on issue 12346: the respeller
-  -- cannot consume `mulWhole_spec` for symbolically-threaded lists), so the
-  -- row is `.conditional`, not `.proven`: the gate excludes every caller that
-  -- cannot itself supply a verified multiply callee.
+  -- multiply callee DISCHARGED (issue #12346): `k73_incr_callee_discharged`
+  -- inhabits the `hcallee` obligation from the proven `mulWhole_spec` via the
+  -- disjoint call-site geometry (aPtr = parentPtr, outPtr = Expected are
+  -- separate windows); the respeller's copyState idempotency gap is closed by
+  -- a proven list lemma, and the wrapper's accumulator window is the
+  -- constructed product image. The row stays `.conditional` for the honest
+  -- static input-domain gates: `0 < target` (issue #12951) and
+  -- `target < gas_used` restrict real input regions.
   routine "eip1559_calc_base_fee_per_gas" .conditional
       (some "k73_incr_route_adapter_inhabited")
-      (gate := "carries the multiply-callee premise `hcallee` "
-        ++ "(a `cpsTripleWithin` over `GuestAddrs.u256_mul_u64_be`): "
-        ++ "dischargeable today only at concrete witnesses "
-        ++ "(the witness instantiates it from `mulWhole_spec`); "
-        ++ "a symbolic respeller awaits the increase-side native asymmetric "
-        ++ "contract (follow-up to PR #12978). Static gates: "
+      (gate := "the multiply callee is discharged internally from the "
+        ++ "proven `mulWhole_spec` (disjoint call-site windows; see "
+        ++ "`k73_incr_callee_discharged`). Remaining static gates: "
+        ++ "ABI facts (8-byte alignment, 32-byte validity of the parent-fee "
+        ++ "and expected-window regions, window disjointness), "
         ++ "`target = gas_limit >>> 1`, `0 < target` (issue #12951), "
         ++ "`target < gas_used`.")
       (notes := "wrapper-vocab Route-B adapter for the increase arm "
@@ -1914,7 +1916,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "zero-test branch pures (a path-blind post admits countermodel "
         ++ "states no local window algebra can kill). The concrete witness "
         ++ "establishes non-vacuity only; it does NOT upgrade the general "
-        ++ "theorem past the `hcallee` gate."),
+        ++ "theorem past the static input-domain gates."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
