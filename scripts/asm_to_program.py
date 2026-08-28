@@ -608,7 +608,7 @@ def pc_expr(entry, offset):
     they are not present in the monolithic guest link.
     """
     if entry in SYMMAP:
-        return f"({GA}.{entry} + {offset})"
+        return f"({GA}.{ga_name(entry)} + {offset})"
     return str(0x80000000 + offset)
 
 def render_insn(mn, ops, off_of):
@@ -727,8 +727,8 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals,
         externals[sym] = SYMMAP[sym]
         pc = entry_addr + cur
         pcx = pc_expr(entry, cur)
-        lean = [f".AUIPC {reg(rg)} (laHi {GA}.{sym} {pcx})",
-                f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{sym} {pcx})"]
+        lean = [f".AUIPC {reg(rg)} (laHi {GA}.{ga_name(sym)} {pcx})",
+                f".ADDI {reg(rg)} {reg(rg)} (laLo {GA}.{ga_name(sym)} {pcx})"]
         hi, lo = _la_hi(SYMMAP[sym], pc), _la_lo(SYMMAP[sym], pc)
         asm = [f"auipc {xr(rg)}, 0x{hi:x}", f"addi {xr(rg)}, {xr(rg)}, {lo}"]
         return lean, asm, ('la', reg(rg), sym)
@@ -750,7 +750,7 @@ def _emit_one(mn, ops, off_of, entry, entry_addr, cur, label_addr, externals,
             raise ConvError(f"unresolved branch/jump target {tgt!r}")
         externals[tgt] = SYMMAP[tgt]
         off = _jal_off(SYMMAP[tgt], entry_addr + cur)
-        lean = [f".JAL {reg(rd)} (jalOff {GA}.{tgt} {pc_expr(entry, cur)})"]
+        lean = [f".JAL {reg(rd)} (jalOff {GA}.{ga_name(tgt)} {pc_expr(entry, cur)})"]
         asm = [f"jal {xr(rd)}, {_br_off_asm(off)}"]
         return lean, asm, ('jal', reg(rd), tgt)
     if mn == 'li' and not fits(parse_imm(ops[1]), 12):
@@ -2245,6 +2245,46 @@ def _program_branch_forms(prog_name):
     return expand(prog_name)
 
 
+def _relaxed_branch_ordinals(asm):
+    """Ordinals of the B constructors that are RELAXED far-branch halves.
+
+    GH #12204: a conditional branch to a cross-function symbol is not one
+    instruction.  GNU-as emits the pair `b<inv> .+8 ; j sym`, so the Program
+    holds a B constructor that has NO local B site in the fixture —
+    ``_local_long_b_sites`` classifies that source line as a relocation and
+    skips it.  Returns the positions of those constructors within the
+    Program's B-constructor sequence, so ``_check_b_geometry`` can drop
+    exactly them before pairing source forms against fixture sites.
+
+    Derived from the converter's own resolution (the RelocTable's `.br`
+    indices), NOT from the shape of the rendered line.  A shape test —
+    "`.+8` immediate followed by a `jalOff` jump" — was tried first and reads
+    TRUE on the hand-written `beq …, .+8 ; jal callee` skip-over-a-call idiom,
+    which more than a dozen existing manifest routines already use (measured:
+    accountDecode, storageReadRecord, eip7702AuthorityAsOf, … each lost a real
+    B site from the census).  Keying on the reloc table cannot confuse the two.
+    """
+    _entry, _entry_addr, out, _ext, relocs = _resolve(asm)
+    br_idx = {idx for (idx, kind, _rg, _sym) in relocs if kind == 'br'}
+    if not br_idx:
+        return set(), 0
+    ordinals = set()
+    b_ordinal = 0
+    flat = 0
+    for (lean, _asml) in out:
+        for j, render in enumerate(lean):
+            if _B_SOURCE_FORM_RE.match(render.strip()):
+                if (flat + j) in br_idx:
+                    ordinals.add(b_ordinal)
+                b_ordinal += 1
+        flat += len(lean)
+    if len(ordinals) != len(br_idx):
+        raise ConvError(
+            f'relaxed-branch census: {len(br_idx)} `.br` reloc(s) but '
+            f'{len(ordinals)} matching B constructor(s) in the rendered Program')
+    return ordinals, b_ordinal
+
+
 def _program_uses_stmt_flatten(prog_name):
     """Whether a Program expression splices a structured Stmt via ``flatten``.
 
@@ -2315,6 +2355,23 @@ def _check_b_geometry(path, fn, asm):
         source_forms = _program_branch_forms(prog + '_of')
     else:
         source_forms = _program_branch_forms(prog)
+
+    # GH #12204: drop the inverted halves of relaxed far branches.  They are B
+    # constructors in the Program whose fixture line is a cross-function
+    # `b<cond> rs, sym` — a relocation, excluded from the local-B census below
+    # — so leaving them in makes the two sides unpairable by construction.
+    try:
+        relaxed_ordinals, rendered_b_count = _relaxed_branch_ordinals(asm)
+    except ConvError:
+        relaxed_ordinals, rendered_b_count = set(), 0
+    if relaxed_ordinals:
+        if len(source_forms) != rendered_b_count:
+            raise ConvError(
+                f'{fn}: source has {len(source_forms)} conditional B '
+                f'constructors, the rendered Program has {rendered_b_count} '
+                f'— cannot locate the relaxed far-branch halves')
+        source_forms = [f for k, f in enumerate(source_forms)
+                        if k not in relaxed_ordinals]
 
     # The converter parser sees all local conditional B instructions, not just
     # the long ones.  Pairing the complete sequence makes duplicate offsets
@@ -3060,6 +3117,90 @@ def symbranch_self_test():
           "in-reach targets are refused, never wrapped")
 
 
+# --------------------------------------------------------------------------- #
+# GH #12204 step 3: a DOT-PREFIXED entry symbol.                              #
+# --------------------------------------------------------------------------- #
+_DOTENTRY_ASM = """.dot_entry:
+  la x6, dot_data
+  jal x1, dot_callee
+  ret
+"""
+
+# Synthetic addresses, for the same reason `_SYMBRANCH_SYMS` uses them: the test
+# must not move when the guest relayouts.  `.dot_entry` is dot-prefixed because
+# that is the shape the shipped dispatcher's loop entry has (`.dispatch_loop`),
+# and it is the only shape under which these three render sites can go wrong.
+_DOTENTRY_SYMS = {
+    '.dot_entry':  0x80000000,
+    'dot_data':    0x80001000,
+    'dot_callee':  0x80002000,
+}
+
+
+def dotentry_self_test():
+    """GH #12204 step 3: `GuestAddrs` references must be spelled `ga_name(sym)`.
+
+    `gen_guest_addrs` emits one constant per symbol under `ga_name`, which drops
+    the leading dot of a GNU-as local code label because a dot cannot start a
+    Lean identifier.  Every *reference* therefore has to apply the same mangling
+    or it names a constant that does not exist.
+
+    Three render sites used the RAW symbol: the PC base (`pc_expr`), the `la`
+    target and the cross-function `jal` target.  On the ~1400 non-dot symbols
+    `ga_name` is the identity, so the bug was invisible — it appears the moment a
+    routine's ENTRY is a local label, which is exactly `.dispatch_loop`, the
+    entry of the loop #12204 step 3 converts.  The symptom is a render reading
+    `GuestAddrs..dispatch_loop`: not a Lean identifier, and not caught by
+    `asm_cmp`, which compares BYTES and is blind to the name in the render.
+
+    Pure Python; no toolchain, so it never skips.
+    """
+    fails = []
+
+    def check(what, got, want):
+        if got != want:
+            fails.append(f"{what}: got {got!r} want {want!r}")
+
+    # -- the mangling contract itself, both directions -----------------------
+    check("ga_name drops a leading dot", ga_name('.dot_entry'), 'dot_entry')
+    check("ga_name is the identity on a global", ga_name('dot_entry'), 'dot_entry')
+
+    with _symmap_patch(_DOTENTRY_SYMS):
+        entry, entry_addr, out, externals, relocs = _resolve(_DOTENTRY_ASM)
+        renders = [r for (lean, _a) in out for r in lean]
+
+        check("entry keeps its source spelling", entry, '.dot_entry')
+
+        # -- THE REGRESSION: no render may contain a double dot ---------------
+        doubled = [r for r in renders if f"{GA}.." in r]
+        check("no render names GuestAddrs..<dotted symbol>", doubled, [])
+
+        # -- the PC base, on both instructions of the `la` pair ---------------
+        check("la hi names the mangled entry as its PC base", renders[0],
+              ".AUIPC .x6 (laHi GuestAddrs.dot_data (GuestAddrs.dot_entry + 0))")
+        check("la lo names the mangled entry as its PC base", renders[1],
+              ".ADDI .x6 .x6 (laLo GuestAddrs.dot_data (GuestAddrs.dot_entry + 0))")
+
+        # -- the cross-function jal, measured from its OWN pc (entry + 8) -----
+        check("cross-jal names the mangled entry as its PC base", renders[2],
+              ".JAL .x1 (jalOff GuestAddrs.dot_callee (GuestAddrs.dot_entry + 8))")
+
+        # -- every GuestAddrs name emitted here must be one gen_guest_addrs
+        #    would actually define, i.e. a legal Lean identifier ------------
+        named = re.findall(re.escape(GA) + r"\.([A-Za-z0-9_.]+)", " ".join(renders))
+        check("every referenced GuestAddrs name is a legal Lean identifier",
+              [n for n in named if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", n)],
+              [])
+
+    if fails:
+        for f in fails:
+            print(f"dotentry-self-test: FAIL {f}", file=sys.stderr)
+        sys.exit(1)
+    print("dotentry-self-test: OK \u2014 a dot-prefixed entry renders as "
+          "GuestAddrs.<name>, matching what gen_guest_addrs defines; no "
+          "reference spells GuestAddrs..<sym>")
+
+
 def declaring_module_self_test():
     """Exercise leg (b)'s verified-first declaring-module lookup.
 
@@ -3152,7 +3293,7 @@ def declaring_module_self_test():
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','declaring-module-self-test'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','dotentry-self-test','declaring-module-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
@@ -3163,6 +3304,9 @@ def main():
         return
     if args.command=='symbranch-self-test':
         symbranch_self_test()
+        return
+    if args.command=='dotentry-self-test':
+        dotentry_self_test()
         return
     if args.command=='declaring-module-self-test':
         declaring_module_self_test()

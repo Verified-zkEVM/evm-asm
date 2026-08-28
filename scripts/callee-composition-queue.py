@@ -175,8 +175,10 @@ tool to catch them.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import glob
 import importlib.util
+import io
 import json
 import os
 import re
@@ -711,6 +713,37 @@ def load(tsv_path: str):
                 "backcalls": int(p[5]),
                 "accel": p[6] == "1",
             })
+
+    # ⛔ STALENESS GUARD (#12318).  The column check above catches a dump from
+    # BEFORE the shape-dump format changed; it cannot catch a dump that is
+    # well-formed but simply OLD.  That case is worse, because it fails
+    # silently: a stale dump's addresses no longer match `GuestAddrs`, so
+    # `addr_to_symbol` misses and every affected row is reported as `?<addr>`,
+    # unnameable and therefore unclaimable.
+    #
+    # Measured on a dump four days old: 291 of 294 lane rows were `?`-named and
+    # the lane reported **4** startable rows instead of **27** — a 7x
+    # under-count that reads exactly like a real measurement, with no warning
+    # anywhere.  Anyone acting on it would conclude the lane was nearly
+    # exhausted.
+    #
+    # A healthy dump resolves nearly everything: entries are image entries and
+    # image entries have `GuestAddrs` symbols.  A handful of misses is normal
+    # (an entry can be paired at an interior address); a third of them is a
+    # stale file.
+    unresolved = sum(1 for r in rows if r["symbol"].startswith("?"))
+    if rows and unresolved * 3 > len(rows):
+        raise SystemExit(
+            f"callee-composition-queue: {tsv_path} looks STALE — "
+            f"{unresolved} of {len(rows)} entries have no GuestAddrs symbol.\n"
+            "  A well-formed but out-of-date dump degrades SILENTLY: unresolved\n"
+            "  rows are reported as `?<addr>`, so the lane under-counts instead of\n"
+            "  failing. Regenerate:\n"
+            "    lake build EvmAsm.Tests.GuestImageShapeDump\n"
+            "    lake env lean scripts/lean/GuestImageShapeDumpRun.lean > " + tsv_path + "\n"
+            "  If these entries genuinely have no symbol, raise the threshold here\n"
+            "  deliberately rather than deleting the check."
+        )
     return rows
 
 
@@ -833,6 +866,32 @@ def residual_cell(sym, obl, iss):
         bits.append("gh " + ",".join(f"#{i}" for i in shown)
                     + ("+" if len(iss[sym]) > len(shown) else ""))
     return "; ".join(bits) if bits else "—"
+
+
+def lane_annotations(r) -> list[str]:
+    """Per-row annotations that do NOT come from the bucket — shared by BOTH renderers.
+
+    ⛔ #13011. `⚡ CSRS` used to be emitted only by `print_worklist`, so the plain-text
+    lane listing — the listing a ranking pass actually reads — presented an accelerator
+    row as an ordinary composition candidate. `p256_op_with` was picked off that listing
+    on its instructions-per-in-degree ratio and turned out to need a seam contract that
+    does not exist (two far-apart `bytesRegion` atoms; every accelerator triple in
+    `Rv64/SAsm/AccelStep.lean` takes one window). The annotation was in the tool the
+    whole time; only one of the two renderers printed it.
+
+    So the rule is now structural rather than by inspection: every bucket-independent
+    annotation is built HERE, both renderers print the strings verbatim, and `--self-test`
+    renders both listings and fails if either one drops an annotation the other shows.
+    """
+    ann: list[str] = []
+    if r["gated_callees"]:
+        ann.append("gate inherited from "
+                   + ", ".join(f"`{c}` ({t})" for c, t in r["gated_callees"]))
+    if r["accel"]:
+        ann.append("⚡ `CSRS`")
+    if r["self_specs"]:
+        ann.append("has `%s`" % r["self_specs"][0][0])
+    return ann
 
 
 def anchor_cell(r):
@@ -1054,13 +1113,8 @@ def print_worklist(rows, rowed, obl, iss):
             if r["misanchored_callees"]:
                 note += " · also misanchored: " + ", ".join(
                     f"`{cal}`" for cal, _ in r["misanchored_callees"])
-        if r["gated_callees"]:
-            note += " · gate inherited from " + ", ".join(
-                f"`{c}` ({t})" for c, t in r["gated_callees"])
-        if r["accel"]:
-            note += " · ⚡ `CSRS`"
-        if r["self_specs"]:
-            note += " · has `%s`" % r["self_specs"][0][0]
+        for a in lane_annotations(r):
+            note += " · " + a
         print(f"| | `{r['symbol']}` | {r['ninstr']} | "
               f"{r['indeg_image']} / {r['indeg_fixture']} | "
               + ", ".join(f"`{c}`" for c in r["uniq_callees"]) + " | "
@@ -1097,6 +1151,7 @@ def print_text(rows, rowed, obl, iss, limit):
     print(f"    with calls AND unrowed (#12318 lane) : {c['lane']}")
     print(f"      startable / needs-read / blocked   : "
           f"{c['lane_startable']} / {c['lane_needsread']} / {c['lane_blocked']}")
+    print(f"      issuing a ZisK accelerator `CSRS` (DIFFERENT RECIPE) : {c['lane_accel']}")
     print(f"        of needs-read, demoted by a weak-contract PROXY : {c['lane_weak']}")
     print(f"        of needs-read, demoted by an `other:` ANCHOR    : {c['lane_misanchored']}")
     print(f"      rows with a `free-base`-anchored callee (annot.) : {c['lane_freebase']}"
@@ -1112,11 +1167,21 @@ def print_text(rows, rowed, obl, iss, limit):
     print()
     print("#12318 LANE — loop-free WITH calls, unrowed (startable first, in-degree desc):")
     for r in lane_rows:
+        why = ""
+        if r["bucket"] != "startable":
+            # `missing` is unrowed callees only. A row demoted purely by a weak-contract
+            # or `other:`-anchored callee has none, and this listing used to print a bare
+            # `<-` with nothing after it.
+            bits = list(r["missing"])
+            bits += [f"weak-contract:{c}" for c, _ in r["weak_callees"]]
+            bits += [f"misanchored:{c}" for c, _ in r["misanchored_callees"]]
+            why = "  <- " + ",".join(bits)
+        ann = lane_annotations(r)
         print(f"  {r['symbol']:<48} {r['ninstr']:>4} instrs  in-deg {r['indeg_image']:>2}"
               f"/{r['indeg_fixture']:<2}  {r['bucket']:<10} "
               f"{residual_cell(r['symbol'], obl, iss)}"
-              + ("" if r["bucket"] == "startable"
-                 else "  <- " + ",".join(r["missing"])))
+              + why
+              + ("  · " + " · ".join(ann) if ann else ""))
     blockers: dict[str, int] = defaultdict(int)
     for r in lane_rows:
         for m in r["missing"]:
@@ -1491,6 +1556,55 @@ def self_test(tsv_path: str) -> int:
     check("in-degree is consistent with the edge list",
           all(r["indeg_image"] == sum(1 for q in rows if r["symbol"] in q["uniq_callees"])
               for r in rows))
+
+    # ⭐ #13011: THE TWO RENDERERS MUST AGREE ON ANNOTATIONS. `⚡ CSRS` reached only the
+    # markdown worklist; the plain-text listing dropped it, and a row was ranked off that
+    # listing whose recipe does not exist. Inspection is what failed, so this compares the
+    # two rendered listings instead: both are produced here and every annotation
+    # `lane_annotations` builds must appear on the row's line in BOTH.
+    text_out = io.StringIO()
+    with contextlib.redirect_stdout(text_out):
+        print_text(rows, rowed, {}, None, 10 ** 6)
+    work_out = io.StringIO()
+    with contextlib.redirect_stdout(work_out):
+        print_worklist(rows, rowed, {}, None)
+    text_lines = text_out.getvalue().splitlines()
+    work_lines = work_out.getvalue().splitlines()
+
+    def rendered(sym: str) -> tuple[str, str]:
+        t = next((l for l in text_lines if l.startswith(f"  {sym:<48} ")), "")
+        w = next((l for l in work_lines if l.startswith(f"| | `{sym}` |")), "")
+        return t, w
+
+    annotated = [r for r in lane_rows if lane_annotations(r)]
+    check("ANNOTATION PARITY non-vacuity: some lane row carries an annotation at all, "
+          "and the accelerator marker in particular is on some row (a parity check over "
+          "an empty set passes while measuring nothing)",
+          len(annotated) > 0 and c["lane_accel"] > 0,
+          f"{len(annotated)} annotated rows, {c['lane_accel']} with `CSRS`")
+    missing_par = [(r["symbol"], a, where)
+                   for r in annotated
+                   for a in lane_annotations(r)
+                   for txt, where in zip(rendered(r["symbol"]), ("text", "worklist"))
+                   if a not in txt]
+    check("ANNOTATION PARITY: every annotation renders in BOTH the plain-text lane "
+          "listing and the markdown worklist",
+          not missing_par, "; ".join(f"{s}: {a!r} absent from {w}"
+                                     for s, a, w in missing_par[:4]))
+    accel_rows = [r for r in lane_rows if r["accel"]]
+    check("`⚡ CSRS` reaches the PLAIN-TEXT listing for every accelerator lane row "
+          "(the #13011 defect, stated over the renderer that dropped it)",
+          all("⚡ `CSRS`" in rendered(r["symbol"])[0] for r in accel_rows),
+          ", ".join(r["symbol"] for r in accel_rows
+                    if "⚡ `CSRS`" not in rendered(r["symbol"])[0]))
+    plain = [r for r in lane_rows if not r["accel"]]
+    check("NEGATIVE CONTROL: a lane row that issues no `CSRS` does not show the marker "
+          "(an annotation printed unconditionally would pass the check above and still "
+          "tell a ranking pass nothing)",
+          bool(plain) and all("CSRS" not in rendered(r["symbol"])[0] for r in plain),
+          f"{len(plain)} non-accelerator lane rows; offenders: "
+          + ", ".join(r["symbol"] for r in plain
+                      if "CSRS" in rendered(r["symbol"])[0])[:120])
     print()
     print(f"  measured: {c['entries']} entries | {c['loopfree']} loop-free | "
           f"{c['callfree_unrowed']} call-free unrowed | {c['lane']} in the #12318 lane "

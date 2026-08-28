@@ -126,6 +126,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.price_setup_spec
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstLimbFrom_eq_divLimbFrom
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
@@ -159,6 +167,16 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
 
 #print axioms EvmAsm.Codegen.Blake2fStoreLe64SAsm.blk2StLe64Flat_spec
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bahCr_eq_flatCr
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_call_site_pointers_unaligned
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_align_bites
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashBahOffset.bah_u32le_offset_spec_within
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
 
@@ -305,6 +323,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
 
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 
@@ -549,6 +569,22 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.hit_site_entryState_exists
 
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.lookup_db_view_eq
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_precondition_reachable
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_grows_db
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_sample_witness
+
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.node_db_append_spec_within
 
 #print axioms EvmAsm.Codegen.NodeDbLookupSpec.node_db_lookup_result_eq_build_node_db
 
@@ -917,6 +953,32 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.SszWitnessStateSAsm.swsU32leFlat_spec
 
 #print axioms EvmAsm.Codegen.SszWitnessStateSectionSpec.swsU32lePresFlat_spec
+
+#print axioms EvmAsm.Codegen.SystemCallStagingBase.sscProgL_spans_symbol
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscExecStatus_ne_one
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_eq_one_iff
+
+#print axioms EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_mem_three
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ardCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.ard_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscpCall_balanced
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_reachable
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_wrong_site
+
+#print axioms EvmAsm.Codegen.SystemCallStagingTop.stage_system_call_spec_within
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 

@@ -1,58 +1,41 @@
 /-
 Body-window contracts for `amsterdam_blob_gas_price_u256` (#12851 body discharge).
-
 Windows proven here (instruction indices into `amsterdamBlobGasPriceU256_prog`,
 which the ABI-shell PR proved equal to `abiFrameProg (-208) 208 priceFrame priceBody`):
-
 * setup   (instrs 9..35,  `PriceK+36  → PriceK+144`): register/buffer initialisation;
 * or-test (instrs 36..48, `PriceK+144 → PriceK+196`): the 6-limb acc-zero test chain
   that feeds `taylorLoopInv` into the loop-head dispatch;
 * beqz    (instr 49,      `PriceK+196`): acc == 0 branch to the exit tail (`+804`);
 * bgeu    (instr 51,      `PriceK+204`): i >= 496 branch to the overflow tail (`+964`).
-
 The remaining windows (add6 / mul6 / swapDiv / exitDiv / tail) are future work; the
 assembled `priceBodyContract` discharge consumes them via `TwoExitLoop`.
 -/
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceAbiShell
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Rv64.SyscallSpecs
-
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell
-
 set_option maxRecDepth 8000
-
 /-! ## Buffer cell vocabulary -/
-
 /-- Pinned dword cells at `base + signExtend12 o`, right-nested, ending `empAssertion`. -/
 def bufCells : Word → List (BitVec 12 × Word) → Assertion
   | _, [] => empAssertion
   | base, (o, v) :: rest => ((base + signExtend12 o) ↦ₘ v) ** bufCells base rest
-
 /-- `memOwn` cells at `base + signExtend12 o`, right-nested, ending `empAssertion`. -/
 private def bufOwns : Word → List (BitVec 12) → Assertion
   | _, [] => empAssertion
   | base, o :: rest => memOwn (base + signExtend12 o) ** bufOwns base rest
-
 private def accOffs : List (BitVec 12) := [64, 72, 80, 88, 96, 104]
 private def prodOffs : List (BitVec 12) := [112, 120, 128, 136, 144, 152]
 private def sumOffs : List (BitVec 12) := [160, 168, 176, 184, 192, 200]
 private def bufOffs18 : List (BitVec 12) := accOffs ++ prodOffs ++ sumOffs
-
 /-! ## The D constant as the emitted LUI+ADDIW composite -/
-
 @[reducible] private def taylorDWHi : Word :=
   (((2853 : BitVec 20).zeroExtend 32 : BitVec 32) <<< 12).signExtend 64
-
 @[reducible] def taylorDW : Word :=
   ((taylorDWHi.truncate 32 + (signExtend12 (-1217 : BitVec 12)).truncate 32 :
     BitVec 32).signExtend 64)
-
 private theorem taylorDW_eq : taylorDW = 11684671 := by decide
-
 /-! ## Loop invariant -/
-
 /-- State at the loop head (`PriceK+144`) of the inlined taylor recurrence.
 Buffers are pinned; `iVal` is the recurrence index; the saved-frame cells and the
 caller-owned registers ride along framed. -/
@@ -66,9 +49,7 @@ def taylorLoopInv (newSp excess outPtr iVal : Word) (vals : Reg → Word)
   (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
     regOwn .x30 ** regOwn .x31) **
   bufCells newSp aC ** bufCells newSp pC ** bufCells newSp sC
-
 /-! ## Setup window (instrs 9..35) -/
-
 /-- Entry-to-loop-head: `mv s0,a0; mv s5,a1; lui s1,0xb25; addiw s1,s1,-1217; li s2,1;
 addi s3,sp,64; addi s4,sp,112; addi s6,sp,160; 18x sd zero,off(sp); sd s1,64(sp)`. -/
 private theorem price_setup_core (_sp0 newSp excess outPtr : Word) (vals : Reg → Word)
@@ -175,17 +156,13 @@ theorem price_setup_spec (sp0 excess outPtr : Word) (vals : Reg → Word)
     simp only [taylorLoopInv, priceFrame, frameSlotsSaved, bufCells,
       List.foldr_cons, List.foldr_nil, sepConj_emp_right'] at hx ⊢
     xperm_hyp hx
-
 /-! ## Loop-head or-chain (instrs 36..48) -/
-
 /-- `or6` as the exact left-associated chain produced by the six `or t0,t0,t1`s. -/
 private def or6 (a0 a1 a2 a3 a4 a5 : Word) : Word :=
   ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) ||| a5
-
 private theorem or6_eq_chain (a0 a1 a2 a3 a4 a5 : Word) :
     or6 a0 a1 a2 a3 a4 a5 =
       ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) ||| a5 := rfl
-
 /-- `li t0,0; 6x (ld t1,off(s3); or t0,t0,t1)`. Stated standalone-spelled: `x6` must
 enter pinned (no `ld` own-variant exists); the iteration lemma instantiates `v6`.
 Acc cells are leaf-exact NESTED `((newSp + se12 64) + se12 off)`; prod/sum cells flat. -/
@@ -256,9 +233,7 @@ theorem loop_test_or_chain_spec (newSp excess outPtr iVal v6 : Word) (vals : Reg
   have hor6 := or_spec_gen_rd_eq_rs1_within .x5 .x6
     ((((((0 : Word) ||| a0) ||| a1) ||| a2) ||| a3) ||| a4) a5 (PriceK + 192) (by decide)
   runBlock hli hld1 hor1 hld2 hor2 hld3 hor3 hld4 hor4 hld5 hor5 hld6 hor6
-
 /-! ## Loop-head dispatch branches -/
-
 /-- `beqz t0` at `PriceK+196`: acc == 0 → exit tail at `PriceK+804`. -/
 theorem loop_test_beqz_branch (w : Word) :
     cpsBranchWithin 1 (PriceK + 196) priceCode ((.x5 ↦ᵣ w) ** (.x0 ↦ᵣ (0 : Word)))
@@ -273,7 +248,6 @@ theorem loop_test_beqz_branch (w : Word) :
   exact cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 196) amsterdamBlobGasPriceU256_prog 49
       (.BEQ .x5 .x0 (608 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
-
 /-- `bgeu s2,t0` at `PriceK+204` (after `li t0,496`): i >= 496 → overflow tail at
 `PriceK+964`; fall-through into the add6 window at `PriceK+208`. -/
 theorem loop_test_bgeu_branch (iVal v5 : Word) :
@@ -289,16 +263,57 @@ theorem loop_test_bgeu_branch (iVal v5 : Word) :
   exact cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 204) amsterdamBlobGasPriceU256_prog 51
       (.BGEU .x18 .x5 (760 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
+/-- The terminal-index specialization of the linked `li t0,496; bgeu s2,t0`
+    pair.  The linked artifact `70ce14de6cd119437d05785633ec3f03b4b535fa73f4eb5c77d6f2f924b31959`
+    has `li t0,496` at `0x8000b414` (`PriceK+200`) and
+    `bgeu s2,t0,0x8000b710` at `0x8000b418` (`PriceK+204`, `PriceK+964`). -/
+theorem loop_test_bgeu_terminal_496 (iVal : Word) (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 1 (PriceK + 204) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  apply cpsBranchWithin_takenPath (loop_test_bgeu_branch iVal (496 : Word))
+  intro _ hQf
+  obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+  have h_ult := ((sepConj_pure_right _).1 h_pure).2
+  simp [h_i] at h_ult
+
+/-- The two-instruction terminal-index round, including `li t0,496` at
+    `PriceK+200` and the taken `bgeu s2,t0` at `PriceK+204`.  The linked
+    artifact cited above places the taken edge at `0x8000b710` (`PriceK+964`). -/
+theorem loop_test_li_bgeu_terminal_496 (iVal vOld : Word)
+    (h_i : iVal = (496 : Word)) :
+    cpsTripleWithin 2 (PriceK + 200) (PriceK + 964) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word)) **
+        ⌜¬ BitVec.ult iVal (496 : Word)⌝) := by
+  have hLi := li_spec_gen_within .x5 vOld (496 : Word) (PriceK + 200) (by decide)
+  have hLiF : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x5 ↦ᵣ vOld) ** (.x18 ↦ᵣ iVal))
+      ((.x5 ↦ᵣ (496 : Word)) ** (.x18 ↦ᵣ iVal)) := by
+    refine cpsTripleWithin_extend_code ?_
+      (cpsTripleWithin_frameR (.x18 ↦ᵣ iVal) (by pcFree) hLi)
+    intro a i hi
+    have hins : amsterdamBlobGasPriceU256_prog[50]'(by decide) =
+        .LI .x5 (496 : Word) := by decide
+    show priceCode a = some i
+    exact CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 200)
+      amsterdamBlobGasPriceU256_prog 50 (.LI .x5 (496 : Word))
+      (by decide) (by decide) hins (by decide) a i hi
+  have hLiF' : cpsTripleWithin 1 (PriceK + 200) (PriceK + 204) priceCode
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ vOld))
+      ((.x18 ↦ᵣ iVal) ** (.x5 ↦ᵣ (496 : Word))) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hLiF
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hLiF' (loop_test_bgeu_terminal_496 iVal h_i)
 
 /-! ## add6 window (instrs 52..107): 6-limb ripple-carry `sum += acc` with carry-out branch. -/
-
 /-- Add-with-carry parts: `rAdc x y c` is the limb sum, `rCry x y c` the carry-out bit. -/
 @[reducible] private def rAdc (x y c : Word) : Word := (x + y) + c
-
 @[reducible] private def rCry (x y c : Word) : Word :=
   (if BitVec.ult (x + y) x then (1 : Word) else (0 : Word)) |||
     (if BitVec.ult ((x + y) + c) (x + y) then (1 : Word) else (0 : Word))
-
 theorem add6_core (newSp excess outPtr iVal : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
     (v5 v6 v7 v28 v29 v30 v31 : Word) :
@@ -409,7 +424,6 @@ theorem add6_core (newSp excess outPtr iVal : Word) (vals : Reg → Word)
   have hsd5 := sd_spec_gen_within .x22 .x30 (newSp + signExtend12 160) ((a5 + s5) + (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) s5 (40 : BitVec 12) (PriceK + 420)
   have hmv5 := mv_spec_gen_within .x5 .x29 (rCry a5 s5 (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word))))))) (rCry a4 s4 (rCry a3 s3 (rCry a2 s2 (rCry a1 s1 (rCry a0 s0 (0 : Word)))))) (PriceK + 424) (by decide)
   runBlock hli hldA0 hldB0 hadd0 hsl10 hadd20 hsl20 hor0 hsd0 hmv0 hldA1 hldB1 hadd1 hsl11 hadd21 hsl21 hor1 hsd1 hmv1 hldA2 hldB2 hadd2 hsl12 hadd22 hsl22 hor2 hsd2 hmv2 hldA3 hldB3 hadd3 hsl13 hadd23 hsl23 hor3 hsd3 hmv3 hldA4 hldB4 hadd4 hsl14 hadd24 hsl24 hor4 hsd4 hmv4 hldA5 hldB5 hadd5 hsl15 hadd25 hsl25 hor5 hsd5 hmv5
-
 /-- Carry-out branch at `PriceK+428`: nonzero carry → overflow tail at `+964`. -/
 theorem add6_carry_branch (c : Word) :
     cpsBranchWithin 1 (PriceK + 428) priceCode ((.x5 ↦ᵣ c) ** (.x0 ↦ᵣ (0 : Word)))
@@ -424,11 +438,324 @@ theorem add6_carry_branch (c : Word) :
   exact cpsBranchWithin_extend_code
     (CodeReq.ofProg_mem_at (PriceK : Word) (PriceK + 428) amsterdamBlobGasPriceU256_prog 107
       (.BNE .x5 .x0 (536 : BitVec 13)) (by decide) (by decide) hins (by decide)) hleaf
-
 #print axioms price_setup_spec
 #print axioms loop_test_or_chain_spec
 #print axioms loop_test_beqz_branch
 #print axioms loop_test_bgeu_branch
+#print axioms loop_test_bgeu_terminal_496
+#print axioms loop_test_li_bgeu_terminal_496
 
 #print axioms add6_core
 #print axioms add6_carry_branch
+
+end EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
+
+namespace EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell
+
+set_option maxRecDepth 8000
+
+open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+open EvmAsm.Codegen
+open EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
+
+/-- The functional body: instructions 9..241 of the 252-instruction routine,
+    i.e. everything between the `abiFrameProg` prologue and epilogue. -/
+def priceBody : Program :=
+  amsterdamBlobGasPriceU256_prog.drop (1 + priceFrame.length)
+    |>.take (amsterdamBlobGasPriceU256_prog.length
+      - (1 + priceFrame.length) - (priceFrame.length + 2))
+
+#guard priceBody.length = 233
+
+-- The emitted program is exactly the ABI-frame wrapping of the body.
+set_option maxRecDepth 8000 in
+theorem amsterdam_blob_gas_price_prog_eq_abiFrameProg :
+    amsterdamBlobGasPriceU256_prog
+      = abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody := by
+  decide
+
+/-- Body-entry precondition: frame slots saved (holding the entry values),
+    frame registers exposed, caller ABI atoms (`x10` = excess, `x11` =
+    outPtr, temporaries owned), the explicit setup workspace, plus the
+    caller's `scratch`.  The output buffer is *not* pinned here — callers
+    supply it through `scratch`, matching how `priceContract` accounts for it;
+    the eighteen dwords written by setup are exposed separately by
+    `priceWorkspaceOwn`. -/
+def priceBodyPre
+    (newSp : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (scratch : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** regsAt priceFrame vals **
+    frameSlotsSaved priceFrame newSp vals **
+    ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+      priceWorkspaceOwn newSp **
+      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
+
+/-- Body-exit postcondition: `x10` = status, `x11` still exactly `outPtr`
+    (audited: the body never writes `x11`), temporaries owned, frame
+    registers at their body-exit values `bodyVals` (the epilogue restores
+    from the slots, so these may differ from `vals`). -/
+def priceBodyPost
+    (newSp : Word) (vals bodyVals : Reg → Word)
+    (status outPtr : Word) (outBytes : List (BitVec 8))
+    (scratchPost : Assertion) : Assertion :=
+  (.x2 ↦ᵣ newSp) ** regsAt priceFrame bodyVals **
+    frameSlotsSaved priceFrame newSp vals **
+    ((.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
+      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+      priceWorkspaceOwn newSp **
+      priceOutputPost status outPtr outBytes ** scratchPost)
+
+/-! The body does not preserve the ABI-frame registers at their entry values.
+    Setup establishes the six fixed frame values below, while the outer loop
+    exchanges x19 and x20 once per successful iteration.  Keep that relation
+    explicit at the seam instead of hiding it in an unconstrained bodyVals. -/
+
+def priceBodyFrameRel
+    (newSp excess outPtr finalIndex : Word) (vals bodyVals : Reg → Word)
+    (swapCount : Nat) : Prop :=
+  bodyVals .x1 = vals .x1 ∧
+  bodyVals .x8 = excess ∧
+  bodyVals .x9 = EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant ∧
+  bodyVals .x18 = finalIndex ∧
+  bodyVals .x21 = outPtr ∧
+  bodyVals .x22 = newSp + signExtend12 (160 : BitVec 12) ∧
+  ((swapCount % 2 = 0 ∧
+      bodyVals .x19 = newSp + signExtend12 (64 : BitVec 12) ∧
+      bodyVals .x20 = newSp + signExtend12 (112 : BitVec 12)) ∨
+    (swapCount % 2 = 1 ∧
+      bodyVals .x19 = newSp + signExtend12 (112 : BitVec 12) ∧
+      bodyVals .x20 = newSp + signExtend12 (64 : BitVec 12)))
+
+/-- The outer-loop counters are not independent witnesses.  `swapCount` counts
+    exchanges of the two six-limb buffers.  A terminal path before (or after)
+    the exchange has `x18 = swapCount + 1`; the swap/division overflow path
+    has already exchanged once in the current round and therefore has
+    `x18 = swapCount`.  The latter path cannot occur before its first swap.
+    The 495 bound is the emitted `i < 496` horizon, not an assumed status. -/
+def priceBodyRouteRel (status finalIndex : Word) (swapCount : Nat) : Prop :=
+  swapCount ≤ 495 ∧
+    ((status = (0 : Word) ∧
+        finalIndex = BitVec.ofNat 64 (swapCount + 1)) ∨
+      (status = (1 : Word) ∧
+        ((finalIndex = BitVec.ofNat 64 (swapCount + 1)) ∨
+          (swapCount > 0 ∧ finalIndex = BitVec.ofNat 64 swapCount))))
+
+/-- Outcome relation for the body seam.  The body contract is parameterised by
+    an outcome function so that status and exact output bytes are tied to the
+    excess input; they are not fixed constants hidden in a supposedly
+    unconditional triple. -/
+def priceBodyOutcomeRel
+    (outcome : Word → Word × List (BitVec 8))
+    (excess status : Word) (outBytes : List (BitVec 8)) : Prop :=
+  outcome excess = (status, outBytes)
+
+/-- The frame valuation established by `price_setup_spec` at the loop head.
+    Registers outside the ABI frame are intentionally inherited from `vals`.
+    The body relation only observes the eight frame registers. -/
+def priceBodySetupVals
+    (newSp excess outPtr : Word) (vals : Reg → Word) : Reg → Word
+  | .x1 => vals .x1
+  | .x8 => excess
+  | .x9 => EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant
+  | .x18 => 1
+  | .x19 => newSp + signExtend12 (64 : BitVec 12)
+  | .x20 => newSp + signExtend12 (112 : BitVec 12)
+  | .x21 => outPtr
+  | .x22 => newSp + signExtend12 (160 : BitVec 12)
+  | r => vals r
+
+theorem priceBodyFrameRel_setup
+    (newSp excess outPtr : Word) (vals : Reg → Word) :
+    priceBodyFrameRel newSp excess outPtr 1 vals
+      (priceBodySetupVals newSp excess outPtr vals) 0 := by
+  simp [priceBodyFrameRel, priceBodySetupVals]
+
+/-! The body post is determined by the model outcome and the number of
+    completed buffer exchanges.  In particular, do not existentially hide
+    `bodyVals`: that would let `regsAt` choose an arbitrary post-state rather
+    than describe the registers produced by the loop. -/
+
+def priceBodyPostVals
+    (newSp excess outPtr finalIndex : Word)
+    (vals : Reg → Word) (swapCount : Nat) : Reg → Word
+  | .x1 => vals .x1
+  | .x8 => excess
+  | .x9 => EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat.taylorConstant
+  | .x18 => finalIndex
+  | .x19 =>
+      if swapCount % 2 = 0 then
+        newSp + signExtend12 (64 : BitVec 12)
+      else
+        newSp + signExtend12 (112 : BitVec 12)
+  | .x20 =>
+      if swapCount % 2 = 0 then
+        newSp + signExtend12 (112 : BitVec 12)
+      else
+        newSp + signExtend12 (64 : BitVec 12)
+  | .x21 => outPtr
+  | .x22 => newSp + signExtend12 (160 : BitVec 12)
+  | r => vals r
+
+theorem priceBodyFrameRel_postVals
+    (newSp excess outPtr finalIndex : Word)
+    (vals : Reg → Word) (swapCount : Nat) :
+    priceBodyFrameRel newSp excess outPtr finalIndex vals
+      (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount := by
+  by_cases hparity : swapCount % 2 = 0
+  · simp [priceBodyFrameRel, priceBodyPostVals, hparity]
+  · have hmod : swapCount % 2 = 1 := by omega
+    simp [priceBodyFrameRel, priceBodyPostVals, hmod]
+
+def priceBodyOutcomePost
+    (outcome : Word → Word × List (BitVec 8))
+    (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
+    (scratchPost : Assertion) : Assertion :=
+  fun h => ∃ (finalIndex : Word) (swapCount : Nat),
+    priceBodyFrameRel newSp excess outPtr finalIndex vals
+        (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount ∧
+    priceBodyRouteRel status finalIndex swapCount ∧
+    priceBodyOutcomeRel outcome excess status (outcome excess).2 ∧
+    priceBodyPost newSp vals
+      (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount)
+      status outPtr (outcome excess).2 scratchPost h
+
+/-! The open seam statement (#12851 / K70 item 7): a model-indexed two-exit
+    triple for the functional body between the frame entry (`PriceK + 36`)
+    and the epilogue (`PriceK + 968`).  The status-0 arm carries exact output
+    bytes; the status-1 arm carries only output ownership through
+    `priceOutputPost`.  Discharging this over the emitted body — including the
+    6-limb bignum arithmetic and the Taylor recurrence invariant — is the
+    remaining machine work. -/
+def priceBodyContract
+    (bodySteps : Nat) (sp0 : Word) (vals : Reg → Word)
+    (excess outPtr : Word)
+    (outcome : Word → Word × List (BitVec 8))
+    (scratch scratchPost : Assertion) : Prop :=
+  cpsNBranchWithin bodySteps
+    (PriceK + 36) priceCode
+    (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
+    [(PriceK + 968,
+        priceBodyOutcomePost outcome
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratchPost),
+      (PriceK + 968,
+        priceBodyOutcomePost outcome
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratchPost)]
+
+theorem priceOutputPost_pcFree (status outPtr : Word) (outBytes : List (BitVec 8)) :
+    (priceOutputPost status outPtr outBytes).pcFree := by
+  unfold priceOutputPost
+  split
+  · exact bytesRegion_pcFree outPtr outBytes
+  · exact pcFree_sepConj pcFree_memOwn (pcFree_sepConj pcFree_memOwn
+      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+
+/-- `hsub` for the canonical code request: the whole program is the frame
+    wrapping, so `priceCode` agrees with the `abiFrameProg` rendering. -/
+theorem priceCode_sub_abiFrameProg
+    (a : Word) (i : Instr)
+    (h : CodeReq.ofProg PriceK
+        (abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody) a
+        = some i) :
+    priceCode a = some i := by
+  show CodeReq.ofProg PriceK amsterdamBlobGasPriceU256_prog a = some i
+  rw [amsterdam_blob_gas_price_prog_eq_abiFrameProg]
+  exact h
+
+/-- **The ABI-frame shell** (mirror of `k70_abi_from_body`): lift a body
+    contract to the whole-routine triple `priceEntryRest → priceCalleePost`.
+    The step count is `bodySteps + 18` (1 alloc + 8 saves + body + 8 restores
+    + 1 dealloc + 1 return-jump). -/
+theorem amsterdam_blob_gas_price_abi_from_body
+    {cr : CodeReq} {bodySteps : Nat}
+    (sp0 ret : Word) (vals bodyVals : Reg → Word)
+    (excess outPtr status : Word) (outBytes : List (BitVec 8))
+    (scratch scratchPost F : Assertion)
+    (hret : vals .x1 = ret)
+    (hretAlign : (ret &&& ~~~(1 : Word)) = ret)
+    (hscratch : scratch.pcFree) (hscratchPost : scratchPost.pcFree)
+    (hF : F.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg PriceK
+        (abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody) a
+          = some i → cr a = some i)
+    (hbody : cpsTripleWithin bodySteps (PriceK + 36) (PriceK + 968) cr
+      (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
+      (priceBodyPost (sp0 + signExtend12 (-208 : BitVec 12)) vals bodyVals status outPtr
+        outBytes scratchPost)) :
+    cpsTripleWithin (1 + priceFrame.length + bodySteps + priceFrame.length + 1 + 1)
+      PriceK ret cr
+      (priceEntryRest sp0 ret vals excess outPtr scratch ** F)
+      (priceCalleePost sp0 ret vals status outPtr outBytes scratchPost ** F) := by
+  have hframe : priceFrame = (.x1, (0 : BitVec 12)) :: priceSavedFrame := by
+    rfl
+  have hworkspace :
+      (priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12))).pcFree := by
+    pcf
+  have hcallerPre :
+      ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch).pcFree := by
+    exact pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj hworkspace
+          (pcFree_sepConj (pcFree_regOwns _) hscratch)))
+  have hcallerPost :
+      ((.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
+        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+        priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+        priceOutputPost status outPtr outBytes ** scratchPost).pcFree := by
+    exact pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_regIs
+        (pcFree_sepConj (pcFree_regOwns _)
+          (pcFree_sepConj hworkspace
+            (pcFree_sepConj (priceOutputPost_pcFree status outPtr outBytes)
+              hscratchPost))))
+  have habi := abiFrame_spec
+    (base := PriceK) (sp0 := sp0) (ret := ret)
+    (negImm := (-208 : BitVec 12)) (posImm := (208 : BitVec 12))
+    (frame := priceFrame) (raOfs := (0 : BitVec 12))
+    (sregs := priceSavedFrame) (vals := vals) (vals' := bodyVals)
+    (body := priceBody) (bodySteps := bodySteps)
+    (callerPre :=
+      (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+      priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
+    (callerPost :=
+      (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
+      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+      priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+      priceOutputPost status outPtr outBytes ** scratchPost)
+    (cr := cr) hframe (by decide) (by decide) (by decide)
+    hret hretAlign
+    (by
+      rw [BitVec.add_assoc,
+        show signExtend12 (-208 : BitVec 12) + signExtend12 (208 : BitVec 12) =
+          (0 : Word) from by decide]
+      exact BitVec.add_zero sp0)
+    hcallerPre hcallerPost hsub (by
+      have hentry : PriceK + BitVec.ofNat 64 (4 * (1 + priceFrame.length))
+          = PriceK + 36 := by decide
+      have hexit : PriceK + BitVec.ofNat 64
+          (4 * (1 + priceFrame.length + priceBody.length)) = PriceK + 968 := by
+        decide
+      rw [hentry, hexit]
+      simpa [priceBodyPre, priceBodyPost] using hbody)
+  have habiF := cpsTripleWithin_frameR F hF habi
+  refine cpsTripleWithin_weaken (P := _) (Q := _) ?_ ?_ habiF
+  · intro h hp
+    rw [← hret] at hp
+    simp [priceEntryRest, priceFrame, priceSavedFrame,
+      frameSlotsOwn, regsAt, regOwns, sepConj_emp_right'] at hp ⊢
+    xperm_hyp hp
+  · intro h hq
+    simp [priceCalleePost, priceFrame, priceSavedFrame,
+      priceFrameVals, frameSlotsSaved, regsAt, regOwns,
+      sepConj_emp_right'] at hq ⊢
+    rw [← hret]
+    xperm_hyp hq
+
+#print axioms amsterdam_blob_gas_price_prog_eq_abiFrameProg
+#print axioms priceCode_sub_abiFrameProg
+#print axioms amsterdam_blob_gas_price_abi_from_body
+
+end EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell
