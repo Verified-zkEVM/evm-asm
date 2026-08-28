@@ -6,12 +6,13 @@
   records held in one writable arena, byte-identically to the emitted
   routine (docs/sasm-deriv.md).
 
-  Why this exists: the previously proved swap triple
-  (`widx_swap_records_spec`, `Proofs/MptWitnessIndexSpec.lean`) is about
-  a register-allocation VARIANT of the deployed program (x6 loop counter
-  where the image uses x31; see `MptWitnessIndexFlatEntry.lean` §header
-  and `wcidxSwapRecords_prog_ne`).  This port proves the deployed
-  register allocation — and, unlike the variant triple (which required
+  Why this exists: the flat swap triple (`widx_swap_records_spec`,
+  `Proofs/MptWitnessIndexSpec.lean`) historically covered a
+  register-allocation VARIANT (x6 loop counter where the image uses
+  x31); #12990 reconciled it onto the image's allocation, so it now
+  transfers here too (`wcidxSwapRecords_prog_eq`,
+  `Proofs/WitnessCodeLookupSpec.lean`).  This port proves the deployed
+  register allocation independently — and, unlike the flat triple (which required
   the two records to be distinct), it is UNIFIED: the leading
   `beq a0, a1` equal-pointer skip is the `when`'s pure skip path, so the
   postcondition covers `pa = pb` as well.

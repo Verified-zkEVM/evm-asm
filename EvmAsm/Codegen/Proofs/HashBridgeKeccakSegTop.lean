@@ -206,20 +206,20 @@ local macro "pcfk" : tactic =>
 /-- Caller-visible precondition. The ABI-frame registers (`ra`, `s0`–`s6`) are
     NOT here — `abiFrame_spec_own` supplies them as `regsAt kssFrame vals`. -/
 def kssCallerPre (segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion)
     (source : KssSource := kssDefaultSource) : Assertion :=
   (.x10 ↦ᵣ segsBase) ** (.x11 ↦ᵣ BitVec.ofNat 64 segs.length) **
     (.x12 ↦ᵣ outputBase) ** ((Reg.x0 : Reg) ↦ᵣ (0 : Word)) **
     (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
     regOwns kssFreeTemps **
     bytesRegion KssZk3 os **
-    bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
+    bytesRegion outputBase out0 **
     kssSegsIs segsBase segs source ** A
 
 theorem kssCallerPre_pcFree (segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion) (hA : A.pcFree)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 : Word) (A : Assertion) (hA : A.pcFree)
     (source : KssSource := kssDefaultSource) :
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source).pcFree := by
+    (kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source).pcFree := by
   simp only [kssCallerPre]; pcfk
 
 /-- Caller-visible postcondition: success status, the digest in the output
@@ -278,9 +278,9 @@ theorem kssXorZero (msg : List (BitVec 8)) :
 def kssBodyFuel (segs : List KssSeg) : Nat := 128 + kssOuterFuel segs
 
 theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
-    (hos : os.length = 200)
+    (hos : os.length = 200) (hout0 : out0.length = 32)
     (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (halignZ : KssZk3.toNat % 8 = 0)
@@ -296,11 +296,10 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
     (source : KssSource := kssDefaultSource) :
     cpsTripleWithin (kssBodyFuel segs) (KssB + 36) (KssB + 240) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       (kssFrameRegsOwn ** kssCallerPost segsBase outputBase segs A source) := by
   set msg : List (BitVec 8) := kssMsg segs with hmsg
   set L : Nat := msg.length with hL
-  set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8) with hout0
   set STL : List (BitVec 8) := xorBytesUpTo keccakZeroStateBytes msg L with hSTL
   have hSTLlen : STL.length = 200 := kssState_len msg L
   have hmsgL : (kssMsg segs).length ≤ 135 := hshort
@@ -377,10 +376,10 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
   -- reshape the setup exit into the outer loop's entry state
   have gSetup : cpsTripleWithin 108 (KssB + 36) (KssB + 84) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       (kssOuterState segsBase segs msg 0 AOut source) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun h hq => ?_) g4
-    · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals, ← hout0] at hp
+    · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals] at hp
       xperm_hyp hp
     · have hq1 :
           ((.x5 ↦ᵣ (KssZk3 + BitVec.ofNat 64 200)) **
@@ -406,7 +405,7 @@ theorem kssBodyCore_spec (ret segsBase outputBase : Word) (segs : List KssSeg)
     (by simp only [Nat.zero_add]; exact hmsgL)
     halignZ hoverZ hvalidZb hsegs source
   -- ---- tail: KssB+164 → KssB+240 ----
-  have gTail := kssTail_spec outputBase STL out0 L (by simp [hout0])
+  have gTail := kssTail_spec outputBase STL out0 L hout0
     ATail hATailPc hSTLlen
     (by omega) halignZ (by omega)
     (hvalidZb L (by omega)) (hvalidZb 135 (by omega)) hvalidZm
@@ -503,10 +502,10 @@ theorem kssZk3_valid_byte (i : Nat) (hi : i < 200) :
     representability of the counts. -/
 theorem zkvm_keccak256_segments_spec_within_short
     (sp0 ret segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
-    (hos : os.length = 200)
+    (hos : os.length = 200) (hout0 : out0.length = 32)
     (hshort : (kssMsg segs).length ≤ 135)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
@@ -519,13 +518,13 @@ theorem zkvm_keccak256_segments_spec_within_short
     cpsTripleWithin (19 + kssBodyFuel segs) KssB ret kssCr
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost segsBase outputBase segs A source) := by
   intro vals newSp
-  have hcore := kssBodyCore_spec ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hshort hcount
+  have hcore := kssBodyCore_spec ret segsBase outputBase segs os out0
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hout0 hshort hcount
     (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs source
   have hslots : (frameSlotsSaved kssFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
@@ -538,7 +537,7 @@ theorem zkvm_keccak256_segments_spec_within_short
       kssCr
       ((.x2 ↦ᵣ newSp) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       ((.x2 ↦ᵣ newSp) ** regsOwnAt kssFrame **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost segsBase outputBase segs A source) := by
@@ -553,7 +552,7 @@ theorem zkvm_keccak256_segments_spec_within_short
     [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
       (.x22, 56)]
     vals kssBody (kssBodyFuel segs)
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+    (kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
     (kssCallerPost segsBase outputBase segs A source) kssCr
     rfl (by decide) (by decide)
     (by rw [kssProg_eq_abiFrame]; exact kssProgL_bound)
@@ -562,7 +561,7 @@ theorem zkvm_keccak256_segments_spec_within_short
       rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
         show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide]
       bv_omega)
-    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)
+    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ _ hA source)
     (kssCallerPost_pcFree _ _ _ _ hA source)
     (by rw [kssProg_eq_abiFrame]; exact fun a i h => h)
     hbody
@@ -603,15 +602,18 @@ theorem kss_sample_witness :
       (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
         kssCallerPre (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
-          (List.replicate 200 (0 : BitVec 8)) 0 0 0 empAssertion)
+          (List.replicate 200 (0 : BitVec 8))
+          (List.replicate 32 (0 : BitVec 8)) 0 0 0 empAssertion)
       (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
           empAssertion) :=
   zkvm_keccak256_segments_spec_within_short (0xa1010000 : Word)
     (0x80000100 : Word) (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
-    (List.replicate 200 (0 : BitVec 8)) 0 0 0 0 0 0 0 0 0 0
+    (List.replicate 200 (0 : BitVec 8)) (List.replicate 32 (0 : BitVec 8))
+    0 0 0 0 0 0 0 0 0 0
     empAssertion pcFree_emp (by decide)
+    (by simp only [List.length_replicate])
     (by simp only [List.length_replicate])
     (by decide) (by decide) (by decide)
 
@@ -620,9 +622,9 @@ theorem kss_sample_witness :
 def kssBodyFuelMulti (segs : List KssSeg) : Nat := 128 + kssOuterFuelMulti segs
 
 theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
-    (hos : os.length = 200)
+    (hos : os.length = 200) (hout0 : out0.length = 32)
     (hcount : segs.length < 2 ^ 64)
     (halignZ : KssZk3.toNat % 8 = 0)
     (hoverZ : KssZk3.toNat + 200 < 2 ^ 64)
@@ -637,11 +639,10 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
     (source : KssSource := kssDefaultSource) :
     cpsTripleWithin (kssBodyFuelMulti segs) (KssB + 36) (KssB + 240) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       (kssFrameRegsOwn ** kssCallerPost_multi segsBase outputBase segs A source) := by
   set msg : List (BitVec 8) := kssMsg segs with hmsg
   set L : Nat := msg.length with hL
-  set out0 : List (BitVec 8) := List.replicate 32 (0 : BitVec 8) with hout0
   set STL : List (BitVec 8) := kssAbsorbed msg L with hSTL
   have hSTLlen : STL.length = 200 := kssAbsorbed_state_len msg L
   have hfillL : kssFill L ≤ 135 :=
@@ -714,10 +715,10 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
   have g4 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) g3 s5
   have gSetup : cpsTripleWithin 108 (KssB + 36) (KssB + 84) kssCr
       (kssFrameRegsIs (kssEntryVals ret v8 v9 v18 v19 v20 v21 v22) **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       (kssOuterStateMulti segsBase segs msg 0 AOut source) := by
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun h hq => ?_) g4
-    · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals, ← hout0] at hp
+    · simp only [kssFrameRegsIs, kssCallerPre, kssEntryVals] at hp
       xperm_hyp hp
     · have hq1 :
           ((.x5 ↦ᵣ (KssZk3 + BitVec.ofNat 64 200)) **
@@ -758,7 +759,7 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
     (fun i _ => by rw [Nat.zero_add])
     (by simp only [Nat.zero_add]; exact Nat.le_refl _)
     halignZ hoverZ hvalidZb hvalidZm hsegs source
-  have gTail := kssTail_spec outputBase STL out0 (kssFill L) (by simp [hout0])
+  have gTail := kssTail_spec outputBase STL out0 (kssFill L) hout0
     ATail hATailPc hSTLlen
     hfillL halignZ (by omega)
     (hvalidZb (kssFill L)
@@ -809,10 +810,10 @@ theorem kssBodyCore_spec_multi (ret segsBase outputBase : Word) (segs : List Kss
     wrapping as the short-domain theorem, without the `hshort` gate. -/
 theorem zkvm_keccak256_segments_spec_within
     (sp0 ret segsBase outputBase : Word) (segs : List KssSeg)
-    (os : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
+    (os out0 : List (BitVec 8)) (v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 : Word)
     (A : Assertion) (hA : A.pcFree)
     (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
-    (hos : os.length = 200)
+    (hos : os.length = 200) (hout0 : out0.length = 32)
     (hcount : segs.length < 2 ^ 64)
     (hsegs : ∀ s ∈ segs, s.2.length < 2 ^ 64 ∧
       (∀ i, i < s.2.length →
@@ -824,13 +825,13 @@ theorem zkvm_keccak256_segments_spec_within
     cpsTripleWithin (19 + kssBodyFuelMulti segs) KssB ret kssCr
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       ((.x2 ↦ᵣ sp0) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost_multi segsBase outputBase segs A source) := by
   intro vals newSp
-  have hcore := kssBodyCore_spec_multi ret segsBase outputBase segs os
-    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hcount
+  have hcore := kssBodyCore_spec_multi ret segsBase outputBase segs os out0
+    v5 v6 v7 v8 v9 v18 v19 v20 v21 v22 A hA hos hout0 hcount
     (by decide) (by decide) kssZk3_valid_byte kssZk3_valid_mem hsegs source
   have hslots : (frameSlotsSaved kssFrame newSp vals).pcFree :=
     pcFree_frameSlotsSaved _ _ _
@@ -843,7 +844,7 @@ theorem zkvm_keccak256_segments_spec_within
       kssCr
       ((.x2 ↦ᵣ newSp) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
-        kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+        kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
       ((.x2 ↦ᵣ newSp) ** regsOwnAt kssFrame **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost_multi segsBase outputBase segs A source) := by
@@ -858,7 +859,7 @@ theorem zkvm_keccak256_segments_spec_within
     [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40), (.x21, 48),
       (.x22, 56)]
     vals kssBody (kssBodyFuelMulti segs)
-    (kssCallerPre segsBase outputBase segs os v5 v6 v7 A source)
+    (kssCallerPre segsBase outputBase segs os out0 v5 v6 v7 A source)
     (kssCallerPost_multi segsBase outputBase segs A source) kssCr
     rfl (by decide) (by decide)
     (by rw [kssProg_eq_abiFrame]; exact kssProgL_bound)
@@ -867,7 +868,7 @@ theorem zkvm_keccak256_segments_spec_within
       rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
         show signExtend12 (64 : BitVec 12) = (64 : Word) from by decide]
       bv_omega)
-    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ hA source)
+    (kssCallerPre_pcFree _ _ _ _ _ _ _ _ _ hA source)
     (kssCallerPost_multi_pcFree _ _ _ _ hA source)
     (by rw [kssProg_eq_abiFrame]; exact fun a i h => h)
     hbody
@@ -884,15 +885,18 @@ theorem kss_sample_witness_multi :
       (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
         frameSlotsOwn kssFrame newSp **
         kssCallerPre (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
-          (List.replicate 200 (0 : BitVec 8)) 0 0 0 empAssertion)
+          (List.replicate 200 (0 : BitVec 8))
+          (List.replicate 32 (0 : BitVec 8)) 0 0 0 empAssertion)
       (((.x2 : Reg) ↦ᵣ (0xa1010000 : Word)) ** regsAt kssFrame vals **
         frameSlotsSaved kssFrame newSp vals **
         kssCallerPost_multi (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
           empAssertion) :=
   zkvm_keccak256_segments_spec_within (0xa1010000 : Word)
     (0x80000100 : Word) (0xa1001000 : Word) (0xa1002000 : Word) kssSampleSegs
-    (List.replicate 200 (0 : BitVec 8)) 0 0 0 0 0 0 0 0 0 0
+    (List.replicate 200 (0 : BitVec 8)) (List.replicate 32 (0 : BitVec 8))
+    0 0 0 0 0 0 0 0 0 0
     empAssertion pcFree_emp (by decide)
+    (by simp only [List.length_replicate])
     (by simp only [List.length_replicate])
     (by decide) (by decide)
 

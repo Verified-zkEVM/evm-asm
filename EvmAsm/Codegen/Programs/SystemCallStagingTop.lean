@@ -297,7 +297,12 @@ theorem ssc_fail_block_of_mode (cm a5 a6 a10 a11 a12 : Word)
     Hypotheses, classified:
     * `halign` — the ordinary ABI obligation that the return address is even.
     * `h_ard` / `h_sscp` / `h_rdc` — the three NAMED RESIDUALS, all
-      UNPROVEN-CALLEE **DEPENDENCIES**, not input-domain restrictions.  See
+      UNPROVEN-CALLEE **DEPENDENCIES**, not input-domain restrictions.
+      `h_rdc`'s `a0` slot is `0` rather than `stP`: the dispatcher is only ever
+      reached when the payload stager returned zero (the `bnez a0` at index 26
+      fell through) and nothing at indices 27-30 writes `a0`, so `0` is what
+      the machine actually holds there.  Spelling it `stP` would demand the
+      shape for statuses the call site cannot present.  See
       `SystemCallStagingResiduals` for what each does and does not say, and
       `…CallSite_ok` below for the discharge of every computable conjunct at
       the real call site.
@@ -324,7 +329,7 @@ theorem stage_system_call_spec_within
       fSscp ((SccLen ↦ₘ (0 : Word)) ** (RtAuthFn ↦ₘ (0 : Word)) **
         (RdgHalt ↦ₘ (0 : Word)) ** memOwn RdInPtr ** A))
     (h_rdc : RdcCallShape sscCode (pc 31) (pc 26) sp0 payloadOut RdInPtr
-      (payloadOut + BitVec.ofNat 64 8) stP u11 u12 u13 u14
+      (payloadOut + BitVec.ofNat 64 8) (0 : Word) u11 u12 u13 u14
       retLen hk q5 q6 q8 q10 q11 q12 q13 q14 ret v8 m
       (jalOff GuestAddrs.runtime_dispatcher_call
         (GuestAddrs.stage_system_call + 124))

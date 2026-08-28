@@ -867,30 +867,30 @@ def widxSwapInv (arenaBase : Word) (arena : List (BitVec 8))
     (qa qb : Nat) (ret : Word) (n : Nat) : Assertion :=
   ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
     ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-    ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
+    ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
     ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-    regOwn .x5 ** regOwn .x31 **
+    regOwn .x5 ** regOwn .x6 **
     bytesRegion arenaBase (widxSwapMem arena qa qb n)
 
 def widxSwapPost (arenaBase : Word) (arena : List (BitVec 8))
     (qa qb : Nat) (ret : Word) : Assertion :=
   ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + 6)))) **
     ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + 6)))) **
-    ((.x6 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
-    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x31 **
+    ((.x31 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 **
     bytesRegion arenaBase (widxSwapMem arena qa qb 6)
 
 def widxSwapProg : List Instr :=
   [ .BEQ .x10 .x11 (44 : BitVec 13),
-    .LI .x6 (6 : Word),
-    .BEQ .x6 .x0 (36 : BitVec 13),
+    .LI .x31 (6 : Word),
+    .BEQ .x31 .x0 (36 : BitVec 13),
     .LD .x5 .x10 (0 : BitVec 12),
-    .LD .x31 .x11 (0 : BitVec 12),
-    .SD .x10 .x31 (0 : BitVec 12),
+    .LD .x6 .x11 (0 : BitVec 12),
+    .SD .x10 .x6 (0 : BitVec 12),
     .SD .x11 .x5 (0 : BitVec 12),
     .ADDI .x10 .x10 (8 : BitVec 12),
     .ADDI .x11 .x11 (8 : BitVec 12),
-    .ADDI .x6 .x6 (-1 : BitVec 12),
+    .ADDI .x31 .x31 (-1 : BitVec 12),
     .JAL .x0 (-32 : BitVec 21),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -939,9 +939,9 @@ private theorem widx_swap_body_concrete
       (CodeReq.ofProg base widxSwapProg)
       (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
        ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-       ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
+       ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
        ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-       ((.x5 : Reg) ↦ᵣ v5) ** ((.x31 : Reg) ↦ᵣ v31) **
+       ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v31) **
        bytesRegion arenaBase (widxSwapMem arena qa qb n))
       (widxSwapInv arenaBase arena qa qb ret (n + 1)) := by
   let CR : CodeReq := CodeReq.ofProg base widxSwapProg
@@ -954,7 +954,7 @@ private theorem widx_swap_body_concrete
   have hqB : 8 * (qb + n) < old.length := by omega
   have hA' := bytesRegion_ld_cursor_imm_within .x5 .x10 arenaBase v5
     (base + 12) old (qa + n) 0 (by decide) hqA (by decide)
-  have hB' := bytesRegion_ld_cursor_imm_within .x31 .x11 arenaBase v31
+  have hB' := bytesRegion_ld_cursor_imm_within .x6 .x11 arenaBase v31
     (base + 16) old (qb + n) 0 (by decide) hqB (by decide)
   have hAcode := cpsTripleWithin_extend_code
     (hmono := fun a i h => widx_swap_mem_at base (base + 12) 3 _
@@ -966,14 +966,14 @@ private theorem widx_swap_body_concrete
     hB'
   have hAframe := cpsTripleWithin_frameR
     (((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x31 : Reg) ↦ᵣ v31))
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x6 : Reg) ↦ᵣ v31))
     (by pcFree) hAcode
   rw [show (base + 12) + 4 = base + 16 by bv_omega] at hAframe
   simp only [old, Nat.add_zero] at hAframe
   have hBframe := cpsTripleWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ((.x5 : Reg) ↦ᵣ
         packBytes (List.take 8 (List.drop (8 * (qa + n)) old))))
@@ -982,7 +982,7 @@ private theorem widx_swap_body_concrete
   have hloads := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hAframe hBframe
   rw [show (base + 16) + 4 = base + 20 by bv_omega] at hloads
-  have hsdA' := bytesRegion_sd_cursor_within .x10 .x31 arenaBase vb
+  have hsdA' := bytesRegion_sd_cursor_within .x10 .x6 arenaBase vb
     (base + 20) old (qa + n) hA_old
   have hsdB' := bytesRegion_sd_cursor_within .x11 .x5 arenaBase va
       (base + 24)
@@ -999,16 +999,16 @@ private theorem widx_swap_body_concrete
     hsdB'
   have hsdAframe := cpsTripleWithin_frameR
     (((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ((.x5 : Reg) ↦ᵣ va))
     (by pcFree) hsdAcode
   rw [show (base + 20) + 4 = base + 24 by bv_omega] at hsdAframe
   have hsdBframe := cpsTripleWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x31 : Reg) ↦ᵣ vb))
+      ((.x6 : Reg) ↦ᵣ vb))
     (by pcFree) hsdBcode
   have hstores := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hsdAframe hsdBframe
@@ -1027,7 +1027,7 @@ private theorem widx_swap_body_concrete
   have haddiC := cpsTripleWithin_extend_code
     (hmono := fun a i h => widx_swap_mem_at base (base + 36) 9 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
-    (addi_spec_gen_same_within .x6 (BitVec.ofNat 64 (6 - n))
+    (addi_spec_gen_same_within .x31 (BitVec.ofNat 64 (6 - n))
       (-1 : BitVec 12) (base + 36) (by decide))
   rw [widx_swap_cursor_advance8 arenaBase (qa + n)] at haddiA
   rw [widx_swap_cursor_advance8 arenaBase (qb + n)] at haddiB
@@ -1043,9 +1043,9 @@ private theorem widx_swap_body_concrete
   rw [show (base + 40) + (-32 : Word) = base + 8 by bv_omega] at hjump
   have haddiAframe := cpsTripleWithin_frameR
     (((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ va) **
-      ((.x31 : Reg) ↦ᵣ vb) **
+      ((.x6 : Reg) ↦ᵣ vb) **
       bytesRegion arenaBase
         (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
           (8 * (qb + n)) (dwordBytes va))) (by
@@ -1053,9 +1053,9 @@ private theorem widx_swap_body_concrete
             all_goals exact bytesRegion_pcFree _ _) haddiA
   have haddiBframe := cpsTripleWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n + 1)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x1 : Reg) ↦ᵣ ret) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x5 : Reg) ↦ᵣ va) **
-      ((.x31 : Reg) ↦ᵣ vb) **
+      ((.x6 : Reg) ↦ᵣ vb) **
       bytesRegion arenaBase
         (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
           (8 * (qb + n)) (dwordBytes va))) (by
@@ -1065,7 +1065,7 @@ private theorem widx_swap_body_concrete
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n + 1)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n + 1)))) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x5 : Reg) ↦ᵣ va) ** ((.x31 : Reg) ↦ᵣ vb) **
+      ((.x5 : Reg) ↦ᵣ va) ** ((.x6 : Reg) ↦ᵣ vb) **
       bytesRegion arenaBase
         (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
           (8 * (qb + n)) (dwordBytes va))) (by
@@ -1074,9 +1074,9 @@ private theorem widx_swap_body_concrete
   have hjumpFrame := cpsTripleWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n + 1)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n + 1)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x5 : Reg) ↦ᵣ va) ** ((.x31 : Reg) ↦ᵣ vb) **
+      ((.x5 : Reg) ↦ᵣ va) ** ((.x6 : Reg) ↦ᵣ vb) **
       bytesRegion arenaBase
         (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
           (8 * (qb + n)) (dwordBytes va))) (by
@@ -1097,16 +1097,16 @@ private theorem widx_swap_body_concrete
   let Ptarget : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      ((.x5 : Reg) ↦ᵣ v5) ** ((.x31 : Reg) ↦ᵣ v31) **
+      ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v31) **
       bytesRegion arenaBase old
   let Qtarget : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n + 1)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n + 1)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      regOwn .x5 ** regOwn .x31 **
+      regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase
         (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
           (8 * (qb + n)) (dwordBytes va))
@@ -1121,9 +1121,9 @@ private theorem widx_swap_body_concrete
       have hq1 :
           (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n + 1)))) **
             ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n + 1)))) **
-            ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
+            ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - (n + 1))) **
             ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            regOwn .x5 ** regOwn .x31 **
+            regOwn .x5 ** regOwn .x6 **
             bytesRegion arenaBase
               (setBytes (setBytes old (8 * (qa + n)) (dwordBytes vb))
                 (8 * (qb + n)) (dwordBytes va))) h := by
@@ -1133,7 +1133,7 @@ private theorem widx_swap_body_concrete
             (sepConj_mono_right
               (sepConj_mono_right
                 (sepConj_mono (regIs_to_regOwn .x5 va)
-                  (sepConj_mono (regIs_to_regOwn .x31 vb) (fun _ h => h)))))))) h hq
+                  (sepConj_mono (regIs_to_regOwn .x6 vb) (fun _ h => h)))))))) h hq
       exact hq1)
     hchain
   simpa [widxSwapInv, Ptarget, Qtarget, old, va, vb, widxSwapMem,
@@ -1151,7 +1151,7 @@ private theorem widx_swap_body
       (widxSwapInv arenaBase arena qa qb ret (n + 1)) := by
   let CR : CodeReq := CodeReq.ofProg base widxSwapProg
   have hbeq := cpsBranchWithin_extend_code (cr' := CR)
-    (h := beq_spec_gen_within .x6 .x0 (36 : BitVec 13)
+    (h := beq_spec_gen_within .x31 .x0 (36 : BitVec 13)
       (BitVec.ofNat 64 (6 - n)) (0 : Word) (base + 8))
     (hmono := fun a i h => widx_swap_mem_at base (base + 8) 2 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
@@ -1161,20 +1161,20 @@ private theorem widx_swap_body
   have hhead0 := cpsBranchWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb n)) (by pcf) hbeq
   let headRest : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb n)
   let headSrc : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** headRest
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** headRest
   let headT : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ⌜BitVec.ofNat 64 (6 - n) = 0⌝) ** headRest
   let headF : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ⌜BitVec.ofNat 64 (6 - n) ≠ 0⌝) ** headRest
   have hhead :
       cpsBranchWithin 1 (base + 8) CR (widxSwapInv arenaBase arena qa qb ret n)
@@ -1199,25 +1199,25 @@ private theorem widx_swap_body
   let preA : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
+      ((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word))
   let memA : Assertion := bytesRegion arenaBase (widxSwapMem arena qa qb n)
   have hforall : ∀ vf : Reg → Word,
       cpsTripleWithin 8 (base + 12) (base + 8)
     CR
-        ((preA ** memA) ** regAtomsOf vf [.x5, .x31])
+        ((preA ** memA) ** regAtomsOf vf [.x5, .x6])
         (widxSwapInv arenaBase arena qa qb ret (n + 1)) := by
     intro vf
     have hcon := widx_swap_body_concrete base arenaBase arena qa qb n ret
-      (vf .x5) (vf .x31) hn hA hB
+      (vf .x5) (vf .x6) hn hA hB
     exact cpsTripleWithin_weaken
-      (P' := (preA ** memA) ** regAtomsOf vf [.x5, .x31])
+      (P' := (preA ** memA) ** regAtomsOf vf [.x5, .x6])
       (fun _ hp => by
         dsimp [preA, memA] at hp ⊢
         try simp only [sepConj_emp_right'] at hp ⊢
         sep_perm hp)
       (fun _ hq => hq) hcon
-  have hpeel := cpsTripleWithin_peel_regOwns [ .x5, .x31 ] (by decide)
+  have hpeel := cpsTripleWithin_peel_regOwns [ .x5, .x6 ] (by decide)
     (P := preA ** memA) hforall
   unfold widxSwapInv
   exact cpsTripleWithin_weaken
@@ -1236,7 +1236,7 @@ private theorem widx_swap_head
       (base + 12) (widxSwapInv arenaBase arena qa qb ret n) := by
   let CR : CodeReq := CodeReq.ofProg base widxSwapProg
   have hbeq := cpsBranchWithin_extend_code (cr' := CR)
-    (h := beq_spec_gen_within .x6 .x0 (36 : BitVec 13)
+    (h := beq_spec_gen_within .x31 .x0 (36 : BitVec 13)
       (BitVec.ofNat 64 (6 - n)) (0 : Word) (base + 8))
     (hmono := fun a i h => widx_swap_mem_at base (base + 8) 2 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
@@ -1246,20 +1246,20 @@ private theorem widx_swap_head
   have hhead0 := cpsBranchWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb n)) (by pcf) hbeq
   let headRest : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb n)
   let headSrc : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** headRest
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) ** headRest
   let headT : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ⌜BitVec.ofNat 64 (6 - n) = 0⌝) ** headRest
   let headF : Assertion :=
-    (((.x6 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    (((.x31 : Reg) ↦ᵣ BitVec.ofNat 64 (6 - n)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ⌜BitVec.ofNat 64 (6 - n) ≠ 0⌝) ** headRest
   refine cpsBranchWithin_weaken
     (P := headSrc) (Q_t := headT) (Q_f := headF)
@@ -1288,7 +1288,7 @@ private theorem widx_swap_head_false2
       (widxSwapInv arenaBase arena qa qb ret n) := by
   let CR : CodeReq := CodeReq.ofProg base widxSwapProg
   have hbeq := cpsBranchWithin_extend_code (cr' := CR)
-    (h := beq_spec_gen_within .x6 .x0 (36 : BitVec 13)
+    (h := beq_spec_gen_within .x31 .x0 (36 : BitVec 13)
       (BitVec.ofNat 64 (6 - n)) (0 : Word) (base + 8))
     (hmono := fun a i h => widx_swap_mem_at base (base + 8) 2 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
@@ -1298,12 +1298,12 @@ private theorem widx_swap_head_false2
   have hframe := cpsBranchWithin_frameR
     (((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + n)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + n)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb n)) (by pcf) hbeq
   have hfalse := cpsBranchWithin_ntakenPath hframe
     (fun _ hq => by
       obtain ⟨h1, _, _, _, hleft, _⟩ := hq
-      obtain ⟨h6, h0pure, _, _, hx6, hx0pure⟩ := hleft
+      obtain ⟨h6, h0pure, _, _, hx31, hx0pure⟩ := hleft
       have heq := ((sepConj_pure_right
         (P := ((.x0 : Reg) ↦ᵣ (0 : Word)))
         (Q := BitVec.ofNat 64 (6 - n) = (0 : Word)) h0pure).1 hx0pure).2
@@ -1340,8 +1340,8 @@ theorem widx_swap_records_spec
       (widxSwapPost arenaBase arena qa qb ret) := by
   let CR : CodeReq := CodeReq.ofProg base widxSwapProg
   let rest0 : Assertion :=
-    ((.x6 : Reg) ↦ᵣ (6 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
-      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x31 **
+    ((.x31 : Reg) ↦ᵣ (6 : Word)) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase arena
   have hbeq0 := cpsBranchWithin_extend_code (cr' := CR)
     (h := beq_spec_gen_within .x10 .x11 (44 : BitVec 13)
@@ -1402,11 +1402,11 @@ theorem widx_swap_records_spec
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * qa))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * qb))) **
       ((.x1 : Reg) ↦ᵣ ret) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      regOwn .x5 ** regOwn .x31 ** bytesRegion arenaBase arena
+      regOwn .x5 ** regOwn .x6 ** bytesRegion arenaBase arena
   have hli0 := cpsTripleWithin_extend_code
     (hmono := fun a i h => widx_swap_mem_at base (base + 4) 1 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
-    (li_spec_gen_within .x6 (6 : Word) (6 : Word) (base + 4) (by decide))
+    (li_spec_gen_within .x31 (6 : Word) (6 : Word) (base + 4) (by decide))
   rw [show (base + 4) + 4 = base + 8 by bv_omega] at hli0
   have hli := cpsTripleWithin_frameR restNoX6 (by pcf) hli0
   have hinit := cpsTripleWithin_seq_perm_same_cr
@@ -1439,10 +1439,10 @@ theorem widx_swap_records_spec
   let rest6 : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + 6)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + 6)))) **
-      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x31 **
+      ((.x1 : Reg) ↦ᵣ ret) ** regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb 6)
   have hbeq6 := cpsBranchWithin_extend_code (cr' := CR)
-    (h := beq_spec_gen_within .x6 .x0 (36 : BitVec 13)
+    (h := beq_spec_gen_within .x31 .x0 (36 : BitVec 13)
       (0 : Word) (0 : Word) (base + 8))
     (hmono := fun a i h => widx_swap_mem_at base (base + 8) 2 _
       (by bv_omega) (by decide) (fun h => by simp [widxSwapProg] at h ⊢) a i h)
@@ -1453,7 +1453,7 @@ theorem widx_swap_records_spec
   have hlast0 := cpsBranchWithin_takenPath hframe6
     (fun _ hq => by
       obtain ⟨h1, _, _, _, hleft, _⟩ := hq
-      obtain ⟨h6, h0pure, _, _, hx6, hx0pure⟩ := hleft
+      obtain ⟨h6, h0pure, _, _, hx31, hx0pure⟩ := hleft
       have hneq0 := ((sepConj_pure_right
         (P := ((.x0 : Reg) ↦ᵣ (0 : Word)))
         (Q := (0 : Word) ≠ 0) h0pure).1 hx0pure).2
@@ -1472,8 +1472,8 @@ theorem widx_swap_records_spec
   let retRest : Assertion :=
     ((.x10 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qa + 6)))) **
       ((.x11 : Reg) ↦ᵣ (arenaBase + BitVec.ofNat 64 (8 * (qb + 6)))) **
-      ((.x6 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
-      regOwn .x5 ** regOwn .x31 **
+      ((.x31 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      regOwn .x5 ** regOwn .x6 **
       bytesRegion arenaBase (widxSwapMem arena qa qb 6)
   have hret0 := cpsTripleWithin_extend_code
     (hmono := fun a i h => widx_swap_mem_at base (base + 44) 11 _

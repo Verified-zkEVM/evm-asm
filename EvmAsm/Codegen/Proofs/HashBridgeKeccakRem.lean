@@ -39,6 +39,32 @@ theorem xorBytesUpTo_length (st inp : List (BitVec 8)) (q : Nat) :
   | succ q ih =>
     simp only [xorBytesUpTo, length_setBytes, ih]
 
+/-- `xorBytesUpTo … q` reads only `inp[0], …, inp[q-1]`: two inputs that agree
+    on that prefix produce the same sponge.  This is the pure half of the
+    envelope seam — the absorbed bytes never depend on what sits past `q`. -/
+theorem xorBytesUpTo_congr (st inp inp' : List (BitVec 8)) (q : Nat)
+    (h : ∀ i, i < q → inp.getD i 0 = inp'.getD i 0) :
+    xorBytesUpTo st inp q = xorBytesUpTo st inp' q := by
+  induction q with
+  | zero => rfl
+  | succ q ih =>
+    simp only [xorBytesUpTo]
+    rw [ih (fun i hi => h i (by omega)), h q (by omega)]
+
+/-- Bytes past index `q` are invisible to `xorBytesUpTo … q`. -/
+theorem xorBytesUpTo_take (st inp : List (BitVec 8)) (q : Nat) :
+    xorBytesUpTo st (inp.take q) q = xorBytesUpTo st inp q :=
+  xorBytesUpTo_congr st _ inp q (fun i hi => by
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi])
+
+/-- Appending a suffix past index `q` is invisible to `xorBytesUpTo … q`. -/
+theorem xorBytesUpTo_append (st inp suf : List (BitVec 8)) (q : Nat)
+    (hq : q ≤ inp.length) :
+    xorBytesUpTo st (inp ++ suf) q = xorBytesUpTo st inp q :=
+  xorBytesUpTo_congr st _ inp q (fun i hi => by
+    have hi' : i < inp.length := by omega
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_append_left hi'])
+
 private theorem cursor_advance1 (p : Word) (k : Nat) :
     p + BitVec.ofNat 64 k + signExtend12 (1 : BitVec 12)
       = p + BitVec.ofNat 64 (k + 1) := by

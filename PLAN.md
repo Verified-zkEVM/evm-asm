@@ -137,6 +137,32 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (widx_swap_records reconciled and rowed — #12990, 2026-08-29)
+
+- ✅ **#12990**: the historical `x6`/`x31` loop-counter mismatch between
+  `widxSwapProg` (proved) and `widxSwapRecords_prog` (image) is
+  reconciled — the proof transposed onto the image's register
+  assignment compiled UNCHANGED, `widxSwapProg_ne` became the positive
+  `widxSwapProg_eq`, and `widxSwapRecordsEntry_spec` instantiates at
+  `GuestAddrs.widx_swap_records` like its two siblings.  `.proven` row
+  added (212/163/172), allowlist exemption retired.  Bonus: the
+  code-index clone's program now coincides too
+  (`wcidxSwapRecords_prog_eq`, was a ⛔ negative control), so
+  `widx_swap_records_spec` transfers to `wcidx_swap_records` at any
+  base.
+
+### Recent (segments out0 — #12987/#12897 closed, 2026-08-29)
+
+- ✅ **`zkvm_keccak256_segments` generalized over its initial output
+  buffer** (the second half of the #12896 fix, mirroring #12958):
+  `kssCallerPre`, both body cores and both top triples
+  (`zkvm_keccak256_segments_spec_within{,_short}`) now take
+  `(out0, out0.length = 32)` instead of pinning `List.replicate 32 0`.
+  The unstated pre-clear obligation #12897 measured on both production
+  callers is GONE from the contract; the TxSigningHash stack keeps its
+  concrete zero buffer (its callers do pre-clear) as an explicit
+  instantiation of the generalized spec.  Routines row notes updated.
+
 ### Recent (bundle tranche 2 — append + the cross-entry jump, 2026-08-28)
 
 - ✅ **`receipt_records_append` verified at the FLAT layer** (both arms:
