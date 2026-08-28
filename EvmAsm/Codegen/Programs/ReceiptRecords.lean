@@ -10,6 +10,10 @@ module
 
 public import EvmAsm.Rv64.Program
 public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public meta import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.Programs.ReceiptRecordsProgs
+public meta import EvmAsm.Codegen.Programs.ReceiptRecordsProgs
 
 @[expose] public section
 
@@ -38,69 +42,64 @@ open EvmAsm.Rv64.Program
     The helper surface is deliberately small: init, append, append from a
     runtime execution result, and nth-copy. -/
 
+-- Drift guards (build-time evaluation): the exact renderings of the two
+-- verified DCode programs.  The assemble+cmp byte-identity check against
+-- the previous hand-written text was run against THESE strings; if the
+-- emitter or a program changes, the pins fail and the check must be rerun.
+#guard emitProgram receiptRecordsInitProg ==
+  "  sd x0, 0(x10)\n  sd x11, 8(x10)\n  sd x12, 16(x10)\n"
+    ++ "  li x10, 0\n  jalr x0, 0(x1)"
+#guard emitProgram receiptRecordsClearProg ==
+  "  sd x0, 0(x10)\n  li x10, 0\n  jalr x0, 0(x1)"
+#guard emitProgram receiptRecordsAppendProg ==
+  "  ld x5, 0(x10)\n  ld x6, 8(x10)\n  bgeu x5, x6, .+64\n"
+    ++ "  ld x7, 16(x10)\n  slli x28, x5, 6\n  add x7, x7, x28\n"
+    ++ "  sd x11, 0(x7)\n  sd x12, 8(x7)\n  sd x13, 16(x7)\n"
+    ++ "  sd x14, 24(x7)\n  sd x15, 32(x7)\n  sd x16, 40(x7)\n"
+    ++ "  sd x17, 48(x7)\n  sd x0, 56(x7)\n  addi x5, x5, 1\n"
+    ++ "  sd x5, 0(x10)\n  li x10, 0\n  jalr x0, 0(x1)\n"
+    ++ "  li x10, 1\n  jalr x0, 0(x1)"
+#guard emitProgram receiptRecordsAppendRuntimeProg ==
+  "  beq x12, x0, .+16\n  bltu x15, x14, .+12\n  sub x15, x15, x14\n"
+    ++ "  jal x0, .+8\n  li x15, 0\n  li x16, 0\n  li x17, 0\n"
+    ++ "  jal x0, .-108"
+#guard emitProgram receiptRecordNthProg ==
+  "  ld x5, 0(x10)\n  bgeu x11, x5, .+88\n  ld x6, 16(x10)\n"
+    ++ "  slli x7, x11, 6\n  add x6, x6, x7\n"
+    ++ "  ld x28, 0(x6)\n  sd x28, 0(x12)\n"
+    ++ "  ld x28, 8(x6)\n  sd x28, 8(x12)\n"
+    ++ "  ld x28, 16(x6)\n  sd x28, 16(x12)\n"
+    ++ "  ld x28, 24(x6)\n  sd x28, 24(x12)\n"
+    ++ "  ld x28, 32(x6)\n  sd x28, 32(x12)\n"
+    ++ "  ld x28, 40(x6)\n  sd x28, 40(x12)\n"
+    ++ "  ld x28, 48(x6)\n  sd x28, 48(x12)\n"
+    ++ "  ld x28, 56(x6)\n  sd x28, 56(x12)\n"
+    ++ "  li x10, 0\n  jalr x0, 0(x1)\n  li x10, 1\n  jalr x0, 0(x1)"
+
 def receiptRecordsFunction : String :=
+  -- `receipt_records_init` and `receipt_records_clear` are emitted from
+  -- the verified DCode programs (`ReceiptRecordsSAsm.rriDeriv` /
+  -- `rrcDeriv`, specs `receiptRecordsInit_retSpec` /
+  -- `receiptRecordsClear_retSpec`, bundle-level
+  -- `receiptRecords{Init,Clear}_bundleSpec`); byte-identity with the
+  -- previous hand-written text checked by assemble+cmp, the renderings
+  -- pinned above.  The remaining three entries stay hand-written until
+  -- the dual-writable-region story lands (#12991).
   "receipt_records_init:\n" ++
-  "  sd zero, 0(a0)              # count = 0\n" ++
-  "  sd a1, 8(a0)                # capacity\n" ++
-  "  sd a2, 16(a0)               # record base\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
+  emitProgram receiptRecordsInitProg ++ "\n" ++
   "receipt_records_clear:\n" ++
-  "  sd zero, 0(a0)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
+  emitProgram receiptRecordsClearProg ++ "\n" ++
+  -- All five entries are emitted from the shared instruction lists (the
+  -- full bundle image `receiptRecordsBundleProg`); byte-identity with the
+  -- previous label-form text checked by assemble+cmp (244 bytes), the
+  -- renderings pinned above.  The cross-entry `j receipt_records_append`
+  -- is the numeric `jal x0, .-108` (bundle index 35 → 8).
   "receipt_records_append:\n" ++
-  "  ld t0, 0(a0)                # count\n" ++
-  "  ld t1, 8(a0)                # capacity\n" ++
-  "  bgeu t0, t1, .Lrrec_full\n" ++
-  "  ld t2, 16(a0)               # record base\n" ++
-  "  slli t3, t0, 6              # count * 64\n" ++
-  "  add t2, t2, t3\n" ++
-  "  sd a1, 0(t2)                # tx type\n" ++
-  "  sd a2, 8(t2)                # execution status\n" ++
-  "  sd a3, 16(t2)               # cumulative gas\n" ++
-  "  sd a4, 24(t2)               # log start\n" ++
-  "  sd a5, 32(t2)               # log count\n" ++
-  "  sd a6, 40(t2)               # encoded receipt ptr\n" ++
-  "  sd a7, 48(t2)               # encoded receipt len\n" ++
-  "  sd zero, 56(t2)             # reserved\n" ++
-  "  addi t0, t0, 1\n" ++
-  "  sd t0, 0(a0)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrrec_full:\n" ++
-  "  li a0, 1\n" ++
-  "  ret\n" ++
+  emitProgram receiptRecordsAppendProg ++ "\n" ++
   "receipt_records_append_runtime_result:\n" ++
-  "  beqz a2, .Lrrec_runtime_no_logs\n" ++
-  "  bltu a5, a4, .Lrrec_runtime_no_logs\n" ++
-  "  sub a5, a5, a4              # committed log count = final - checkpoint\n" ++
-  "  j .Lrrec_runtime_call\n" ++
-  ".Lrrec_runtime_no_logs:\n" ++
-  "  li a5, 0                    # reverted/failing txs have no receipt logs\n" ++
-  ".Lrrec_runtime_call:\n" ++
-  "  li a6, 0                    # encoded receipt ptr (later encoder)\n" ++
-  "  li a7, 0                    # encoded receipt len (later encoder)\n" ++
-  "  j receipt_records_append\n" ++
+  emitProgram receiptRecordsAppendRuntimeProg ++ "\n" ++
   "receipt_record_nth:\n" ++
-  "  ld t0, 0(a0)                # count\n" ++
-  "  bgeu a1, t0, .Lrrnth_oob\n" ++
-  "  ld t1, 16(a0)               # record base\n" ++
-  "  slli t2, a1, 6\n" ++
-  "  add t1, t1, t2\n" ++
-  "  ld t3, 0(t1);  sd t3, 0(a2)\n" ++
-  "  ld t3, 8(t1);  sd t3, 8(a2)\n" ++
-  "  ld t3, 16(t1); sd t3, 16(a2)\n" ++
-  "  ld t3, 24(t1); sd t3, 24(a2)\n" ++
-  "  ld t3, 32(t1); sd t3, 32(a2)\n" ++
-  "  ld t3, 40(t1); sd t3, 40(a2)\n" ++
-  "  ld t3, 48(t1); sd t3, 48(a2)\n" ++
-  "  ld t3, 56(t1); sd t3, 56(a2)\n" ++
-  "  li a0, 0\n" ++
-  "  ret\n" ++
-  ".Lrrnth_oob:\n" ++
-  "  li a0, 1\n" ++
-  "  ret"
+  emitProgram receiptRecordNthProg
 
 /-- `zisk_receipt_records_probe`: exercise the receipt-record arena.
     Input layout:

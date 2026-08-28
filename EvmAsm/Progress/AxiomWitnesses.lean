@@ -126,6 +126,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.price_setup_spec
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst384by64_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstLimbFrom_eq_divLimbFrom
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
@@ -305,6 +313,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Eip7702AuthSigningHashSpec.sampleAuth_preimage
 
 #print axioms EvmAsm.Codegen.Eip7702NonceReuseGuardSAsm.enrgU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
 
 #print axioms EvmAsm.Codegen.EphU32leSAsm.ephU32leFlat_spec
 

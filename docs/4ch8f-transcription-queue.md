@@ -88,7 +88,7 @@ work.
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | register | 212 |
+| 3 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
 | 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -203,9 +203,9 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 89 |
-| `label-string` | 233 |
+| `label-string` | 231 |
 | `not-authored` | 101 |
-| `register` | 11 |
+| `register` | 13 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
@@ -364,7 +364,7 @@ bytes.
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 3 | `rlp_walk_init` | 115 | #11901; gate 2; calls 188 | register | 212 |
+| 3 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
 | 4 | `h_KECCAK256` | 100 | obl 5 | handler-spec | 648 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
@@ -387,7 +387,7 @@ bytes.
 | 23 | `h_SELFDESTRUCT` | 100 | obl 5 | handler-spec | 5412 |
 | 24 | `_start` | 100 | obl 8 | label-string | 6336 |
 | 25 | `h_CALL` | 100 | obl 5 | handler-spec | 8876 |
-| 26 | `rlp_content_to_u64` | 67 | gate 3; calls 11 | register | 72 |
+| 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
 | 29 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
