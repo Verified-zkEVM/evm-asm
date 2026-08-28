@@ -270,8 +270,11 @@ full day+.  The recipe that worked four times
   (`append_runtime_result` → `jal .-108` → `append`) is proven as a
   plain seq over the shared bundle `CodeReq` — DCode and flat triples
   COEXIST over one image, which is the bundle pattern's real payoff.
-  Remaining: `receipt_record_nth` (clone of append's read side) and the
-  other two runtime-result input cases.
+  Tranche 3 completed the bundle: `receipt_record_nth` (both arms,
+  `ReceiptRecordNthSpec.lean`) and all three runtime-result input cases
+  — every entry of the five-entry bundle carries a verified triple over
+  the shared image.  Use the three files as the reference implementation
+  when porting the next bundle.
 - CSRS accelerator splices — survey first.
 - `extract_deposit_data` main body — sp-frame + calls
   (`call`/`callAt`); the leaf callees (`edd_be32_eq`, `edd_memcpy`) are

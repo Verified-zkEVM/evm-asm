@@ -81,6 +81,7 @@ import EvmAsm.Codegen.Programs.SenderPostNonceConsistentSAsm
 import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsAppendSpec
+import EvmAsm.Codegen.Programs.ReceiptRecordNthSpec
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec

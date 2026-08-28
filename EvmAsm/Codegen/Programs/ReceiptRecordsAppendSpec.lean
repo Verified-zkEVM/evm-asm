@@ -656,6 +656,363 @@ theorem receiptRecordsAppendRuntime_spec_within_committed
   exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun h hq => by xperm_hyp hq) s3
 
+set_option maxRecDepth 8000 in
+/-- The no-logs input case (`a2 = 0`, a reverted/failing tx): the `beq`
+    takes straight to the zeroing arm, so the record is appended with
+    `log count = 0` (and zero encoder fields). -/
+theorem receiptRecordsAppendRuntime_spec_within_noLogs
+    (bundleBase ret ctl cnt cap rbase : Word)
+    (v1 v3 v4 v5 g6 g7 : Word)
+    (t0Old t1Old t2Old t3Old : Word)
+    (m0 m1 m2 m3 m4 m5 m6 m7 : Word)
+    (hlt : BitVec.ult cnt cap) :
+    cpsTripleWithin 23 (bundleBase + 112) (ret &&& ~~~1)
+      (rrBundleCode bundleBase)
+      ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x13 ↦ᵣ v3) **
+        (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7) **
+        (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) **
+        (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+        ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+        ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+        ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+        ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+        ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+        ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+        ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+        ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ (0 : Word)) **
+        (.x13 ↦ᵣ v3) ** (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ (0 : Word)) **
+        (.x16 ↦ᵣ (0 : Word)) ** (.x17 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x5 ↦ᵣ (cnt + 1)) ** (.x6 ↦ᵣ cap) **
+        (.x7 ↦ᵣ (rbase + (cnt <<< 6))) ** (.x28 ↦ᵣ (cnt <<< 6)) **
+        (ctl ↦ₘ (cnt + 1)) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+        ((rbase + (cnt <<< 6)) ↦ₘ v1) **
+        ((rbase + (cnt <<< 6) + 8) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 16) ↦ₘ v3) **
+        ((rbase + (cnt <<< 6) + 24) ↦ₘ v4) **
+        ((rbase + (cnt <<< 6) + 32) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 40) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 48) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 56) ↦ₘ (0 : Word))) := by
+  set E := bundleBase + 112 with hE
+  -- ---- bundle idx 28: beq x12 x0 +16, TAKEN (a2 = 0) → idx 32 ----
+  have hbeq := beq_spec_gen_within .x12 .x0 (16 : BitVec 13) (0 : Word)
+    (0 : Word) E
+  rw [show (E : Word) + signExtend13 (16 : BitVec 13) = bundleBase + 128
+        from by
+        rw [hE, show signExtend13 (16 : BitVec 13) = (16 : Word) from by decide,
+          BitVec.add_assoc]
+        rfl] at hbeq
+  have hmono28 : ∀ a' i, CodeReq.singleton E
+      (.BEQ .x12 .x0 (16 : BitVec 13)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 28 _ E (by rw [hE]; rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hBeq := cpsBranchWithin_takenPath
+    (cpsBranchWithin_extend_code hmono28 hbeq)
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+      exact absurd rfl (((sepConj_pure_right _).1 h_pure).2))
+  -- ---- bundle idx 32-34: li x15/x16/x17, 0 ; idx 35: jal into append ----
+  have hli5 := li_spec_gen_within .x15 v5 (0 : Word) (bundleBase + 128)
+    (by decide)
+  have hmono32 : ∀ a' i, CodeReq.singleton (bundleBase + 128)
+      (.LI .x15 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 32 _ (bundleBase + 128) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi5 := cpsTripleWithin_extend_code hmono32 hli5
+  rw [show (bundleBase + 128 : Word) + 4 = bundleBase + 132 from by
+        rw [BitVec.add_assoc]; rfl] at hLi5
+  have hli6 := li_spec_gen_within .x16 g6 (0 : Word) (bundleBase + 132)
+    (by decide)
+  have hmono33 : ∀ a' i, CodeReq.singleton (bundleBase + 132)
+      (.LI .x16 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 33 _ (bundleBase + 132) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi6 := cpsTripleWithin_extend_code hmono33 hli6
+  rw [show (bundleBase + 132 : Word) + 4 = bundleBase + 136 from by
+        rw [BitVec.add_assoc]; rfl] at hLi6
+  have hli7 := li_spec_gen_within .x17 g7 (0 : Word) (bundleBase + 136)
+    (by decide)
+  have hmono34 : ∀ a' i, CodeReq.singleton (bundleBase + 136)
+      (.LI .x17 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 34 _ (bundleBase + 136) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi7 := cpsTripleWithin_extend_code hmono34 hli7
+  rw [show (bundleBase + 136 : Word) + 4 = bundleBase + 140 from by
+        rw [BitVec.add_assoc]; rfl] at hLi7
+  have hjmp := jal_x0_spec_gen_within (-108 : BitVec 21) (bundleBase + 140)
+  rw [show (bundleBase + 140 : Word) + signExtend21 (-108 : BitVec 21)
+        = bundleBase + 32 from by
+        rw [show signExtend21 (-108 : BitVec 21)
+              = (0xFFFFFFFFFFFFFF94 : Word) from by decide,
+          BitVec.add_assoc]
+        rfl] at hjmp
+  have hmono35 : ∀ a' i, CodeReq.singleton (bundleBase + 140)
+      (.JAL .x0 (-108 : BitVec 21)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 35 _ (bundleBase + 140) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hJmp := cpsTripleWithin_extend_code hmono35 hjmp
+  have hMid : cpsTripleWithin 4 (bundleBase + 128) (bundleBase + 32)
+      (rrBundleCode bundleBase)
+      ((.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7))
+      ((.x15 ↦ᵣ (0 : Word)) ** (.x16 ↦ᵣ (0 : Word)) **
+        (.x17 ↦ᵣ (0 : Word))) := by
+    runBlock hLi5 hLi6 hLi7 hJmp
+  -- ---- the append callee ----
+  have hAppend := receiptRecordsAppend_bundleSpec_ok bundleBase ret ctl cnt
+    cap rbase v1 (0 : Word) v3 v4 (0 : Word) (0 : Word) (0 : Word)
+    t0Old t1Old t2Old t3Old m0 m1 m2 m3 m4 m5 m6 m7 hlt
+  -- ---- frame and compose ----
+  have hBeqF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x13 ↦ᵣ v3) **
+      (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7) **
+      (.x1 ↦ᵣ ret) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) **
+      (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+      ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+      ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+      ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+      ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+      ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+      ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+      ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+      ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+    (by pcFree) hBeq
+  have hMidF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ (0 : Word)) **
+      (.x13 ↦ᵣ v3) ** (.x14 ↦ᵣ v4) **
+      (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) **
+      (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+      ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+      ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+      ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+      ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+      ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+      ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+      ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+      ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+    (by pcFree) hMid
+  have s1 := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ hBeqF hMidF
+    intro h hp
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+    xperm_hyp hp2
+  have s2 := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ s1 hAppend
+    intro h hp; xperm_hyp hp
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) s2
+
+set_option maxRecDepth 8000 in
+/-- The reverted-window input case (`a2 ≠ 0` but the final log cursor
+    `a5` is below the checkpoint `a4`): the `bltu` takes to the zeroing
+    arm, so the record is appended with `log count = 0`. -/
+theorem receiptRecordsAppendRuntime_spec_within_reverted
+    (bundleBase ret ctl cnt cap rbase : Word)
+    (v1 v2 v3 v4 v5 g6 g7 : Word)
+    (t0Old t1Old t2Old t3Old : Word)
+    (m0 m1 m2 m3 m4 m5 m6 m7 : Word)
+    (hlt : BitVec.ult cnt cap)
+    (hstatus : v2 ≠ 0)
+    (hrev : BitVec.ult v5 v4) :
+    cpsTripleWithin 24 (bundleBase + 112) (ret &&& ~~~1)
+      (rrBundleCode bundleBase)
+      ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ v2) ** (.x13 ↦ᵣ v3) **
+        (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7) **
+        (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+        (.x28 ↦ᵣ t3Old) **
+        (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+        ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+        ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+        ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+        ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+        ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+        ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+        ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+        ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+      ((.x10 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ v2) **
+        (.x13 ↦ᵣ v3) ** (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ (0 : Word)) **
+        (.x16 ↦ᵣ (0 : Word)) ** (.x17 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x5 ↦ᵣ (cnt + 1)) ** (.x6 ↦ᵣ cap) **
+        (.x7 ↦ᵣ (rbase + (cnt <<< 6))) ** (.x28 ↦ᵣ (cnt <<< 6)) **
+        (ctl ↦ₘ (cnt + 1)) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+        ((rbase + (cnt <<< 6)) ↦ₘ v1) **
+        ((rbase + (cnt <<< 6) + 8) ↦ₘ v2) **
+        ((rbase + (cnt <<< 6) + 16) ↦ₘ v3) **
+        ((rbase + (cnt <<< 6) + 24) ↦ₘ v4) **
+        ((rbase + (cnt <<< 6) + 32) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 40) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 48) ↦ₘ (0 : Word)) **
+        ((rbase + (cnt <<< 6) + 56) ↦ₘ (0 : Word))) := by
+  set E := bundleBase + 112 with hE
+  -- ---- bundle idx 28: beq not taken (v2 ≠ 0) ----
+  have hbeq := beq_spec_gen_within .x12 .x0 (16 : BitVec 13) v2 (0 : Word) E
+  rw [show (E + 4 : Word) = bundleBase + 116 from by
+        rw [hE, BitVec.add_assoc]; rfl] at hbeq
+  have hmono28 : ∀ a' i, CodeReq.singleton E
+      (.BEQ .x12 .x0 (16 : BitVec 13)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 28 _ E (by rw [hE]; rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hBeq := cpsBranchWithin_ntakenPath
+    (cpsBranchWithin_extend_code hmono28 hbeq)
+    (fun hp hQt => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQt
+      exact absurd (((sepConj_pure_right _).1 h_pure).2) hstatus)
+  -- ---- bundle idx 29: bltu TAKEN (v5 <u v4) → idx 32 ----
+  have hbltu := bltu_spec_gen_within .x15 .x14 (12 : BitVec 13) v5 v4
+    (bundleBase + 116)
+  rw [show (bundleBase + 116 : Word) + signExtend13 (12 : BitVec 13)
+        = bundleBase + 128 from by
+        rw [show signExtend13 (12 : BitVec 13) = (12 : Word) from by decide,
+          BitVec.add_assoc]
+        rfl] at hbltu
+  have hmono29 : ∀ a' i, CodeReq.singleton (bundleBase + 116)
+      (.BLTU .x15 .x14 (12 : BitVec 13)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 29 _ (bundleBase + 116) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hBltu := cpsBranchWithin_takenPath
+    (cpsBranchWithin_extend_code hmono29 hbltu)
+    (fun hp hQf => by
+      obtain ⟨_, _, _, _, _, h_pure⟩ := hQf
+      exact absurd hrev (((sepConj_pure_right _).1 h_pure).2))
+  -- ---- bundle idx 32-35: zero the window and jump into append ----
+  have hli5 := li_spec_gen_within .x15 v5 (0 : Word) (bundleBase + 128)
+    (by decide)
+  have hmono32 : ∀ a' i, CodeReq.singleton (bundleBase + 128)
+      (.LI .x15 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 32 _ (bundleBase + 128) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi5 := cpsTripleWithin_extend_code hmono32 hli5
+  rw [show (bundleBase + 128 : Word) + 4 = bundleBase + 132 from by
+        rw [BitVec.add_assoc]; rfl] at hLi5
+  have hli6 := li_spec_gen_within .x16 g6 (0 : Word) (bundleBase + 132)
+    (by decide)
+  have hmono33 : ∀ a' i, CodeReq.singleton (bundleBase + 132)
+      (.LI .x16 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 33 _ (bundleBase + 132) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi6 := cpsTripleWithin_extend_code hmono33 hli6
+  rw [show (bundleBase + 132 : Word) + 4 = bundleBase + 136 from by
+        rw [BitVec.add_assoc]; rfl] at hLi6
+  have hli7 := li_spec_gen_within .x17 g7 (0 : Word) (bundleBase + 136)
+    (by decide)
+  have hmono34 : ∀ a' i, CodeReq.singleton (bundleBase + 136)
+      (.LI .x17 (0 : Word)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 34 _ (bundleBase + 136) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hLi7 := cpsTripleWithin_extend_code hmono34 hli7
+  rw [show (bundleBase + 136 : Word) + 4 = bundleBase + 140 from by
+        rw [BitVec.add_assoc]; rfl] at hLi7
+  have hjmp := jal_x0_spec_gen_within (-108 : BitVec 21) (bundleBase + 140)
+  rw [show (bundleBase + 140 : Word) + signExtend21 (-108 : BitVec 21)
+        = bundleBase + 32 from by
+        rw [show signExtend21 (-108 : BitVec 21)
+              = (0xFFFFFFFFFFFFFF94 : Word) from by decide,
+          BitVec.add_assoc]
+        rfl] at hjmp
+  have hmono35 : ∀ a' i, CodeReq.singleton (bundleBase + 140)
+      (.JAL .x0 (-108 : BitVec 21)) a' = some i →
+      rrBundleCode bundleBase a' = some i :=
+    rrb_mem bundleBase 35 _ (bundleBase + 140) (by rfl)
+      (by rw [rrbProg_len]; omega) (by rfl)
+  have hJmp := cpsTripleWithin_extend_code hmono35 hjmp
+  have hMid : cpsTripleWithin 4 (bundleBase + 128) (bundleBase + 32)
+      (rrBundleCode bundleBase)
+      ((.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7))
+      ((.x15 ↦ᵣ (0 : Word)) ** (.x16 ↦ᵣ (0 : Word)) **
+        (.x17 ↦ᵣ (0 : Word))) := by
+    runBlock hLi5 hLi6 hLi7 hJmp
+  -- ---- the append callee ----
+  have hAppend := receiptRecordsAppend_bundleSpec_ok bundleBase ret ctl cnt
+    cap rbase v1 v2 v3 v4 (0 : Word) (0 : Word) (0 : Word)
+    t0Old t1Old t2Old t3Old m0 m1 m2 m3 m4 m5 m6 m7 hlt
+  -- ---- frame and compose ----
+  have hBeqF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x13 ↦ᵣ v3) **
+      (.x14 ↦ᵣ v4) ** (.x15 ↦ᵣ v5) ** (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7) **
+      (.x1 ↦ᵣ ret) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) **
+      (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+      ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+      ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+      ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+      ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+      ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+      ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+      ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+      ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+    (by pcFree) hBeq
+  have hBltuF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ v2) ** (.x13 ↦ᵣ v3) **
+      (.x16 ↦ᵣ g6) ** (.x17 ↦ᵣ g7) **
+      (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) **
+      (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+      ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+      ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+      ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+      ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+      ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+      ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+      ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+      ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+    (by pcFree) hBltu
+  have hMidF := cpsTripleWithin_frameR
+    ((.x10 ↦ᵣ ctl) ** (.x11 ↦ᵣ v1) ** (.x12 ↦ᵣ v2) ** (.x13 ↦ᵣ v3) **
+      (.x14 ↦ᵣ v4) **
+      (.x1 ↦ᵣ ret) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ t0Old) ** (.x6 ↦ᵣ t1Old) ** (.x7 ↦ᵣ t2Old) **
+      (.x28 ↦ᵣ t3Old) **
+      (ctl ↦ₘ cnt) ** ((ctl + 8) ↦ₘ cap) ** ((ctl + 16) ↦ₘ rbase) **
+      ((rbase + (cnt <<< 6)) ↦ₘ m0) **
+      ((rbase + (cnt <<< 6) + 8) ↦ₘ m1) **
+      ((rbase + (cnt <<< 6) + 16) ↦ₘ m2) **
+      ((rbase + (cnt <<< 6) + 24) ↦ₘ m3) **
+      ((rbase + (cnt <<< 6) + 32) ↦ₘ m4) **
+      ((rbase + (cnt <<< 6) + 40) ↦ₘ m5) **
+      ((rbase + (cnt <<< 6) + 48) ↦ₘ m6) **
+      ((rbase + (cnt <<< 6) + 56) ↦ₘ m7))
+    (by pcFree) hMid
+  have s1 := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ hBeqF hBltuF
+    intro h hp
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+    xperm_hyp hp2
+  have s2 := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ s1 hMidF
+    intro h hp
+    have hp2 := sepConj_mono_left (sepConj_mono_right
+      (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hp
+    xperm_hyp hp2
+  have s3 := by
+    refine cpsTripleWithin_seq_perm_same_cr ?_ s2 hAppend
+    intro h hp; xperm_hyp hp
+  exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
+    (fun h hq => by xperm_hyp hq) s3
+
 end ReceiptRecordsAppendSpec
 
 end EvmAsm.Codegen
