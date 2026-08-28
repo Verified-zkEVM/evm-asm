@@ -75,6 +75,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.NodeDbAppendBlocks
+-- For the append/lookup handoff pin at the end of this module: the reader's
+-- `dbBase`/`cntLoc` are compared against this routine's, by `rfl`.
+import EvmAsm.Codegen.Programs.NodeDbLookupSpec
 import EvmAsm.Codegen.Programs.MptSetAcc
 import EvmAsm.Codegen.Programs.AccountBalanceHelperSpec
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
@@ -1174,6 +1177,21 @@ theorem nodeDbAppend_validity_negative_control :
 theorem nodeDbAppend_pad_zero_bites :
     ¬ ((List.replicate 8 (0xff : BitVec 8)).drop 4
         = List.replicate (roundUp8 4 - 4) 0) := by decide
+
+/-! ## §17  The append/lookup handoff, pinned rather than asserted -/
+
+/-- ⭐ **The node-DB view this routine publishes IS the one the reader
+    requires.**  `node_db_lookup_spec_within`'s `ndlPre` asks for
+    `cntLoc ↦ₘ |nodes|` and `nodeDbIs dbBase nodes`; `node_db_append_grows_db`
+    publishes `nodeDbCountIs ndaCntLoc` and `nodeDbIs` at `mset_db_data`.
+    Held by `rfl`, so the claim that the two halves of the node DB meet is
+    checked at the ADDRESSES, not merely asserted in prose: if either side's
+    log base or count cell drifts, this stops compiling. -/
+theorem lookup_db_view_eq (nodes : List (List (BitVec 8))) :
+    (nodeDbCountIs ndaCntLoc nodes **
+      nodeDbIs (GuestAddrs.mset_db_data : Word) nodes)
+      = ((NodeDbLookupSpec.cntLoc ↦ₘ BitVec.ofNat 64 nodes.length) **
+         nodeDbIs NodeDbLookupSpec.dbBase nodes) := rfl
 
 end EvmAsm.Codegen.NodeDbAppendSpec
 

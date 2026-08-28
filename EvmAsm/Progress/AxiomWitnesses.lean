@@ -556,6 +556,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.MptWalkWlEnabledHitSat.sample_site_shape
 
+#print axioms EvmAsm.Codegen.NodeDbAppendSpec.lookup_db_view_eq
+
 #print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_align_bites
 
 #print axioms EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites

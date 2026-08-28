@@ -4074,8 +4074,14 @@ def routineRegistry : List RoutineEntry := [
         ++ "numeric addresses), and THREE negative controls -- "
         ++ "`nodeDbAppend_align_bites` (8-alignment), "
         ++ "`nodeDbAppend_validity_negative_control` (byte validity) and "
-        ++ "`nodeDbAppend_pad_zero_bites` (the pad-zero premise). Lives in "
-        ++ "`Codegen/Programs/NodeDbAppendSpec.lean`"),
+        ++ "`nodeDbAppend_pad_zero_bites` (the pad-zero premise). ⭐ That the "
+        ++ "published node-DB view IS the one the reader requires is PINNED, "
+        ++ "not asserted: `lookup_db_view_eq` (`rfl`) equates "
+        ++ "`nodeDbCountIs ndaCntLoc ** nodeDbIs mset_db_data` with "
+        ++ "`NodeDbLookupSpec`'s `cntLoc ↦ₘ … ** nodeDbIs dbBase`, so a drift "
+        ++ "in either side's log base or count cell stops the build. Lives in "
+        ++ "`Codegen/Programs/NodeDbAppendSpec.lean` (+ the straight-line "
+        ++ "blocks in `Codegen/Programs/NodeDbAppendBlocks.lean`)"),
   -- #11800, the node-DB half. Whole-routine triple over the emitted
   -- `nodeDbLookup_prog` (33 insn) at `GuestAddrs.node_db_lookup`; the machine
   -- appears in the statement (`ndlCr = CodeReq.ofProg ndlB nodeDbLookup_prog`),
@@ -4109,9 +4115,11 @@ def routineRegistry : List RoutineEntry := [
         ++ "the length of the node `witness_state.py`'s `node_db` maps the hash "
         ++ "to. Non-vacuity is a COMPILED instantiation, "
         ++ "`node_db_lookup_sample_witness`: a closed one-record DB whose post "
-        ++ "is reduced to the HIT arm. ⚠️ NOT established here: that "
-        ++ "`node_db_append` establishes the `nodeDbIs` shape this triple "
-        ++ "consumes (that is the append half, still open), and `bytesRegion`'s "
+        ++ "is reduced to the HIT arm. ⚠️ THE APPEND HALF IS NO LONGER OPEN: "
+        ++ "as of #12318 `node_db_append_grows_db` establishes the `nodeDbIs` "
+        ++ "shape this triple consumes, and `lookup_db_view_eq` pins that the "
+        ++ "two sides agree on the log base and the count cell by `rfl`. Still "
+        ++ "NOT established here: `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
         ++ "derived from the link map"),
   -- #12036. `witness_lookup_by_hash` (155 insn) at
@@ -5761,6 +5769,8 @@ private noncomputable abbrev _node_db_append_validity_control_witness :=
   @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_validity_negative_control
 private noncomputable abbrev _node_db_append_pad_control_witness :=
   @EvmAsm.Codegen.NodeDbAppendSpec.nodeDbAppend_pad_zero_bites
+private noncomputable abbrev _node_db_append_handoff_witness :=
+  @EvmAsm.Codegen.NodeDbAppendSpec.lookup_db_view_eq
 -- #11800 node-DB half: whole-routine `node_db_lookup` triple, its compiled
 -- non-vacuity instance, and the composition to `SpecRef.build_node_db`.
 private noncomputable abbrev _node_db_lookup_routine_witness :=
