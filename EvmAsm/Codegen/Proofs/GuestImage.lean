@@ -41,7 +41,7 @@ import EvmAsm.Stateless.EntrySpec
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.SAsm (anyBytes)
+-- `anyBytes` now comes from `EvmAsm.Rv64` (relocated upstream into MemRegion).
 open EvmAsm.Stateless
 
 /-! ## 1. The guest-image `CodeReq` -/

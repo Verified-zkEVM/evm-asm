@@ -224,6 +224,14 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
+      # Runs here, not in source-checks: re-deriving the export lists needs the
+      # dependency's oleans, so it requires a build. Without this gate a
+      # declaration added upstream would simply never surface under
+      # `EvmAsm.Rv64`, and the first sign would be an unrelated-looking
+      # "unknown identifier" in whichever proof happened to need it next.
+      - name: Rv64 re-export shims match the riscv-zkvm dependency
+        run: python3 scripts/gen-rv64-shims.py --check
+
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
