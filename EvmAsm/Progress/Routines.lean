@@ -2979,6 +2979,22 @@ def routineRegistry : List RoutineEntry := [
         ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
         ++ "synthesize through `laHi`/`laLo`. Lives in "
         ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12990: the third widx sibling, unblocked by reconciling the historical
+  -- x6/x31 loop-counter mismatch — the proof was transposed onto the image's
+  -- register assignment, and `widxSwapProg = widxSwapRecords_prog` is now a
+  -- decide-checked identity (the old `widxSwapProg_ne` negative control is
+  -- gone). The allowlist exemption is retired with this row.
+  routine "widx_swap_records" .proven (some "widxSwapRecordsEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_swap_records` over "
+        ++ "`CodeReq.ofProg … widxSwapRecords_prog` (the image's own program via "
+        ++ "`widxSwapProg_eq`, #12990), 58 steps: swaps two six-dword index "
+        ++ "records in place inside one arena (`widxSwapMem arena qa qb 6` in "
+        ++ "the post), counter `x31` ends zero, `t0`/`t1` clobbered, `a0`/`a1` "
+        ++ "end one record past the swapped pair. Hypotheses: the two records "
+        ++ "are distinct and both fit the arena; single-arena shape because the "
+        ++ "machine model has one writable-region resource — offsets are "
+        ++ "explicit, not existentially hidden. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -4486,10 +4502,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 211 := by decide
+theorem routineCount_eq : routineCount = 212 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 163 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
 set_option maxRecDepth 16000 in
@@ -4509,7 +4525,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 171 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 172 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5757,6 +5773,9 @@ private noncomputable abbrev _wcidx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+-- #12990: the third widx sibling, after the x6/x31 reconciliation.
+private noncomputable abbrev _widx_swap_records_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxSwapRecordsEntry_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
 -- `bncZero64Fn_spec` it is derived from.
 private noncomputable abbrev _bnc_zero64_routine_witness :=
