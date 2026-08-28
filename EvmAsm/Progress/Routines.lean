@@ -341,6 +341,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
+import EvmAsm.Codegen.Programs.SystemCallStagingTop
 import EvmAsm.Codegen.Programs.TxSigningHashSpecJoin
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashVal
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
@@ -3953,6 +3954,91 @@ def routineRegistry : List RoutineEntry := [
         ++ "this triple ties to no spec-side VALUE and a correspondence "
         ++ "verdict would overstate it"),
 
+  -- #12206 item 1: `stage_system_call` whole-routine triple. 71 instructions
+  -- at 0x80053730 (284 bytes, `ret` at 0x80053848; extent from `riscv64-elf-nm`
+  -- cross-checked by `sscProgL_spans_symbol`), NO loop, NO ABI stack frame
+  -- (`ra`/`s0` spill to the dedicated BSS cells `ssc_saved_ra`/`ssc_saved_s0`),
+  -- and THREE callees, none of them composable. Three exit codes, all in the
+  -- post, all written by this routine's own `li` instructions.
+  routine "stage_system_call" .conditional
+      (some "stage_system_call_spec_within")
+      (gate := "NO input-domain gate at all: the routine reads no caller "
+        ++ "memory, so `halign` (even return address, the ordinary ABI "
+        ++ "obligation) is the only non-residual hypothesis. THREE RESIDUALS, "
+        ++ "every one an UNPROVEN-CALLEE DEPENDENCY rather than an "
+        ++ "input-domain restriction: `h_ard : ArdCallShape` at index 7 "
+        ++ "(0x8005374c, `account_read_record` — that routine IS rowed, but "
+        ++ "`accountReadRecordSuppressedFlat_spec` is gated to the SUPPRESSED "
+        ++ "arm, `runtime_tx_account_read_suppress ≠ 0`, which this caller "
+        ++ "does not establish, so the three arms that gate excludes are "
+        ++ "exactly the ones the fall-through reaches and there is nothing to "
+        ++ "compose); `h_sscp : SscpCallShape` at index 25 (0x80053794, "
+        ++ "`stage_system_call_payload` — `_prog` exists, 141 instructions, "
+        ++ "but no triple and no row); `h_rdc : RdcCallShape` at index 31 "
+        ++ "(0x800537ac, `runtime_dispatcher_call` — the whole EVM "
+        ++ "interpreter, standing #12204 blocker). Each shape leaves what its "
+        ++ "callee COMPUTES abstract — the payload status `stP`, the "
+        ++ "return-data length `retLen` and the halt kind `hk` are universally "
+        ++ "quantified by the theorem — so the whole post is proved against "
+        ++ "ANY callee behaviour. What each shape DOES pin was measured "
+        ++ "against the callee's emitted text, not assumed: `ArdCallShape` "
+        ++ "pins t1/a1/a2/a3/a4 (`accountReadRecord_prog` saves and restores "
+        ++ "t0-t6 and only reads a0); `SscpCallShape` pins s0 "
+        ++ "(`stageSystemCallPayload_prog` saves ra/s0/s1/s2/s3/s4); all three "
+        ++ "pin `ssc_saved_ra`/`ssc_saved_s0`, and that last one — the "
+        ++ "interpreter not touching the two spill cells — is the STRONGEST "
+        ++ "thing assumed here, is why those cells are dedicated rather than "
+        ++ "shared, and is why the routine is not re-entrant. Non-vacuity: "
+        ++ "`ard_residual_reachable`, `sscp_residual_reachable` and "
+        ++ "`rdc_residual_reachable` discharge every computable conjunct of "
+        ++ "each shape at the REAL call site, with three negative controls "
+        ++ "where the same bundle is provably FALSE at a different `jal` site "
+        ++ "of this same routine — `ard_residual_wrong_site`, "
+        ++ "`sscp_residual_wrong_site`, `rdc_residual_wrong_site` — which is "
+        ++ "what shows the reloc conjunct ties each shape to ITS site rather "
+        ++ "than to any `jal` at all. `ardCall_balanced` / `sscpCall_balanced` "
+        ++ "additionally show each shape's post demands nothing its pre does "
+        ++ "not supply (no atom named twice, so the footprint is not "
+        ++ "self-contradictory)")
+      (notes := "`cpsTripleWithin (sscFuel fArd fSscp fRdc)` = 61 own steps "
+        ++ "plus the three residual fuels, at `GuestAddrs.stage_system_call` "
+        ++ "with exit `ret`, over `sscCode = CodeReq.ofProg B "
+        ++ "stageSystemCall_prog`. NO callee union — all three calls stand "
+        ++ "under residuals, each of which carries its own `cr` obligation for "
+        ++ "the `jal`, the same posture `rhvCode` takes toward "
+        ++ "`execution_requests_hash`. No `abiFrame_spec`: this routine has no "
+        ++ "stack frame, so all 71 instructions are chained by hand across a "
+        ++ "forward DAG with two early exits into a shared failure epilogue "
+        ++ "(index 56) and a three-way verdict cascade joining at index 64. "
+        ++ "THREE EXIT CODES via `sscStatus codeLen stP hk`: `a2 = 1` STAGING "
+        ++ "failure (`beqz a2` at 0x80053754 taken on empty predeploy code, or "
+        ++ "`bnez a0` at 0x80053798 taken on payload reject; `li a2, 1` at "
+        ++ "0x8005382c); `a2 = 2` EXECUTION failure (dispatch ran, "
+        ++ "`rdg_halt_kind` outside {0,1,5}; `li a2, 2` at 0x80053800); "
+        ++ "`a2 = 0` SUCCESS (`rdg_halt_kind` in {0,1,5} = "
+        ++ "STOP/RETURN/SELFDESTRUCT; `li a2, 0` at 0x80053808). ⚠️ THE POINT "
+        ++ "OF THIS ROW: all three are written by `li` instructions of THIS "
+        ++ "routine, so `sscStatus_mem_three` (`a2` is 0, 1 or 2) and "
+        ++ "`sscStatus_eq_one_iff` (`a2 = 1` iff `codeLen = 0` or `stP` is "
+        ++ "nonzero) are CALLEE-INDEPENDENT — they hold for every "
+        ++ "instantiation of the three residuals. That is exactly the #11810 "
+        ++ "guarantee the unchecked 4788/2935 callers depend on: they reject "
+        ++ "only `a2 = 1` and must ignore `a2 = 2`, so collapsing the classes "
+        ++ "is a soundness bug. Also callee-independent and in the post: on "
+        ++ "the staging-failure path `a1 = 0` and "
+        ++ "`a0 = &system_call_returndata`; on every path "
+        ++ "`system_call_mode = 0` and `ra`/`s0` come back from the two spill "
+        ++ "cells. FOOTPRINT: seven BSS cells (`ssc_saved_ra`, `ssc_saved_s0`, "
+        ++ "`system_call_mode`, `system_call_returndata_len`, "
+        ++ "`runtime_tx_auth_exec_fn`, `rdg_halt_kind`, "
+        ++ "`runtime_dispatcher_input_ptr`) plus `sscScratchOwn`, which names "
+        ++ "every register the routine does not itself track so that no caller "
+        ++ "can pin one a callee clobbers (the #10688 trap). ⚠️ No "
+        ++ "Correspondence row: everything the callees compute is abstract "
+        ++ "under the three residuals, so this triple ties to no spec-side "
+        ++ "VALUE and a correspondence verdict would overstate it. Split "
+        ++ "across `SystemCallStaging{Base,Residuals,Top}`"),
+
   -- #12038: K145 `tx_signing_hash` whole-routine triple, multi-rate segments.
   -- Long8 wired through Prefix/PrefixGate/Join/Spec — no residual
   -- `payloadLen < 2^56` gate. Keccak gather ungated via
@@ -4369,12 +4455,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 209 := by decide
+theorem routineCount_eq : routineCount = 210 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 43 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 44 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4392,7 +4478,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 170 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 171 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5820,6 +5906,36 @@ private noncomputable abbrev _requests_hash_verify_residual_reachable_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_residual_reachable
 private noncomputable abbrev _requests_hash_verify_gate_unaligned_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_unaligned
+-- #12206 item 1: `stage_system_call` whole routine (imported above). The three
+-- residuals' reachability instances AND all three negative controls get
+-- witnesses, so the axiom gate audits the non-vacuity evidence and not only the
+-- triple (#12857).
+private noncomputable abbrev _stage_system_call_routine_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.stage_system_call_spec_within
+private noncomputable abbrev _stage_system_call_ard_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ard_residual_reachable
+private noncomputable abbrev _stage_system_call_sscp_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_reachable
+private noncomputable abbrev _stage_system_call_rdc_residual_reachable_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_reachable
+private noncomputable abbrev _stage_system_call_ard_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ard_residual_wrong_site
+private noncomputable abbrev _stage_system_call_sscp_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscp_residual_wrong_site
+private noncomputable abbrev _stage_system_call_rdc_wrong_site_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.rdc_residual_wrong_site
+private noncomputable abbrev _stage_system_call_ard_balanced_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.ardCall_balanced
+private noncomputable abbrev _stage_system_call_sscp_balanced_witness :=
+  @EvmAsm.Codegen.SystemCallStagingTop.sscpCall_balanced
+private noncomputable abbrev _stage_system_call_status_three_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_mem_three
+private noncomputable abbrev _stage_system_call_status_one_iff_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscStatus_eq_one_iff
+private noncomputable abbrev _stage_system_call_execstatus_ne_one_witness :=
+  @EvmAsm.Codegen.SystemCallStagingSegments.sscExecStatus_ne_one
+private noncomputable abbrev _stage_system_call_extent_witness :=
+  @EvmAsm.Codegen.SystemCallStagingBase.sscProgL_spans_symbol
 private noncomputable abbrev _requests_hash_verify_gate_short_witness :=
   @EvmAsm.Codegen.RequestsHashVerifyTop.rhv_gate_short_expected
 private noncomputable abbrev _requests_hash_verify_residual_wrong_site_witness :=
