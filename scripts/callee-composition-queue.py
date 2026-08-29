@@ -506,9 +506,9 @@ def anchor_grades(refs: dict[str, list[str]]) -> dict[str, tuple[str, list[str]]
       `other:X`   — no cited statement names its own address, and one names X.
       `free-base` — no cited statement names ANY code address. The theorem is a
                     ∀-base statement and the tie to the image lives somewhere else;
-                    `rlp_walk_next`'s rows are this shape (`rlp_walk_next_code base`,
-                    with `base` universally quantified and `walkNextBase` pinned in a
-                    different file's theorem).
+                    `rlp_walk_next` now resolves `own`: #12797's entry-tie puts the
+                    cited contract at the linked routine rather than leaving it
+                    free-base.
 
     ⛔ A PROXY, not a statement read: it sees which constants a signature MENTIONS,
     not which one its conclusion is `cpsTripleWithin`-at. A `GuestAddrs.X` sitting in
@@ -1031,7 +1031,8 @@ def print_worklist(rows, rowed, obl, iss):
     print("> 1. **The row's theorem is not a whole-routine contract** "
           "(segment lemmas; `header_extended_decode` ×5).")
     print("> 2. **The row's `symbol` does not pin the address its `CodeReq` is over** "
-          "(`rlp_walk_next` rows are stated over `rlp_walk_next_core`).")
+          "(the anchor grade is checked against the linked entry; `rlp_walk_next` "
+          "is now `own` after #12797's entry-tie).")
     print("> 3. **The row's register frame blocks the caller** (`x29` in "
           "`swsU32leScratch`) — invisible to both the tier constructor and the "
           "`gate` string.")
@@ -1039,15 +1040,11 @@ def print_worklist(rows, rowed, obl, iss):
     print("Mechanism 1 is the `note` column's weak-contract text above. Mechanisms 2 "
           "and 3 are the **anchor** and **callee frame** columns of the table below.")
     print()
-    print("⚠️ One correction to mechanism 2 as stated, from measuring it: the "
-          "`rlp_walk_next` rows are not literally *stated over* `rlp_walk_next_core`. "
-          "Their cited theorems are stated over `rlp_walk_next_code base` with `base` "
-          "universally quantified — they name **no** address — and it is a separate "
-          "theorem, `rlpWalkNextCoreCode_eq_verified`, that ties that program to "
-          "`GuestAddrs.rlp_walk_next_core`. So the grade is `free-base`, not `other:`. "
-          "The defect is the same one either way (the row's `symbol` cell is the only "
-          "thing pointing at an address, and it points at the wrong routine), but the "
-          "mechanical signal is the *absence* of an anchor, not a wrong one.")
+    print("⚠️ The #12797 anchor result is now current: `rlp_walk_next` resolves "
+          "`own` because its cited contract is tied to the linked entry. The live "
+          "self-test below pins this grade so a future regression to a free-base or "
+          "other-entry contract is visible. `free-base` remains a valid annotation "
+          "for other rows whose universally quantified contract is tied elsewhere.")
     print()
     print(f"**Anchor (mechanism 2, #12797).** Per rowed callee, read off the cited "
           f"theorem's SIGNATURE: `own` (it names `GuestAddrs.<that symbol>`, offsets "
@@ -1441,11 +1438,18 @@ def self_test(tsv_path: str) -> int:
           f"{sum(len(v) for v in refs.values())} rows parsed")
     check("weak-contract grading is non-vacuous and not universal",
           0 < len(weak) < len(refs), f"{len(weak)} of {len(refs)} rowed symbols")
-    check("`header_extended_decode` is graded weak by RULE 1 on the live registry",
-          "header_extended_decode" in weak
-          and "rows all citing" in weak["header_extended_decode"],
-          weak.get("header_extended_decode", "NOT CAUGHT — the #12799 counterexample "
-                                             "no longer trips rule 1"))
+    # The old live exemplar from #12799 has deliberately aged out: its rows now
+    # cite distinct contracts, so keeping a check that demands the old Rule-1
+    # shape would make a healthy registry red forever.  Keep the population-level
+    # invariant (the proxies still demote real current rows) and assert only that
+    # the stale Rule-1 exemplar is no longer being used.
+    header_why = weak.get("header_extended_decode", "not weak")
+    check("live weak-contract population remains after `header_extended_decode` "
+          "rows diversified",
+          bool(weak), f"{len(weak)} current weak-contract symbols")
+    check("`header_extended_decode` is no longer the stale RULE 1 live exemplar",
+          "[rule 1, structure]" not in header_why,
+          header_why)
     check("the proxies actually moved rows out of startable",
           c["lane_weak"] > 0, f"{c['lane_weak']} demoted to needs-read")
 
@@ -1484,9 +1488,9 @@ def self_test(tsv_path: str) -> int:
           and 0 < len(anchors) <= len(refs),
           "grades " + str(sorted({g for g, _o in anchors.values()}))
           + f" over {len(anchors)} of {len(refs)} rowed symbols")
-    check("MECHANISM 2: `rlp_walk_next` is graded `free-base` — its rows cite "
-          "∀-base theorems over `rlp_walk_next_code base` (#12797)",
-          anchors.get("rlp_walk_next", ("?", []))[0] == "free-base",
+    check("MECHANISM 2: `rlp_walk_next` is now graded `own` after the #12797 "
+          "entry-tie landed",
+          anchors.get("rlp_walk_next", ("?", []))[0] == "own",
           str(anchors.get("rlp_walk_next")))
     check("MECHANISM 2: `blq_set_one` and `bnq_set_one` are graded `own` — the "
           "`+ 24` spelling must not read as a different routine",

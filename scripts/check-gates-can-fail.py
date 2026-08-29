@@ -66,6 +66,13 @@ ADVISORY_BY_DESIGN = {
         "finding is a rename suggestion, not a defect",
 }
 
+# Most CI gates use the `check-*` naming convention.  This one is an explicitly
+# gated verifier despite being a worklist tool: its self-test must not silently
+# disappear from CI just because its historical filename is not prefixed
+# `check-`.  Keep the exception named and small so ordinary report tools remain
+# out of scope (see the non-gate control in the self-test below).
+EXTRA_GATE_SCRIPTS = {"callee-composition-queue.py"}
+
 # Matches the three idioms used in this repo to PARSE a strictness flag.  The
 # context is required, not just the token: a script that merely mentions the
 # flag in prose, or one that contains it as data, is not parsing it.  The first
@@ -153,7 +160,7 @@ def check(workflows: Path | None = None, scripts: Path | None = None,
         # other scripts in a workflow are tools and reporters -- wip_pr_gate.py
         # always exits 0 by design because a later step consumes its JSON, and
         # accusing it of being a silent gate is a category error.
-        if not name.startswith("check-"):
+        if not name.startswith("check-") and name not in EXTRA_GATE_SCRIPTS:
             continue
         src = strip_comments(path.read_text())
 
@@ -291,6 +298,16 @@ def self_test() -> int:
                         'import sys\nprint("{}")\n', "python3 scripts/report_thing.py")
         expect(check(wf, sc, advisory={}) == [], "control: non-gate tool ignored")
 
+        # CONTROL 3b - the explicitly gated worklist tool is in scope even
+        # though its name does not start with `check-`; a silent replacement
+        # must still be caught by RULE B.
+        wf, sc = _plant(tmp / "h2", "callee-composition-queue.py",
+                        'print("all good")\n',
+                        "python3 scripts/callee-composition-queue.py --self-test")
+        r = check(wf, sc, advisory={})
+        expect(len(r) == 1 and "RULE B" in r[0],
+               f"explicitly gated worklist tool is checked: {r}")
+
         # CONTROL 4 - a stale advisory entry naming nothing is caught.
         wf, sc = _plant(tmp / "i", "check-real.sh", 'set -e\nexit 1\n',
                         "scripts/check-real.sh")
@@ -305,7 +322,7 @@ def self_test() -> int:
 
     if ok:
         print("check-gates-can-fail --self-test: OK (2 planted gates caught "
-              "end-to-end through check(), 7 controls incl. both false "
+              "end-to-end through check(), 8 controls incl. both false "
               "accusations the first draft made, live tree clean)")
         return 0
     return 1

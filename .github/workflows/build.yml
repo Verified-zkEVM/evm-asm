@@ -222,6 +222,31 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
+      # #13013/#13015: the callee-composition worklist is a verifier-backed
+      # instrument, not a report-only script.  Its self-test needs the
+      # Program-derived shape dump, so generate that input only after its Lean
+      # producer has been built.  Exercise the missing-input path first: a
+      # self-test that silently accepts an absent dump is a green no-op.
+      - name: Callee-composition shape dump and self-test
+        run: |
+          set -euo pipefail
+          shape_dump="$RUNNER_TEMP/evm-asm-shape.tsv"
+          rm -f "$shape_dump"
+          if python3 scripts/callee-composition-queue.py --tsv "$shape_dump" --self-test; then
+            echo "::error::callee-composition self-test unexpectedly accepted a missing shape dump"
+            exit 1
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then
+              echo "::error::missing shape dump returned $status, expected hard-failure status 2"
+              exit "$status"
+            fi
+          fi
+          LAKE_ARTIFACT_CACHE=false lake build EvmAsm.Tests.GuestImageShapeDump
+          LAKE_ARTIFACT_CACHE=false lake env lean scripts/lean/GuestImageShapeDumpRun.lean > "$shape_dump"
+          test -s "$shape_dump"
+          python3 scripts/callee-composition-queue.py --tsv "$shape_dump" --self-test
+
       # Runs here, not in source-checks: re-deriving the export lists needs the
       # dependency's oleans, so it requires a build. Without this gate a
       # declaration added upstream would simply never surface under
