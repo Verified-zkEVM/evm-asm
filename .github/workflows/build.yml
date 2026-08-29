@@ -227,8 +227,9 @@ jobs:
       # Program-derived shape dump, so generate that input only after its Lean
       # producer has been built.  Exercise the missing-input path first: a
       # self-test that silently accepts an absent dump is a green no-op.  The
-      # planted controls are hard failures; live-tree exemplar drift is printed
-      # as advisory so routine improvements do not make CI red.
+      # planted controls and the current-tree regression pins are hard failures:
+      # when the tree improves past an exemplar, update the pin or replace it
+      # with a population invariant rather than weakening the check.
       - name: Callee-composition shape dump and self-test
         run: |
           set -euo pipefail

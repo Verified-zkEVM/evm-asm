@@ -71,7 +71,10 @@ ADVISORY_BY_DESIGN = {
 # disappear from CI just because its historical filename is not prefixed
 # `check-`.  Keep the exception named and small so ordinary report tools remain
 # out of scope (see the non-gate control in the self-test below).
-EXTRA_GATE_SCRIPTS = {"callee-composition-queue.py"}
+EXTRA_GATE_SCRIPTS = {
+    "callee-composition-queue.py",
+    "import-graph-metrics.py",
+}
 
 # Matches the three idioms used in this repo to PARSE a strictness flag.  The
 # context is required, not just the token: a script that merely mentions the
@@ -308,6 +311,16 @@ def self_test() -> int:
         expect(len(r) == 1 and "RULE B" in r[0],
                f"explicitly gated worklist tool is checked: {r}")
 
+        # CONTROL 3c - import-graph-metrics is another explicitly gated
+        # non-`check-*` script; its --check ratchet must not be invisible to
+        # this meta-gate merely because it is named as a metric tool.
+        wf, sc = _plant(tmp / "h3", "import-graph-metrics.py",
+                        'print("all good")\n',
+                        "python3 scripts/import-graph-metrics.py --check")
+        r = check(wf, sc, advisory={})
+        expect(len(r) == 1 and "RULE B" in r[0],
+               f"explicitly gated metrics tool is checked: {r}")
+
         # CONTROL 4 - a stale advisory entry naming nothing is caught.
         wf, sc = _plant(tmp / "i", "check-real.sh", 'set -e\nexit 1\n',
                         "scripts/check-real.sh")
@@ -322,7 +335,7 @@ def self_test() -> int:
 
     if ok:
         print("check-gates-can-fail --self-test: OK (2 planted gates caught "
-              "end-to-end through check(), 8 controls incl. both false "
+              "end-to-end through check(), 9 controls incl. both false "
               "accusations the first draft made, live tree clean)")
         return 0
     return 1
