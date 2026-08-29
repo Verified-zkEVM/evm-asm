@@ -778,7 +778,7 @@ is why this row pairs with `chain_validate_extra_data_length`. NO precondition a
 STEP BOUND: K20 (`rlp_list_nth_item`) only, so this row does NOT inherit #11461's \
 `7 * (2^64 - 1)` factor -- same as row 1, unlike the five numeric siblings. \
 Tied by `header_extra_data_length_of_decode` \
-(`Codegen/Programs/HeaderValidateExtraDataLengthBridge.lean`), consuming the machine triple \
+(`Codegen/Programs/HeaderValidateExtraDataLengthSpec.lean`), consuming the machine triple \
 `header_validate_extra_data_length_spec_within` and `decode_header_inv`. WHY `.ported` AND NOT \
 `.bridged`: the tie is FORMAL, but this family has no executable differential to inherit. \
 PORT-FIDELITY CLAUSE TABLE (required by `.ported`): `mkHeaderFields`' `extraData := getB 12` is \
