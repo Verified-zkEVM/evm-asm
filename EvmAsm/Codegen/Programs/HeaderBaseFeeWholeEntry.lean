@@ -93,13 +93,13 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
   have hhead := k73_head_spec_within
     sp0 spH raIn gasLimit gasUsed basePtr outPtr target
     v8 v9 v18 v19 v20 baseBytes outBytes F hsp htarget hF
-  have hbeq := beq_spec_gen_within .x11 .x18 (192 : BitVec 13)
+  have hbeq := beq_spec_gen_within .x11 .x18 (196 : BitVec 13)
     gasUsed target (K73 + 40)
   have hbeqC := cpsBranchWithin_extend_code
     (k73_whole_mem 10 _ (K73 + 40) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbeq
-  rw [show signExtend13 (192 : BitVec 13) = (192 : Word) by decide,
-    show (K73 + 40) + (192 : Word) = K73 + 232 by bv_omega,
+  rw [show signExtend13 (196 : BitVec 13) = (196 : Word) by decide,
+    show (K73 + 40) + (196 : Word) = K73 + 236 by bv_omega,
     show (K73 + 40) + 4 = K73 + 44 by bv_omega] at hbeqC
   have hbeqF := cpsBranchWithin_frameR
     (((.x20 : Reg) ↦ᵣ v20) ** Rest)
@@ -138,13 +138,13 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
     (fun _ hp => by
       dsimp [k73HeadPost, Fli, Rest] at hp ⊢
       xperm_chunked hp) hheadneq hliF
-  have hbltu := bltu_spec_gen_within .x18 .x11 (16 : BitVec 13)
+  have hbltu := bltu_spec_gen_within .x18 .x11 (20 : BitVec 13)
     target gasUsed (K73 + 48)
   have hbltuC := cpsBranchWithin_extend_code
     (k73_whole_mem 12 _ (K73 + 48) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbltu
-  rw [show signExtend13 (16 : BitVec 13) = (16 : Word) by decide,
-    show (K73 + 48) + (16 : Word) = K73 + 64 by bv_omega,
+  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) by decide,
+    show (K73 + 48) + (20 : Word) = K73 + 68 by bv_omega,
     show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hbltuC
   have hbltuF := cpsBranchWithin_frameR
     (((.x20 : Reg) ↦ᵣ (0 : Word)) ** Rest)
