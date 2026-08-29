@@ -5,6 +5,7 @@ byte copy `out[k] = sumByte[31-k]` (big-endian), then status + jump to the
 epilogue at PriceK+968, or status 1 on the overflow arm. Copy-loop cells use
 ofNat addressing; the entry converts the two check-phase se12 cells once.
 -/
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
