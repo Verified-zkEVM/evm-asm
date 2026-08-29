@@ -153,6 +153,50 @@ private theorem shift_lor_bit_toNat (rem bit : Word) (hbit : bit.toNat ≤ 1) :
     rw [hb1, nat_lor_one_of_even (by omega)]
     omega
 
+/-- Left-shifting the extended base byte by `7-n` and then by one equals
+    shifting by `8-n` (the recursion's base-byte bookkeeping). -/
+private theorem shifted_base_byte (b : BitVec 8) (n : Nat) (hn : n ≤ 7) :
+    ((BitVec.zeroExtend 64 b) <<< ((7 - n) : Nat)) <<< ((1 : BitVec 6).toNat)
+      = (BitVec.zeroExtend 64 b) <<< ((8 - n) : Nat) := by
+  have hb := b.isLt
+  have hz : (BitVec.zeroExtend 64 b).toNat = b.toNat := rfl
+  have h1 : BitVec.toNat (1 : BitVec 6) = 1 := rfl
+  have hle1 : b.toNat ≤ 255 := by omega
+  have hbnd : b.toNat * 2 ^ (7 - n) < 2 ^ 63 := by
+    calc b.toNat * 2 ^ (7 - n) ≤ 255 * 2 ^ 7 :=
+          Nat.mul_le_mul hle1 (Nat.pow_le_pow_right (by norm_num)
+            (show (7 : Nat) - n ≤ 7 by omega))
+      _ < 2 ^ 63 := by norm_num
+  have hbnd2 : b.toNat * 2 ^ (8 - n) < 2 ^ 64 := by
+    calc b.toNat * 2 ^ (8 - n) ≤ 255 * 2 ^ 8 :=
+          Nat.mul_le_mul hle1 (Nat.pow_le_pow_right (by norm_num)
+            (show (8 : Nat) - n ≤ 8 by omega))
+      _ < 2 ^ 64 := by norm_num
+  have he : (BitVec.zeroExtend 64 b <<< ((7 - n) : Nat)).toNat
+      = b.toNat * 2 ^ (7 - n) := by
+    rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hz,
+      Nat.mod_eq_of_lt (by have := hbnd; omega)]
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, he, h1, pow_one,
+    Nat.mod_eq_of_lt (by have := hbnd; omega),
+    BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, hz,
+    Nat.mod_eq_of_lt hbnd2,
+    show 2 ^ (8 - n) = 2 ^ (7 - n) * 2 from by
+      rw [show 8 - n = (7 - n) + 1 from by omega, Nat.pow_succ]]
+  ring
+
+/-- Multiplicative lifting of a residue out of a `2^64`-modulus: a factor
+    `c` can be moved across the mod boundary. -/
+private theorem mod_mul_lift (c x y : Nat) :
+    (c * (x % 2 ^ 64) + y) % 2 ^ 64 = (c * x + y) % 2 ^ 64 := by
+  have hx := Nat.div_add_mod x (2 ^ 64)
+  have heq : c * x + y = 2 ^ 64 * (c * (x / 2 ^ 64)) + (c * (x % 2 ^ 64) + y) := by
+    calc c * x + y = c * (2 ^ 64 * (x / 2 ^ 64) + x % 2 ^ 64) + y := by rw [hx]
+      _ = 2 ^ 64 * (c * (x / 2 ^ 64)) + (c * (x % 2 ^ 64) + y) := by ring
+  rw [heq,
+    Nat.add_comm (2 ^ 64 * (c * (x / 2 ^ 64))) (c * (x % 2 ^ 64) + y),
+    Nat.add_mul_mod_self_left]
+
 end EvmAsm.Codegen.U256DivU64Be
 
 -- Axiom audit while the file is small; extend as the closed form lands (coord 13030).
