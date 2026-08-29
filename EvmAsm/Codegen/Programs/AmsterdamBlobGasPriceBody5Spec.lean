@@ -13,14 +13,14 @@ instruction-identical, only their addresses move). The division helpers
 (`divst`, `lcnt`, `cnt`, the countdown fold) are duplicated here so the file
 is self-contained; theorems are renamed `exitdiv_* -> exitdiv_*`.
 -/
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
+
 
 set_option maxRecDepth 8000
 

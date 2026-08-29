@@ -14,7 +14,7 @@ back-edge jump (`jal_x0_spec_gen_within`). Values stay symbolic; the division
 recurrence (`r⁺ = 2r + msb`, conditional subtract) is carried as `ite` terms in
 the postcondition pins.
 -/
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
 
@@ -22,7 +22,6 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody3Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec
 
 set_option maxRecDepth 8000
 
