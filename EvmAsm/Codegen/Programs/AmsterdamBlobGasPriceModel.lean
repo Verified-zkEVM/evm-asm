@@ -27,6 +27,7 @@ import EvmAsm.Stateless.SpecRef.TaylorExponential
 import Mathlib.Data.List.GetD
 
 set_option exponentiation.threshold 384
+set_option maxRecDepth 8000
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPrice
 
@@ -970,6 +971,66 @@ inductive PriceLoopOut where
   | ovf
   deriving DecidableEq
 
+/-! ## Initial-state reachability at the iteration cap
+
+`priceLoopFuel` is deliberately useful at arbitrary loop states, but its
+overflow result alone cannot identify which arm fired.  In particular, the
+synthetic state `i = 496, acc = 1, output = 0` reaches the cap in the fueled
+model even though the exact bounded recurrence would still return `some 0`.
+That state is not reachable from the entry state.  The prefix below records
+the exact Nat recurrence from the entry `(i, acc, output) = (1, D, 0)` after a
+fixed number of successful rounds.  Its monotonicity and the measured
+boundary pair let the cap arm be correlated with the model only after this
+reachability relation has been supplied by the outer-loop invariant. -/
+
+def priceLoopPrefix (num : Nat) : Nat → Nat × Nat
+  | 0 => (taylorDenominator, 0)
+  | k + 1 =>
+      let s := priceLoopPrefix num k
+      (s.1 * num / (taylorDenominator * (k + 1)), s.2 + s.1)
+
+theorem priceLoopPrefix_mono
+    {num₁ num₂ k : Nat} (h_num : num₁ ≤ num₂) :
+    (priceLoopPrefix num₁ k).1 ≤ (priceLoopPrefix num₂ k).1 ∧
+      (priceLoopPrefix num₁ k).2 ≤ (priceLoopPrefix num₂ k).2 := by
+  induction k with
+  | zero =>
+    exact ⟨le_rfl, le_rfl⟩
+  | succ k ih =>
+    simp only [priceLoopPrefix]
+    obtain ⟨h_acc, h_output⟩ := ih
+    constructor
+    · apply Nat.div_le_div_right
+      exact Nat.mul_le_mul h_acc h_num
+    · exact Nat.add_le_add h_output h_acc
+
+theorem priceLoopPrefix_cap_output_ge {num : Nat}
+    (h_acc : 0 < (priceLoopPrefix num 495).1) :
+    taylorOutputBound ≤ (priceLoopPrefix num 495).2 := by
+  have h_lower : 2076461207 ≤ num := by
+    by_contra h_not
+    have h_num : num ≤ 2076461206 := by omega
+    have h_acc_le := (priceLoopPrefix_mono (k := 495) h_num).1
+    have h_zero : (priceLoopPrefix 2076461206 495).1 = 0 := by decide
+    omega
+  have h_output_mono := (priceLoopPrefix_mono (k := 495) h_lower).2
+  have h_output_boundary :
+      taylorOutputBound ≤ (priceLoopPrefix 2076461207 495).2 := by decide
+  exact le_trans h_output_boundary h_output_mono
+
+theorem priceLoopPrefix_cap_model_none {num : Nat}
+    (h_acc : 0 < (priceLoopPrefix num 495).1) :
+    taylor384Aux num taylorDenominator 496
+        (priceLoopPrefix num 495).1
+        (priceLoopPrefix num 495).2 = none := by
+  have h_output := priceLoopPrefix_cap_output_ge h_acc
+  have h_acc_ne : (priceLoopPrefix num 495).1 ≠ 0 := by omega
+  have h_sum :
+      taylorOutputBound ≤
+        (priceLoopPrefix num 495).2 + (priceLoopPrefix num 495).1 :=
+    le_trans h_output (Nat.le_add_right _ _)
+  rw [taylor384Aux.eq_1, if_neg h_acc_ne, if_pos h_sum]
+
 /-- The machine's Taylor loop as a pure fueled recursion, mirroring the
     guard order exactly: `acc = 0` exit, `i ≥ 496` exit, 384-bit sum
     overflow, 384-bit product overflow.  The `D·i ≥ 2^64` machine check is
@@ -1116,5 +1177,8 @@ theorem priceBytes_length (excess : Word) : (priceBytes excess).length = 32 := b
   · simp
 
 #print axioms priceLoopFuel_done_word384_bound
+#print axioms priceLoopPrefix_mono
+#print axioms priceLoopPrefix_cap_output_ge
+#print axioms priceLoopPrefix_cap_model_none
 
 end EvmAsm.Codegen.AmsterdamBlobGasPrice
