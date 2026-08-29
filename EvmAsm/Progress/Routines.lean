@@ -397,6 +397,8 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
 -- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
 -- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArmWitness
 
 namespace EvmAsm.Progress
 
@@ -1032,6 +1034,21 @@ def routineRegistry : List RoutineEntry := [
         ++ "pairwise code-range disjointness. K73 remains conditional; this "
         ++ "row records non-vacuity of the wrapper composition, not an "
         ++ "unconstrained K74 claim."),
+  -- #12849: the first closed arm of K70.  The status-0 under-target arm is
+  -- fully discharged at a concrete, non-vacuous point; the price-dependent
+  -- arms remain an explicit open dependency until the Amsterdam price callee
+  -- has its own machine contract.
+  routine "header_validate_excess_blob_gas" .conditional
+      (some "header_validate_excess_blob_gas_status0_arm_spec_within")
+      (gate := "status-0 under-target arm: the machine's parentTotal (x20) is "
+        ++ "below the Amsterdam target and thisExcess (x8) is zero. The "
+        ++ "registered inhabitant is the all-zero parent/header point; the "
+        ++ "registered negative control refutes the same gate at thisExcess = 1.")
+      (notes := "closed 29-step ABI-frame witness for the status-0 arm, "
+        ++ "independent of the still-open Amsterdam price loop. This is an "
+        ++ "honest conditional row, not a whole-routine K70 claim: the "
+        ++ "overflow, price, and mismatch arms remain to be composed once "
+        ++ "`priceContract` is discharged."),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -4594,12 +4611,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 217 := by decide
+theorem routineCount_eq : routineCount = 218 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 47 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 48 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4617,7 +4634,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 177 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 178 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5093,6 +5110,16 @@ private noncomputable abbrev _amsterdam_blob_gas_price_tail_copyarm_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
+-- #12849: K70's closed status-0 under-target arm, plus the gate's explicit
+-- inhabitant and negative control.  The whole-routine price-dependent arms
+-- remain open; keeping all three terms in the ledger prevents the conditional
+-- row from looking like an unconstrained K70 proof.
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_arm_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_admits_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_refutable_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
