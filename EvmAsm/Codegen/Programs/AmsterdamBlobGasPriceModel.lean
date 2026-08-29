@@ -985,10 +985,14 @@ after exactly 495 successful rounds the accumulator is `0` at the former
 numerator
  and `1` at the latter, with the latter prefix output already at least
  `taylorOutputBound`.  It is therefore not the raw `taylorExp384` boundary
- `2073394370 / 2073394371`, which concerns the eventual 256-bit result of the
- full recurrence.  The prefix pair lets the cap arm be correlated with the
- model only after this reachability relation has been supplied by the
- outer-loop invariant. -/
+`2073394370 / 2073394371`, which concerns the eventual 256-bit result of the
+full recurrence.  The prefix boundary is higher for a substantive reason:
+between the raw-result boundary and the prefix boundary the loop can reach
+`acc = 0` before the cap, while its eventual result is already too large for
+the 256-bit output.  Loop termination and final-result representability are
+separate obligations.  The prefix pair lets the cap arm be correlated with
+the model only after this reachability relation has been supplied by the
+outer-loop invariant. -/
 
 def priceLoopPrefix (num : Nat) : Nat → Nat × Nat
   | 0 => (taylorDenominator, 0)
