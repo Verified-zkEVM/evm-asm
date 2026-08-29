@@ -104,6 +104,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec.swapdiv_core
@@ -346,6 +348,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
+
 #print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
 
 #print axioms EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
@@ -520,6 +526,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
@@ -613,6 +621,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_region_sat
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+
+#print axioms EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+
+#print axioms EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
@@ -1019,6 +1035,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_inPlace_spec
 
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
 
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
 

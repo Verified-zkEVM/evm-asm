@@ -137,6 +137,62 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#12989 tranche 2 — edd ok path composed, 2026-08-29)
+
+- ✅ **`extractDepositData_ok_spec`**
+  (`Proofs/ExtractDepositDataOkSpec.lean`): flat whole-path
+  `cpsTripleWithin 7749` over the shared three-entry bundle image —
+  prologue, guard not taken, TEN `jal ra, edd_be32_eq` call groups and
+  FIVE `jal ra, edd_memcpy` call groups composed by `callWithin_spec`
+  with the leaves' DCode retSpecs, `a0 := 0`, epilogue.  At the deployed
+  probe arenas (payload `0x40000010`, out `0xa0010008`); the five
+  `mcStatic` premises are #12805's call-site discharges.  Row upgraded:
+  gate now claims fail arm + ok path; the ten mid-check rejection arms
+  are the remaining #12989 slice.
+- **Key idioms established** (first multi-call flat composition over
+  DCode leaves):
+  - `asrtM`'s `regFileIs` covers only `exposedRegs` — `sp`/`s0`/`s1`/
+    `ra` are FRAMED around each call, so callee-post forgetting is
+    confined to the exposed set (pack: explicit `rf` + per-register
+    `if_neg` rewrites; unpack: `regAtomsOf_to_regOwns`).
+  - Kernel deep-recursion on `flatten` ghost-independence: pin the
+    derivation's generated `Stmt` EXPLICITLY (`eddDeriv_stmt`, cheap
+    `rfl` — ghosts survive only in the loop-invariant slot) and prove
+    `flatten b = prog` for ANY base by `rw [eddDeriv_stmt]; rfl`.
+    Direct `rfl` on the un-pinned form blows the kernel's fixed
+    recursion guard regardless of `maxRecDepth`.
+  - `runBlock`'s argument grammar is a greedy `ident*` — it swallows a
+    following identifier-initial tactic line; keep it last in its
+    `by`-block or use a typed hole (`refine … (?_ : cps …)`).
+  - Restored the #12805 call-site section (`EddMemcpyCallSites`)
+    accidentally dropped by the tranche-1 emission swap.
+
+### Recent (#12989 tranche 1 — edd main body Program-ized + fail arm rowed, 2026-08-29)
+
+- ✅ **`extract_deposit_data` main body is now a Lean instruction list**:
+  `extractDepositData_prog` (76 insns, `Codegen/Programs/
+  ExtractDepositData.lean`) replaces the label-form text via
+  `emitProgram`; byte-identical over the whole three-entry unit
+  (428 bytes, assemble+cmp).  `extractDepositDataBundle_prog`
+  (++ `eddBe32Eq_prog` ++ `eddMemcpy_prog`, 107 insns, `#guard`-pinned)
+  is the shared image for the ok-path composition.  All branch/jal
+  offsets verified programmatically (bne +252 → fail tail; ten jal
+  +264..+120 → `edd_be32_eq`; five jal +192..+128 → `edd_memcpy`).
+- ✅ **Length-guard fail arm proven and rowed** (216/166+46cond/176):
+  `extractDepositData_lenFail_spec`
+  (`Proofs/ExtractDepositDataFailSpec.lean`) — flat `cpsTripleWithin
+  14` at `GuestAddrs.extract_deposit_data`: frame prologue (7 insns,
+  `runBlock`), `bne a1, 576` taken to the shared fail tail
+  (`cpsBranchWithin_takenPath` + pure-drop), `li a0, 1`, epilogue
+  restore + `jalr x0 ra`.  Rowed `.conditional` (gate: only the
+  `a1 ≠ 576` arm claimed; ok path is #12989's open remainder).
+  v4.33 note: `signExtend12 (-32)` must be concretized to
+  `0xFFFFFFFFFFFFFFE0` by `decide` before `bv_omega` sees it.
+- **#12989 remainder (documented, not started)**: the ok-path
+  composition — ten `edd_be32_eq` calls + five `edd_memcpy` calls over
+  `extractDepositDataBundle_prog` (callWithin + the leaves' DCode
+  retSpecs + the #12805 call-site instantiations).
+
 ### Recent (#12988 COMPLETE — all three rows, 2026-08-29)
 
 - ✅ **Tranche 2: the serializer twins rowed** (215/166/175):

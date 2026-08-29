@@ -148,6 +148,8 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
 import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
+import EvmAsm.Codegen.Proofs.ExtractDepositDataFailSpec
+import EvmAsm.Codegen.Proofs.ExtractDepositDataOkSpec
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -364,6 +366,8 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+-- #13030: envelope seam satisfiability and negative-control evidence.
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
 import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
@@ -393,9 +397,12 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 -- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
 -- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArmWitness
 
 namespace EvmAsm.Progress
 
@@ -1014,6 +1021,38 @@ def routineRegistry : List RoutineEntry := [
         ++ "production-shaped 0xf8/0x38 long-list full-premise instance at "
         ++ "RegionMap.inputRegion.base; the short-list inhabitant is also "
         ++ "available but is not the coverage citation)"),
+  -- #12979: closed K74 wrapper witness at the real composition seam.  The
+  -- concrete witness is conditional because the K73 increasing route has the
+  -- genuine input-domain gate `0 < target`.
+  routine "header_validate_base_fee" .conditional
+      (some "header_validate_base_fee_spec_within_inhabited")
+      (gate := "the wrapper selects the K73 increasing arm: `target = "
+        ++ "gas_limit >>> 1`, `target < gas_used`, and `0 < target` (the "
+        ++ "latter is the genuine input-domain gate from #12951). All "
+        ++ "ABI/resource hypotheses are discharged by the closed witness.")
+      (notes := "closed wrapper-level witness at the real K74 seam: "
+        ++ "`header_validate_base_fee_spec_within` consumes the Route-B K73 "
+        ++ "adapter and the u256-equality callee under the union code request. "
+        ++ "The concrete inhabitant uses gas_limit = 10,000, gas_used = 7,500, "
+        ++ "zero parent/header bytes, real aligned 32-byte regions, and "
+        ++ "pairwise code-range disjointness. K73 remains conditional; this "
+        ++ "row records non-vacuity of the wrapper composition, not an "
+        ++ "unconstrained K74 claim."),
+  -- #12849: the first closed arm of K70.  The status-0 under-target arm is
+  -- fully discharged at a concrete, non-vacuous point; the price-dependent
+  -- arms remain an explicit open dependency until the Amsterdam price callee
+  -- has its own machine contract.
+  routine "header_validate_excess_blob_gas" .conditional
+      (some "header_validate_excess_blob_gas_status0_arm_spec_within")
+      (gate := "status-0 under-target arm: the machine's parentTotal (x20) is "
+        ++ "below the Amsterdam target and thisExcess (x8) is zero. The "
+        ++ "registered inhabitant is the all-zero parent/header point; the "
+        ++ "registered negative control refutes the same gate at thisExcess = 1.")
+      (notes := "closed 29-step ABI-frame witness for the status-0 arm, "
+        ++ "independent of the still-open Amsterdam price loop. This is an "
+        ++ "honest conditional row, not a whole-routine K70 claim: the "
+        ++ "overflow, price, and mismatch arms remain to be composed once "
+        ++ "`priceContract` is discharged."),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -3049,6 +3088,35 @@ def routineRegistry : List RoutineEntry := [
         ++ "`bal_serializer_slot_to_le` row directly above; the two differ "
         ++ "only in their `la` immediates and placement. Lives in "
         ++ "`Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  -- #12989 tranche 1: the length-guard fail arm. The routine's main body
+  -- is now a Lean instruction list (`extractDepositData_prog`, emitted via
+  -- emitProgram, byte-identical to the previous label-form text — 428
+  -- bytes over the whole three-entry unit); this arm is call-free, so its
+  -- CodeReq is the main body's own program at the guest entry.
+  routine "extract_deposit_data" .conditional
+      (some "extractDepositData_ok_spec")
+      (gate := "two of the three arm families are claimed. Fail arm "
+        ++ "(`extractDepositData_lenFail_spec`): `a1 ≠ 576` returns "
+        ++ "`a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. Ok path "
+        ++ "(`extractDepositData_ok_spec`): at the deployed probe arenas "
+        ++ "(payload `0x40000010`, out `0xa0010008`), a 576-byte payload "
+        ++ "whose ten ABI header fields all satisfy `eddOk` gets its five "
+        ++ "raw fields copied to the output arena and returns `a0 = 0`. "
+        ++ "UNCLAIMED: the ten mid-check rejection arms (`a1 = 576` but "
+        ++ "some `edd_be32_eq` fails → `beq` taken to the fail tail, "
+        ++ "`a0 = 1`) — the remaining #12989 slice")
+      (notes := "ok path: flat whole-path `cpsTripleWithin 7749` over the "
+        ++ "shared three-entry bundle image "
+        ++ "(`CodeReq.ofProg … extractDepositDataBundle_prog`, 107 insns) "
+        ++ "— prologue, guard not taken, ten `jal ra, edd_be32_eq` and "
+        ++ "five `jal ra, edd_memcpy` call groups composed by "
+        ++ "`callWithin_spec` with the leaves' DCode retSpecs (the "
+        ++ "caller's exposed-register atoms packed into/unpacked from the "
+        ++ "callee `asrtM` register file; `sp`/`s0`/`s1`/`ra` framed — "
+        ++ "not in `exposedRegs`), `a0 := 0`, epilogue. #12805's "
+        ++ "call-site discharges supply the five `mcStatic` premises. "
+        ++ "Lives in `Codegen/Proofs/ExtractDepositDataOkSpec.lean`; the "
+        ++ "fail arm in `…FailSpec.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -4556,12 +4624,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 215 := by decide
+theorem routineCount_eq : routineCount = 218 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 48 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4579,7 +4647,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 175 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 178 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5055,6 +5123,20 @@ private noncomputable abbrev _amsterdam_blob_gas_price_tail_copyarm_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
+-- #13030: the full Taylor-round CPS body is consumed by the round-composition
+-- proofs and must be included independently of the enclosing tie row.
+private noncomputable abbrev _amsterdam_blob_gas_price_taylor_round_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
+-- #12849: K70's closed status-0 under-target arm, plus the gate's explicit
+-- inhabitant and negative control.  The whole-routine price-dependent arms
+-- remain open; keeping all three terms in the ledger prevents the conditional
+-- row from looking like an unconstrained K70 proof.
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_arm_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_admits_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_refutable_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -5668,6 +5750,11 @@ private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
 private noncomputable abbrev _k73_incr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
+-- #12979: closed K74 wrapper-level witness.  The concrete inhabitant composes
+-- the Route-B K73 adapter with the wrapper and discharges union-code
+-- monotonicity at real linked ranges.
+private noncomputable abbrev _header_validate_base_fee_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -5836,6 +5923,12 @@ private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
 -- #12988 tranche 2: the serializer twins' direct flat proofs.
 private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+-- #12989: the extract_deposit_data ok path (row witness) and the
+-- tranche-1 length-guard fail arm (kept swept alongside).
+private noncomputable abbrev _extract_deposit_data_routine_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
+private noncomputable abbrev _extract_deposit_data_fail_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
 private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
@@ -5971,6 +6064,16 @@ private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
 private noncomputable abbrev _block_access_list_hash_core_control_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+-- #13030: keep the envelope's positive instance, old-premise refutation and
+-- byte-level padding control on the generated axiom-audit surface.
+private noncomputable abbrev _keccak_envelope_region_sat_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_region_sat
+private noncomputable abbrev _keccak_envelope_exact_region_control_witness :=
+  @EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+private noncomputable abbrev _keccak_envelope_sat_exact_control_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+private noncomputable abbrev _keccak_envelope_padding_control_witness :=
+  @EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
