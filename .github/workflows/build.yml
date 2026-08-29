@@ -355,10 +355,12 @@ jobs:
             exit "$status"
           fi
 
-      # #12268: derives each routine's covering artifact set from MANIFEST.tsv +
-      # the pipeline and names the stale artifact (fixture vs source, tsv vs ELF,
-      # GuestAddrs vs tsv, GuestImageEntries vs MANIFEST+tsv, pins vs ELF).
-      # Blocking tier: deterministic, no network.
+      # #12268/#12836: checks the reviewed GENERATORS registry for the guest
+      # codegen artifact pipeline and names the stale artifact (fixture vs
+      # source, tsv vs ELF, GuestAddrs vs tsv, GuestImageEntries vs MANIFEST+tsv,
+      # pins vs ELF, transcription queue). Registry visibility and every
+      # entry's negative control are self-tested; other generated ledgers have
+      # their own gates. Blocking tier: deterministic, no network.
       - name: Derived-artifact consistency (self-test)
         run: |
           lake build codegen
