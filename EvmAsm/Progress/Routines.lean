@@ -148,6 +148,7 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
 import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
+import EvmAsm.Codegen.Proofs.ExtractDepositDataFailSpec
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -3049,6 +3050,26 @@ def routineRegistry : List RoutineEntry := [
         ++ "`bal_serializer_slot_to_le` row directly above; the two differ "
         ++ "only in their `la` immediates and placement. Lives in "
         ++ "`Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  -- #12989 tranche 1: the length-guard fail arm. The routine's main body
+  -- is now a Lean instruction list (`extractDepositData_prog`, emitted via
+  -- emitProgram, byte-identical to the previous label-form text — 428
+  -- bytes over the whole three-entry unit); this arm is call-free, so its
+  -- CodeReq is the main body's own program at the guest entry.
+  routine "extract_deposit_data" .conditional
+      (some "extractDepositData_lenFail_spec")
+      (gate := "`a1 ≠ 576` — only the length-guard fail arm is claimed: a "
+        ++ "payload whose length is not the canonical DEPOSIT_EVENT_LENGTH "
+        ++ "returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored and nothing "
+        ++ "written outside the three frame slots. The ok path (ten "
+        ++ "`edd_be32_eq` ABI checks and five `edd_memcpy` field "
+        ++ "extractions, composing the verified DCode leaves over the "
+        ++ "shared `extractDepositDataBundle_prog` image, #12805's "
+        ++ "call-site premises pre-discharged) is #12989's open remainder")
+      (notes := "flat whole-path `cpsTripleWithin 14` at "
+        ++ "`GuestAddrs.extract_deposit_data` over `CodeReq.ofProg … "
+        ++ "extractDepositData_prog` (76 insns): frame prologue, the 576 "
+        ++ "guard taken to the shared fail tail, `a0 := 1`, epilogue. "
+        ++ "Lives in `Codegen/Proofs/ExtractDepositDataFailSpec.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -4556,12 +4577,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 215 := by decide
+theorem routineCount_eq : routineCount = 216 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 46 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4579,7 +4600,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 175 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 176 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5836,6 +5857,9 @@ private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
 -- #12988 tranche 2: the serializer twins' direct flat proofs.
 private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+-- #12989 tranche 1: the extract_deposit_data length-guard fail arm.
+private noncomputable abbrev _extract_deposit_data_routine_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
 private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
