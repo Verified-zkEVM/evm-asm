@@ -149,6 +149,7 @@ import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
 import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
 import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
 import EvmAsm.Codegen.Proofs.ExtractDepositDataFailSpec
+import EvmAsm.Codegen.Proofs.ExtractDepositDataOkSpec
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -3093,20 +3094,29 @@ def routineRegistry : List RoutineEntry := [
   -- bytes over the whole three-entry unit); this arm is call-free, so its
   -- CodeReq is the main body's own program at the guest entry.
   routine "extract_deposit_data" .conditional
-      (some "extractDepositData_lenFail_spec")
-      (gate := "`a1 ≠ 576` — only the length-guard fail arm is claimed: a "
-        ++ "payload whose length is not the canonical DEPOSIT_EVENT_LENGTH "
-        ++ "returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored and nothing "
-        ++ "written outside the three frame slots. The ok path (ten "
-        ++ "`edd_be32_eq` ABI checks and five `edd_memcpy` field "
-        ++ "extractions, composing the verified DCode leaves over the "
-        ++ "shared `extractDepositDataBundle_prog` image, #12805's "
-        ++ "call-site premises pre-discharged) is #12989's open remainder")
-      (notes := "flat whole-path `cpsTripleWithin 14` at "
-        ++ "`GuestAddrs.extract_deposit_data` over `CodeReq.ofProg … "
-        ++ "extractDepositData_prog` (76 insns): frame prologue, the 576 "
-        ++ "guard taken to the shared fail tail, `a0 := 1`, epilogue. "
-        ++ "Lives in `Codegen/Proofs/ExtractDepositDataFailSpec.lean`"),
+      (some "extractDepositData_ok_spec")
+      (gate := "two of the three arm families are claimed. Fail arm "
+        ++ "(`extractDepositData_lenFail_spec`): `a1 ≠ 576` returns "
+        ++ "`a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. Ok path "
+        ++ "(`extractDepositData_ok_spec`): at the deployed probe arenas "
+        ++ "(payload `0x40000010`, out `0xa0010008`), a 576-byte payload "
+        ++ "whose ten ABI header fields all satisfy `eddOk` gets its five "
+        ++ "raw fields copied to the output arena and returns `a0 = 0`. "
+        ++ "UNCLAIMED: the ten mid-check rejection arms (`a1 = 576` but "
+        ++ "some `edd_be32_eq` fails → `beq` taken to the fail tail, "
+        ++ "`a0 = 1`) — the remaining #12989 slice")
+      (notes := "ok path: flat whole-path `cpsTripleWithin 7749` over the "
+        ++ "shared three-entry bundle image "
+        ++ "(`CodeReq.ofProg … extractDepositDataBundle_prog`, 107 insns) "
+        ++ "— prologue, guard not taken, ten `jal ra, edd_be32_eq` and "
+        ++ "five `jal ra, edd_memcpy` call groups composed by "
+        ++ "`callWithin_spec` with the leaves' DCode retSpecs (the "
+        ++ "caller's exposed-register atoms packed into/unpacked from the "
+        ++ "callee `asrtM` register file; `sp`/`s0`/`s1`/`ra` framed — "
+        ++ "not in `exposedRegs`), `a0 := 0`, epilogue. #12805's "
+        ++ "call-site discharges supply the five `mcStatic` premises. "
+        ++ "Lives in `Codegen/Proofs/ExtractDepositDataOkSpec.lean`; the "
+        ++ "fail arm in `…FailSpec.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -5913,8 +5923,11 @@ private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
 -- #12988 tranche 2: the serializer twins' direct flat proofs.
 private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
--- #12989 tranche 1: the extract_deposit_data length-guard fail arm.
+-- #12989: the extract_deposit_data ok path (row witness) and the
+-- tranche-1 length-guard fail arm (kept swept alongside).
 private noncomputable abbrev _extract_deposit_data_routine_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
+private noncomputable abbrev _extract_deposit_data_fail_witness :=
   @EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
 private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
