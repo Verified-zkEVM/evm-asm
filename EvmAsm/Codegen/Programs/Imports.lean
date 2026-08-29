@@ -494,6 +494,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus7Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus1Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlpSpec
