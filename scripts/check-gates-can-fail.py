@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Every gate wired into CI must be *capable* of failing.
+"""Every gate wired into the blocking build workflow must be *capable* of failing.
 
 #12931 fixed a gate that had been reporting four real drifts on green CI for
 weeks, because the workflow invoked it without `--strict` and the script's
@@ -36,8 +36,16 @@ Neither rule can tell whether a gate checks the RIGHT thing -- that is what a
 reachable.  A gate can pass this and still be useless; it cannot pass this and
 be structurally silent.
 
+The blocking candidate set is deliberately closed: direct `scripts/<name>`
+invocations in `.github/workflows/build.yml`.  Gate discovery therefore does
+not depend on the `check-*` filename convention or on an opt-in list.  The
+normal report distinguishes INVOKED scripts from the weaker source-level
+STATIC-ANALYSED result and lists any unanalysed names.  `--self-test` adds a
+separate PLANT-PROVEN count for synthetic end-to-end cases; that count is not a
+claim that a generic harness exercised every production gate's defect branch.
+
 Usage:
-  scripts/check-gates-can-fail.py              # exit 1 on an undeclared silent gate
+  scripts/check-gates-can-fail.py              # audit build.yml script invocations
   scripts/check-gates-can-fail.py --self-test  # planted cases + controls
 """
 from __future__ import annotations
@@ -49,6 +57,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 WORKFLOWS = REPO / ".github" / "workflows"
 SCRIPTS = REPO / "scripts"
+BUILD_WORKFLOW = WORKFLOWS / "build.yml"
 
 # Gates deliberately run in advisory mode, each with the reason its own header
 # gives.  Adding an entry here is a decision someone has to defend in review;
@@ -64,16 +73,6 @@ ADVISORY_BY_DESIGN = {
         "a style nudge over new `h<Upper>` binders, with no failure path at all "
         "by design -- it prints `advisory scan complete (exit 0)` and every "
         "finding is a rename suggestion, not a defect",
-}
-
-# Most CI gates use the `check-*` naming convention.  This one is an explicitly
-# gated verifier despite being a worklist tool: its self-test must not silently
-# disappear from CI just because its historical filename is not prefixed
-# `check-`.  Keep the exception named and small so ordinary report tools remain
-# out of scope (see the non-gate control in the self-test below).
-EXTRA_GATE_SCRIPTS = {
-    "callee-composition-queue.py",
-    "import-graph-metrics.py",
 }
 
 # Matches the three idioms used in this repo to PARSE a strictness flag.  The
@@ -127,10 +126,20 @@ INVOCATION = re.compile(r'(?<![\w/-])scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&
 
 
 def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
-    """script basename -> list of argument strings it is invoked with."""
-    workflows = workflows or WORKFLOWS
+    """Return script basename -> argument strings for workflow invocations.
+
+    The live audit intentionally uses only build.yml: it is the blocking
+    workflow's closed candidate set. A directory or file supplied explicitly
+    is still accepted so the self-test can plant complete miniature workflows.
+    """
+    if workflows is None:
+        workflow_files = [BUILD_WORKFLOW]
+    elif workflows.is_file():
+        workflow_files = [workflows]
+    else:
+        workflow_files = sorted(workflows.glob("*.yml"))
     found: dict[str, list[str]] = {}
-    for wf in sorted(workflows.glob("*.yml")):
+    for wf in workflow_files:
         for raw in wf.read_text().splitlines():
             line = raw.strip()
             # Skip YAML comments and prose lines that merely name a script.
@@ -140,6 +149,40 @@ def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
                 name, args = m.group(1), m.group(2)
                 found.setdefault(name, []).append(args.strip())
     return found
+
+
+def gate_inventory(workflows: Path | None = None,
+                   scripts: Path | None = None) -> dict[str, object]:
+    """Classify every workflow-wired script without using its filename.
+
+    ``static`` means the source file was read; ``static_can_fail`` is the
+    weaker source-level result from ``CAN_FAIL``. Neither is a dynamic proof
+    that a defect reaches the branch. The self-test's planted cases are the
+    separate end-to-end evidence class.
+    """
+    scripts = scripts or SCRIPTS
+    invocations = workflow_invocations(workflows)
+    static: list[str] = []
+    static_can_fail: list[str] = []
+    static_silent: list[str] = []
+    missing: list[str] = []
+    for name in sorted(invocations):
+        path = scripts / name
+        if not path.is_file():
+            missing.append(name)
+            continue
+        static.append(name)
+        if CAN_FAIL.search(strip_comments(path.read_text())):
+            static_can_fail.append(name)
+        else:
+            static_silent.append(name)
+    return {
+        "invocations": invocations,
+        "static": static,
+        "static_can_fail": static_can_fail,
+        "static_silent": static_silent,
+        "missing": missing,
+    }
 
 
 def check(workflows: Path | None = None, scripts: Path | None = None,
@@ -154,16 +197,15 @@ def check(workflows: Path | None = None, scripts: Path | None = None,
     scripts = scripts or SCRIPTS
     advisory = ADVISORY_BY_DESIGN if advisory is None else advisory
     problems: list[str] = []
-    invocations = workflow_invocations(workflows)
+    inventory = gate_inventory(workflows, scripts)
+    invocations = inventory["invocations"]
+    assert isinstance(invocations, dict)
     for name, arglists in sorted(invocations.items()):
         path = scripts / name
         if not path.is_file():
-            continue  # prose reference to a script that does not exist here
-        # Both rules are about GATES. `check-*` is this repo's gate namespace;
-        # other scripts in a workflow are tools and reporters -- wip_pr_gate.py
-        # always exits 0 by design because a later step consumes its JSON, and
-        # accusing it of being a silent gate is a category error.
-        if not name.startswith("check-") and name not in EXTRA_GATE_SCRIPTS:
+            problems.append(
+                f"  x {name}  RULE C -- invoked by the blocking workflow but its "
+                "source file is missing, so its failure path cannot be analysed")
             continue
         src = strip_comments(path.read_text())
 
@@ -243,14 +285,24 @@ def self_test() -> int:
 
     # ---- end-to-end: the whole `check()` over planted trees, not just regexes.
     tmp = Path(tempfile.mkdtemp(prefix="gates-selftest-"))
+    planted_passes = 0
+    planted_labels: list[str] = []
     try:
+        def expect_planted(cond: bool, label: str, name: str) -> None:
+            nonlocal planted_passes
+            if cond:
+                planted_passes += 1
+                planted_labels.append(name)
+            expect(cond, label)
+
         # PLANTED 1 - strict-capable gate invoked bare, undeclared: rule A fires.
         wf, sc = _plant(tmp / "a", "check-planted.sh",
                         f'[[ "${{1:-}}" == "{flag}" ]] && STRICT=1\n'
                         '[[ $STRICT -eq 1 ]] && exit 1\nexit 0\n',
                         "scripts/check-planted.sh")
         r = check(wf, sc, advisory={})
-        expect(len(r) == 1 and "RULE A" in r[0], f"planted rule A: {r}")
+        expect_planted(len(r) == 1 and "RULE A" in r[0], f"planted rule A: {r}",
+                       "check-planted.sh / Rule A")
 
         # CONTROL 1a - the same gate invoked WITH --strict: silent.
         wf, sc = _plant(tmp / "b", "check-planted.sh",
@@ -271,7 +323,8 @@ def self_test() -> int:
         wf, sc = _plant(tmp / "d", "check-mute.sh",
                         'echo "all good"\nexit 0\n', "scripts/check-mute.sh")
         r = check(wf, sc, advisory={})
-        expect(len(r) == 1 and "RULE B" in r[0], f"planted rule B: {r}")
+        expect_planted(len(r) == 1 and "RULE B" in r[0], f"planted rule B: {r}",
+                       "check-mute.sh / Rule B")
 
         # CONTROL 2a - `exit "$rc"` IS a failure path (the false accusation the
         # first draft of this script made against check-guest-elf-override.sh).
@@ -296,30 +349,50 @@ def self_test() -> int:
         expect(len(r) == 1 and "RULE B" in r[0],
                f"control: commented-out `exit 1` does not count: {r}")
 
-        # CONTROL 3 - a non-`check-*` tool is out of scope, however silent.
+        # CONTROL 2d - static presence is not dynamic reachability. An exit in
+        # an unreachable branch is intentionally accepted by this source scan;
+        # it is not counted among the plant-proven cases below.
+        wf, sc = _plant(tmp / "g2", "check-unreachable.sh",
+                        'if false; then exit 1; fi\nexit 0\n',
+                        "scripts/check-unreachable.sh")
+        expect(check(wf, sc, advisory={}) == [],
+               "control: unreachable static exit is not called plant-proven")
+
+        # CONTROL 3 - filename-neutral discovery: a silent script whose basename
+        # is not `check-*` is still an analysed build candidate.
         wf, sc = _plant(tmp / "h", "report_thing.py",
                         'import sys\nprint("{}")\n', "python3 scripts/report_thing.py")
-        expect(check(wf, sc, advisory={}) == [], "control: non-gate tool ignored")
+        r = check(wf, sc, advisory={})
+        expect_planted(len(r) == 1 and "RULE B" in r[0],
+                       f"filename-neutral silent script is caught: {r}",
+                       "report_thing.py / Rule B")
 
-        # CONTROL 3b - the explicitly gated worklist tool is in scope even
-        # though its name does not start with `check-`; a silent replacement
-        # must still be caught by RULE B.
+        # CONTROL 3b - the queue tool remains covered without an opt-in name list.
         wf, sc = _plant(tmp / "h2", "callee-composition-queue.py",
                         'print("all good")\n',
                         "python3 scripts/callee-composition-queue.py --self-test")
         r = check(wf, sc, advisory={})
-        expect(len(r) == 1 and "RULE B" in r[0],
-               f"explicitly gated worklist tool is checked: {r}")
+        expect_planted(len(r) == 1 and "RULE B" in r[0],
+                       f"queue tool is checked without an opt-in list: {r}",
+                       "callee-composition-queue.py / Rule B")
 
-        # CONTROL 3c - import-graph-metrics is another explicitly gated
-        # non-`check-*` script; its --check ratchet must not be invisible to
-        # this meta-gate merely because it is named as a metric tool.
+        # CONTROL 3c - import-graph-metrics is covered by the same behavioral
+        # discovery, not by a special exception.
         wf, sc = _plant(tmp / "h3", "import-graph-metrics.py",
                         'print("all good")\n',
                         "python3 scripts/import-graph-metrics.py --check")
         r = check(wf, sc, advisory={})
-        expect(len(r) == 1 and "RULE B" in r[0],
-               f"explicitly gated metrics tool is checked: {r}")
+        expect_planted(len(r) == 1 and "RULE B" in r[0],
+                       f"metrics tool is checked without an opt-in list: {r}",
+                       "import-graph-metrics.py / Rule B")
+
+        # CONTROL 3d - a counted but missing script is not silently skipped.
+        wf, sc = _plant(tmp / "h4", "present.py", 'print("all good")\n',
+                        "python3 scripts/missing.py")
+        r = check(wf, sc, advisory={})
+        expect_planted(len(r) == 1 and "RULE C" in r[0],
+                       f"missing source is reported as unanalysed: {r}",
+                       "missing.py / Rule C")
 
         # CONTROL 4 - a stale advisory entry naming nothing is caught.
         wf, sc = _plant(tmp / "i", "check-real.sh", 'set -e\nexit 1\n',
@@ -333,10 +406,30 @@ def self_test() -> int:
     live = check()
     expect(not live, "live tree clean, got:\n" + "\n".join(live))
 
+    live_inventory = gate_inventory()
+    invocations = live_inventory["invocations"]
+    static = live_inventory["static"]
+    static_can_fail = live_inventory["static_can_fail"]
+    missing = live_inventory["missing"]
+    silent = live_inventory["static_silent"]
+    assert isinstance(invocations, dict)
+    assert isinstance(static, list)
+    assert isinstance(static_can_fail, list)
+    assert isinstance(missing, list)
+    assert isinstance(silent, list)
+    expect(not missing and not silent,
+           "live inventory has no unanalysed scripts: "
+           f"missing={missing}, silent={silent}")
+
     if ok:
-        print("check-gates-can-fail --self-test: OK (2 planted gates caught "
-              "end-to-end through check(), 9 controls incl. both false "
-              "accusations the first draft made, live tree clean)")
+        print("check-gates-can-fail --self-test: OK ("
+              f"invoked={len(invocations)}; static-analysed={len(static)}; "
+              f"static-can-fail={len(static_can_fail)}; "
+              f"unanalysed=0; plant-proven={planted_passes} synthetic cases; "
+              "13 end-to-end assertions (6 planted + 7 controls, incl. both "
+              "false accusations the first draft made); "
+              "live tree clean)")
+        print("  plant-proven detector cases: " + ", ".join(planted_labels))
         return 0
     return 1
 
@@ -344,10 +437,22 @@ def self_test() -> int:
 def main() -> int:
     if "--self-test" in sys.argv[1:]:
         return self_test()
+    inventory = gate_inventory()
+    invocations = inventory["invocations"]
+    static = inventory["static"]
+    static_can_fail = inventory["static_can_fail"]
+    unanalysed = inventory["missing"] + inventory["static_silent"]
+    assert isinstance(invocations, dict)
+    assert isinstance(static, list)
+    assert isinstance(static_can_fail, list)
+    assert isinstance(unanalysed, list)
     problems = check()
-    n = len(workflow_invocations())
+    n = len(invocations)
     if problems:
-        print(f"check-gates-can-fail: {len(problems)} silent gate(s) of {n} wired:")
+        print(f"check-gates-can-fail: {len(problems)} problem(s); "
+              f"invoked={n}; static-analysed={len(static)}; "
+              f"static-can-fail={len(static_can_fail)}; "
+              f"unanalysed={len(unanalysed)}")
         print("\n".join(problems))
         print(
             "\nA gate that cannot fail is indistinguishable from an absent one, and\n"
@@ -355,8 +460,11 @@ def main() -> int:
             "strictness flag or declare the gate advisory with a reason.",
             file=sys.stderr)
         return 1
-    print(f"check-gates-can-fail: OK ({n} wired gate(s); "
-          f"{len(ADVISORY_BY_DESIGN)} declared advisory, rest can fail)")
+    print("check-gates-can-fail: OK ("
+          f"invoked={n}; static-analysed={len(static)}; "
+          f"static-can-fail={len(static_can_fail)}; unanalysed=0; "
+          f"plant-proven=see --self-test ({len(ADVISORY_BY_DESIGN)} declared "
+          "advisory strictness exceptions)")
     return 0
 
 
