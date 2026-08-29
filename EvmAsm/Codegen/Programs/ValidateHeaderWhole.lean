@@ -625,4 +625,10 @@ theorem validate_header_cps_compose
     hproC hcore'
   simpa [Nat.add_assoc] using hseq
 
+/- #12346 temporary module-floor audit.  The whole-header composition theorem
+   is not yet represented by a generated Progress/AxiomWitnesses row.  Keep
+   this source-level kernel report until its conditional `hcore` premise is
+   discharged and the theorem can move into the ordinary witness surface. -/
+#print axioms validate_header_cps_compose
+
 end EvmAsm.Codegen.ValidateHeaderWhole
