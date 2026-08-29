@@ -17,7 +17,7 @@
 
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
-import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.ValidateHeaderCheckGasLimit
