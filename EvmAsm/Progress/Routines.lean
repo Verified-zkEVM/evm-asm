@@ -341,10 +341,13 @@ import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
--- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
--- (no whole-routine row yet; witnesses still required for axiom gate).
+-- #12011/#13069 hash-half: `erh_hash_one` empty+nonempty tops under residual
+-- `h_sha`; the linked symbol now has a conditional registry row below.
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
+-- #13069: witness-code lookup's empty-section top is a linked whole-routine
+-- claim and is registered below as a conditional row.
+import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
@@ -4025,6 +4028,22 @@ def routineRegistry : List RoutineEntry := [
         ++ "B → B+300 does not return, so `requests_hash_verify` cannot "
         ++ "compose it and states the call under `ErhCallShape` instead"),
 
+  -- #13069: `erh_hash_one` has complete tops for the nonempty and empty-body
+  -- arms, but neither theorem alone is total over the input body.  Keep one
+  -- honest conditional row for the linked symbol and retain both arm
+  -- witnesses below so the axiom gate sees the full partial surface.
+  routine "erh_hash_one" .conditional
+      (some "erh_hash_one_spec_within_nonempty")
+      (gate := "`body ≠ []` (the nonempty-body arm); the complementary `body = []` "
+        ++ "top is `erh_hash_one_spec_within_empty` and is witnessed separately. "
+        ++ "Both tops discharge the SHA call through `ShaDischargeHyps`; arbitrary "
+        ++ "body/SHA composition remains outside this row")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.erh_hash_one` "
+        ++ "over the emitted hash-one program. The nonempty top carries the "
+        ++ "body-length partition; the empty top covers the zero-body edge. "
+        ++ "Both theorem forms are retained in the axiom ledger. Lives in "
+        ++ "`Codegen/Programs/ExecutionRequestsHashHashOne{,Nonempty}Top.lean`"),
+
   -- #12206: `assemble_execution_requests` — the ONE routine of that issue with
   -- zero callees, so it proves standalone with no unproven-callee residual to
   -- state it under. Five textually identical byte-copy loops (BEQ tops at
@@ -4427,6 +4446,30 @@ def routineRegistry : List RoutineEntry := [
         ++ "NOT established here: `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
         ++ "derived from the link map"),
+  -- #13069: these two linked lookup symbols have real whole-routine tops,
+  -- but only on empty/one-hit index classes.  The gates name those classes
+  -- explicitly so the rows do not read as claims about the general scans.
+  routine "witness_codes_lookup_by_hash" .conditional
+      (some "witness_codes_lookup_by_hash_spec_within_empty_section")
+      (gate := "`section_len = 0` and `wcidx_enabled = 0` (empty-section miss); "
+        ++ "the scan, indexed and nonempty-section arms are not claimed")
+      (notes := "whole-routine `cpsTripleWithin 52` at "
+        ++ "`GuestAddrs.witness_codes_lookup_by_hash`, over the emitted "
+        ++ "155-instruction program. The empty-section top proves the miss "
+        ++ "post and telemetry updates with no unproven callee reached; this "
+        ++ "is a conditional coverage row, not a claim about the scan/hash "
+        ++ "arms. Lives in `Codegen/Programs/WitnessCodesLookupSpec.lean`"),
+  routine "witness_lookup_by_hash_indexed" .conditional
+      (some "witness_lookup_by_hash_indexed_spec_within_one_hit")
+      (gate := "`widx_count = 1` with the target equal to the sole indexed "
+        ++ "record (one-hit); the complementary `widx_count = 0` empty-miss "
+        ++ "top is witnessed separately. Arbitrary binary-search counts remain "
+        ++ "outside the row")
+      (notes := "whole-routine tops at `GuestAddrs.witness_lookup_by_hash_indexed` "
+        ++ "cover the empty miss (`cpsTripleWithin 28`) and one-hit (`343`) "
+        ++ "domains. The row cites the one-hit top; both empty and one-hit "
+        ++ "theorems are witnessed so the partial surface remains auditable. "
+        ++ "Lives in `Codegen/Programs/WitnessLookupByHashIndexed*.lean`"),
   -- #12036. `witness_lookup_by_hash` (155 insn) at
   -- `GuestAddrs.witness_lookup_by_hash`, over the emitted program itself
   -- (`wlhCr = CodeReq.ofProg wlhB witnessLookupByHash_prog`). Graded
@@ -4636,12 +4679,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 218 := by decide
+theorem routineCount_eq : routineCount = 221 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 167 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 48 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -4659,7 +4702,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 178 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 181 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6129,13 +6172,16 @@ private noncomputable abbrev _zkvm_sha256_full_block_loop_witness :=
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
--- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha.
--- No Routines ROW yet (whole erh/rhv still open); witnesses still required so
--- check-axioms covers these modules (same pattern as #12018 phase witnesses).
+-- #12011/#13069 hash-half: `erh_hash_one` empty+nonempty tops under residual
+-- `h_sha`; the linked symbol is now rowed conditionally, and both forms stay
+-- witnessed so check-axioms covers the complete partial surface.
 private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #13069: witness-code lookup's empty-section machine top, now rowed below.
+private noncomputable abbrev _witness_codes_lookup_by_hash_routine_witness :=
+  @EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
 -- #12206: `assemble_execution_requests` whole routine (imported above —
 -- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
 private noncomputable abbrev _assemble_execution_requests_routine_witness :=
@@ -6250,6 +6296,10 @@ private noncomputable abbrev _witness_lookup_by_hash_enabled_one_hit_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
 private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_gen_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+private noncomputable abbrev _witness_lookup_by_hash_indexed_empty_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedEmpty.witness_lookup_by_hash_indexed_spec_within_empty
+private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit
 private noncomputable abbrev _witness_lookup_by_hash_hit_cells_distinct_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
 private noncomputable abbrev _witness_lookup_by_hash_legacy_empty_witness :=
