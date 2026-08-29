@@ -12,7 +12,7 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody3Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody3Spec
 
 set_option maxRecDepth 8000
 
