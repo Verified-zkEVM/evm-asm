@@ -11,7 +11,7 @@
   Absolute PCs move with the link; proofs use `H + offset` only.
 -/
 
-import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Evm64.CallingConvention
 

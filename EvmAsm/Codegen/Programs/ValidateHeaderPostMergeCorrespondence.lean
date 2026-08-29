@@ -11,7 +11,7 @@
   bridges remain usable independently of the deleted dead routine.
 -/
 
-import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.ChainValidatePostMergeFullSpec
 import EvmAsm.Codegen.Programs.SpecRefConstantPins
