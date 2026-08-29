@@ -328,6 +328,10 @@ def linked_spec_declarations(symbols: set[str]) -> list[tuple[str, str]]:
 
 LOOSE_SPEC_ALLOW = {
     "evmEnvLoadHandlerSpec": "evm_env is a data symbol, not this handler routine",
+    "sgValidateFixedList_retSpec":
+        "base-generic DCode retSpec of the sg_validate_fixed_list leaf; the "
+        "routine's linked whole-routine contract is sgValidateFixedListFlat_spec, "
+        "which SPEC_RE recognises and Routines.lean rows (#13071)",
     # K74's `_specref_` layer is deliberately attribution, not another machine
     # contract for `header_validate_base_fee`.  The main theorem composes the
     # machine-layer wrapper with SpecRef outcomes; the remaining declarations
