@@ -133,4 +133,7 @@ theorem taylor_round_source_full_from_parity_tail_core
     o0 o1 o2 o3 FR hFR rfl rfl (exits := tailExits) hZero
   exact ⟨_, hFull⟩
 
+#print axioms round_zero_from_parity_tail_core
+#print axioms taylor_round_source_full_from_parity_tail_core
+
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
