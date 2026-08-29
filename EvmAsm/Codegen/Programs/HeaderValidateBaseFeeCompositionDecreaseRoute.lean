@@ -21,7 +21,6 @@
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeEntry
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
-import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.U256MulU64Be.Arith
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
@@ -35,8 +34,6 @@ open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
 open EvmAsm.Codegen.U256DivU64BeSAsm
 open EvmAsm.Codegen.U256SubBeSAsm
-open EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract
-
 /-- Overflow test of the in-place subtraction on the nonzero decrease arm:
     `bne a0, x0, +52` at K73 + 220 sends a nonzero borrow to the shared
     failure exit (li x10, 1 at K73 + 272) and falls through to the successful

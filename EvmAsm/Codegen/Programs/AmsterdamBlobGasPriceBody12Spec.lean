@@ -7,7 +7,6 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody3Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody11Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody12Spec
@@ -15,7 +14,6 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody12Spec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody3Spec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec
 
 set_option maxRecDepth 8000

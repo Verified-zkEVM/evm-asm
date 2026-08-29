@@ -13,7 +13,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 set_option maxRecDepth 8000
 
 /-- The 5-instr exitDiv prologue over a small core frame; `FR` absorbs the
@@ -380,7 +380,7 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 
 set_option maxRecDepth 8000
