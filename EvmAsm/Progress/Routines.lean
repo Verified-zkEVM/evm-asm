@@ -3723,16 +3723,23 @@ def routineRegistry : List RoutineEntry := [
   -- triple.  Its callee adapters and both status arms are consumed; the
   -- six-instruction stack/prologue prefix at P..P+24 remains a separate
   -- composition obligation and is deliberately not hidden by `.proven`.
-  routine "priority_fee_per_gas_eip1559" .partly
-      (some "priority_fee_per_gas_eip1559_body_spec")
-      (notes := "linked body triple at `GuestAddrs.priority_fee_per_gas_eip1559 + 24` "
-        ++ "through `+88`: setup, `u256_sub_be`, the in-place `u256_min` call, "
-        ++ "status split, restore and return. The theorem consumes the concrete "
-        ++ "subtraction inhabitant and the exact-alias min contract, and states "
-        ++ "both success and reject posts. It intentionally does NOT claim the "
-        ++ "six-instruction entry prologue at `P..P+24`; an entry-anchored whole-"
-        ++ "routine triple is the remaining Stage 2 composition. Lives in "
-        ++ "`Codegen/Programs/U256GasPricingSAsm.lean`"),
+  -- #13068 Stage 2: the entry prologue and epilogue are composed with the
+  -- body triple; the contract is now entry-anchored and all-outcome.
+  routine "priority_fee_per_gas_eip1559" .proven
+      (some "priority_fee_per_gas_eip1559_spec")
+      (notes := "entry-anchored whole-routine triple at "
+        ++ "`GuestAddrs.priority_fee_per_gas_eip1559`: frame prologue, setup, "
+        ++ "`u256_sub_be`, the in-place `u256_min` call, status split, restore "
+        ++ "and return, ending at the aligned `ra` with `sp` and the four "
+        ++ "callee-saved registers restored. The post is the success/reject "
+        ++ "disjunction: `a0 = 0` with `min(priority, max_fee - base_fee)` "
+        ++ "written to `*out`, or `a0 = 1` when the subtraction borrowed "
+        ++ "(`max_fee < base_fee`). ABI/resource hypotheses only (region wf, "
+        ++ "alignment, disjointness of `out` from the two read operands); no "
+        ++ "input-domain gate. Consumes the concrete subtraction inhabitant "
+        ++ "and the exact-alias min contract; the saved-register entry values "
+        ++ "are arbitrary (#13068 generalized the body's pinned setup). Lives "
+        ++ "in `Codegen/Programs/U256GasPricingSAsm.lean`"),
   -- #12659 Stage 2: entry-anchored all-outcome gas/refund arithmetic triple.
   routine "tx_gas_result_increments" .proven
       (some "tx_gas_result_increments_spec")
@@ -4631,11 +4638,11 @@ set_option maxRecDepth 16000 in
 theorem routineCount_eq : routineCount = 218 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 167 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 48 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -6035,6 +6042,9 @@ private noncomputable abbrev _u256_min_routine_witness :=
 -- #12659 Stage 2: the linked priority body and gas-result entry witnesses.
 private noncomputable abbrev _priority_fee_per_gas_eip1559_body_routine_witness :=
   @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
+-- #13068 Stage 2: the entry-anchored whole-routine contract (row witness).
+private noncomputable abbrev _priority_fee_per_gas_eip1559_routine_witness :=
+  @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
