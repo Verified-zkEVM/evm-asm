@@ -35,7 +35,7 @@ namespace EvmAsm.Rv64
 namespace SailEquiv
 
 /-- Every simulable instruction is mapped by `toSailInstr?`. -/
-theorem toSailInstr?_isSome_of_simulable {i : Instr} (h : i.simulable = true) :
+theorem toSailInstr?_isSome_of_simulable {i : Instr} (h : Instr.simulable i = true) :
     ∃ si, toSailInstr? i = some si := by
   cases i <;> simp_all [Instr.simulable, toSailInstr?]
 
@@ -45,7 +45,7 @@ theorem toSailInstr?_isSome_of_simulable {i : Instr} (h : i.simulable = true) :
     as an ordinary non-memory instruction, via the catch-all
     `some i => some (execInstrBr s i)` arm.) -/
 theorem step_eq_execInstrBr {s s' : MachineState} {i : Instr}
-    (hfetch : s.code s.pc = some i) (hsim : i.simulable = true)
+    (hfetch : s.code s.pc = some i) (hsim : Instr.simulable i = true)
     (hstep : step s = some s') : s' = execInstrBr s i := by
   cases i
   case ECALL => exact absurd hsim (by simp [Instr.simulable])
@@ -131,7 +131,7 @@ theorem instrSideCond_of_runInv {lo hi : Nat} {sRv : MachineState} {sSail : Sail
     {i : Instr} (hinv : RunInv lo hi sRv sSail)
     (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
     (hlo : RAM_MEM_START ≤ lo) (hhi : hi ≤ RAM_MEM_END)
-    (hfetch : sRv.code sRv.pc = some i) (hsim : i.simulable = true)
+    (hfetch : sRv.code sRv.pc = some i) (hsim : Instr.simulable i = true)
     (hside : stepSideCond lo hi sRv)
     (hguard : step sRv ≠ none) : instrSideCond i sRv sSail := by
   cases i
@@ -328,7 +328,7 @@ theorem sailStep_run_sim {lo hi : Nat} {sRv sRv' : MachineState} {sSail : SailSt
     {i : Instr} {si : SailInstr}
     (hinv : RunInv lo hi sRv sSail)
     (hlo : RAM_MEM_START ≤ lo) (hhi : hi ≤ RAM_MEM_END)
-    (hfetch : sRv.code sRv.pc = some i) (hsim : i.simulable = true)
+    (hfetch : sRv.code sRv.pc = some i) (hsim : Instr.simulable i = true)
     (hsi : toSailInstr? i = some si) (hside : stepSideCond lo hi sRv)
     (hstep : step sRv = some sRv') :
     ∃ sSail', runSail (sailStep si) sSail = some ((), sSail') ∧ RunInv lo hi sRv' sSail' := by
@@ -383,7 +383,7 @@ theorem sailStepN_run_sim (n : Nat) {lo hi : Nat} {sRv sRv' : MachineState} {sSa
     (hlo : RAM_MEM_START ≤ lo) (hhi : hi ≤ RAM_MEM_END)
     (hrun : stepN n sRv = some sRv')
     (hok : ∀ k, k < n → ∀ sMid, stepN k sRv = some sMid →
-      (∃ i, sMid.code sMid.pc = some i ∧ i.simulable = true) ∧ stepSideCond lo hi sMid) :
+      (∃ i, sMid.code sMid.pc = some i ∧ Instr.simulable i = true) ∧ stepSideCond lo hi sMid) :
     ∃ sSail', runSail (sailStepN n sRv) sSail = some ((), sSail') ∧ RunInv lo hi sRv' sSail' := by
   induction n generalizing sRv sSail with
   | zero =>
@@ -402,7 +402,7 @@ theorem sailStepN_run_sim (n : Nat) {lo hi : Nat} {sRv sRv' : MachineState} {sSa
       obtain ⟨sA, hsA, hinvA⟩ :=
         sailStep_run_sim hinv hlo hhi hfetch hsim hsi hside hstep
       have hok' : ∀ k, k < m → ∀ s, stepN k sMid = some s →
-          (∃ j, s.code s.pc = some j ∧ j.simulable = true) ∧ stepSideCond lo hi s := by
+          (∃ j, s.code s.pc = some j ∧ Instr.simulable j = true) ∧ stepSideCond lo hi s := by
         intro k hk s hs
         refine hok (k + 1) (by omega) s ?_
         rw [stepN_succ, hstep]

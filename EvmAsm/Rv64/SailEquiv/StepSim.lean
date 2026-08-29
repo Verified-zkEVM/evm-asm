@@ -245,7 +245,7 @@ theorem step_execute_sail_sim_uncond
     (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
     (i : Instr) (si : SailInstr)
     (h : toSailInstr? i = some si)
-    (huncond : i.simulableUncond = true) :
+    (huncond : Instr.simulableUncond i = true) :
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv i) sSail' ∧
@@ -314,7 +314,7 @@ theorem step_execute_sail_sim_of_uncond
     (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
     (i : Instr) (si : SailInstr)
     (h : toSailInstr? i = some si)
-    (huncond : i.simulableUncond = true) :
+    (huncond : Instr.simulableUncond i = true) :
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
       StateRel (execInstrBr sRv i) sSail' ∧
@@ -340,7 +340,7 @@ theorem step_execute_sail_sim
     (h_nextpc : sSail.regs.get? Register.nextPC = some (sRv.pc + 4))
     (i : Instr) (si : SailInstr)
     (h : toSailInstr? i = some si)
-    (hsim : i.simulable = true)
+    (hsim : Instr.simulable i = true)
     (hside : instrSideCond i sRv sSail) :
     ∃ sSail',
       runSail (execute si) sSail = some (RETIRE_SUCCESS, sSail') ∧
