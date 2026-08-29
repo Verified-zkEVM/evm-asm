@@ -7,6 +7,7 @@
    values for the subsequent exit-divide and outer-loop adapters.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
@@ -1029,6 +1030,50 @@ theorem exitdiv_tail_core_x0_split
       signExtend12 (-8 : BitVec 12)) (lcnt 5 + signExtend12 (-1 : BitVec 12))
     hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
   simpa only [exitdivTailPre] using hCore
+
+/- At odd outer-loop parity the logical `AB` buffer is the physical `+112`
+   buffer and `PB` is the physical `+64` buffer.  `exitdiv_seq_tail` names
+   those physical cells as its `a` and `p` arguments, so the continuation must
+   swap the argument values rather than assert the even-parity equalities. -/
+theorem round_zero_exitdiv_tail_swapped
+    (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v7 v28 v29 v30 v31 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion) (hFR : FR.pcFree)
+    (hAB : AB = newSp + signExtend12 (112 : BitVec 12))
+    (hPB : PB = newSp + signExtend12 (64 : BitVec 12))
+    {exits : List (Word × Assertion)}
+    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
+      (exitdivTailPre newSp excess outPtr iVal vals
+        p0 p1 p2 p3 p4 p5 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+        o0 o1 o2 o3 AB PB FR) exits) :
+    cpsNBranchWithin 4183 (PriceK + 804) priceCode
+      (roundZero newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+        v7 v28 v29 v30 v31 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR)) exits := by
+  have hSeq := exitdiv_seq_tail newSp excess outPtr iVal vals
+    p0 p1 p2 p3 p4 p5 a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5
+    o0 o1 o2 o3 (roundAccum a0 a1 a2 a3 a4 a5) a5 v7 AB PB v28 v29 v30 v31
+    FR hFR hTail
+  refine cpsNBranchWithin_weaken_pre ?_ hSeq
+  intro h hp
+  simp only [roundZero] at hp
+  have hp' := EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.pure_drop_mid
+    (L1 := (.x18 ↦ᵣ iVal))
+    (L2 := ((.x5 ↦ᵣ (roundAccum a0 a1 a2 a3 a4 a5)) ** (.x0 ↦ᵣ (0 : Word))))
+    (P := roundAccum a0 a1 a2 a3 a4 a5 = (0 : Word))
+    (R := roundFrame newSp excess outPtr AB PB vals a5 v7 v28 v29 v30 v31
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+      (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR))
+    h (by
+      simpa only [sepConj_assoc'] using hp)
+  simp only [roundFrame, exitdivPre, exitdivOutputCells, hAB, hPB,
+    EvmAsm.Rv64.AddrNorm.se12_0, EvmAsm.Rv64.AddrNorm.se12_8,
+    EvmAsm.Rv64.AddrNorm.se12_16, EvmAsm.Rv64.AddrNorm.se12_24,
+    EvmAsm.Rv64.AddrNorm.se12_32, EvmAsm.Rv64.AddrNorm.se12_40,
+    EvmAsm.Rv64.AddrNorm.word_add_zero] at hp' ⊢
+  xperm_hyp hp'
 
 /- Consume the linked tail at the terminal-index round.  The existential is
    only the list-level packaging needed by the preceding parity adapter; its
