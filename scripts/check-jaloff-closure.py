@@ -49,6 +49,12 @@ WHAT IT CHECKS.  Pure source scan, seconds, no build:
      An allowlist row whose target is no longer violated is reported
      STALE-EXEMPTION and fails: the file cannot outlive its findings.
 
+  5. Assert a reviewed lower bound on the expandable declaration bodies that
+     the live entry closure actually traverses, plus a few required production
+     declarations.  The positive self-test alone cannot detect a classifier
+     that silently expands nothing, because its synthetic Program contains an
+     explicit `jalOff`.
+
 LIMITATIONS (textual over-approximation, accepted): the expansion follows
 identifiers, not elaboration, so a helper shared with a non-entry context
 attributes all of its `jalOff`s to the entry.  A false positive is resolved
@@ -118,6 +124,22 @@ EXPAND_RETURN_TYPES = {
 }
 
 PROG_SUFFIX_RE = re.compile(r"(?:_prog|_prog_of|_prog_with_cap)$")
+
+# A positive self-test can still pass if production expansion silently goes
+# empty: its planted Program contains an explicit ``jalOff`` and therefore
+# bypasses the declaration-shape classifier.  Keep a reviewed lower bound on
+# the number of instruction-bearing declaration bodies that the live entry
+# closure actually expands, plus a few production declarations whose
+# expansion is essential to the closure's purpose.  These are lower bounds:
+# adding entries or call paths is harmless, while a drop requires an explicit
+# update after reviewing the scanner/tree change.
+EXPANDABLE_BODY_FLOOR = 526
+REQUIRED_EXPANSIONS = frozenset({
+    "rlpFieldToU64_prog",
+    "rlpWalkNext_prog",
+    "headerExtendedDecode_prog",
+    "validateHeader_prog",
+})
 
 
 def expandable(body: str) -> bool:
@@ -214,6 +236,51 @@ def reachable_bodies(
                 if tgt is not None and tgt not in seen:
                     worklist.append(tgt)
     return out
+
+
+def expansion_inventory(
+    rows: list[tuple[str, str]],
+    defs: dict[str, list[tuple[str, int, str]]],
+) -> tuple[int, set[str]]:
+    """Count and name declaration bodies expanded from live entries.
+
+    ``reachable_bodies`` is the production traversal, so this inventory is
+    deliberately taken from its result rather than from a second parser.  A
+    body is part of the expansion population when ``expandable`` accepts it;
+    the name set provides the small required-path assertions below.
+    """
+    seen_bodies: set[tuple[str, str, int]] = set()
+    names: set[str] = set()
+    count = 0
+    for _entry, prog in rows:
+        for name, path, line, body in reachable_bodies(prog, defs):
+            key = (name, path, line)
+            if key in seen_bodies:
+                continue
+            seen_bodies.add(key)
+            if expandable(body):
+                count += 1
+                names.add(name)
+    return count, names
+
+
+def expansion_visibility_problems(
+    rows: list[tuple[str, str]],
+    defs: dict[str, list[tuple[str, int, str]]],
+) -> list[str]:
+    """Fail closed if live declaration expansion falls below its floor."""
+    count, names = expansion_inventory(rows, defs)
+    problems: list[str] = []
+    if count < EXPANDABLE_BODY_FLOOR:
+        problems.append(
+            "  x LIVE EXPANSION -- expandable body count %d is below floor %d; "
+            "declaration expansion may have gone silent"
+            % (count, EXPANDABLE_BODY_FLOOR))
+    for name in sorted(REQUIRED_EXPANSIONS - names):
+        problems.append(
+            "  x LIVE EXPANSION -- required declaration %s was not expanded"
+            % name)
+    return problems
 
 
 def strip_noise(text: str) -> str:
@@ -437,6 +504,19 @@ def main() -> int:
     if args.self_test:
         # In-memory only: add a synthetic registered entry whose Program jals
         # an unregistered target, plus its def.  The gate must flag exactly it.
+        production_defs = index_defs(files)
+        visibility = expansion_visibility_problems(rows, production_defs)
+        if visibility:
+            print("SELF-TEST FAIL: live expansion visibility:\n  " +
+                  "\n  ".join(visibility))
+            return 1
+        empty_visibility = expansion_visibility_problems([], {})
+        if not any("below floor" in problem for problem in empty_visibility):
+            print("SELF-TEST FAIL: empty expansion floor control was accepted")
+            return 1
+        if not any("required declaration" in problem for problem in empty_visibility):
+            print("SELF-TEST FAIL: required-expansion control was accepted")
+            return 1
         rows = rows + [(SELFTEST_ENTRY, SELFTEST_PROG)]
         canary = (
             f"def {SELFTEST_PROG} : Program :=\n"
@@ -457,15 +537,21 @@ def main() -> int:
             print("SELF-TEST FAIL: unexpected extra violations "
                   f"{[(e, t) for e, t, *_ in unexpected]}")
             return 1
-        print("SELF-TEST PASS: planted unregistered jalOff target was flagged")
+        count, _names = expansion_inventory(rows[:-1], production_defs)
+        print("SELF-TEST PASS: planted unregistered jalOff target was flagged; "
+              f"live expansion floor observed ({count} bodies)")
         return 0
 
     defs = index_defs(files)
     GLOBAL_ROW_COUNT = len(rows)
+    visibility = expansion_visibility_problems(rows, defs)
+    for problem in visibility:
+        print(problem)
     violations, warnings = collect_violations(rows, defs)
     for w in warnings:
         print(f"warning: {w}", file=sys.stderr)
-    return report(violations, allow)
+    rc = report(violations, allow)
+    return 1 if visibility else rc
 
 
 if __name__ == "__main__":
