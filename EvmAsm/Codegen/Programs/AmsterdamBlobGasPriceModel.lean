@@ -980,8 +980,15 @@ model even though the exact bounded recurrence would still return `some 0`.
 That state is not reachable from the entry state.  The prefix below records
 the exact Nat recurrence from the entry `(i, acc, output) = (1, D, 0)` after a
 fixed number of successful rounds.  Its monotonicity and the measured
-boundary pair let the cap arm be correlated with the model only after this
-reachability relation has been supplied by the outer-loop invariant. -/
+prefix boundary pair `2076461206 / 2076461207` are **prefix-conditioned**:
+after exactly 495 successful rounds the accumulator is `0` at the former
+numerator
+ and `1` at the latter, with the latter prefix output already at least
+ `taylorOutputBound`.  It is therefore not the raw `taylorExp384` boundary
+ `2073394370 / 2073394371`, which concerns the eventual 256-bit result of the
+ full recurrence.  The prefix pair lets the cap arm be correlated with the
+ model only after this reachability relation has been supplied by the
+ outer-loop invariant. -/
 
 def priceLoopPrefix (num : Nat) : Nat → Nat × Nat
   | 0 => (taylorDenominator, 0)
