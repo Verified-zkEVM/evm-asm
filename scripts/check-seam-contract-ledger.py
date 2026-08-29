@@ -183,7 +183,7 @@ def validate(path: Path = LEDGER) -> list[str]:
 
 
 def self_test() -> int:
-    """Exercise the missing-target and missing-reason failure directions."""
+    """Exercise every failure direction the checker is intended to catch."""
     baseline = validate()
     if baseline:
         print("check-seam-contract-ledger --self-test: FAIL — baseline is invalid")
@@ -197,24 +197,58 @@ def self_test() -> int:
 
     with tempfile.TemporaryDirectory(prefix="seam-contract-ledger-") as td:
         temp = Path(td) / "ledger.tsv"
-        # A target rename must fail loudly rather than silently dropping a row.
-        temp.write_text(original.replace("priceBodyContract", "priceBodyContract_removed", 1))
-        if not validate(temp):
-            print("check-seam-contract-ledger --self-test: FAIL — stale target passed")
+
+        def expect_failure(label: str, contents: str) -> bool:
+            temp.write_text(contents)
+            if not validate(temp):
+                print(f"check-seam-contract-ledger --self-test: FAIL — {label} passed")
+                return False
+            return True
+
+        # 1. A target rename must fail loudly rather than silently dropping a row.
+        if not expect_failure(
+            "stale target",
+            original.replace("priceBodyContract", "priceBodyContract_removed", 1),
+        ):
             return 1
-        # A NONE marker without its reason must also fail; this protects the
+
+        # 2. An evidence name that is not declared anywhere is a stale citation.
+        if not expect_failure(
+            "stale evidence reference",
+            original.replace("taylor_price_entry_inhabited", "deleted_entry_witness", 1),
+        ):
+            return 1
+
+        # 3. A duplicate target must not be allowed to hide conflicting rows.
+        if not expect_failure("duplicate target", original + "\n" + first_data + "\n"):
+            return 1
+
+        # 4. A NONE marker without its reason must fail; this protects the
         # explicit-unwitnessed state from degrading into an empty field.
         fields = first_data.split("\t")
         fields[7] = ""
-        temp.write_text(
-            original.replace(first_data, "\t".join(fields), 1)
-        )
-        if not validate(temp):
-            print("check-seam-contract-ledger --self-test: FAIL — missing reason passed")
+        if not expect_failure(
+            "missing reason",
+            original.replace(first_data, "\t".join(fields), 1),
+        ):
+            return 1
+
+        # 5. A real declaration which is not printed by AxiomWitnesses is not
+        # evidence merely because its name resolves.  Use an existing helper
+        # theorem absent from that generated module to exercise this distinction.
+        if not expect_failure(
+            "declared-but-unwitnessed evidence",
+            original.replace(
+                "taylor_price_entry_inhabited",
+                "EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.priceOutputPost_pcFree",
+                1,
+            ),
+        ):
             return 1
     print(
         "check-seam-contract-ledger --self-test: PASS "
-        "(stale-target and missing-reason failures both detected)"
+        "(stale-target, stale-evidence, duplicate, missing-reason and "
+        "declared-but-unwitnessed failures all detected)"
     )
     return 0
 
