@@ -111,13 +111,12 @@ theorem taylor_round_source_full_status1
     (v5 v6 v7 v28 v29 v30 v31 : Word)
     (o0 o1 o2 o3 : Word) (FR : Assertion)
     (hFR : FR.pcFree)
-    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
-    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
     {exits : List (Word × Assertion)}
-    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
-      (exitdivTailPre newSp excess outPtr iVal vals
+    (hZero : cpsNBranchWithin 4183 (PriceK + 804) priceCode
+      (roundZero newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
         a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-        o0 o1 o2 o3 AB PB FR) exits) :
+        v7 v28 v29 v30 v31 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR)) exits) :
     cpsNBranchWithin
         (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1)
         (PriceK + 144) priceCode
@@ -284,18 +283,21 @@ theorem taylor_round_source_full_status1
     simpa only [taylorRoundSourceFull, source0, source1, source2, source3,
       source4, source5, sourceFF, sourceQOVF, sourceQBACK,
       List.cons_append, List.nil_append, List.append_assoc] using hRound
-  have hZero := round_zero_exitdiv_tail
-    newSp excess outPtr iVal AB PB vals
-    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-    v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB hTail
+  have hZero' :
+      cpsNBranchWithin 4183 (PriceK + 804) priceCode
+        (roundZero newSp excess outPtr iVal AB PB vals
+          (roundAccum a0 a1 a2 a3 a4 a5)
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
+          v7 v28 v29 v30 v31 FR0) exits := by
+    simpa only [FR0] using hZero
   have hZero_pre : ∀ h,
       taylorRoundSourceZero newSp excess outPtr iVal AB PB vals
         a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
         v7 v28 v29 v30 v31 FR0 h →
       roundZero newSp excess outPtr iVal AB PB vals
         (roundAccum a0 a1 a2 a3 a4 a5)
-        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-        v7 v28 v29 v30 v31 FR0 h := by
+        a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1
+        s2 s3 s4 s5 v7 v28 v29 v30 v31 FR0 h := by
     intro h hp
     simp only [taylorRoundSourceZero, roundZero, roundFrame,
       roundAccum, EvmAsm.Rv64.AddrNorm.se12_0,
@@ -384,7 +386,7 @@ theorem taylor_round_source_full_status1
       (PriceK + 964, source4) :: (PriceK + 964, source5) ::
       (PriceK + 964, sourceFF) :: (PriceK + 964, sourceQOVF) ::
       [(PriceK + 144, sourceQBACK)])
-    hRound' hZero hZero_pre hTerm hTerm_pre hCarry hCarry_pre
+    hRound' hZero' hZero_pre hTerm hTerm_pre hCarry hCarry_pre
   have hFirst' :
       cpsNBranchWithin (4028 + 4183 + 1 + 1) (PriceK + 144) priceCode
         (taylorRoundSourcePre newSp excess outPtr iVal AB PB vals
@@ -643,15 +645,14 @@ theorem taylor_round_source_full_status1_to_parity
     (v5 v6 v7 v28 v29 v30 v31 : Word)
     (o0 o1 o2 o3 : Word) (FR : Assertion)
     (hFR : FR.pcFree)
-    (hAB : AB = newSp + signExtend12 (64 : BitVec 12))
-    (hPB : PB = newSp + signExtend12 (112 : BitVec 12))
     (hAB_parity : AB = parityBuffer j evenBase oddBase)
     (hPB_parity : PB = parityBuffer j oddBase evenBase)
     {exits : List (Word × Assertion)}
-    (hTail : cpsNBranchWithin 296 (PriceK + 900) priceCode
-      (exitdivTailPre newSp excess outPtr iVal vals
+    (hZero : cpsNBranchWithin 4183 (PriceK + 804) priceCode
+      (roundZero newSp excess outPtr iVal AB PB vals
+        (roundAccum a0 a1 a2 a3 a4 a5)
         a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-        o0 o1 o2 o3 AB PB FR) exits) :
+        v7 v28 v29 v30 v31 (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR)) exits) :
     cpsNBranchWithin
         (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1)
         (PriceK + 144) priceCode
@@ -720,8 +721,8 @@ theorem taylor_round_source_full_status1_to_parity
   have hStatus := taylor_round_source_full_status1
     newSp excess outPtr iVal AB PB vals
     a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5
-    v5 v6 v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR hAB hPB
-    (exits := exits) hTail
+    v5 v6 v7 v28 v29 v30 v31 o0 o1 o2 o3 FR hFR
+    (exits := exits) hZero
   have hStatus' :
       cpsNBranchWithin
         (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1)
