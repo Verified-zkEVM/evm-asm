@@ -95,3 +95,6 @@ private theorem binary_tail (B n : Nat) :
   rw [step1, Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlt2]
 
 end EvmAsm.Codegen.U256DivU64Be
+
+-- Axiom audit while the file is small; extend as the closed form lands (coord 13030).
+#print axioms EvmAsm.Codegen.U256DivU64Be.binary_tail
