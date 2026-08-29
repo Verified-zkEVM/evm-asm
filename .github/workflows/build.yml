@@ -379,6 +379,18 @@ jobs:
         run: |
           python3 scripts/check-nonvacuity-witnessed.py --self-test
 
+      # #13030: explicit typed evidence (non-vacuity instances, negative
+      # controls, machine-body contracts and temporary module floors) must
+      # name live declarations and the audit surface that actually checks
+      # them.  This is deliberately separate from the row-driven citation
+      # gate above: an evidence declaration with no row would otherwise be
+      # invisible, while a source-print floor has not yet entered the witness
+      # registry.
+      - name: Typed evidence ledger
+        run: |
+          python3 scripts/check-evidence-ledger.py --self-test
+          python3 scripts/check-evidence-ledger.py
+
       # #12926: semantic CPS/Hoare seam contracts are an explicit opt-in
       # surface.  A broad `Prop` census cannot identify them without hundreds
       # of false positives, so this gate checks the checked-in ledger: every

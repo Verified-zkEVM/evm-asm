@@ -104,6 +104,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec.swapdiv_core
@@ -617,6 +619,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_region_sat
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+
+#print axioms EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+
+#print axioms EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
