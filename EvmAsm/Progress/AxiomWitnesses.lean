@@ -1034,6 +1034,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
+
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
 
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSlotsSaved_to_own

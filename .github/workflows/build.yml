@@ -391,6 +391,16 @@ jobs:
           python3 scripts/check-evidence-ledger.py --self-test
           python3 scripts/check-evidence-ledger.py
 
+      # #12926: semantic CPS/Hoare seam contracts are an explicit opt-in
+      # surface.  A broad `Prop` census cannot identify them without hundreds
+      # of false positives, so this gate checks the checked-in ledger: every
+      # target is a real Prop declaration of its recorded shape, every missing
+      # witness has an explicit reason, and supplied evidence is in the axiom
+      # witness module.
+      - name: Seam-contract ledger
+        run: |
+          python3 scripts/check-seam-contract-ledger.py --self-test
+
       # The remaining two classes of the same family (#12129): an `infra` blocker
       # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,
       # and a hand-written `.text` coverage percentage in PLAN.md or
