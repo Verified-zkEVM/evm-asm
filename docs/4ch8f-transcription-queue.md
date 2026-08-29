@@ -82,7 +82,7 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 30)
+## 2. The queue (top 25 of 33)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -202,9 +202,9 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 88 |
-| `label-string` | 231 |
+| `label-string` | 230 |
 | `not-authored` | 101 |
-| `register` | 13 |
+| `register` | 14 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
@@ -253,7 +253,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-199 unconverted routines have call sites but are named by no obligation,
+196 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -281,10 +281,10 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `mpt_bounded_encode_extension` | 11 | label-string | 276 |
 | `evm_storage_access_charge_key` | 11 | label-string | 460 |
 | `sg_validate_fixed_list` | 10 | register | 36 |
-| `edd_be32_eq` | 10 | register | 92 |
 | `mpt_bounded_node_ref` | 10 | label-string | 176 |
 | `keccak_init` | 9 | label-string | 28 |
 | `bytecode_is_self_contained` | 8 | label-string | 72 |
+| `mpt_bounded_decode_frame_payload` | 8 | label-string | 176 |
 
 ## 6. What this queue CANNOT see
 
@@ -352,12 +352,12 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 58192 B of 211868 B unconverted
+Named-set cost: 58620 B of 211868 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (30 rows)
+## 8. Full named table (33 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -389,5 +389,8 @@ bytes.
 | 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 29 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 30 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
+| 29 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
+| 30 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 31 | `edd_memcpy` | 15 | gate 1 | register | 32 |
+| 32 | `edd_be32_eq` | 15 | gate 1 | register | 92 |
+| 33 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |

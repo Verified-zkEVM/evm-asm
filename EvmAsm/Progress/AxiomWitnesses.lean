@@ -346,6 +346,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
 
+#print axioms EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
+
 #print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
 
 #print axioms EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
