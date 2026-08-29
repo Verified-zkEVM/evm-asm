@@ -2,10 +2,13 @@
 """check-derived-artifacts.py (#12268): name WHICH derived artifact is stale,
 relative to WHICH input — instead of a bare byte mismatch.
 
-The covering set is the ``GENERATORS`` registry below.  Its entries enumerate
-the repository generators that write committed artifacts (rather than merely
-enumerating filenames), and ``CHECKS`` is derived from that registry.  Adding a
-generator therefore requires adding its output, check command, and self-test
+The covering set is the ``GENERATORS`` registry below.  It is an explicit,
+reviewed registry for the **guest codegen artifact pipeline**, not automatic
+discovery of every writer in the repository.  Its entries enumerate generators
+and their outputs (rather than merely enumerating filenames), and ``CHECKS`` is
+derived from that registry.  The registry has a live visibility floor and
+required names, so an accidental truncation or deletion fails loudly.  Adding
+a generator therefore requires adding its output, check command, and self-test
 negative control in one place.  This is deliberately separate from the
 routine-kind conditional set:
 
@@ -13,9 +16,14 @@ routine-kind conditional set:
       GuestImageEntries row
   asm-string def (not in MANIFEST): needs neither
 
-The registry below is the source of truth for those generator/output edges;
-the checker report prints the generator, input, and regeneration command for
-each stale artifact so this list cannot silently drift from the checks.
+The registry below is the source of truth for those codegen
+generator/output edges; the checker report prints the generator, input, and
+regeneration command for each stale artifact so this list cannot silently drift
+from the checks.  This checker intentionally does not claim every committed
+generated file: ``AxiomWitnesses.lean`` and ``DRIFT.md`` have their own gates,
+Rv64 re-export shims have ``gen-rv64-shims.py --check``, and ``PROGRESS.md`` is
+an intentionally uncommitted report.  Probe and scratch outputs are not
+committed artifacts.
 
 ``guest_image_coverage.py --write-floor`` is intentionally not in this set.  It
 rewrites the two reviewed floor constants in the generator itself; it does not
@@ -197,8 +205,8 @@ def check_conditional_set():
 
 # Source of truth for the covering set.  The first five fields describe the
 # generator/output edge; the final field is the checker for that edge.  Keep
-# ``conditional-set`` here as a pipeline-derived set check even though it has
-# no single output file to mutate in the self-test.
+# ``conditional-set`` here as a registry edge even though it has no single
+# output file to mutate in the self-test.
 GENERATORS = [
     {
         "name": "fixture",
@@ -268,6 +276,69 @@ GENERATORS = [
 
 CHECKS = [(spec["name"], spec["check"]) for spec in GENERATORS]
 
+# This is a reviewed visibility floor, not an automatically discovered count.
+# It catches an accidentally emptied/truncated registry even when every
+# remaining edge is internally consistent.  The required-name set makes the
+# same failure explicit for each currently-known edge.  A new edge must add its
+# name here and receive a self-test negative control below.
+GENERATOR_COUNT_FLOOR = 8
+REQUIRED_GENERATOR_NAMES = frozenset({
+    "fixture",
+    "tsv",
+    "guest-addrs",
+    "entries",
+    "coverage-doc",
+    "pins",
+    "transcription-queue",
+    "conditional-set",
+})
+GENERATOR_FIELDS = ("name", "generator", "artifact", "input", "regen", "check")
+
+
+def registry_problems(specs=None):
+    """Return structural/visibility findings for the reviewed registry.
+
+    ``specs`` is injectable so ``--self-test`` can prove that removing one
+    edge is detected without editing the real registry.  This is deliberately
+    a shape check: the individual check functions remain responsible for
+    regeneration and byte comparisons.
+    """
+    if specs is None:
+        specs = GENERATORS
+    problems = []
+    if len(specs) < GENERATOR_COUNT_FLOOR:
+        problems.append(
+            "generator registry below visibility floor: %d < %d"
+            % (len(specs), GENERATOR_COUNT_FLOOR))
+
+    names = []
+    for index, spec in enumerate(specs):
+        if not isinstance(spec, dict):
+            problems.append("generator %d is not a dictionary" % index)
+            continue
+        name = spec.get("name")
+        if not isinstance(name, str) or not name:
+            problems.append("generator %d has no non-empty name" % index)
+        else:
+            names.append(name)
+        missing = [field for field in GENERATOR_FIELDS
+                   if field not in spec or spec[field] in (None, "")]
+        if missing:
+            problems.append("generator %d (%s) missing fields: %s"
+                            % (index, name or "<unnamed>", ", ".join(missing)))
+        elif not callable(spec["check"]):
+            problems.append("generator %d (%s) check is not callable"
+                            % (index, name))
+
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    for name in duplicates:
+        problems.append("generator registry has duplicate name: %s" % name)
+
+    missing_required = sorted(REQUIRED_GENERATOR_NAMES - set(names))
+    for name in missing_required:
+        problems.append("generator registry missing required entry: %s" % name)
+    return problems
+
 
 def report(findings, spec):
     for artifact, rel, regen in findings:
@@ -285,8 +356,29 @@ def self_test():
     import re
     failures = []
     touched = []
+    tested = set()
+
+    actual_registry_problems = registry_problems()
+    if actual_registry_problems:
+        failures.extend("registry: " + problem
+                        for problem in actual_registry_problems)
+
+    # Negative controls for the registry itself.  A staleness-only self-test
+    # can stay green while the registry silently loses an entire edge, so make
+    # the visibility/required-name assertion executable too.
+    missing_edge_problems = registry_problems(GENERATORS[:-1])
+    if not any("missing required entry: conditional-set" in problem
+               for problem in missing_edge_problems):
+        failures.append("registry: missing-edge control was not detected")
+    malformed = [dict(GENERATORS[0])]
+    malformed[0]["check"] = None
+    malformed_problems = registry_problems(malformed)
+    if not any("missing fields: check" in problem
+               for problem in malformed_problems):
+        failures.append("registry: malformed-entry control was not detected")
 
     def expect(kind, path, mutate, must_name, runner=None):
+        tested.add(kind)
         orig = snapshot(path)
         try:
             mutate(path)
@@ -337,6 +429,34 @@ def self_test():
            run(["python3", "scripts/asm_to_program.py", "check-file",
                 "--file", ffile, "--funcs", fname]).returncode != 0 else [])
 
+    # ``conditional-set`` has no single file to corrupt: an orphan fixture is
+    # its negative control.  Keep the probe inside FIXTURE_DIR so the real
+    # checker exercises the same directory walk, and remove it before the
+    # post-test cleanliness assertion.
+    orphan = None
+    try:
+        fd, orphan = tempfile.mkstemp(prefix=".check-derived-artifacts-selftest-",
+                                      suffix=".s", dir=FIXTURE_DIR)
+        os.close(fd)
+        tested.add("conditional-set")
+        orphan_name = os.path.basename(orphan)
+        findings = check_conditional_set()
+        if not any(orphan_name in artifact for artifact, _, _ in findings):
+            failures.append("conditional-set: checker did not name %s"
+                            % orphan_name)
+    finally:
+        if orphan is not None:
+            try:
+                os.unlink(orphan)
+            except FileNotFoundError:
+                pass
+
+    registry_names = {spec["name"] for spec in GENERATORS}
+    missing_tests = sorted(registry_names - tested)
+    if missing_tests:
+        failures.append("registry entries without self-test controls: %s"
+                        % ", ".join(missing_tests))
+
     if failures:
         print("SELF-TEST FAILURES:")
         for f in failures:
@@ -348,13 +468,20 @@ def self_test():
     if dirty:
         print("SELF-TEST FAILURE: tree not clean after restore:\n" + dirty)
         return 1
-    print("self-test: all artifact kinds named correctly")
+    print("self-test: registry visibility and all artifact staleness controls pass "
+          "(%d generators)" % len(GENERATORS))
     return 0
 
 
 def main():
     if "--self-test" in sys.argv:
         return self_test()
+    registry_findings = registry_problems()
+    if registry_findings:
+        print("check-derived-artifacts: invalid GENERATORS registry")
+        for finding in registry_findings:
+            print("  " + finding)
+        return 1
     if not os.path.exists(ELF):
         print("missing regionmap ELF: %s" % ELF)
         print("build first: lake build codegen && lake exe codegen --program "
@@ -371,7 +498,8 @@ def main():
     if all_findings:
         print("\n%d stale artifact(s)" % len(all_findings))
         return 1
-    print("check-derived-artifacts: all derived artifacts consistent with their inputs")
+    print("check-derived-artifacts: all registered codegen artifacts consistent "
+          "with their inputs (%d generators)" % len(GENERATORS))
     return 0
 
 
