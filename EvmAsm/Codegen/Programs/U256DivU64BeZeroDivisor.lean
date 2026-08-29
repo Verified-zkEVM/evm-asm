@@ -65,6 +65,33 @@ private theorem top_bit_of_shifted (B n : Nat) (hn : n ≤ 7) :
     ((B * 2 ^ (7 - n) % 256) / 128) % 2 = (B / 2 ^ n) % 2 := by
   interval_cases n <;> omega
 
+private theorem shr63_toNat (rem : Word) :
+    (rem >>> (63 : BitVec 6).toNat).toNat = rem.toNat >>> 63 := rfl
+
+private theorem lor_one_self_of_le_one (x : Word) (hx : x.toNat ≤ 1) :
+    ((1 : Word) ||| x) = 1 := by
+  apply BitVec.eq_of_toNat_eq
+  rw [BitVec.toNat_or]
+  interval_cases x.toNat <;> simp
+
+/-- At a zero divisor the bit step degenerates: the quotient always takes
+    the bit and the remainder is a pure shift-in. -/
+private theorem divBitStep_zero (bit rem : Word) (_hbit : bit.toNat ≤ 1) :
+    U256DivU64BeSAsm.divBitStep bit 0 rem
+      = (1, (rem <<< (1 : BitVec 6).toNat) ||| bit) := by
+  simp only [U256DivU64BeSAsm.divBitStep]
+  have hhigh : (rem >>> (63 : BitVec 6).toNat).toNat ≤ 1 := by
+    rw [shr63_toNat, Nat.shiftRight_eq_div_pow]
+    have := rem.isLt
+    omega
+  have hult : BitVec.ult ((rem <<< (1 : BitVec 6).toNat) ||| bit) 0 = false := by
+    simp [BitVec.ult]
+  rw [hult]
+  simp only [Bool.false_eq_true, if_false]
+  have hxor : ((0 : Word) ^^^ 1) = 1 := by decide
+  rw [hxor, lor_one_self_of_le_one _ hhigh]
+  simp
+
 /-- The binary-tail identity driving the zero-divisor induction: the low
     `n+1` bits of `B` decompose into the top fed bit plus the shifted tail. -/
 private theorem binary_tail (B n : Nat) :
@@ -93,6 +120,38 @@ private theorem binary_tail (B n : Nat) :
       = (2 ^ (n + 1) * (B / 2 ^ (n + 1)) + (2 ^ n * (B / 2 ^ n % 2) + B % 2 ^ n)) % 2 ^ (n + 1) :=
     congrArg (fun x => x % 2 ^ (n + 1)) key
   rw [step1, Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hlt2]
+
+/-- Doubling mod 2^64: the wrap only eats the top bit, so the low 63 bits
+    survive — this is what makes the shifted register even. -/
+private theorem mul_two_mod (x : Nat) : (2 * x) % 2 ^ 64 = 2 * (x % 2 ^ 63) := by
+  have h := Nat.div_add_mod x (2 ^ 63)
+  have h0 : x % 2 ^ 63 < 2 ^ 63 := Nat.mod_lt _ (by positivity)
+  have h2 : 2 * x = 2 ^ 64 * (x / 2 ^ 63) + 2 * (x % 2 ^ 63) := by
+    calc 2 * x = 2 * (2 ^ 63 * (x / 2 ^ 63) + x % 2 ^ 63) := by rw [h]
+    _ = 2 * (2 ^ 63 * (x / 2 ^ 63)) + 2 * (x % 2 ^ 63) := Nat.mul_add ..
+    _ = 2 ^ 64 * (x / 2 ^ 63) + 2 * (x % 2 ^ 63) := by
+          rw [← Nat.mul_assoc, Nat.mul_comm 2 (2 ^ 63), ← Nat.pow_succ]
+  rw [h2, Nat.add_comm, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (by omega)]
+
+/-- The zero-divisor step is a pure shift-in: appending bit `bit` (0 or 1)
+    to the shifted remainder is doubling mod 2^64 plus the bit. -/
+private theorem shift_lor_bit_toNat (rem bit : Word) (hbit : bit.toNat ≤ 1) :
+    ((rem <<< (1 : BitVec 6).toNat) ||| bit).toNat = (2 * rem.toNat + bit.toNat) % 2 ^ 64 := by
+  rw [BitVec.toNat_or]
+  have hsh : (rem <<< (1 : BitVec 6).toNat).toNat = 2 * (rem.toNat % 2 ^ 63) := by
+    rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq]
+    have h1 : (BitVec.toNat (1 : BitVec 6)) = 1 := rfl
+    rw [h1, Nat.pow_one, Nat.mul_comm, mul_two_mod]
+  rw [hsh]
+  have hmod := mul_two_mod rem.toNat
+  rcases Nat.lt_or_ge bit.toNat 1 with h0 | h1
+  · have hb0 : bit.toNat = 0 := by omega
+    rw [hb0]
+    simp
+    omega
+  · have hb1 : bit.toNat = 1 := by omega
+    rw [hb1, nat_lor_one_of_even (by omega)]
+    omega
 
 end EvmAsm.Codegen.U256DivU64Be
 
