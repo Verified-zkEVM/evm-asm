@@ -185,6 +185,7 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 -- starts after the priority helper's six-instruction entry prologue, so its
 -- registry row remains honestly `.partly` until that prologue is composed.
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
