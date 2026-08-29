@@ -30,13 +30,17 @@ declare -A expected_steps=(
   [codegen]=13
   [guestaddrs-starts]=1
   [asm-to-program]=1
-  # 10 since check-doc-links.sh (#12572) was added alongside the existing
-  # report checks (the count grew 5 → 6 → 7 → 8 → 9 → 10), then back to 9 in
-  # #12683 when check-progress.sh was retired with the committed PROGRESS.md.
+  # The report count grew 5 → 6 → 7 → 8 → 9 → 10 when check-doc-links.sh
+  # (#12572) was added, then back to 9 in #12683 when check-progress.sh was
+  # retired with the committed PROGRESS.md. It is 10 again since #12908 added
+  # check-file-size.sh below.
   # ⚠️ This count is asserted exactly, in BOTH directions: adding a `run_step`
   # to a lane without bumping it here reports the lane INCOMPLETE, and so does
   # removing one without lowering it (that is how this edit was caught).
-  [reports]=9
+  # 10 since check-file-size.sh (#12908) was added to this post-build bundle;
+  # it is also a direct source-check gate, so the bundle-sync audit requires
+  # both appearances to stay aligned.
+  [reports]=10
   [axioms]=1
   [arithmetic-fuzz]=1
 )
@@ -111,6 +115,10 @@ codegen_checks() {
 }
 
 report_checks() {
+  # #12908: file-size is a blocking source-shape gate.  Keep it in the local
+  # post-build bundle as well as its direct workflow step so this lane catches
+  # the same per-file cap on a prepared checkout.
+  run_step scripts/check-file-size.sh
   # NOTE (#12683): `check-progress.sh` used to head this lane. PROGRESS.md is
   # no longer committed (it is generated on demand by
   # `scripts/progress-report.sh --write`), so there is nothing to compare a
