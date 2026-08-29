@@ -520,6 +520,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode

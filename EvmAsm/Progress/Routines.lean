@@ -1014,6 +1014,23 @@ def routineRegistry : List RoutineEntry := [
         ++ "production-shaped 0xf8/0x38 long-list full-premise instance at "
         ++ "RegionMap.inputRegion.base; the short-list inhabitant is also "
         ++ "available but is not the coverage citation)"),
+  -- #12979: closed K74 wrapper witness at the real composition seam.  The
+  -- concrete witness is conditional because the K73 increasing route has the
+  -- genuine input-domain gate `0 < target`.
+  routine "header_validate_base_fee" .conditional
+      (some "header_validate_base_fee_spec_within_inhabited")
+      (gate := "the wrapper selects the K73 increasing arm: `target = "
+        ++ "gas_limit >>> 1`, `target < gas_used`, and `0 < target` (the "
+        ++ "latter is the genuine input-domain gate from #12951). All "
+        ++ "ABI/resource hypotheses are discharged by the closed witness.")
+      (notes := "closed wrapper-level witness at the real K74 seam: "
+        ++ "`header_validate_base_fee_spec_within` consumes the Route-B K73 "
+        ++ "adapter and the u256-equality callee under the union code request. "
+        ++ "The concrete inhabitant uses gas_limit = 10,000, gas_used = 7,500, "
+        ++ "zero parent/header bytes, real aligned 32-byte regions, and "
+        ++ "pairwise code-range disjointness. K73 remains conditional; this "
+        ++ "row records non-vacuity of the wrapper composition, not an "
+        ++ "unconstrained K74 claim."),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -4556,12 +4573,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 215 := by decide
+theorem routineCount_eq : routineCount = 216 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 166 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 45 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 46 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
 
@@ -4579,7 +4596,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 175 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 176 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5668,6 +5685,11 @@ private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
 private noncomputable abbrev _k73_incr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
+-- #12979: closed K74 wrapper-level witness.  The concrete inhabitant composes
+-- the Route-B K73 adapter with the wrapper and discharges union-code
+-- monotonicity at real linked ranges.
+private noncomputable abbrev _header_validate_base_fee_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec

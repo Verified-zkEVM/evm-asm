@@ -1028,4 +1028,124 @@ theorem header_validate_base_fee_spec_within
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
   simpa only [F, W, k74FlatFrame, hs] using hAll
 
+/-! The K74 wrapper combines the base-fee producer, the K73 callee family,
+    and the equality callee.  The latter two code requirements are linked at
+    disjoint image ranges.  Keep these facts public: the closed witness in
+    `HeaderValidateBaseFeeSpecRefWitness` supplies them to the wrapper rather
+    than reproving the address arithmetic at each use site. -/
+
+private theorem k74_unionAll_some_mem {crs : List CodeReq} {a : Word} {i : Instr}
+    (h : CodeReq.unionAll crs a = some i) :
+    ∃ cr ∈ crs, cr a = some i := by
+  induction crs with
+  | nil => simp [CodeReq.unionAll, CodeReq.empty] at h
+  | cons cr rest ih =>
+    simp only [CodeReq.unionAll_cons, CodeReq.union] at h
+    cases hc : cr a with
+    | some j => exact ⟨cr, by simp, by simpa [hc] using h⟩
+    | none =>
+      have h' : CodeReq.unionAll rest a = some i := by simpa [hc] using h
+      obtain ⟨cr', hmem, hcr'⟩ := ih h'
+      exact ⟨cr', by simp [hmem], hcr'⟩
+
+private theorem k74_hvbf_disjoint_ofProg (base : Word) (prog : List Instr)
+    (hboundHvbf : H.toNat + 4 * hvbfProg.length ≤ 2 ^ 64)
+    (hboundOther : base.toNat + 4 * prog.length ≤ 2 ^ 64)
+    (hsep : H.toNat + 4 * hvbfProg.length ≤ base.toNat ∨
+      base.toNat + 4 * prog.length ≤ H.toNat) :
+    hvbfCode.Disjoint (CodeReq.ofProg base prog) := by
+  unfold hvbfCode hvbfProg
+  apply CodeReq.Disjoint.ofProg_ranges
+  · exact hboundHvbf
+  · exact hboundOther
+  · exact hsep
+
+private theorem k74_u256eq_disjoint_ofProg (base : Word) (prog : List Instr)
+    (hboundOther : base.toNat + 4 * prog.length ≤ 2 ^ 64)
+    (hboundEq : EqK.toNat + 4 * EvmAsm.Codegen.u256Eq_prog.length ≤ 2 ^ 64)
+    (hsep : base.toNat + 4 * prog.length ≤ EqK.toNat ∨
+      EqK.toNat + 4 * EvmAsm.Codegen.u256Eq_prog.length ≤ base.toNat) :
+    (CodeReq.ofProg base prog).Disjoint u256EqCode := by
+  unfold u256EqCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · exact hboundOther
+  · exact hboundEq
+  · exact hsep
+
+theorem k74_hvbf_whole_disjoint {a : Word} {i j : Instr}
+    (hhvbf : hvbfCode a = some i) (hwhole : wholeCode a = some j) : False := by
+  have h_k73 : hvbfCode.Disjoint k73Code := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_mul : hvbfCode.Disjoint mulCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_div : hvbfCode.Disjoint divCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_zero : hvbfCode.Disjoint isZeroCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_from : hvbfCode.Disjoint fromU64Code := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_add : hvbfCode.Disjoint addCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_sub : hvbfCode.Disjoint subCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have hmem : ∃ cr ∈ [k73Code, mulCode, divCode, isZeroCode, fromU64Code,
+      addCode, subCode], cr a = some j := by
+    exact k74_unionAll_some_mem (crs := [k73Code, mulCode, divCode, isZeroCode,
+      fromU64Code, addCode, subCode]) (by simpa [wholeCode] using hwhole)
+  rcases hmem with ⟨cr, hcr, hhit⟩
+  simp at hcr
+  have no_conflict {cr' : CodeReq} (hd : hvbfCode.Disjoint cr')
+      (hhit' : cr' a = some j) : False := by
+    rcases hd a with hnone | hnone
+    · rw [hhvbf] at hnone
+      simp at hnone
+    · rw [hhit'] at hnone
+      simp at hnone
+  rcases hcr with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact no_conflict h_k73 hhit
+  · exact no_conflict h_mul hhit
+  · exact no_conflict h_div hhit
+  · exact no_conflict h_zero hhit
+  · exact no_conflict h_from hhit
+  · exact no_conflict h_add hhit
+  · exact no_conflict h_sub hhit
+
+theorem k74_whole_u256eq_disjoint {a : Word} {i j : Instr}
+    (hwhole : wholeCode a = some i) (heq : u256EqCode a = some j) : False := by
+  have h_k73 : k73Code.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_mul : mulCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_div : divCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_zero : isZeroCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_from : fromU64Code.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_add : addCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_sub : subCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have hmem : ∃ cr ∈ [k73Code, mulCode, divCode, isZeroCode, fromU64Code,
+      addCode, subCode], cr a = some i := by
+    exact k74_unionAll_some_mem (crs := [k73Code, mulCode, divCode, isZeroCode,
+      fromU64Code, addCode, subCode]) (by simpa [wholeCode] using hwhole)
+  rcases hmem with ⟨cr, hcr, hhit⟩
+  simp at hcr
+  have no_conflict {cr' : CodeReq} (hd : cr'.Disjoint u256EqCode)
+      (hhit' : cr' a = some i) : False := by
+    rcases hd a with hnone | hnone
+    · rw [hhit'] at hnone
+      simp at hnone
+    · rw [heq] at hnone
+      simp at hnone
+  rcases hcr with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact no_conflict h_k73 hhit
+  · exact no_conflict h_mul hhit
+  · exact no_conflict h_div hhit
+  · exact no_conflict h_zero hhit
+  · exact no_conflict h_from hhit
+  · exact no_conflict h_add hhit
+  · exact no_conflict h_sub hhit
+
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpec
