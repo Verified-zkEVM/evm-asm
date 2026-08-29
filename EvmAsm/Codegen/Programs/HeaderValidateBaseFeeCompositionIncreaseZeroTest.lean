@@ -164,13 +164,13 @@ Proof: clone of the source seam minus the final pin-to-ownership lift. -/
 theorem k73_increase_is_zero_call_valued_spec_within
     (ptr oldRa : Word) (w0 w1 w2 w3 : Word) (F : Assertion)
     (hF : F.pcFree) :
-    ∀ old10, cpsTripleWithin 11 (K73 + 128) (K73 + 136) wholeCode
+    ∀ old10, cpsTripleWithin 11 (K73 + 132) (K73 + 140) wholeCode
       (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-      (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
           (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
@@ -186,7 +186,7 @@ theorem k73_increase_is_zero_call_valued_spec_within
           regAtomsOf vf tail) := by
     intro vf
     simp only [u256DivU64BeScratch, tail, regAtomsOf_cons, regAtomsOf_nil]
-  have hmvAny : cpsTripleWithin 1 (K73 + 128) (K73 + 132) wholeCode
+  have hmvAny : cpsTripleWithin 1 (K73 + 132) (K73 + 136) wholeCode
       (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
@@ -197,9 +197,9 @@ theorem k73_increase_is_zero_call_valued_spec_within
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
-    have hmv := mv_spec_gen_within .x10 .x9 ptr old10 (K73 + 128) (by decide)
+    have hmv := mv_spec_gen_within .x10 .x9 ptr old10 (K73 + 132) (by decide)
     have hmvC := cpsTripleWithin_extend_code
-      (k73_whole_mem 32 _ (K73 + 128) (by decide)
+      (k73_whole_mem 33 _ (K73 + 132) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hmv
     have hR : (((.x1 : Reg) ↦ᵣ oldRa) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
@@ -212,36 +212,36 @@ theorem k73_increase_is_zero_call_valued_spec_within
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) hmvF
   have htarget :
-      (K73 + 132) + signExtend21
+      (K73 + 136) + signExtend21
         (jalOff GuestAddrs.u256_is_zero
-          (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) =
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 136)) =
         (GuestAddrs.u256_is_zero : Word) := by
     change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
-      BitVec.ofNat 64 132 + _ = BitVec.ofNat 64 GuestAddrs.u256_is_zero
+      BitVec.ofNat 64 136 + _ = BitVec.ofNat 64 GuestAddrs.u256_is_zero
     exact jalOff_correct_add GuestAddrs.u256_is_zero
-      GuestAddrs.eip1559_calc_base_fee_per_gas 132
+      GuestAddrs.eip1559_calc_base_fee_per_gas 136
       (by decide) (by decide) (by decide) (by decide)
-  have hmem : ∀ a i, CodeReq.singleton (K73 + 132)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 136)
       (.JAL .x1 (jalOff GuestAddrs.u256_is_zero
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132))) a = some i →
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 136))) a = some i →
       wholeCode a = some i := by
     intro a i hi
-    exact k73_whole_mem 33 _ (K73 + 132) (by decide)
+    exact k73_whole_mem 34 _ (K73 + 136) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi
   have hcallAny : ∀ vf : Reg → Word,
-      cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+      cpsTripleWithin 10 (K73 + 136) (K73 + 140) wholeCode
       (((((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch))
-      (((((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (((((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
           (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regOwns u256DivU64BeScratch)) := by
     intro vf
-    have hzero := u256IsZeroFlat_spec_domain ptr (K73 + 136)
+    have hzero := u256IsZeroFlat_spec_domain ptr (K73 + 140)
       (vf .x5) (vf .x6) (vf .x7) (vf .x28) w0 w1 w2 w3
     have hzeroC := cpsTripleWithin_extend_code isZero_whole_mono hzero
     have hP0 : (((.x10 : Reg) ↦ᵣ ptr) **
@@ -251,13 +251,13 @@ theorem k73_increase_is_zero_call_valued_spec_within
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3))).pcFree := by
       pcf
     have hcallee0 : cpsTripleWithin 9 (GuestAddrs.u256_is_zero : Word)
-        (K73 + 136) wholeCode
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        (K73 + 140) wholeCode
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x10 : Reg) ↦ᵣ ptr) **
           ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
           ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
           ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
             (1 : Word) else 0)) **
           ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
@@ -282,19 +282,19 @@ theorem k73_increase_is_zero_call_valued_spec_within
         ((.x28 : Reg) ↦ᵣ w3) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
-      (K73 + 132) (GuestAddrs.u256_is_zero : Word) oldRa
+      (K73 + 136) (GuestAddrs.u256_is_zero : Word) oldRa
       (jalOff GuestAddrs.u256_is_zero
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) 9 htarget hmem hP0 hcallee0
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 136)) 9 htarget hmem hP0 hcallee0
     have hcallF := cpsTripleWithin_frameR
       (regAtomsOf vf tail ** F) (by dsimp [tail]; pcf; exact hF) hcall0
-    have hcall : cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+    have hcall : cpsTripleWithin 10 (K73 + 136) (K73 + 140) wholeCode
         (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
           ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
           ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
           regAtomsOf vf tail **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
           ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
             (1 : Word) else 0)) **
           ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
@@ -304,13 +304,13 @@ theorem k73_increase_is_zero_call_valued_spec_within
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
       simpa only [show 1 + 9 = 10 by decide, sepConj_assoc', sepConj_comm',
         sepConj_left_comm',
-        show (K73 + 132) + 4 = K73 + 136 by bv_omega] using hcallF
+        show (K73 + 136) + 4 = K73 + 140 by bv_omega] using hcallF
     exact cpsTripleWithin_weaken
       (P' := (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch)
-      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
           (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
@@ -321,7 +321,7 @@ theorem k73_increase_is_zero_call_valued_spec_within
         xperm_hyp hp)
       (fun s hq => by
         have hq0 :
-            (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+            (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
               ((.x10 : Reg) ↦ᵣ
                 (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
                   (1 : Word) else 0)) **
@@ -358,7 +358,7 @@ theorem k73_increase_is_zero_call_valued_spec_within
     (P := ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 140)) **
       ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
         (1 : Word) else 0)) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
@@ -373,7 +373,7 @@ theorem k73_increase_is_zero_call_valued_spec_within
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
-    (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+    (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
         (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
@@ -406,26 +406,26 @@ private theorem k73_incr_vacuous_triple {P Q : Assertion} {a b : Word}
 
 private theorem k73_incr_zero_branch_facts_spec_within
     (ptr : Word) (q2 : List (BitVec 8)) (F : Assertion) (hF : F.pcFree) :
-    ∀ old10 : Word, cpsBranchWithin 1 (K73 + 136) wholeCode
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    ∀ old10 : Word, cpsBranchWithin 1 (K73 + 140) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ old10))
-      (K73 + 172)
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (K73 + 176)
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) **
         ⌜old10 = (0 : Word)⌝)
-      (K73 + 140)
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (K73 + 144)
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ old10)) **
         ⌜old10 ≠ (0 : Word)⌝) := by
   intro old10
   let Base : Assertion :=
-    ((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+    ((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
       regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F
   let Rest : Assertion := ((.x0 : Reg) ↦ᵣ (0 : Word)) ** Base
@@ -434,9 +434,9 @@ private theorem k73_incr_zero_branch_facts_spec_within
     pcf
     exact hF
   have hbeq := beq_spec_gen_within .x10 .x0 (36 : BitVec 13)
-    old10 (0 : Word) (K73 + 136)
+    old10 (0 : Word) (K73 + 140)
   have hbeqC := cpsBranchWithin_extend_code
-    (k73_whole_mem 34 _ (K73 + 136) (by decide)
+    (k73_whole_mem 35 _ (K73 + 140) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbeq
   have hbeqF := cpsBranchWithin_frameR Base hBase hbeqC
   exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -449,7 +449,7 @@ private theorem k73_incr_zero_branch_facts_spec_within
       rw [hzero] at hq
       dsimp only [Rest, Base] at hq
       have hq2 :
-          ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
             ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
             ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
             bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word)))) s := by
@@ -463,7 +463,7 @@ private theorem k73_incr_zero_branch_facts_spec_within
       obtain ⟨hq, hne⟩ := (sepConj_pure_right _).1 hq'
       dsimp only [Rest, Base] at hq
       have hq2 :
-          ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+          ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
             ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
             ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
             bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ old10))) s := by
@@ -476,8 +476,8 @@ theorem k73_incr_zero_keep_spec_within
     (ptr : Word) (q2 : List (BitVec 8)) (F : Assertion)
     (_hrw : RwRegion.wf ⟨ptr, 32⟩) (hlen : q2.length = 32)
     (hF : F.pcFree) (hpNZ : EvmAsm.Crypto.beBytesToNat q2 ≠ 0) :
-    cpsTripleWithin 1 (K73 + 136) (K73 + 172) wholeCode
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    cpsTripleWithin 1 (K73 + 140) (K73 + 176) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ (if packBytes ((q2.drop 0).take 8) = 0 ∧
             packBytes ((q2.drop 8).take 8) = 0 ∧
@@ -485,7 +485,7 @@ theorem k73_incr_zero_keep_spec_within
             packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else 0)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F) := by
@@ -506,39 +506,39 @@ theorem k73_incr_zero_keep_spec_within
       packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else 0)
       = (0 : Word) := if_neg hnotAll
   have hbr := k73_incr_zero_branch_facts_spec_within ptr q2 F hF (0 : Word)
-  have h_t0 : cpsTripleWithin 0 (K73 + 172) (K73 + 172) CodeReq.empty
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+  have h_t0 : cpsTripleWithin 0 (K73 + 176) (K73 + 176) CodeReq.empty
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) **
         ⌜(0 : Word) = (0 : Word)⌝)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F) :=
     cpsTripleWithin_refl (fun _ h => by
       obtain ⟨hq, _⟩ := (sepConj_pure_right _).1 h
       xperm_hyp hq)
-  have h_t : cpsTripleWithin 0 (K73 + 172) (K73 + 172) wholeCode
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+  have h_t : cpsTripleWithin 0 (K73 + 176) (K73 + 176) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) **
         ⌜(0 : Word) = (0 : Word)⌝)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F) :=
     cpsTripleWithin_extend_code (cr' := wholeCode)
       (fun a i hi => by simp [CodeReq.empty] at hi) h_t0
 
-  have h_f : cpsTripleWithin 0 (K73 + 140) (K73 + 172) wholeCode
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+  have h_f : cpsTripleWithin 0 (K73 + 144) (K73 + 176) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) **
         ⌜(0 : Word) ≠ (0 : Word)⌝)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x10 : Reg) ↦ᵣ (0 : Word)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F) := by
@@ -562,8 +562,8 @@ theorem k73_incr_zero_replace_spec_within
     cpsTripleWithin
       (1 + (((1 + 1) + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1))
-      (K73 + 136) (K73 + 172) wholeCode
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (K73 + 140) (K73 + 176) wholeCode
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ (if packBytes ((q2.drop 0).take 8) = 0 ∧
             packBytes ((q2.drop 8).take 8) = 0 ∧
@@ -571,7 +571,7 @@ theorem k73_incr_zero_replace_spec_within
             packBytes ((q2.drop 24).take 8) = 0 then (1 : Word) else 0)) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
         regOwns u256DivU64BeScratch ** bytesRegion ptr q2 ** F)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 156)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** regOwns exposedRegs **
         bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) := by
   have hall : packBytes ((q2.drop 0).take 8) = 0 ∧
@@ -591,13 +591,13 @@ theorem k73_incr_zero_replace_spec_within
   have h_t : cpsTripleWithin
       (((1 + 1) + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1)
-      (K73 + 172) (K73 + 172) wholeCode
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (K73 + 176) (K73 + 176) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (0 : Word))) **
         ⌜(1 : Word) = (0 : Word)⌝)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 156)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** regOwns exposedRegs **
         bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) := by
     intro R hR s hcr hPR hpc
@@ -607,23 +607,23 @@ theorem k73_incr_zero_replace_spec_within
   have h_f : cpsTripleWithin
       (((1 + 1) + (1 +
         (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) ptr q2).body.steps + 1)) + 1)
-      (K73 + 140) (K73 + 172) wholeCode
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+      (K73 + 144) (K73 + 176) wholeCode
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         bytesRegion ptr q2 ** F) ** ((.x10 : Reg) ↦ᵣ (1 : Word))) **
         ⌜(1 : Word) ≠ (0 : Word)⌝)
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 152)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x1 : Reg) ↦ᵣ (K73 + 156)) **
         ((.x9 : Reg) ↦ᵣ ptr) ** regOwns exposedRegs **
         bytesRegion ptr (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ** F) := by
     refine cpsTripleWithin_weaken (fun s hp => ?_) (fun _ hq => hq) hf0
     obtain ⟨hpair, _⟩ := (sepConj_pure_right _).1 hp
-    have hmid : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    have hmid : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         (((.x10 : Reg) ↦ᵣ (1 : Word)) ** (((.x9 : Reg) ↦ᵣ ptr) **
         (((.x11 : Reg) ↦ᵣ (8 : Word)) ** (((.x12 : Reg) ↦ᵣ ptr) **
         (regOwns u256DivU64BeScratch ** (bytesRegion ptr q2 ** F)))))))) s := by
       xperm_hyp hpair
-    have hl3 : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+    have hl3 : (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
         ((regOwn .x10) ** (((.x9 : Reg) ↦ᵣ ptr) ** (((.x11 : Reg) ↦ᵣ (8 : Word)) **
         (((.x12 : Reg) ↦ᵣ ptr) ** (regOwns u256DivU64BeScratch **
         (bytesRegion ptr q2 ** F)))))))) s :=

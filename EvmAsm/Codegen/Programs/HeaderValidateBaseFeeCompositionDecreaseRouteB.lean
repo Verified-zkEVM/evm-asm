@@ -5,17 +5,17 @@
   (`k73_increase_entry_status_div_zero_to_return_general_spec_within`).  The
   decreasing arm only ships seams.  This file assembles them bottom-up:
 
-    entry            (19, premise-free)              K73 .. K73 + 84
-    mul call/status  (needs deployed mul callee)     K73 + 84 .. K73 + 92
-    div pair         (premise-free, htargetPos)      K73 + 92 .. K73 + 124
-    branch x20=0     (premise-free)                  K73 + 124 .. K73 + 172
-    div-to-sub       (premise-free modulo ABI facts) K73 + 172 .. K73 + 220
-    borrow branch                                    K73 + 220 .. K73 + 224
-    tails            (symbolic raIn, saved-generic)  K73 + 224/+272 .. raIn
+    entry            (20, premise-free)              K73 .. K73 + 88
+    mul call/status  (needs deployed mul callee)     K73 + 88 .. K73 + 96
+    div pair         (premise-free, htargetPos)      K73 + 96 .. K73 + 128
+    branch x20=0     (premise-free)                  K73 + 128 .. K73 + 176
+    div-to-sub       (premise-free modulo ABI facts) K73 + 176 .. K73 + 224
+    borrow branch                                    K73 + 224 .. K73 + 228
+    tails            (symbolic raIn, saved-generic)  K73 + 228/+276 .. raIn
 
   Everything here composes already-proven seams; no new instruction is
   interpreted.  The borrow branch below is the only machine-level piece that
-  was missing entirely: the decrease subtract's overflow test at K73 + 220
+  was missing entirely: the decrease subtract's overflow test at K73 + 224
   branches on the callee borrow register against x0.
 -/
 
@@ -101,7 +101,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (H + 40) old8
         (regOwns u256SubBeInPlaceScratch **
           EvmAsm.Codegen.U256MulU64Be.frameSlots
-            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
             parentPtr Expected target (target - gasUsed) (0 : Word) **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
             (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -124,7 +124,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (.x0 ↦ᵣ (0 : Word)) ** regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -144,7 +144,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (.x0 ↦ᵣ (0 : Word)) ** regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -178,7 +178,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (.x0 ↦ᵣ (0 : Word)) ** regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -190,7 +190,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (H + 40) old8
         (regOwns u256SubBeInPlaceScratch **
           EvmAsm.Codegen.U256MulU64Be.frameSlots
-            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
             parentPtr Expected target (target - gasUsed) (0 : Word) **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
             (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -220,7 +220,7 @@ private theorem k73_decr_sub_return_routeB_fail
           (H + 40) old8
           (regOwns u256SubBeInPlaceScratch **
             EvmAsm.Codegen.U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
               (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -241,7 +241,7 @@ private theorem k73_decr_sub_return_routeB_fail
         regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -261,7 +261,7 @@ private theorem k73_decr_sub_return_routeB_fail
         regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -285,7 +285,7 @@ private theorem k73_decr_sub_return_routeB_fail
         regOwns u256SubBeInPlaceScratch **
         bytesRegion parentPtr parentBytes **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -297,7 +297,7 @@ private theorem k73_decr_sub_return_routeB_fail
         headerBytes (H + 40) old8
         (regOwns u256SubBeInPlaceScratch **
           EvmAsm.Codegen.U256MulU64Be.frameSlots
-            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
             parentPtr Expected target (target - gasUsed) (0 : Word) **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
             (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -331,7 +331,7 @@ private theorem k73_decr_mulfail_routeB_fail
           parentPtr status parentBytes scratchBytes headerBytes
           (H + 40) old8
           (EvmAsm.Codegen.U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             k73MulOverflowCoreNoStatus
               (k73_decr_img1 parentBytes (target - gasUsed)) k **
@@ -380,7 +380,7 @@ private theorem k73_decr_mulfail_routeB_fail
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         (fun u => ∃ k,
           (U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             bytesRegion Expected
               (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
@@ -399,7 +399,7 @@ private theorem k73_decr_mulfail_routeB_fail
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
         (fun u => ∃ k,
           (U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             bytesRegion Expected
               (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
@@ -412,7 +412,7 @@ private theorem k73_decr_mulfail_routeB_fail
         k73_decr_piggyback wspH old8 headerPtr headerBytes Frest) =
       ((fun u => ∃ k,
           (U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             bytesRegion Expected
               (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
@@ -431,7 +431,7 @@ private theorem k73_decr_mulfail_routeB_fail
     xperm_cert_eq
   obtain ⟨k, hk⟩ := (sepConj_exists_left s).mp (hrot ▸ hp2)
   -- Bridge the folded mulTailExtra token to its expanded atoms.
-  have hE : ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+  have hE : ((U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         parentPtr Expected target (target - gasUsed) (0 : Word) **
       bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
       k73MulOverflowCoreNoStatus
@@ -446,7 +446,7 @@ private theorem k73_decr_mulfail_routeB_fail
       regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 **
       regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
       k73_decr_piggyback wspH old8 headerPtr headerBytes Frest) =
-      (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         parentPtr Expected target (target - gasUsed) (0 : Word) **
       bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
       k73MulOverflowCoreNoStatus
@@ -464,7 +464,7 @@ private theorem k73_decr_mulfail_routeB_fail
       k73_decr_piggyback wspH old8 headerPtr headerBytes Frest) := by
     dsimp only [EvmAsm.Codegen.U256MulU64Be.mulTailExtra]
     xperm_cert_eq
-  have hkEq : ((        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+  have hkEq : ((        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -486,7 +486,7 @@ private theorem k73_decr_mulfail_routeB_fail
         (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         frameSlotsSaved k73Frame wspK
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -507,7 +507,7 @@ private theorem k73_decr_mulfail_routeB_fail
         (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         frameSlotsSaved k73Frame wspK
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -526,7 +526,7 @@ private theorem k73_decr_mulfail_routeB_fail
         (.x18 ↦ᵣ old18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) **
         frameSlotsSaved k73Frame wspK
           (k73Saved (H + 40) headerPtr v9 old18 v19 v20) **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -540,7 +540,7 @@ private theorem k73_decr_mulfail_routeB_fail
       ((.x2 ↦ᵣ wspH) ** (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x7 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (target - gasUsed)) **
         (.x12 ↦ᵣ Expected) **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -558,7 +558,7 @@ private theorem k73_decr_mulfail_routeB_fail
   have hk1 : (((.x2 ↦ᵣ wspH) ** (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
         (.x7 ↦ᵣ (0 : Word)) ** (.x11 ↦ᵣ (target - gasUsed)) **
         (.x12 ↦ᵣ Expected) **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -591,7 +591,7 @@ private theorem k73_decr_mulfail_routeB_fail
   have hEq2 :
       ((.x2 ↦ᵣ wspH) ** (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) ** regOwn .x7 **
         regOwn .x11 ** regOwn .x12 **
-        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion Expected (k73_decr_img2 parentBytes (target - gasUsed) outWin) **
         k73MulOverflowCoreNoStatus
@@ -609,7 +609,7 @@ private theorem k73_decr_mulfail_routeB_fail
         v19 v20 gasUsed parentPtr (1 : Word) parentBytes
         (k73_decr_img2 parentBytes (target - gasUsed) outWin) headerBytes
         (H + 40) old8
-        (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (U256MulU64Be.frameSlots (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         k73MulOverflowCoreNoStatus
           (k73_decr_img1 parentBytes (target - gasUsed)) k **
@@ -655,7 +655,7 @@ private def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUse
     target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   regOwns u256SubBeInPlaceScratch **
     EvmAsm.Codegen.U256MulU64Be.frameSlots
-      (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
       parentPtr Expected target (target - gasUsed) (0 : Word) **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -691,7 +691,7 @@ private theorem k73_decr_mulfail_arm_unify
           parentPtr status parentBytes scratchBytes headerBytes
           (H + 40) old8
           (EvmAsm.Codegen.U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             k73MulOverflowCoreNoStatus
               (k73_decr_img1 parentBytes (target - gasUsed)) k **
@@ -707,7 +707,7 @@ private theorem k73_decr_mulfail_arm_unify
           (H + 40) old8
           (regOwns u256SubBeInPlaceScratch **
             EvmAsm.Codegen.U256MulU64Be.frameSlots
-              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+              (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
               parentPtr Expected target (target - gasUsed) (0 : Word) **
             bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
               (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -721,7 +721,7 @@ private theorem k73_decr_mulfail_arm_unify
     k73MulOverflowCoreNoStatus] at hFP ⊢
   have hR : ∀ q : PartialState,
       ((EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         (((.x5 ↦ᵣ (EvmAsm.Codegen.U256MulU64Be.accBase +
               BitVec.ofNat 64 (32 + k))) **
@@ -735,7 +735,7 @@ private theorem k73_decr_mulfail_arm_unify
           regOwn .x16 ** regOwn .x17 ** F))) q) →
       ((regOwns u256SubBeInPlaceScratch **
         EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
           (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -744,7 +744,7 @@ private theorem k73_decr_mulfail_arm_unify
     intro q hq
     have t1 := decr_under_id
       (B := EvmAsm.Codegen.U256MulU64Be.frameSlots
-        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         parentPtr Expected target (target - gasUsed) (0 : Word))
       (decr_sep_pair_congr
         (decr_sep_pin_lift (r := Reg.x5)
@@ -752,14 +752,14 @@ private theorem k73_decr_mulfail_arm_unify
         (fun _ h => h)) q hq
     have t2 := decr_under_id
       (B := EvmAsm.Codegen.U256MulU64Be.frameSlots
-        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         parentPtr Expected target (target - gasUsed) (0 : Word))
       (decr_sep_pair_congr
         (decr_sep_pair_congr (fun _ h => h)
           (decr_sep_pin_lift (r := Reg.x6) (v := BitVec.ofNat 64 (8 - k))))
         (fun _ h => h)) q t1
     have hE : ((EvmAsm.Codegen.U256MulU64Be.frameSlots
-          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+          (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
           parentPtr Expected target (target - gasUsed) (0 : Word) **
         ((regOwn .x5 ** (regOwn .x6 ** (regOwn .x28 **
             bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
@@ -770,7 +770,7 @@ private theorem k73_decr_mulfail_arm_unify
             regOwn .x16 ** regOwn .x17 ** F))) =
         (regOwns u256SubBeInPlaceScratch **
           EvmAsm.Codegen.U256MulU64Be.frameSlots
-            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+            (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
             parentPtr Expected target (target - gasUsed) (0 : Word) **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
             (k73_decr_img1 parentBytes (target - gasUsed)) **
@@ -848,7 +848,7 @@ theorem k73_decr_route_adapter {cr : CodeReq}
         ≤ 2 ^ 64)
     (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i) :
     cpsTripleWithin
-      ((19 + 3852 + 9) +
+      ((20 + 3852 + 9) +
         (((((10 +
               (u256DivU64BeInPlaceFn Expected (gasLimit >>> 1)
                 (k73_decr_img2 parentBytes ((gasLimit >>> 1) - gasUsed) expectedBytes)).body.steps +
@@ -960,7 +960,7 @@ theorem k73_decr_route_adapter {cr : CodeReq}
     Discharged by direct application - no hypotheses, no sorry. -/
 theorem k73_decr_route_adapter_inhabited :
     cpsTripleWithin
-      ((19 + 3852 + 9) +
+      ((20 + 3852 + 9) +
         (((((10 +
               (u256DivU64BeInPlaceFn Expected ((10000 : Word) >>> 1)
                 (k73_decr_img2 (List.replicate 32 0) (((10000 : Word) >>> 1) - (2500 : Word)) (List.replicate 32 0))).body.steps +
