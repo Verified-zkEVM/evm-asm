@@ -37,8 +37,9 @@ reachable.  A gate can pass this and still be useless; it cannot pass this and
 be structurally silent.
 
 The blocking candidate set starts with direct `scripts/<name>` invocations in
-`.github/workflows/build.yml` and follows executable `run_step scripts/<name>`
-dispatches from those scripts (and their transitive dispatches).  This keeps
+`.github/workflows/build.yml` and follows executable shell/Python dispatches
+(`run_step`, `python3`, `bash`, `sh`, `exec`, and `./scripts`) from those
+scripts (and their transitive dispatches).  This keeps
 the workflow candidate set closed without depending on the `check-*` filename
 convention or an opt-in list, while still seeing gates hidden behind the
 parallel bundle.  The normal report distinguishes DIRECTLY INVOKED scripts
@@ -191,7 +192,7 @@ def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
 
 
 def dispatched_invocations(script: Path) -> dict[str, list[tuple[str, str]]]:
-    """Return executable shell-dispatch edges in one script.
+    """Return executable shell/Python dispatch edges in one script.
 
     The source is comment-stripped before matching, so a prose example of a
     dispatch cannot enlarge the gate population.  Missing scripts simply have
@@ -263,10 +264,10 @@ def gate_invocations(workflows: Path | None = None,
 
     ``workflow_invocations`` remains the direct workflow view used by the
     self-test fixtures.  The total view follows executable shell/Python dispatch
-    edges from every
-    reachable script, preserving which names were direct and which were found
-    only behind a bundle.  A set of visited parents prevents cycles while still
-    allowing a nested bundle to expose its own child gates.  Generator/helper
+    edges from every reachable script, preserving which names were direct and
+    which were found only behind a bundle.  A set of visited parents prevents
+    cycles while still allowing a nested bundle to expose its own child gates.
+    Generator/helper
     edges are retained separately so they are visible without being graded as
     gates merely because they lack a failure status.
     """
