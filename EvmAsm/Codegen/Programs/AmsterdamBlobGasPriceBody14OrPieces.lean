@@ -1,9 +1,6 @@
 /- Parametric OR-chain leaves for the Body14 Taylor-round proof. -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody10Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody11Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody13Spec
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
 import EvmAsm.Rv64.Tactics.XSimp
@@ -13,8 +10,7 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody10Spec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody11Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody13Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody10Spec
 
 set_option maxRecDepth 8000
 
