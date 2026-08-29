@@ -236,7 +236,7 @@ private theorem fed_bit_toNat (b : BitVec 8) (n : Nat) (hn : n ≤ 7) :
     the quotient is all-ones-filled and the remainder is a pure shift register
     holding the low `n` bits of the original byte, all modulo `2^64` —
     unconditionally, no bounded-remainder hypothesis. -/
-private theorem aux_zero_mod (b : BitVec 8) :
+theorem aux_zero_mod (b : BitVec 8) :
     ∀ (n : Nat) (rem q : Word), n ≤ 8 →
       (U256DivU64BeSAsm.divByteStepAux
           ((BitVec.zeroExtend 64 b) <<< ((8 - n) : Nat)) 0 rem q n).1.toNat
@@ -293,7 +293,7 @@ private theorem mod_mul_lift_gen (c x y M : Nat) (_hM : 0 < M) :
 
 /-- Closed form of the b = 0 byte step: quotient word all-ones, remainder a
     pure shift-in (mod 2^64). -/
-private theorem divByteStepWord_zero (byte : BitVec 8) (rem : Word) :
+theorem divByteStepWord_zero (byte : BitVec 8) (rem : Word) :
     (U256DivU64BeSAsm.divByteStepWord byte 0 rem).1.toNat = 255
     ∧ (U256DivU64BeSAsm.divByteStepWord byte 0 rem).2.toNat
       = (256 * rem.toNat + byte.toNat) % 2 ^ 64 := by
@@ -321,7 +321,7 @@ private theorem divByteStep_zero (byte : BitVec 8) (rem : Word) :
   rfl
 
 /-- Composition of the mod-arithmetic recurrence `x (i+1) = (c * x i + d i) % M`. -/
-private theorem chain_two (x : Nat → Nat) (c : Nat) (d : Nat → Nat) (M : Nat)
+theorem chain_two (x : Nat → Nat) (c : Nat) (d : Nat → Nat) (M : Nat)
     (_hM : 0 < M) (x0 : Nat) (hx0 : x 0 = x0) (hx0lt : x0 < M)
     (hstep : ∀ i, x (i + 1) = (c * x i + d i) % M) (n : Nat) :
     x n = (c ^ n * x0 + ∑ i ∈ Finset.range n, d i * c ^ (n - 1 - i)) % M := by
@@ -357,7 +357,7 @@ private theorem divState_len (a orig : List (BitVec 8)) (b : Word) (k : Nat) :
     simpa using ih
 
 /-- At divisor zero every processed quotient byte is 255. -/
-private theorem quot_all_255 (a orig : List (BitVec 8)) (k : Nat) (hlen : k ≤ orig.length) :
+theorem quot_all_255 (a orig : List (BitVec 8)) (k : Nat) (hlen : k ≤ orig.length) :
     ∀ i, i < k → (U256DivU64BeSAsm.divState a orig 0 k).1.getD i 0 = 255 := by
   induction k with
   | zero => intro i hi; omega
@@ -389,7 +389,7 @@ private theorem quot_all_255 (a orig : List (BitVec 8)) (k : Nat) (hlen : k ≤ 
       exact ih'
 
 /-- At divisor zero the remainder is the big-endian tail of the dividend mod 2^64. -/
-private theorem divState_rem_zero (a orig : List (BitVec 8)) (k : Nat) :
+theorem divState_rem_zero (a orig : List (BitVec 8)) (k : Nat) :
     (U256DivU64BeSAsm.divState a orig 0 k).2.toNat
       = (∑ i ∈ Finset.range k, (a.getD i 0).toNat * 256 ^ (k - 1 - i)) % 2 ^ 64 := by
   have hx0 : (U256DivU64BeSAsm.divState a orig 0 0).2.toNat = 0 := by
