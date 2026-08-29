@@ -352,6 +352,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
 
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject10_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject1_spec
+
 #print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
 
 #print axioms EvmAsm.Codegen.FrameDepthPushSAsm.frameDepthPush_spec
