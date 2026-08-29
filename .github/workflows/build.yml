@@ -128,6 +128,16 @@ jobs:
           scripts/check-gates-can-fail.py --self-test
           scripts/check-gates-can-fail.py
 
+      # #13056: the independent fixed-sink scan must agree with the union of
+      # this manifest and check-derived-artifacts.py's guest-code registry.
+      # Its self-test proves that deleting an owner row and adding an unknown
+      # writer both fail; dynamic/temp/manual sinks remain explicitly named in
+      # the manifest scope rather than being guessed.
+      - name: Artifact-writer ownership (manifest + independent scan)
+        run: |
+          python3 scripts/check-artifact-writer-ownership.py --self-test
+          python3 scripts/check-artifact-writer-ownership.py
+
   build:
     runs-on: ubuntu-latest
     # Was inheriting the 360-minute default; the cache-miss run on

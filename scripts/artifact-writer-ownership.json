@@ -1,0 +1,240 @@
+{
+  "schema": "artifact-writer-ownership-v1",
+  "scope": {
+    "enumerator": "scripts/check-artifact-writer-ownership.py: fixed-sinks-v1",
+    "roots": [
+      "scripts/**/*.py",
+      "scripts/**/*.sh"
+    ],
+    "claim": "Every statically resolvable fixed repo-relative write to a tracked path under the roots is named by either this manifest or check-derived-artifacts.py GENERATORS.",
+    "unenumerated": [
+      {
+        "name": "dynamic-sinks",
+        "reason": "User-selected --out, args.out, output and manifest paths are resolved only at invocation time; the scanner does not guess which tracked path a caller may choose."
+      },
+      {
+        "name": "temporary-probe-and-kat-sinks",
+        "reason": "Temporary directories, gen-out products, run directories and /tmp probe/KAT files are not committed artifacts and are intentionally outside the ownership union."
+      },
+      {
+        "name": "manual-and-non-script-sinks",
+        "reason": "Hand-edited files and writers outside scripts/**/*.py or scripts/**/*.sh are not inferred; AxiomSweep.lean is listed explicitly below, while any other such writer needs a reviewed row."
+      },
+      {
+        "name": "uncommitted-reports",
+        "reason": "PROGRESS.md is intentionally generated on demand and uncommitted, so it has no committed owner row."
+      }
+    ]
+  },
+  "visibility_floor": {
+    "min_owner_rows": 17,
+    "required_names": [
+      "asm-fixture-manifest",
+      "asm-to-program-coverage",
+      "axiom-allowlist",
+      "axiom-baseline",
+      "axiom-witness-registry-floor",
+      "axiom-witnesses",
+      "code-preimage-empty-hash-floor",
+      "div-operands-sample",
+      "div-weights",
+      "drift-ledger",
+      "duplication-baseline",
+      "guest-image-floor-source",
+      "import-metrics-baseline",
+      "olean-weights",
+      "orphan-block-snapshot",
+      "rv64-shims",
+      "transcription-issues-snapshot"
+    ]
+  },
+  "owners": [
+    {
+      "name": "axiom-witnesses",
+      "writer": "scripts/gen-axiom-witnesses.py --write",
+      "outputs": ["EvmAsm/Progress/AxiomWitnesses.lean"],
+      "owner_gate": "scripts/check-axioms.sh",
+      "gate_source": "scripts/check-axioms.sh",
+      "ci_surface": ".github/workflows/build.yml: build/check-axioms.sh",
+      "mode": "derived",
+      "discovery": "fixed",
+      "reason": "The witness module is generated from the three progress registries and checked before the kernel axiom reports are trusted."
+    },
+    {
+      "name": "drift-ledger",
+      "writer": "scripts/drift-report.sh --write",
+      "outputs": ["DRIFT.md"],
+      "owner_gate": "scripts/check-drift.sh",
+      "gate_source": "scripts/drift-report.sh",
+      "ci_surface": ".github/workflows/build.yml: post-build reports/check-drift.sh",
+      "mode": "derived",
+      "discovery": "fixed",
+      "reason": "DRIFT.md is the committed rendered TCB ledger and must match the registry-derived report."
+    },
+    {
+      "name": "rv64-shims",
+      "writer": "scripts/gen-rv64-shims.py",
+      "outputs": ["EvmAsm/Rv64/**/*.lean"],
+      "owner_gate": "python3 scripts/gen-rv64-shims.py --check",
+      "gate_source": "scripts/gen-rv64-shims.py",
+      "ci_surface": ".github/workflows/build.yml: build/gen-rv64-shims.py",
+      "mode": "derived",
+      "discovery": "bounded-glob",
+      "reason": "The generator rewrites only the dependency re-export shim family; the bounded glob covers the generated files without claiming all Rv64 modules are generated."
+    },
+    {
+      "name": "axiom-baseline",
+      "writer": "scripts/AxiomSweep.lean (lake exe axiomsweep --update-baseline)",
+      "outputs": ["scripts/axiom_baseline.json"],
+      "owner_gate": "lake exe axiomsweep --check",
+      "gate_source": "scripts/AxiomSweep.lean",
+      "ci_surface": ".github/workflows/build.yml: Axiom sweep",
+      "mode": "reviewed-gated",
+      "discovery": "non-script",
+      "reason": "The whole-library axiom baseline is written by the Lean executable, not by a Python or shell writer; its report-only CI check is the owner."
+    },
+    {
+      "name": "import-metrics-baseline",
+      "writer": "scripts/import-graph-metrics.py --update-baseline",
+      "outputs": ["scripts/import-metrics-baseline.json"],
+      "owner_gate": "python3 scripts/import-graph-metrics.py --check",
+      "gate_source": "scripts/import-graph-metrics.py",
+      "ci_surface": ".github/workflows/build.yml: source-checks/import-graph-metrics.py",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The import-graph cost ratchet compares this checked-in baseline and rejects unexplained regressions."
+    },
+    {
+      "name": "olean-weights",
+      "writer": "scripts/import-graph-metrics.py --update-weights",
+      "outputs": ["scripts/olean-weights.json"],
+      "owner_gate": "NONE",
+      "gate_source": "scripts/import-graph-metrics.py",
+      "ci_surface": "NONE",
+      "mode": "reviewed-un-gated",
+      "discovery": "dynamic",
+      "reason": "This dependency/toolchain pricing snapshot is refreshed deliberately after a build; the current --check path consumes the baseline but does not claim freshness for weights."
+    },
+    {
+      "name": "axiom-allowlist",
+      "writer": "scripts/check-axioms.sh --write-allow",
+      "outputs": ["scripts/axiom-allow.txt"],
+      "owner_gate": "scripts/check-axioms.sh",
+      "gate_source": "scripts/check-axioms.sh",
+      "ci_surface": ".github/workflows/build.yml: build/check-axioms.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "Only reviewed pre-existing trust-axiom owners may remain in this allowlist; the axiom gate reads it on every build."
+    },
+    {
+      "name": "axiom-witness-registry-floor",
+      "writer": "scripts/check-axiom-witness-registry.py --write-allowlist",
+      "outputs": ["scripts/axiom-witness-registry-allow.txt"],
+      "owner_gate": "python3 scripts/check-axiom-witness-registry.py",
+      "gate_source": "scripts/check-axiom-witness-registry.py",
+      "ci_surface": ".github/workflows/build.yml: post-build reports/check-axiom-witness-registry.py",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The independent witness-name floor prevents a registry shrink from shrinking both sides of the axiom comparison."
+    },
+    {
+      "name": "code-preimage-empty-hash-floor",
+      "writer": "scripts/check-code-preimage-empty-hash.py --write-allowlist",
+      "outputs": ["scripts/code-preimage-empty-hash-allow.txt"],
+      "owner_gate": "scripts/check-code-preimage-empty-hash.sh",
+      "gate_source": "scripts/check-code-preimage-empty-hash.py",
+      "ci_surface": ".github/workflows/build.yml: source-checks/check-code-preimage-empty-hash.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The allowlist pins known status-5 violations while the source gate checks the empty-code identity and rejection polarity."
+    },
+    {
+      "name": "orphan-block-snapshot",
+      "writer": "scripts/orphan_blocks.py --update-snapshot",
+      "outputs": ["scripts/orphan-blocks-expected.txt"],
+      "owner_gate": "scripts/check-orphan-blocks.sh",
+      "gate_source": "scripts/orphan_blocks.py",
+      "ci_surface": "scripts/check-build-parallel.sh: codegen/check-orphan-blocks.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The linked-ELF CFG snapshot distinguishes reviewed known-open orphans from newly introduced unreachable blocks."
+    },
+    {
+      "name": "duplication-baseline",
+      "writer": "scripts/check-duplication.sh --update",
+      "outputs": ["scripts/duplication-baseline.txt"],
+      "owner_gate": "scripts/check-duplication.sh --gate",
+      "gate_source": "scripts/check-duplication.sh",
+      "ci_surface": ".github/workflows/quality-trends.yml: check-duplication.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The calibrated jscpd budget is an advisory quality-trend gate rather than a verifier claim, but its baseline still needs an owner."
+    },
+    {
+      "name": "transcription-issues-snapshot",
+      "writer": "scripts/transcription_queue.py --refresh-issues",
+      "outputs": ["scripts/proof-issues.json"],
+      "owner_gate": "scripts/check-transcription-queue.sh",
+      "gate_source": "scripts/transcription_queue.py",
+      "ci_surface": "scripts/check-build-parallel.sh: codegen/check-transcription-queue.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The issue snapshot is refreshed from GitHub deliberately; the queue's deterministic doc check consumes this committed snapshot and makes stale output visible."
+    },
+    {
+      "name": "asm-fixture-manifest",
+      "writer": "scripts/asm_to_program.py rewrite",
+      "outputs": ["scripts/asm-fixtures/MANIFEST.tsv"],
+      "owner_gate": "scripts/check-asm-to-program.sh",
+      "gate_source": "scripts/asm_to_program.py",
+      "ci_surface": "scripts/check-build-parallel.sh: asm-to-program/check-asm-to-program.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The conversion manifest is a reviewed registry of Function-to-source bindings; asm-to-program checks its rows and fixture bijection."
+    },
+    {
+      "name": "asm-to-program-coverage",
+      "writer": "scripts/asm_to_program.py coverage",
+      "outputs": ["docs/4ch8f-asm-to-program-coverage.md"],
+      "owner_gate": "NONE",
+      "gate_source": "scripts/asm_to_program.py",
+      "ci_surface": "NONE",
+      "mode": "reviewed-un-gated",
+      "discovery": "fixed",
+      "reason": "The coverage report is a human-facing census generated on demand; no CI check currently regenerates this report, so freshness is explicitly not claimed."
+    },
+    {
+      "name": "div-operands-sample",
+      "writer": "scripts/sample-div-operands.py",
+      "outputs": ["bench/div-operands-sample.txt"],
+      "owner_gate": "NONE",
+      "gate_source": "scripts/sample-div-operands.py",
+      "ci_surface": "NONE",
+      "mode": "reviewed-un-gated",
+      "discovery": "fixed",
+      "reason": "This is a deliberately reviewed research sample, not a verifier input or CI ratchet."
+    },
+    {
+      "name": "div-weights",
+      "writer": "scripts/analyze-div-operands.py --weights <path>",
+      "outputs": ["bench/div-weights.json"],
+      "owner_gate": "NONE",
+      "gate_source": "scripts/analyze-div-operands.py",
+      "ci_surface": "NONE",
+      "mode": "reviewed-un-gated",
+      "discovery": "dynamic",
+      "reason": "The tool accepts a caller-selected --weights path; this row records the tracked research snapshot without pretending every invocation targets it."
+    },
+    {
+      "name": "guest-image-floor-source",
+      "writer": "scripts/guest_image_coverage.py --write-floor",
+      "outputs": ["scripts/guest_image_coverage.py"],
+      "owner_gate": "scripts/check-guest-image-coverage.sh",
+      "gate_source": "scripts/guest_image_coverage.py",
+      "ci_surface": "scripts/check-build-parallel.sh: reports/check-guest-image-coverage.sh",
+      "mode": "reviewed-gated",
+      "discovery": "fixed",
+      "reason": "The deliberate floor update rewrites two constants in the generator itself; the coverage gate consumes those constants and rejects a drop."
+    }
+  ]
+}
