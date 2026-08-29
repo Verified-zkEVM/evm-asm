@@ -7,7 +7,7 @@
    intentionally supplied by the caller; this theorem does not weaken either
    the round post or the CodeReq.
 -/
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundParityComposition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModel
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
