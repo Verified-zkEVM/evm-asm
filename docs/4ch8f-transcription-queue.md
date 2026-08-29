@@ -389,8 +389,8 @@ bytes.
 | 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 29 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
-| 30 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 31 | `edd_memcpy` | 15 | gate 1 | register | 32 |
-| 32 | `edd_be32_eq` | 15 | gate 1 | register | 92 |
+| 29 | `edd_memcpy` | 21 | gate 1; calls 3 | register | 32 |
+| 30 | `edd_be32_eq` | 21 | gate 1; calls 3 | register | 92 |
+| 31 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
+| 32 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
 | 33 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |

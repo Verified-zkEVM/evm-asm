@@ -137,6 +137,36 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#12989 tranche 2 — edd ok path composed, 2026-08-29)
+
+- ✅ **`extractDepositData_ok_spec`**
+  (`Proofs/ExtractDepositDataOkSpec.lean`): flat whole-path
+  `cpsTripleWithin 7749` over the shared three-entry bundle image —
+  prologue, guard not taken, TEN `jal ra, edd_be32_eq` call groups and
+  FIVE `jal ra, edd_memcpy` call groups composed by `callWithin_spec`
+  with the leaves' DCode retSpecs, `a0 := 0`, epilogue.  At the deployed
+  probe arenas (payload `0x40000010`, out `0xa0010008`); the five
+  `mcStatic` premises are #12805's call-site discharges.  Row upgraded:
+  gate now claims fail arm + ok path; the ten mid-check rejection arms
+  are the remaining #12989 slice.
+- **Key idioms established** (first multi-call flat composition over
+  DCode leaves):
+  - `asrtM`'s `regFileIs` covers only `exposedRegs` — `sp`/`s0`/`s1`/
+    `ra` are FRAMED around each call, so callee-post forgetting is
+    confined to the exposed set (pack: explicit `rf` + per-register
+    `if_neg` rewrites; unpack: `regAtomsOf_to_regOwns`).
+  - Kernel deep-recursion on `flatten` ghost-independence: pin the
+    derivation's generated `Stmt` EXPLICITLY (`eddDeriv_stmt`, cheap
+    `rfl` — ghosts survive only in the loop-invariant slot) and prove
+    `flatten b = prog` for ANY base by `rw [eddDeriv_stmt]; rfl`.
+    Direct `rfl` on the un-pinned form blows the kernel's fixed
+    recursion guard regardless of `maxRecDepth`.
+  - `runBlock`'s argument grammar is a greedy `ident*` — it swallows a
+    following identifier-initial tactic line; keep it last in its
+    `by`-block or use a typed hole (`refine … (?_ : cps …)`).
+  - Restored the #12805 call-site section (`EddMemcpyCallSites`)
+    accidentally dropped by the tranche-1 emission swap.
+
 ### Recent (#12989 tranche 1 — edd main body Program-ized + fail arm rowed, 2026-08-29)
 
 - ✅ **`extract_deposit_data` main body is now a Lean instruction list**:
