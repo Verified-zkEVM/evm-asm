@@ -365,6 +365,8 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+-- #13030: envelope seam satisfiability and negative-control evidence.
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
 import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
@@ -394,6 +396,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 -- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
 -- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
@@ -5093,6 +5096,10 @@ private noncomputable abbrev _amsterdam_blob_gas_price_tail_copyarm_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
+-- #13030: the full Taylor-round CPS body is consumed by the round-composition
+-- proofs and must be included independently of the enclosing tie row.
+private noncomputable abbrev _amsterdam_blob_gas_price_taylor_round_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -6017,6 +6024,16 @@ private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
 private noncomputable abbrev _block_access_list_hash_core_control_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+-- #13030: keep the envelope's positive instance, old-premise refutation and
+-- byte-level padding control on the generated axiom-audit surface.
+private noncomputable abbrev _keccak_envelope_region_sat_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_region_sat
+private noncomputable abbrev _keccak_envelope_exact_region_control_witness :=
+  @EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+private noncomputable abbrev _keccak_envelope_sat_exact_control_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+private noncomputable abbrev _keccak_envelope_padding_control_witness :=
+  @EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=

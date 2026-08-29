@@ -1149,4 +1149,9 @@ theorem body_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
     proper and does not belong here.
 -/
 
+-- #13030 temporary module-floor audit.  This body contract is not yet a
+-- whole-routine Progress row, so keep a local kernel axiom report until the
+-- eventual row can move it into Progress/AxiomWitnesses.lean.
+#print axioms body_spec
+
 end EvmAsm.Codegen.BlockAccessListHashSpec
