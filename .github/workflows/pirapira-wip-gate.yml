@@ -29,11 +29,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # The evaluator is trusted repository code.  Always take it from the
-      # default branch; no PR-head code is executed by this workflow.
+      # default branch; no PR-head code is executed by this workflow.  The open
+      # pull refs are fetched only as Git objects so the batch classifier can inspect
+      # ancestry; no fetched head is checked out or executed.
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.repository.default_branch }}
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Self-test count and batch classification
         run: python3 scripts/wip_pr_gate.py --self-test
@@ -60,17 +62,55 @@ jobs:
           candidate_arg=()
           if [[ -n "${pr_number}" ]]; then
             gh api "repos/${REPO}/pulls/${pr_number}" > /tmp/candidate.json
-            candidate_arg=(--candidate-file /tmp/candidate.json)
+            # The workflow itself is the one narrow bootstrap exemption.  It
+            # is derived from the trusted GitHub files API, not from a branch
+            # or title supplied by the candidate.
+            touches_gate_workflow=false
+            gh api --paginate \
+              "repos/${REPO}/pulls/${pr_number}/files?per_page=100" \
+              --jq '.[] | .filename' > /tmp/candidate-files.txt
+            if grep -Fxq '.github/workflows/pirapira-wip-gate.yml' \
+              /tmp/candidate-files.txt; then
+              touches_gate_workflow=true
+            fi
+            jq --argjson touches "${touches_gate_workflow}" \
+              '. + {touches_gate_workflow: $touches}' \
+              /tmp/candidate.json > /tmp/candidate-enriched.json
+            candidate_arg=(--candidate-file /tmp/candidate-enriched.json)
           elif [[ "${EVENT_NAME}" == "pull_request_target" ]]; then
             echo "pull_request_target did not provide a PR number" >&2
             exit 1
           fi
+
+          # An ancestry result is meaningful only when every compared head is
+          # present in the trusted checkout.  Fetch the immutable pull refs
+          # named by the API response and verify each ref against its SHA.
+          jq -r '.[][]? | select(.number and .head.sha) |
+            [.number, .head.sha] | @tsv' /tmp/open-prs.json \
+            > /tmp/open-pr-heads.tsv
+          if [[ -n "${pr_number}" ]]; then
+            jq -r 'select(.number and .head.sha) |
+              [.number, .head.sha] | @tsv' /tmp/candidate.json \
+              >> /tmp/open-pr-heads.tsv
+          fi
+          sort -u /tmp/open-pr-heads.tsv -o /tmp/open-pr-heads.tsv
+          while IFS=$'\t' read -r number expected_sha; do
+            [[ -n "${number}" ]] || continue
+            git fetch --no-tags origin \
+              "+refs/pull/${number}/head:refs/remotes/origin/pr/${number}"
+            actual_sha="$(git rev-parse "refs/remotes/origin/pr/${number}^{commit}")"
+            if [[ "${actual_sha}" != "${expected_sha}" ]]; then
+              echo "pull #${number} moved during classification: API=${expected_sha} fetched=${actual_sha}" >&2
+              exit 1
+            fi
+          done < /tmp/open-pr-heads.tsv
 
           python3 scripts/wip_pr_gate.py \
             --prs-file /tmp/open-prs.json \
             "${candidate_arg[@]}" \
             --author "${AUTHOR}" \
             --threshold "${THRESHOLD}" \
+            --repo "${GITHUB_WORKSPACE}" \
             > /tmp/wip-result.json
           cat /tmp/wip-result.json
 
@@ -101,7 +141,7 @@ jobs:
           Candidate branch: \`${branch}\`
           Candidate title: ${title}
 
-          This gate runs only when a PR is opened or reopened, never on pushes to an existing PR. The branch is preserved; continue the work there and reopen it after the queue drains below the threshold. A batch PR is the queue-draining escape hatch and is never closed by this gate.
+          This gate runs only when a PR is opened or reopened, never on pushes to an existing PR. The branch is preserved; continue the work there and reopen it after the queue drains below the threshold. A structurally verified batch (at least two other open PR heads in this history, not already in the base) and the explicit maintainer `batch` label are excluded from this gate.
           EOF
           )"
 
