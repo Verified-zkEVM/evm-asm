@@ -3210,7 +3210,111 @@ def dispatchLoopFunction : String :=
   "  la x6, opcode_handlers\n" ++
   "  add x6, x6, x5\n" ++
   "  ld x7, 0(x6)\n" ++
-  "  jalr x1, x7, 0\n"
+  -- `0(x7)` rather than `x7, 0`: the same instruction to GNU-as (byte
+  -- identity checked by `asm_cmp`), and the spelling Lean's `emitInstr`
+  -- produces -- which is what lets `dispatchLoopLabeledFunction_eq_prog`
+  -- below hold by `rfl` instead of regenerating this literal.
+  "  jalr x1, 0(x7)\n"
+
+/-- **#12204 step 3: the conversion target for `dispatchLoop_prog`.**
+
+    `dispatchLoopFunction` is the loop body only — the entry labels live in
+    `dispatchLoopEntryAsm`, because `asm_to_program.py` refuses a bundle with two
+    consecutive non-`.L` labels (MULTI-ENTRY-BUNDLE).  This def supplies the ONE
+    label the converter needs and nothing else, so it is definitionally
+    `".dispatch_loop:\n" ++ dispatchLoopFunction`: no character of emitted guest
+    text is duplicated here or moved.
+
+    It is a **constant** `def … : String`, which is what makes step 3 possible —
+    the converter scans constant defs only, and the `depthAwareStop`-parameterised
+    guard sits in the caller (`emitDispatchLoopCodeSizeStopGuard`), never in the
+    body.  The warning in `dispatchLoopFunction`'s docstring that step 3 "will
+    additionally need the loop specialised per `depthAwareStop` arm" was written
+    while step 1 was the blocker; the step-5 factoring already removed the need.
+
+    ⛔ This is NOT emitted into any image.  `emitRuntimeDispatcherLoop` remains
+    the only producer of dispatcher text, and it concatenates
+    `dispatchLoopFunction`, not this.  `dispatchLoopLabeledFunction_eq_prog`
+    below pins the two together so they cannot drift. -/
+def dispatchLoopLabeledFunction : String :=
+  ".dispatch_loop:\n" ++ dispatchLoopFunction
+
+/-- **`dispatchLoop_prog` (#12204 step 3).**  The shipped dispatcher loop as a
+    `Program`, mechanically converted by `scripts/asm_to_program.py` from
+    `dispatchLoopLabeledFunction`.
+
+    Sixteen instructions: opcode fetch, the M30 static-gas charge with its
+    out-of-gas exit, and the indirect dispatch through `opcode_handlers`.
+
+    The `la` targets and the cross-`jal` carry CONCRETE guest-linked immediates
+    (`laHi`/`laLo`/`jalOff` over `GuestAddrs`) — the verification view.  The
+    emitted image text keeps them symbolic via `emitProgramR` and
+    `dispatchLoop_relocs`, so every image relocates for itself. -/
+def dispatchLoop_prog : Program :=
+  [ .LBU .x5 .x10 (0 : BitVec 12),
+    .SLLI .x5 .x5 (3 : BitVec 6),
+    .AUIPC .x6 (laHi GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop + 8)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop + 8)),
+    .ADD .x6 .x6 .x5,
+    .LD .x6 .x6 (0 : BitVec 12),
+    .LD .x7 .x20 (568 : BitVec 12),
+    .BGEU .x7 .x6 (8 : BitVec 13),
+    .JAL .x0 (jalOff GuestAddrs.exit_outofgas (GuestAddrs.dispatch_loop + 32)),
+    .SUB .x7 .x7 .x6,
+    .SD .x20 .x7 (568 : BitVec 12),
+    .AUIPC .x6 (laHi GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop + 44)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop + 44)),
+    .ADD .x6 .x6 .x5,
+    .LD .x7 .x6 (0 : BitVec 12),
+    .JALR .x1 .x7 (0 : BitVec 12) ]
+
+/-- Reloc side-table for `dispatchLoop_prog`: the `la` / symbolic-branch
+    instruction indices kept SYMBOLIC in the emitted image text
+    (`emitProgramR`), while the Program above carries the concrete guest-linked
+    immediates for verification.
+
+    Index 7 is the relaxed pair the symbolic branch became (#12204 step 1): the
+    source line `bltu x7, x6, .exit_outofgas` renders as an inverted `BGEU`
+    skipping 8 bytes plus a `JAL`, and the reloc records the ORIGINAL condition
+    and register order so the symbolic re-render reproduces the source. -/
+def dispatchLoop_relocs : RelocTable :=
+  [ (2, .la .x6 "opcode_gas_costs"),
+    (7, .br .bltu .x7 .x6 ".exit_outofgas"),
+    (11, .la .x6 "opcode_handlers") ]
+
+-- The literal is a ~16-link `++` chain and `emitProgramR` folds over the
+-- Program, so whnf on both sides runs deeper than the default 512.  Raising the
+-- limit only lets the elaborator finish unfolding; the equality is still
+-- kernel-checked, and no forbidden tactic is involved.
+set_option maxRecDepth 4000 in
+/-- **Kernel-checked drift guard.**  The text the shipped dispatcher emits is
+    exactly `dispatchLoop_prog` rendered under its label, with the `la` and
+    symbolic-branch relocs kept symbolic.
+
+    ⭐ `dispatchLoopLabeledFunction` is definitionally
+    `".dispatch_loop:\n" ++ dispatchLoopFunction`, and `dispatchLoopFunction` is
+    pinned as a factor of `emitRuntimeDispatcherLoop` by
+    `emitRuntimeDispatcherLoop_split`.  So this `rfl` ties the Program to the
+    **shipped** dispatcher text rather than to a copy of it: a line spliced into
+    the emitted loop without also landing in `dispatchLoop_prog` fails to
+    compile.
+
+    ⚠️ The trailing `++ "\n"` is not slack.  `emitProgramR` (via `joinLines`)
+    omits the final newline, which is right for a def that IS the whole emitted
+    unit -- the shape every other `_eq_prog` in this file has.  This body is a
+    concatenation FACTOR of `emitRuntimeDispatcherLoop`, sitting between the
+    code-size stop guard and `emitDispatchResume`, so it must keep its own line
+    terminator.  Dropping it to make the statement prettier would change the
+    emitted dispatcher text. -/
+theorem dispatchLoopLabeledFunction_eq_prog :
+    dispatchLoopLabeledFunction
+      = ".dispatch_loop:\n" ++ emitProgramR dispatchLoop_prog dispatchLoop_relocs
+          ++ "\n" := rfl
+
+#guard dispatchLoopLabeledFunction.startsWith ".dispatch_loop:\n"
+#guard dispatchLoop_prog.length = 16
+
+
 
 /-- Runtime dispatcher fetch/decode/dispatch loop. Shared by the standalone
     runtime dispatcher and the callable wrapper.

@@ -1822,6 +1822,17 @@ def _collect_guest_addr_syms():
         'rlp_recursive_decode_items',
         'rlp_recursive_decode_read_be',
         'rlp_recursive_decode_frame',
+        # GH #12204 step 3: dispatchLoop_prog is hand-maintained in Dispatch.lean
+        # (not an asm-fixture manifest entry), so its four referenced symbols are
+        # not discovered by the manifest scan.  `.dispatch_loop` and
+        # `.exit_outofgas` are GNU-as LOCAL code labels, so they are pinned by
+        # their RAW dot-prefixed spelling (this set is matched against the
+        # address table); `gen_guest_addrs` emits them under `ga_name`, i.e. as
+        # `GuestAddrs.dispatch_loop` / `GuestAddrs.exit_outofgas`.
+        '.dispatch_loop',
+        '.exit_outofgas',
+        'opcode_gas_costs',
+        'opcode_handlers',
         # GH #12345: SpecRef-shaped validate_header (String body pending asm_to_program).
         'validate_header',
         'vhrp_this_struct',
@@ -2978,7 +2989,14 @@ def _render_symbolic(entry, out, relocs):
                 cond, rs1, rs2 = operands.split()
                 lines.append(f"  {cond[1:]} {rs1[1:]}, {rs2[1:]}, {sym}")
             else:
-                lines.append(f"  {kind} {operands}, {sym}")
+                # Operands arrive in the Lean constructor spelling (`.x6`); Lean's
+                # `emitProgramR` renders them through `emitReg`, i.e. `x6`.  The
+                # `br` arm above already strips the dot; these two must too, or
+                # the re-render is not assembly (`la .x6, sym` is rejected by
+                # GNU-as) and cannot round-trip a source line.  GH #12204 step 3.
+                ops = ", ".join(o[1:] if o.startswith('.') else o
+                                for o in operands.split())
+                lines.append(f"  {kind} {ops}, {sym}")
         else:
             lines.extend("  " + l for l in asml)
         flat += len(lean)

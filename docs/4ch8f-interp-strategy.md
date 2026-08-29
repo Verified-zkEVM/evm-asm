@@ -159,7 +159,7 @@ the ro-region load spec.  This is the `.49` skeleton's work, not new
 machinery.
 
 **`jalr x0` tail calls: not needed — `.4` closes.**  The emitted
-dispatch is `jalr x1, x7, 0` with handlers returning via `ret` to
+dispatch is `jalr x1, 0(x7)` with handlers returning via `ret` to
 `j .dispatch_loop` (Dispatch.lean:2429-2432, `HandlerTail.advanceAndRet`)
 — exactly the `callReg`/`callRegS` shape.  The handlers with non-`ret`
 tails (STOP `j .exit_label`; halts `j .exit_no_epilogue`; CALL-family
@@ -192,7 +192,7 @@ helpers `dispatchContinueRet` / `dispatchHaltRet` / `emitDispatchResume`):
   EVM-ABI registers the handlers pin (the flag store uses x5/x6, which are
   per-iteration scratch; x10/x11/x12 = a0/a1/a2 are untouched).
 - **Continuation `.dispatch_resume`** is emitted immediately after the
-  `jalr x1, x7, 0`.  A handler "continues" via `la x1, .dispatch_resume; ret`
+  `jalr x1, 0(x7)`.  A handler "continues" via `la x1, .dispatch_resume; ret`
   (`dispatchContinueRet`) and "halts" via `dispatchHaltRet kind` (set the
   flag, then the same `la x1; ret`).  Loading the fixed continuation into
   `x1` restores the return address the loop always passes, so a handler that
