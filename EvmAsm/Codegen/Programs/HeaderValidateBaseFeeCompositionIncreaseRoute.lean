@@ -728,7 +728,7 @@ private theorem k73_incr_hw_bridge
     (hNq1 : 1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
-    cpsBranchWithin (13 + Nstatus + Ntail) K73 wholeCode
+    cpsBranchWithin (14 + Nstatus + Ntail) K73 wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -802,7 +802,7 @@ private theorem k73_incr_hw_triple
     (hNq1 : 1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
-    cpsTripleWithin (13 + Nstatus + Ntail) K73 raIn wholeCode
+    cpsTripleWithin (14 + Nstatus + Ntail) K73 raIn wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -879,7 +879,7 @@ private theorem k73_incr_funnel_close
     (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
     (parentBytes expectedBytes headerBytes outWin : List (BitVec 8))
     (F : Assertion) (Nstatus Ntail : Nat)
-    (hbranch : cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) wholeCode
+    (hbranch : cpsTripleWithin (14 + Nstatus + Ntail) K73 (H + 40) wholeCode
       (k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
         headerPtr v9 old18 v19 v20 parentBytes
         (k73_incr_outT parentBytes (gasUsed - (gasLimit >>> 1)) outWin)
@@ -903,7 +903,7 @@ private theorem k73_incr_funnel_close
         (gasUsed - (gasLimit >>> 1)).toNat < 2 ^ 256)
     (hexp : expectedBytes =
       k73_incr_outT parentBytes (gasUsed - (gasLimit >>> 1)) outWin) :
-    cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) wholeCode
+    cpsTripleWithin (14 + Nstatus + Ntail) K73 (H + 40) wholeCode
       ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20
         gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes
         (H + 40) old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 (k73_incr_accT parentBytes (gasUsed - (gasLimit >>> 1))) F))
@@ -1033,7 +1033,7 @@ private theorem k73_incr_adapter_bridge
     (hNq1 : 1 + k73AddBTailSteps parentPtr Expected parentBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
-    cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) wholeCode
+    cpsTripleWithin (14 + Nstatus + Ntail) K73 (H + 40) wholeCode
       ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes (H + 40) old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 (k73_incr_accT parentBytes (gasUsed - (gasLimit >>> 1))) F))
       ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost spH spK (H + 40) old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr parentBytes headerBytes (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes (k73_incr_accT parentBytes (gasUsed - (gasLimit >>> 1))) F))
   := by
@@ -1201,7 +1201,7 @@ theorem k73_incr_route_adapter {cr : CodeReq}
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail)
     (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i) :
-    cpsTripleWithin (13 + Nstatus + Ntail) K73 (H + 40) cr
+    cpsTripleWithin (14 + Nstatus + Ntail) K73 (H + 40) cr
       ((.x1 ↦ᵣ (H + 40)) ** k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr parentBytes expectedBytes headerBytes (H + 40) old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 (k73_incr_accT parentBytes (gasUsed - (gasLimit >>> 1))) F))
       ((.x1 ↦ᵣ (H + 40)) ** k73RouteBCallPost spH spK (H + 40) old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr parentBytes headerBytes (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes (k73_incr_accT parentBytes (gasUsed - (gasLimit >>> 1))) F))
   := fun R hR s hcr hPR hpc =>
@@ -1231,7 +1231,7 @@ here; the general increase-side contract is the native asymmetric follow-up
 (mirroring PR #12978). -/
 
 theorem k73_incr_route_adapter_inhabited :
-    cpsTripleWithin (13 + 3857 + (10 +
+    cpsTripleWithin (14 + 3857 + (10 +
         (u256DivU64BeInPlaceFn Expected ((10000 : Word) >>> 1) (k73_incr_outT (List.replicate 32 0) ((2500 : Word)) (List.replicate 32 0))).body.steps +
         (u256DivU64BeInPlaceFn Expected 8 (k73_incr_q1 (k73_incr_outT (List.replicate 32 0) ((2500 : Word)) (List.replicate 32 0)) ((10000 : Word) >>> 1))).body.steps +
         (12 + (1 + (((1 + 1) + (1 +
