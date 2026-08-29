@@ -42,6 +42,7 @@ namespace EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
+open EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
 open EvmAsm.Stateless.SpecRef
 
 /-! ## §1  The witness family's expected encoding -/
@@ -712,6 +713,133 @@ theorem k73_routeB_post_success_split :
     at hAllRegion ⊢
   xperm_chunked hAllRegion
 
+/-! ## §7  Closed K74 wrapper witness (#12979)
+
+The wrapper theorem is instantiated at a concrete increase arm.  Its K73
+premise is the already-closed Route-B adapter, while the two code-monotonicity
+premises are discharged from the linked address ranges (the public pair
+lemmas in `HeaderValidateBaseFeeSpec`).  This is deliberately a closed
+inhabitant: the registry row below points at this theorem rather than at the
+open static-premise inhabitant. -/
+
+private abbrev k74WitnessBytes32 : List (BitVec 8) := List.replicate 32 0
+
+private abbrev k74WitnessOutT : List (BitVec 8) :=
+  EvmAsm.Codegen.U256MulU64Be.copyState
+    (EvmAsm.Codegen.U256MulU64Be.mulState k74WitnessBytes32 (2500 : Word) 32)
+    k74WitnessBytes32 32
+
+private abbrev k74WitnessQ1 (T : List (BitVec 8)) (target : Word) : List (BitVec 8) :=
+  EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeQuotBytes T T target
+
+private abbrev k74WitnessQ2 (T : List (BitVec 8)) (target : Word) : List (BitVec 8) :=
+  EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeQuotBytes
+    (k74WitnessQ1 T target) (k74WitnessQ1 T target) 8
+
+private abbrev k74WitnessAcc : List (BitVec 8) :=
+  EvmAsm.Codegen.U256MulU64Be.mulState k74WitnessBytes32 (2500 : Word) 32
+
+private abbrev k74WitnessN73 : Nat :=
+  13 + 3857 + (10 +
+    (EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFn Expected
+      ((10000 : Word) >>> 1) k74WitnessOutT).body.steps +
+    (EvmAsm.Codegen.U256DivU64BeSAsm.u256DivU64BeInPlaceFn Expected 8
+      (k74WitnessQ1 k74WitnessOutT ((10000 : Word) >>> 1))).body.steps +
+    (12 + (1 + (((1 + 1) + (1 +
+      (EvmAsm.Codegen.U256FromU64BeSAsm.u256FromU64BeFn 1 Expected
+        (k74WitnessQ2 k74WitnessOutT ((10000 : Word) >>> 1))).body.steps + 1)) + 1)))) +
+    1000000
+
+private def k74WitnessWhole : CodeReq := wholeCode
+
+private def k74WitnessCode : CodeReq :=
+  hvbfCode.union (k74WitnessWhole.union u256EqCode)
+
+private theorem k74Witness_hvbf_u256eq_disjoint :
+    hvbfCode.Disjoint u256EqCode := by
+  unfold hvbfCode hvbfProg u256EqCode
+  apply CodeReq.Disjoint.ofProg_ranges <;> decide
+
+theorem header_validate_base_fee_spec_within_inhabited :
+    cpsTripleWithin
+      (27 + k74WitnessN73 +
+        (U256EqSAsm.u256EqBody (0x200000 : Word)
+          Expected k74WitnessBytes32 k74WitnessOutT).steps)
+      H (H + 40) k74WitnessCode
+      (hvbfPre (0xa0050048 : Word) (0xa0050038 : Word) (0xa0050000 : Word)
+        (H + 40) 0 (0x200000 : Word) 10000 7500 (0x200100 : Word)
+        0 0 0 0 k74WitnessBytes32 k74WitnessOutT k74WitnessBytes32
+        (k73_incr_env (0xa0050000 : Word) 0 0 0 0 0 0 k74WitnessAcc empAssertion))
+      (hvbfFinalRouteB (0xa0050048 : Word) (0xa0050038 : Word) (0xa0050000 : Word)
+        (H + 40) 0 (0x200000 : Word) 0 0 ((10000 : Word) >>> 1) 0 0
+        10000 7500 (0x200100 : Word) k74WitnessBytes32 k74WitnessBytes32
+        (k73_incr_outj (0xa0050000 : Word) (0x200100 : Word) 7500
+          ((10000 : Word) >>> 1) k74WitnessBytes32 k74WitnessAcc empAssertion)) := by
+  have hk73 : cpsTripleWithin k74WitnessN73 K73 (H + 40) k74WitnessWhole
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PreRest (0xa0050038 : Word) (0xa0050000 : Word) (0x200000 : Word)
+          0 0 0 0 10000 7500 (0x200100 : Word) k74WitnessBytes32
+          k74WitnessOutT k74WitnessBytes32 (H + 40) 0
+          (k73_incr_env (0xa0050000 : Word) 0 0 0 0 0 0 k74WitnessAcc empAssertion))
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73RouteBCallPost (0xa0050038 : Word) (0xa0050000 : Word) (H + 40) 0
+          (0x200000 : Word) 0 0 ((10000 : Word) >>> 1) 0 0 7500 10000
+          (0x200100 : Word) k74WitnessBytes32 k74WitnessBytes32
+          (k73_incr_outj (0xa0050000 : Word) (0x200100 : Word) 7500
+            ((10000 : Word) >>> 1) k74WitnessBytes32 k74WitnessAcc empAssertion)) := by
+    convert EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited using 1 <;> rfl
+  apply header_validate_base_fee_spec_within
+    (cr := k74WitnessCode) (k73Code := k74WitnessWhole) (n73 := k74WitnessN73)
+    (0xa0050048 : Word) (0xa0050038 : Word) (0xa0050000 : Word) (H + 40) 0
+    (0x200000 : Word) 10000 7500 (0x200100 : Word)
+    0 0 0 0 0 0 0 0 0 0
+    k74WitnessBytes32 k74WitnessOutT k74WitnessBytes32 k74WitnessAcc empAssertion
+  · decide
+  · decide
+  · unfold H; rfl
+  · pcf
+  · decide
+  · have hlen : k74WitnessOutT.length = 32 := by
+      exact EvmAsm.Codegen.U256MulU64Be.copyState_len _ _ 32 (by simp [k74WitnessBytes32])
+    exact hvbfWrittenImage_wf (gasLimit := (10000 : Word)) (gasUsed := (7500 : Word))
+      (parentBytes := k74WitnessBytes32) (expectedBytes := k74WitnessOutT) (by decide) hlen
+  · rfl
+  · exact EvmAsm.Codegen.U256MulU64Be.copyState_len _ _ 32 (by simp [k74WitnessBytes32])
+  · decide
+  · exact CodeReq.union_mono_left
+  · intro a i h
+    have hwhole : k74WitnessWhole a = some i := h
+    have hvnone : hvbfCode a = none := by
+      cases hv : hvbfCode a with
+      | none => exact rfl
+      | some j =>
+        have hwhole' : wholeCode a = some i := by
+          change wholeCode a = some i at hwhole
+          exact hwhole
+        exact False.elim (k74_hvbf_whole_disjoint hv hwhole')
+    exact CodeReq.union_skip hvnone (CodeReq.union_hit hwhole)
+  · exact hk73
+  · intro a i h
+    have hwhole : k74WitnessWhole a = none := by
+      cases hw : k74WitnessWhole a with
+      | none => exact rfl
+      | some j =>
+        have hw' : wholeCode a = some j := by
+          change wholeCode a = some j at hw
+          exact hw
+        exact False.elim (k74_whole_u256eq_disjoint hw' h)
+    have hvnone : hvbfCode a = none := by
+      cases hv : hvbfCode a with
+      | none => exact rfl
+      | some j =>
+        rcases k74Witness_hvbf_u256eq_disjoint a with hleft | hright
+        · rw [hv] at hleft
+          simp at hleft
+        · rw [h] at hright
+          simp at hright
+    exact CodeReq.union_skip hvnone (CodeReq.union_skip hwhole h)
+
 #print axioms k73_routeB_post_success_split
+#print axioms header_validate_base_fee_spec_within_inhabited
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef
