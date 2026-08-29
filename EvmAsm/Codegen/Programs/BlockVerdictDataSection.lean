@@ -922,9 +922,12 @@ def ziskStatelessVerdictV2DataSection : String :=
   -- callers that need the >u64 value (EIP-8037 gate blob-price check). tcbg_struct+160
   -- keeps only the low-64 view; in the high blob-fee regime (excess_blob_gas > ~328M)
   -- the price and a valid tx's max_fee both exceed u64, so the gate compares u256.
+  ".balign 8\n" ++
   "tcbg_blob_fee_be:\n  .zero 32\n" ++
+  ".balign 8\n" ++
   "bsg_blob_price_be:\n  .zero 32\n" ++
   "bsg_blob_lt_out:\n  .zero 8\n" ++
+  ".balign 8\n" ++
   "bsg_sender_addr:\n  .zero 32\n" ++
   "bsr_fail_code:\n  .zero 8\n" ++
   "bsr_storage_from_map:\n  .zero 8\n" ++
