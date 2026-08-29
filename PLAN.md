@@ -137,6 +137,21 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13071 — sg_validate_fixed_list rowed, 2026-08-30)
+
+- ✅ **`sg_validate_fixed_list` rowed `.proven`** (219/168/179):
+  `sgValidateFixedListFlat_spec`
+  (`Codegen/Proofs/SgValidateFixedListFlatEntry.lean`) — the flat
+  whole-routine triple at the linked entry, derived from the DCode
+  guard-cascade retSpec by the asrtM pack/unpack recipe.  `a0 =
+  sgvOut len esz maxc` (`0` iff `esz ≠ 0 ∧ len % esz = 0 ∧
+  len / esz ≤ maxc`); register-only leaf, ABI hyps only.  The
+  routine had a verified leaf but NO row and no GuestAddrs constant —
+  added `sg_validate_fixed_list` to `asm_to_program.py`'s
+  hand-maintained GuestAddrs extras (the #12534-style pin) and
+  regenerated.  `Stmt.retCascade` carries no ghost slots, so the
+  flatten/steps identities are plain `rfl` (no stmt-pin needed).
+
 ### Recent (#13068 — priority_fee_per_gas_eip1559 whole-routine, 2026-08-30)
 
 - ✅ **`priority_fee_per_gas_eip1559` upgraded `.partly` → `.proven`**

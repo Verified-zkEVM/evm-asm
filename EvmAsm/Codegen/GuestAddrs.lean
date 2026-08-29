@@ -1153,6 +1153,7 @@ def secp256k1_scalar_mul : Nat := 0x8001ff8c
 def selfdestruct_balance_transfer : Nat := 0x800333d0
 def sender_debit_from_gas : Nat := 0x800289ac
 def sender_post_nonce_consistent : Nat := 0x80028f2c
+def sg_validate_fixed_list : Nat := 0x80002110
 def sha256_w_input : Nat := 0xa3a0a938
 def sha256_w_iv : Nat := 0xa0b00000
 def sha256_w_params : Nat := 0xa0b00020
