@@ -636,15 +636,15 @@ theorem k73_in_place_sub_spec_within
       outPtr.toNat + 32 ≤ srcPtr.toNat)
     (hsz : 4 * ((u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.size + 1)
       ≤ 2 ^ 64)
-    (hret : ((K73 + 216) + 4) &&& ~~~(1 : Word) = K73 + 216 + 4) :
+    (hret : ((K73 + 220) + 4) &&& ~~~(1 : Word) = K73 + 220 + 4) :
     cpsTripleWithin
       (5 + (u256SubBeInPlaceFn srcPtr outPtr srcBytes orig).body.steps)
-      (K73 + 204) (K73 + 220) wholeCode
+      (K73 + 208) (K73 + 224) wholeCode
       (((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         regOwns u256SubBeInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion srcPtr srcBytes ** F)
-      (((.x1 : Reg) ↦ᵣ (K73 + 220)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 224)) **
         (.x10 ↦ᵣ u256SubBeBorrow srcBytes orig orig) **
         (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
         regOwns u256SubBeInPlaceScratch **
@@ -708,7 +708,7 @@ theorem k73_in_place_sub_spec_within
     refine cpsTripleWithin_weaken
       (fun _ hp => by xperm_hyp hp) (fun _ hq => by xperm_hyp hq) hsetupF
   have hsub := u256SubBeInPlaceFlat_spec
-    (K73 + 220) srcPtr outPtr srcBytes orig hrw hroSrc hlenSrc hlenOrig
+    (K73 + 224) srcPtr outPtr srcBytes orig hrw hroSrc hlenSrc hlenOrig
     hovSrc hovOut hdisj hsz hret
   have hsubc := cpsTripleWithin_extend_code sub_whole_mono hsub
   have hcall := callWithin_spec
@@ -1011,7 +1011,7 @@ theorem k73_equal_copy_spec_within
     (srcBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hsrc : srcBytes.length = 32) (hout : outBytes.length = 32)
     (hF : F.pcFree) :
-    cpsTripleWithin 10 (K73 + 232) (K73 + 276) wholeCode
+    cpsTripleWithin 10 (K73 + 236) (K73 + 280) wholeCode
       ((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x5 ↦ᵣ old5) **
         (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion basePtr srcBytes ** bytesRegion outPtr outBytes ** F)
@@ -1027,84 +1027,84 @@ theorem k73_equal_copy_spec_within
   let o2 := setBytes o1 8 (dwordBytes c1)
   let o3 := setBytes o2 16 (dwordBytes c2)
   let o4 := setBytes o3 24 (dwordBytes c3)
-  have hld0 := bytesRegion_ld_within .x5 .x8 basePtr old5 (K73 + 232)
+  have hld0 := bytesRegion_ld_within .x5 .x8 basePtr old5 (K73 + 236)
     srcBytes 0 (by decide) (by simp [hsrc]) (by decide)
   have hld0c := cpsTripleWithin_extend_code
-    (k73_whole_mem 58 _ (K73 + 232) (by decide) (by rw [k73_length]; decide) (by rfl)) hld0
+    (k73_whole_mem 59 _ (K73 + 236) (by decide) (by rw [k73_length]; decide) (by rfl)) hld0
   have hld0f := cpsTripleWithin_frameR
     ((.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) hld0c
-  have hsd0 := bytesRegion_sd_within .x9 .x5 outPtr c0 (K73 + 236)
+  have hsd0 := bytesRegion_sd_within .x9 .x5 outPtr c0 (K73 + 240)
     outBytes 0 (by simp [hout]) (by decide)
   have hsd0c := cpsTripleWithin_extend_code
-    (k73_whole_mem 59 _ (K73 + 236) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd0
+    (k73_whole_mem 60 _ (K73 + 240) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd0
   have hsd0f := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd0c
-  have hld1 := bytesRegion_ld_within .x5 .x8 basePtr c0 (K73 + 240)
+  have hld1 := bytesRegion_ld_within .x5 .x8 basePtr c0 (K73 + 244)
     srcBytes 1 (by decide) (by simp [hsrc]) (by decide)
   have hld1c := cpsTripleWithin_extend_code
-    (k73_whole_mem 60 _ (K73 + 240) (by decide) (by rw [k73_length]; decide) (by rfl)) hld1
+    (k73_whole_mem 61 _ (K73 + 244) (by decide) (by rw [k73_length]; decide) (by rfl)) hld1
   have hld1f := cpsTripleWithin_frameR
     ((.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion outPtr o1 ** F)
     (by pcf; exact hF) hld1c
-  have hsd1 := bytesRegion_sd_within .x9 .x5 outPtr c1 (K73 + 244)
+  have hsd1 := bytesRegion_sd_within .x9 .x5 outPtr c1 (K73 + 248)
     o1 1 (by simp [o1, hout]) (by decide)
   have hsd1c := cpsTripleWithin_extend_code
-    (k73_whole_mem 61 _ (K73 + 244) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd1
+    (k73_whole_mem 62 _ (K73 + 248) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd1
   have hsd1f := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd1c
-  have hld2 := bytesRegion_ld_within .x5 .x8 basePtr c1 (K73 + 248)
+  have hld2 := bytesRegion_ld_within .x5 .x8 basePtr c1 (K73 + 252)
     srcBytes 2 (by decide) (by simp [hsrc]) (by decide)
   have hld2c := cpsTripleWithin_extend_code
-    (k73_whole_mem 62 _ (K73 + 248) (by decide) (by rw [k73_length]; decide) (by rfl)) hld2
+    (k73_whole_mem 63 _ (K73 + 252) (by decide) (by rw [k73_length]; decide) (by rfl)) hld2
   have hld2f := cpsTripleWithin_frameR
     ((.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion outPtr o2 ** F)
     (by pcf; exact hF) hld2c
-  have hsd2 := bytesRegion_sd_within .x9 .x5 outPtr c2 (K73 + 252)
+  have hsd2 := bytesRegion_sd_within .x9 .x5 outPtr c2 (K73 + 256)
     o2 2 (by simp [o2, o1, hout]) (by decide)
   have hsd2c := cpsTripleWithin_extend_code
-    (k73_whole_mem 63 _ (K73 + 252) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd2
+    (k73_whole_mem 64 _ (K73 + 256) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd2
   have hsd2f := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd2c
-  have hld3 := bytesRegion_ld_within .x5 .x8 basePtr c2 (K73 + 256)
+  have hld3 := bytesRegion_ld_within .x5 .x8 basePtr c2 (K73 + 260)
     srcBytes 3 (by decide) (by simp [hsrc]) (by decide)
   have hld3c := cpsTripleWithin_extend_code
-    (k73_whole_mem 64 _ (K73 + 256) (by decide) (by rw [k73_length]; decide) (by rfl)) hld3
+    (k73_whole_mem 65 _ (K73 + 260) (by decide) (by rw [k73_length]; decide) (by rfl)) hld3
   have hld3f := cpsTripleWithin_frameR
     ((.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion outPtr o3 ** F)
     (by pcf; exact hF) hld3c
-  have hsd3 := bytesRegion_sd_within .x9 .x5 outPtr c3 (K73 + 260)
+  have hsd3 := bytesRegion_sd_within .x9 .x5 outPtr c3 (K73 + 264)
     o3 3 (by simp [o3, o2, o1, hout]) (by decide)
   have hsd3c := cpsTripleWithin_extend_code
-    (k73_whole_mem 65 _ (K73 + 260) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd3
+    (k73_whole_mem 66 _ (K73 + 264) (by decide) (by rw [k73_length]; decide) (by rfl)) hsd3
   have hsd3f := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
       bytesRegion basePtr srcBytes ** F)
     (by pcf; exact hF) hsd3c
-  have hli := li_spec_gen_within .x10 old10 (0 : Word) (K73 + 264) (by decide)
+  have hli := li_spec_gen_within .x10 old10 (0 : Word) (K73 + 268) (by decide)
   have hlic := cpsTripleWithin_extend_code
-    (k73_whole_mem 66 _ (K73 + 264) (by decide) (by rw [k73_length]; decide) (by rfl)) hli
+    (k73_whole_mem 67 _ (K73 + 268) (by decide) (by rw [k73_length]; decide) (by rfl)) hli
   have hlif := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x5 ↦ᵣ c3) **
       (.x0 ↦ᵣ (0 : Word)) ** bytesRegion basePtr srcBytes **
       bytesRegion outPtr o4 ** F)
     (by pcf; exact hF) hlic
-  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K73 + 268)
-  rw [show (K73 + 268 : Word) + signExtend21 (8 : BitVec 21) = K73 + 276 by
+  have hj := jal_x0_spec_gen_within (8 : BitVec 21) (K73 + 272)
+  rw [show (K73 + 272 : Word) + signExtend21 (8 : BitVec 21) = K73 + 280 by
     rw [show signExtend21 (8 : BitVec 21) = (8 : Word) from by decide]
     bv_omega] at hj
   have hjc := cpsTripleWithin_extend_code
-    (k73_whole_mem 67 _ (K73 + 268) (by decide) (by rw [k73_length]; decide) (by rfl)) hj
+    (k73_whole_mem 68 _ (K73 + 272) (by decide) (by rw [k73_length]; decide) (by rfl)) hj
   have hjf := cpsTripleWithin_frameR
     ((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x5 ↦ᵣ c3) **
       (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
@@ -1120,7 +1120,7 @@ theorem k73_equal_copy_spec_within
   have hcopy := cpsTripleWithin_seq_perm_same_cr (by xsimp) h0123 h4567
   have hcopyli := cpsTripleWithin_seq_perm_same_cr (by xsimp) hcopy hlif
   have hall := cpsTripleWithin_seq_perm_same_cr (by xsimp) hcopyli hjf
-  have hfinal : cpsTripleWithin 10 (K73 + 232) (K73 + 276) wholeCode
+  have hfinal : cpsTripleWithin 10 (K73 + 236) (K73 + 280) wholeCode
       ((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** (.x5 ↦ᵣ old5) **
         (.x10 ↦ᵣ old10) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion basePtr srcBytes ** bytesRegion outPtr outBytes ** F)
@@ -1162,10 +1162,10 @@ theorem k73_equal_route_spec_within
         bytesRegion outPtr (k73CopyOut baseBytes outBytes) ** F) := by
   have hhead := k73_head_spec_within sp0 spH raIn gasLimit gasUsed
     basePtr outPtr target v8 v9 v18 v19 v20 baseBytes outBytes F hspH htarget hF
-  have hbeq := beq_spec_gen_within .x11 .x18 (192 : BitVec 13)
+  have hbeq := beq_spec_gen_within .x11 .x18 (196 : BitVec 13)
     gasUsed target (K73 + 40)
-  rw [show (K73 + 40) + signExtend13 (192 : BitVec 13) = K73 + 232 by
-    rw [show signExtend13 (192 : BitVec 13) = (192 : Word) from by decide]
+  rw [show (K73 + 40) + signExtend13 (196 : BitVec 13) = K73 + 236 by
+    rw [show signExtend13 (196 : BitVec 13) = (196 : Word) from by decide]
     bv_omega] at hbeq
   have hbeqC := cpsBranchWithin_extend_code
     (k73_whole_mem 10 _ (K73 + 40) (by decide)
@@ -1198,7 +1198,7 @@ theorem k73_equal_route_spec_within
     exact hF
   have hcopy := k73_equal_copy_spec_within basePtr outPtr 0 gasLimit
     baseBytes outBytes Fcopy hsrc hout hFcopy
-  have hcopyAny : ∀ old5, cpsTripleWithin 10 (K73 + 232) (K73 + 276) wholeCode
+  have hcopyAny : ∀ old5, cpsTripleWithin 10 (K73 + 236) (K73 + 280) wholeCode
       (((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ gasLimit) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fcopy) **
@@ -1213,7 +1213,7 @@ theorem k73_equal_route_spec_within
       (fun _ hq => by xperm_hyp hq)
       (k73_equal_copy_spec_within basePtr outPtr old5 gasLimit
         baseBytes outBytes Fcopy hsrc hout hFcopy)
-  have hcopyOwn : cpsTripleWithin 10 (K73 + 232) (K73 + 276) wholeCode
+  have hcopyOwn : cpsTripleWithin 10 (K73 + 236) (K73 + 280) wholeCode
       ((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) ** regOwn .x5 **
         (.x10 ↦ᵣ gasLimit) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fcopy)
@@ -1229,7 +1229,7 @@ theorem k73_equal_route_spec_within
           (.x10 ↦ᵣ gasLimit) ** (.x0 ↦ᵣ (0 : Word)) **
           bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fcopy)
         hcopyAny)
-  have hcopyBranch : cpsTripleWithin 10 (K73 + 232) (K73 + 276) wholeCode
+  have hcopyBranch : cpsTripleWithin 10 (K73 + 236) (K73 + 280) wholeCode
       (((.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
         regOwn .x5 ** (.x10 ↦ᵣ gasLimit) ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fcopy))
@@ -1252,17 +1252,17 @@ theorem k73_equal_route_spec_within
     (.x5 ↦ᵣ packBytes ((baseBytes.drop 24).take 8)) **
     (.x10 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) ** F_E
   let savedE : Reg → Word := k73Saved raIn v8 v9 v18 v19 v20
-  have hE : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+  have hE : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH savedE ** hpreE)
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame savedE **
         frameSlotsSaved k73Frame spH savedE ** hpreE) := by
     have hload_mem : ∀ a i,
-        CodeReq.ofProg (K73 + 276) (loadProg k73Frame) a = some i →
+        CodeReq.ofProg (K73 + 280) (loadProg k73Frame) a = some i →
           wholeCode a = some i := by
       intro a i hi
       apply k73_whole_mono
-      apply CodeReq.ofProg_mono_sub K73 (K73 + 276) prog (loadProg k73Frame) 69
+      apply CodeReq.ofProg_mono_sub K73 (K73 + 280) prog (loadProg k73Frame) 70
       · decide
       · decide
       · rw [k73_length]
@@ -1275,7 +1275,7 @@ theorem k73_equal_route_spec_within
       intro p hp
       simp [k73Frame] at hp
       rcases hp with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-    have hload := loadSeq_spec_own k73Frame spH savedE (K73 + 276)
+    have hload := loadSeq_spec_own k73Frame spH savedE (K73 + 280)
       hbound hne
     have hloadC := cpsTripleWithin_extend_code hload_mem hload
     have hloadF := cpsTripleWithin_frameR hpreE
@@ -1288,10 +1288,10 @@ theorem k73_equal_route_spec_within
       rw [hz]
       simp
     have hadd := addi_spec_gen_same_within .x2 spH (56 : BitVec 12)
-      (K73 + 300) (by decide)
+      (K73 + 304) (by decide)
     rw [hsp] at hadd
     have haddC := cpsTripleWithin_extend_code
-      (k73_whole_mem 75 _ (K73 + 300) (by decide)
+      (k73_whole_mem 76 _ (K73 + 304) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hadd
     have haddF := cpsTripleWithin_frameR
       (regsAt k73Frame savedE ** frameSlotsSaved k73Frame spH savedE ** hpreE)
@@ -1304,8 +1304,8 @@ theorem k73_equal_route_spec_within
     have hReg : regsAt k73Frame savedE =
         ((.x1 ↦ᵣ raIn) ** regsAt k73FrameRest1 savedE) := by
       simp [k73Frame, k73FrameRest1, regsAt, savedE, k73Saved]
-    have hloadAdd' : cpsTripleWithin (k73Frame.length + 1) (K73 + 276)
-        (K73 + 304) wholeCode
+    have hloadAdd' : cpsTripleWithin (k73Frame.length + 1) (K73 + 280)
+        (K73 + 308) wholeCode
         (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH savedE) ** hpreE)
         (((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 savedE **
@@ -1313,19 +1313,19 @@ theorem k73_equal_route_spec_within
       apply cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
         rw [hReg] at hq
         xperm_chunked hq) hloadAdd
-    have hret0 := Fn.jalr_ret_spec (K73 + 304) raIn hret
+    have hret0 := Fn.jalr_ret_spec (K73 + 308) raIn hret
       (P := (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 savedE **
         frameSlotsSaved k73Frame spH savedE)
       (pcFree_sepConj (pcFree_regIs (r := .x2) (v := sp0))
         (pcFree_sepConj (pcFree_regsAt k73FrameRest1 savedE)
           (pcFree_frameSlotsSaved _ _ _)))
     have hretC := cpsTripleWithin_extend_code
-      (k73_whole_mem 76 _ (K73 + 304) (by decide)
+      (k73_whole_mem 77 _ (K73 + 308) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hret0
     have hretF := cpsTripleWithin_frameR hpreE
       (by dsimp [hpreE, F_E]; pcf; exact hF) hretC
     have hfull := cpsTripleWithin_seq_perm_same_cr (by xsimp) hloadAdd' hretF
-    have hfull8 : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+    have hfull8 : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
         (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH savedE) ** hpreE)
         (((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 savedE **
@@ -1376,7 +1376,7 @@ theorem k73_equal_route_spec_within
       regsAt, frameSlotsSaved, k73Frame, k73FrameRest1, k73Saved] at hp'' ⊢
     simp only [sepConj_emp_right'] at hp'' ⊢
     xperm_chunked hp'') hcopyBranch hE
-  have hrouteStart : cpsTripleWithin (10 + 8) (K73 + 232) raIn wholeCode
+  have hrouteStart : cpsTripleWithin (10 + 8) (K73 + 236) raIn wholeCode
       (((.x11 ↦ᵣ gasUsed) ** (.x18 ↦ᵣ target) **
         ⌜gasUsed = target⌝) **
         ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
@@ -1410,11 +1410,11 @@ theorem k73_equal_route_spec_within
       xperm_chunked hq) hmerged
 
 theorem k73_epilogue_load_mem :
-    ∀ a i, CodeReq.ofProg (K73 + 276) (loadProg k73Frame) a = some i →
+    ∀ a i, CodeReq.ofProg (K73 + 280) (loadProg k73Frame) a = some i →
       wholeCode a = some i := by
   intro a i hi
   apply k73_whole_mono
-  apply CodeReq.ofProg_mono_sub K73 (K73 + 276) prog (loadProg k73Frame) 69
+  apply CodeReq.ofProg_mono_sub K73 (K73 + 280) prog (loadProg k73Frame) 70
   · decide
   · decide
   · rw [k73_length]
@@ -1427,7 +1427,7 @@ theorem k73_epilogue_spec_within
     (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
     (hret : (raIn &&& ~~~(1 : Word)) = raIn)
     (hsaved : saved .x1 = raIn) (hP : P.pcFree) :
-    cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+    cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved ** P)
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
@@ -1438,14 +1438,14 @@ theorem k73_epilogue_spec_within
     intro p hp
     simp [k73Frame] at hp
     rcases hp with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-  have hload := loadSeq_spec_own k73Frame spH saved (K73 + 276) hbound hne
+  have hload := loadSeq_spec_own k73Frame spH saved (K73 + 280) hbound hne
   have hloadC := cpsTripleWithin_extend_code k73_epilogue_load_mem hload
   have hloadF := cpsTripleWithin_frameR P hP hloadC
   have hadd := addi_spec_gen_same_within .x2 spH (56 : BitVec 12)
-    (K73 + 300) (by decide)
+    (K73 + 304) (by decide)
   rw [hsp] at hadd
   have haddC := cpsTripleWithin_extend_code
-    (k73_whole_mem 75 _ (K73 + 300) (by decide)
+    (k73_whole_mem 76 _ (K73 + 304) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hadd
   have haddF := cpsTripleWithin_frameR
     (regsAt k73Frame saved ** frameSlotsSaved k73Frame spH saved ** P)
@@ -1455,8 +1455,8 @@ theorem k73_epilogue_spec_within
   have hReg : regsAt k73Frame saved =
       ((.x1 ↦ᵣ raIn) ** regsAt k73FrameRest1 saved) := by
     simp [k73Frame, k73FrameRest1, regsAt, hsaved]
-  have hloadAdd' : cpsTripleWithin (k73Frame.length + 1) (K73 + 276)
-      (K73 + 304) wholeCode
+  have hloadAdd' : cpsTripleWithin (k73Frame.length + 1) (K73 + 280)
+      (K73 + 308) wholeCode
       (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved) ** P)
       (((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 saved **
@@ -1464,18 +1464,18 @@ theorem k73_epilogue_spec_within
     apply cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hq => by
       rw [hReg] at hq
       xperm_chunked hq) hloadAdd
-  have hret0 := Fn.jalr_ret_spec (K73 + 304) raIn hret
+  have hret0 := Fn.jalr_ret_spec (K73 + 308) raIn hret
     (P := (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 saved **
       frameSlotsSaved k73Frame spH saved)
     (pcFree_sepConj (pcFree_regIs (r := .x2) (v := sp0))
       (pcFree_sepConj (pcFree_regsAt k73FrameRest1 saved)
         (pcFree_frameSlotsSaved _ _ _)))
   have hretC := cpsTripleWithin_extend_code
-    (k73_whole_mem 76 _ (K73 + 304) (by decide)
+    (k73_whole_mem 77 _ (K73 + 308) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hret0
   have hretF := cpsTripleWithin_frameR P hP hretC
   have hfull := cpsTripleWithin_seq_perm_same_cr (by xsimp) hloadAdd' hretF
-  have hfull8 : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+  have hfull8 : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved) ** P)
       (((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ sp0) ** regsAt k73FrameRest1 saved **
