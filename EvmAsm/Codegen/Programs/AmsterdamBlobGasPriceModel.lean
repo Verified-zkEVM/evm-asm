@@ -463,6 +463,34 @@ theorem add384_carry_iff (as ss : List Word)
     rw [hzero] at hrec
     omega
 
+/-- If a six-limb addition fits in the modeled 384-bit word, the machine's
+    low limbs represent its whole result (the carry flag is zero). -/
+theorem add384_low_of_lt (as ss : List Word)
+    (hlen : as.length = 6) (hlen2 : ss.length = 6)
+    (hsum : limbsToNat as + limbsToNat ss < 2 ^ 384) :
+    limbsToNat (add384Run as ss (0 : Word)).1 =
+      limbsToNat as + limbsToNat ss := by
+  obtain ⟨hval, _hcarry⟩ := add384Run_spec as ss (0 : Word) (by simp) (by omega)
+  have hlen' : (add384Run as ss (0 : Word)).1.length = 6 := by
+    rw [add384Run_length as ss (0 : Word) (by omega)]
+    exact hlen
+  have hlow : limbsToNat (add384Run as ss (0 : Word)).1 < 2 ^ 384 := by
+    exact limbsToNat_lt _ 6 hlen'
+  have hpow : 2 ^ (64 * as.length) = 2 ^ 384 := by
+    rw [hlen]
+  rw [hpow] at hval
+  have hzero : (0 : Word).toNat = 0 := by decide
+  rw [hzero] at hval
+  have hcarry_zero : (add384Run as ss (0 : Word)).2.toNat = 0 := by
+    by_contra hne
+    have hpos : 0 < (add384Run as ss (0 : Word)).2.toNat := Nat.pos_of_ne_zero hne
+    have hterm : 2 ^ 384 ≤ (add384Run as ss (0 : Word)).2.toNat * 2 ^ 384 := by
+      have hmul := Nat.mul_le_mul_right (2 ^ 384) hpos
+      simpa using hmul
+    omega
+  simp only [hcarry_zero] at hval
+  exact hval
+
 /-! ## 6-limb multiply by u64 (the `prod = acc * excess` block) -/
 
 /-- One limb of the multiply: input limb `a`, multiplier `e`, carry `c`;
@@ -616,6 +644,33 @@ theorem mul384_carry_iff (as : List Word) (e : Word)
   · intro hge hzero
     rw [hzero] at hrec
     omega
+
+/-- If a six-limb multiplication fits in the modeled 384-bit word, the
+    machine's low limbs represent its whole result (the carry flag is zero). -/
+theorem mul384_low_of_lt (as : List Word) (e : Word)
+    (hlen : as.length = 6)
+    (hprod : limbsToNat as * e.toNat < 2 ^ 384) :
+    limbsToNat (mul384Run as e (0 : Word)).1 = limbsToNat as * e.toNat := by
+  obtain ⟨hval, _hcarry⟩ := mul384Run_spec as e (0 : Word) (by simp)
+  have hlen' : (mul384Run as e (0 : Word)).1.length = 6 := by
+    rw [mul384Run_length as e (0 : Word)]
+    exact hlen
+  have hlow : limbsToNat (mul384Run as e (0 : Word)).1 < 2 ^ 384 :=
+    limbsToNat_lt _ 6 hlen'
+  have hpow : 2 ^ (64 * as.length) = 2 ^ 384 := by
+    rw [hlen]
+  rw [hpow] at hval
+  have hzero : (0 : Word).toNat = 0 := by decide
+  rw [hzero] at hval
+  have hcarry_zero : (mul384Run as e (0 : Word)).2.toNat = 0 := by
+    by_contra hne
+    have hpos : 0 < (mul384Run as e (0 : Word)).2.toNat := Nat.pos_of_ne_zero hne
+    have hterm : 2 ^ 384 ≤ (mul384Run as e (0 : Word)).2.toNat * 2 ^ 384 := by
+      have hmul := Nat.mul_le_mul_right (2 ^ 384) hpos
+      simpa using hmul
+    omega
+  simp only [hcarry_zero] at hval
+  exact hval
 
 /-! ## Restoring division by a u64 divisor -/
 
@@ -1000,6 +1055,87 @@ def priceLoopPrefix (num : Nat) : Nat → Nat × Nat
       let s := priceLoopPrefix num k
       (s.1 * num / (taylorDenominator * (k + 1)), s.2 + s.1)
 
+theorem priceLoopPrefix_step (num k : Nat) :
+    priceLoopPrefix num (k + 1) =
+      ((priceLoopPrefix num k).1 * num /
+          (taylorDenominator * (k + 1)),
+        (priceLoopPrefix num k).2 + (priceLoopPrefix num k).1) := by
+  simp [priceLoopPrefix]
+
+/- The prefix is the exact unbounded recurrence at the corresponding index.
+   The zero-accumulator case is explicit: after the model has terminated, the
+   machine-shaped prefix keeps the same output and zero accumulator. -/
+theorem priceLoopPrefix_taylorNatAux (num j : Nat) :
+    taylorNatAux num taylorDenominator (j + 1)
+        (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 =
+      taylorNatAux num taylorDenominator 1 taylorDenominator 0 := by
+  induction j with
+  | zero => rfl
+  | succ j ih =>
+      rw [priceLoopPrefix_step]
+      by_cases h_acc : (priceLoopPrefix num j).1 = 0
+      · have ih' := ih
+        rw [h_acc, taylorNatAux.eq_1, if_pos rfl] at ih'
+        simp only [h_acc, Nat.zero_mul, Nat.zero_div]
+        rw [taylorNatAux.eq_1, if_pos rfl]
+        exact ih'
+      · rw [← taylorNatAux_step num taylorDenominator (j + 1)
+          (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 h_acc]
+        exact ih
+
+/- A successful bounded model result supplies the strict fit needed at every
+   prefix, not merely at the entry state.  This is the bridge used by the
+   machine round proof: the prefix pair is the same state as the unbounded
+   recurrence at index `j + 1`, while `taylor384Aux_some_implies_nat_lt`
+   supplies the entry-state bound. -/
+theorem priceLoopPrefix_fit_of_some
+    (num result j : Nat)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result) :
+    taylorNatAux num taylorDenominator (j + 1)
+        (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 <
+      taylorOutputBound := by
+  have hs := taylor384Aux_some_implies_nat_lt num 1 taylorDenominator 0
+    result h_some
+  have h := (Nat.div_lt_iff_lt_mul
+    (by norm_num [taylorDenominator])).1 hs.1
+  have hfit : taylorNatAux num taylorDenominator 1 taylorDenominator 0 <
+      taylorOutputBound := by
+    simpa [taylorOutputBound, taylorResultBound] using h
+  rw [priceLoopPrefix_taylorNatAux]
+  exact hfit
+
+theorem priceLoopPrefix_sum_lt_word384_of_some
+    (num result j : Nat)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result)
+    (h_acc : (priceLoopPrefix num j).1 ≠ 0) :
+    (priceLoopPrefix num j).2 + (priceLoopPrefix num j).1 <
+      taylorWord384Bound := by
+  have hfit := priceLoopPrefix_fit_of_some num result j h_some
+  have hnext := taylorNatAux_next_output_le num taylorDenominator
+    (j + 1) (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 h_acc
+  have hbound : taylorOutputBound < taylorWord384Bound := by decide
+  exact lt_of_le_of_lt hnext (lt_of_lt_of_le hfit (Nat.le_of_lt hbound))
+
+theorem priceLoopPrefix_product_lt_word384_of_some
+    (num result j : Nat) (h_num : num < taylorWord64Bound)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result)
+    (h_acc : (priceLoopPrefix num j).1 ≠ 0) :
+    (priceLoopPrefix num j).1 * num < taylorWord384Bound := by
+  have hfit := priceLoopPrefix_fit_of_some num result j h_some
+  exact taylorNatAux_product_lt_word384 num taylorDenominator (j + 1)
+    (priceLoopPrefix num j).1 (priceLoopPrefix num j).2
+    h_num hfit h_acc
+
+theorem priceLoopPrefix_divisor_lt_word64 (j : Nat) (h_j : j < 495) :
+    taylorDenominator * (j + 1) < taylorWord64Bound := by
+  have h_num : taylorDenominator * (j + 1) ≤ taylorDenominator * 495 := by
+    exact Nat.mul_le_mul_left taylorDenominator (by omega)
+  have h_bound : taylorDenominator * 495 < taylorWord64Bound := by decide
+  exact lt_of_le_of_lt h_num h_bound
+
 theorem priceLoopPrefix_mono
     {num₁ num₂ k : Nat} (h_num : num₁ ≤ num₂) :
     (priceLoopPrefix num₁ k).1 ≤ (priceLoopPrefix num₂ k).1 ∧
@@ -1056,6 +1192,92 @@ def priceLoopFuel (num : Nat) : Nat → Nat → Nat → Nat → PriceLoopOut
       else if taylorWord384Bound ≤ acc * num then .ovf
       else priceLoopFuel num fuel (i + 1) (acc * num / (taylorDenominator * i))
         (output + acc)
+
+theorem priceLoopPrefix_acc_zero_of_some
+    (num result : Nat) (h_num : num < taylorWord64Bound)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result) :
+    (priceLoopPrefix num 495).1 = 0 := by
+  by_contra hne
+  have hpos : 0 < (priceLoopPrefix num 495).1 := Nat.pos_of_ne_zero hne
+  have hnone := priceLoopPrefix_cap_model_none hpos
+  have hfit := priceLoopPrefix_fit_of_some num result 495 h_some
+  have hsome' := taylor384Aux_some_of_nat_lt num taylorDenominator 496
+    (priceLoopPrefix num 495).1 (priceLoopPrefix num 495).2 h_num hfit
+  rw [hnone] at hsome'
+  cases hsome'
+
+/- The finite machine-shaped loop agrees with the unbounded recurrence from
+   every reachable prefix.  The induction is on the remaining rounds, so the
+   terminal `i = 496` check is handled explicitly rather than hidden behind a
+   fuel bound.  The model result being `some` rules out the only reachable
+   cap state: a nonzero accumulator at prefix 495 would make the bounded model
+   return `none` as shown by `priceLoopPrefix_cap_model_none`. -/
+theorem priceLoopFuel_prefix_done_of_some
+    (num result j : Nat) (h_num : num < taylorWord64Bound)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result) (h_j : j ≤ 495) :
+    priceLoopFuel num (496 - j) (j + 1)
+        (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 =
+      .done (taylorNatAux num taylorDenominator 1 taylorDenominator 0) := by
+  let P : Nat → Prop := fun n =>
+    ∀ j, 495 - j = n → j ≤ 495 →
+      priceLoopFuel num (496 - j) (j + 1)
+          (priceLoopPrefix num j).1 (priceLoopPrefix num j).2 =
+        .done (taylorNatAux num taylorDenominator 1 taylorDenominator 0)
+  have hP : P (495 - j) := by
+    apply Nat.strong_induction_on
+    intro n ih j' h_jn h_j'
+    by_cases h_last : j' = 495
+    · have h_zero := priceLoopPrefix_acc_zero_of_some num result h_num h_some
+      have h_zero' : (priceLoopPrefix num j').1 = 0 := by
+        simpa [h_last] using h_zero
+      have h_out :
+          (priceLoopPrefix num j').2 =
+            taylorNatAux num taylorDenominator 1 taylorDenominator 0 := by
+        have h_rel := priceLoopPrefix_taylorNatAux num j'
+        rw [taylorNatAux.eq_1, if_pos h_zero'] at h_rel
+        exact h_rel
+      have h_fuel : 496 - j' = 1 := by omega
+      rw [h_fuel]
+      simp only [priceLoopFuel, if_pos h_zero']
+      simp only [PriceLoopOut.done.injEq]
+      exact h_out
+    · have h_lt : j' < 495 := by omega
+      have h_i : ¬ 496 ≤ j' + 1 := by omega
+      by_cases h_acc : (priceLoopPrefix num j').1 = 0
+      · have h_out :
+            (priceLoopPrefix num j').2 =
+              taylorNatAux num taylorDenominator 1 taylorDenominator 0 := by
+          have h_rel := priceLoopPrefix_taylorNatAux num j'
+          rw [taylorNatAux.eq_1, if_pos h_acc] at h_rel
+          exact h_rel
+        have h_fuel : 496 - j' = (496 - (j' + 1)) + 1 := by omega
+        rw [h_fuel]
+        simp only [priceLoopFuel, if_pos h_acc]
+        simp only [PriceLoopOut.done.injEq]
+        exact h_out
+      · have h_sum :
+            (priceLoopPrefix num j').2 + (priceLoopPrefix num j').1 <
+              taylorWord384Bound :=
+          priceLoopPrefix_sum_lt_word384_of_some num result j' h_some h_acc
+        have h_prod :
+            (priceLoopPrefix num j').1 * num <
+              taylorWord384Bound :=
+          priceLoopPrefix_product_lt_word384_of_some num result j' h_num h_some h_acc
+        have h_div : taylorDenominator * (j' + 1) < taylorWord64Bound :=
+          priceLoopPrefix_divisor_lt_word64 j' h_lt
+        have h_fuel : 496 - j' = (496 - (j' + 1)) + 1 := by omega
+        have h_rem : 495 - (j' + 1) < n := by omega
+        have h_next := ih (495 - (j' + 1)) h_rem (j' + 1) (by omega) (by omega)
+        rw [h_fuel]
+        simp only [priceLoopFuel, if_neg h_acc, if_neg h_i,
+          if_neg (by omega : ¬ taylorWord384Bound ≤
+            (priceLoopPrefix num j').2 + (priceLoopPrefix num j').1),
+          if_neg (by omega : ¬ taylorWord384Bound ≤
+            (priceLoopPrefix num j').1 * num)]
+        simpa [priceLoopPrefix_step] using h_next
+  exact hP j rfl h_j
 
 /-- The final sum of a `done` run dominates every intermediate `output + acc`. -/
 theorem priceLoopFuel_done_ge (num : Nat) :
@@ -1191,5 +1413,7 @@ theorem priceBytes_length (excess : Word) : (priceBytes excess).length = 32 := b
 #print axioms priceLoopPrefix_mono
 #print axioms priceLoopPrefix_cap_output_ge
 #print axioms priceLoopPrefix_cap_model_none
+#print axioms add384_low_of_lt
+#print axioms mul384_low_of_lt
 
 end EvmAsm.Codegen.AmsterdamBlobGasPrice
