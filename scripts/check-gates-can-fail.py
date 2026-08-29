@@ -183,6 +183,7 @@ _BUNDLE_ROOT_ONLY = {
 }
 _BUNDLE_SOURCE_CHECK_ONLY = {
     "check-code-preimage-empty-hash.sh",
+    "check-artifact-writer-ownership.py",
     "check-correspondence-deps.sh",
     "check-duplicate-decls.py",
     "check-eest-sampler-span.py",
