@@ -200,6 +200,7 @@ _BUNDLE_SOURCE_CHECK_ONLY = {
     "check-opcode-structure.sh",
     "check-phase-entry-pinned.py",
     "check-registry-crosscheck.sh",
+    "check-render-oracle-coverage.py",
     "check-retired-predicates.sh",
     "check-routine-liveness.sh",
     "check-specref-citations.py",
