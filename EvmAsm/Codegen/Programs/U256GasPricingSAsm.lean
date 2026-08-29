@@ -118,7 +118,7 @@ theorem sub_bytes_length (a b orig : List (BitVec 8))
   rw [U256SubBeSAsm.u256SubBeBytes, subBorrowState_len]
   exact hlen
 
-private theorem priority_mem (k : Nat) (ins : Instr) (A : Word)
+theorem priority_mem (k : Nat) (ins : Instr) (A : Word)
     (hA : A = P + BitVec.ofNat 64 (4 * k))
     (hk : k < priorityFeePerGasEip1559_prog.length)
     (hins : (show List Instr from priorityFeePerGasEip1559_prog)[k]'hk = ins) :
@@ -276,39 +276,40 @@ private theorem prioritySubFlat_spec
     This is kept separate from the call proofs so the register ownership
     ledger is visible at the first composition boundary. -/
 theorem priority_setup_spec
-    (ret pPtr fPtr bPtr outPtr : Word) (F : Assertion) (hF : F.pcFree) :
+    (ret pPtr fPtr bPtr outPtr v8 v9 v18 v19 : Word)
+    (F : Assertion) (hF : F.pcFree) :
     cpsTripleWithin 7 (P + 24) (P + 52) fullCode
-      (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x9 ↦ᵣ fPtr) **
-        (.x18 ↦ᵣ bPtr) ** (.x19 ↦ᵣ outPtr) ** (.x10 ↦ᵣ pPtr) **
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+        (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ pPtr) **
         (.x11 ↦ᵣ fPtr) ** (.x12 ↦ᵣ bPtr) ** (.x13 ↦ᵣ outPtr) ** F)
       (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x9 ↦ᵣ fPtr) **
         (.x18 ↦ᵣ bPtr) ** (.x19 ↦ᵣ outPtr) ** (.x10 ↦ᵣ fPtr) **
         (.x11 ↦ᵣ bPtr) ** (.x12 ↦ᵣ outPtr) ** regOwn .x13 ** F) := by
-  have hmv8 := mv_spec_gen_within .x8 .x10 pPtr pPtr (P + 24)
+  have hmv8 := mv_spec_gen_within .x8 .x10 pPtr v8 (P + 24)
     (by decide)
   have hmv8c := cpsTripleWithin_extend_code
     (priority_mem 6 _ (P + 24) (by decide) (by decide) (by rfl)) hmv8
   have hmv8f := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ ret) ** (.x9 ↦ᵣ fPtr) ** (.x18 ↦ᵣ bPtr) **
-      (.x19 ↦ᵣ outPtr) ** (.x11 ↦ᵣ fPtr) **
+    (((.x1 : Reg) ↦ᵣ ret) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) **
+      (.x19 ↦ᵣ v19) ** (.x11 ↦ᵣ fPtr) **
       (.x12 ↦ᵣ bPtr) ** (.x13 ↦ᵣ outPtr) ** F) (by pcf; exact hF) hmv8c
-  have hmv9 := mv_spec_gen_within .x9 .x11 fPtr fPtr (P + 28)
+  have hmv9 := mv_spec_gen_within .x9 .x11 fPtr v9 (P + 28)
     (by decide)
   have hmv9c := cpsTripleWithin_extend_code
     (priority_mem 7 _ (P + 28) (by decide) (by decide) (by rfl)) hmv9
   have hmv9f := cpsTripleWithin_frameR
-    (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x18 ↦ᵣ bPtr) **
-      (.x19 ↦ᵣ outPtr) ** (.x10 ↦ᵣ pPtr) **
+    (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x18 ↦ᵣ v18) **
+      (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ pPtr) **
       (.x12 ↦ᵣ bPtr) ** (.x13 ↦ᵣ outPtr) ** F) (by pcf; exact hF) hmv9c
-  have hmv18 := mv_spec_gen_within .x18 .x12 bPtr bPtr (P + 32)
+  have hmv18 := mv_spec_gen_within .x18 .x12 bPtr v18 (P + 32)
     (by decide)
   have hmv18c := cpsTripleWithin_extend_code
     (priority_mem 8 _ (P + 32) (by decide) (by decide) (by rfl)) hmv18
   have hmv18f := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x9 ↦ᵣ fPtr) **
-      (.x19 ↦ᵣ outPtr) ** (.x10 ↦ᵣ pPtr) ** (.x11 ↦ᵣ fPtr) **
+      (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ pPtr) ** (.x11 ↦ᵣ fPtr) **
       (.x13 ↦ᵣ outPtr) ** F) (by pcf; exact hF) hmv18c
-  have hmv19 := mv_spec_gen_within .x19 .x13 outPtr outPtr (P + 36)
+  have hmv19 := mv_spec_gen_within .x19 .x13 outPtr v19 (P + 36)
     (by decide)
   have hmv19c := cpsTripleWithin_extend_code
     (priority_mem 9 _ (P + 36) (by decide) (by decide) (by rfl)) hmv19
@@ -898,7 +899,7 @@ private theorem priority_success_path_spec
       xperm_hyp hq)
     hfinal
 
-private def prioritySuccessPost
+def prioritySuccessPost
     (pPtr fPtr bPtr outPtr : Word)
     (pBytes fBytes bBytes subBytes : List (BitVec 8))
     (F : Assertion) : Assertion :=
@@ -916,7 +917,7 @@ private def prioritySuccessPost
     regOwns prioritySubResidualScratch ** bytesRegion fPtr fBytes **
     bytesRegion bPtr bBytes ** F
 
-private def priorityFailurePost
+def priorityFailurePost
     (status : Word) (pPtr fPtr bPtr outPtr : Word)
     (pBytes fBytes bBytes subBytes : List (BitVec 8))
     (F : Assertion) : Assertion :=
@@ -1042,7 +1043,7 @@ private theorem priority_status_paths_spec
     incumbent `ra` is `ret`; the subtraction adapter changes it to `P + 56`
     at the actual JAL and the continuation consumes that link. -/
 theorem priority_fee_per_gas_eip1559_body_spec
-    (ret pPtr fPtr bPtr outPtr : Word)
+    (ret pPtr fPtr bPtr outPtr v8 v9 v18 v19 : Word)
     (pBytes fBytes bBytes outBytes : List (BitVec 8))
     (F : Assertion) (hF : F.pcFree)
     (hrw : RwRegion.wf ⟨outPtr, 32⟩)
@@ -1073,8 +1074,8 @@ theorem priority_fee_per_gas_eip1559_body_spec
       (7 + (1 + (prioritySubFn fPtr bPtr outPtr fBytes bBytes outBytes).body.steps + 1) +
         (1 + (3 + 309 + 2)))
       (P + 24) (P + 88) fullCode
-      (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ pPtr) ** (.x9 ↦ᵣ fPtr) **
-        (.x18 ↦ᵣ bPtr) ** (.x19 ↦ᵣ outPtr) ** (.x10 ↦ᵣ pPtr) **
+      (((.x1 : Reg) ↦ᵣ ret) ** (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) **
+        (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ pPtr) **
         (.x11 ↦ᵣ fPtr) ** (.x12 ↦ᵣ bPtr) ** (.x13 ↦ᵣ outPtr) **
         regOwns prioritySetupScratch ** (.x0 ↦ᵣ (0 : Word)) **
         bytesRegion pPtr pBytes ** bytesRegion fPtr fBytes **
@@ -1090,7 +1091,8 @@ theorem priority_fee_per_gas_eip1559_body_spec
     dsimp [Fsetup]
     pcf
     exact hF
-  have hsetup := priority_setup_spec ret pPtr fPtr bPtr outPtr Fsetup hFsetup
+  have hsetup := priority_setup_spec ret pPtr fPtr bPtr outPtr
+    v8 v9 v18 v19 Fsetup hFsetup
   have hsub := priority_sub_call_spec ret pPtr fPtr bPtr outPtr
     fBytes bBytes outBytes
     (((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion pPtr pBytes ** F)
@@ -1121,6 +1123,7 @@ theorem priority_fee_per_gas_eip1559_body_spec
 
 #print axioms priority_sub_call_spec_concrete
 #print axioms priority_fee_per_gas_eip1559_body_spec
+
 
 end U256GasPricingSAsm
 

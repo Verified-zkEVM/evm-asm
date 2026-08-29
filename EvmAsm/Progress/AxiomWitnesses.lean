@@ -1032,6 +1032,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
 
+#print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec

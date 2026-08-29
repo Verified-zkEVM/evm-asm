@@ -137,6 +137,28 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13068 — priority_fee_per_gas_eip1559 whole-routine, 2026-08-30)
+
+- ✅ **`priority_fee_per_gas_eip1559` upgraded `.partly` → `.proven`**
+  (167 proven / 3 partly): `priority_fee_per_gas_eip1559_spec`
+  (`Codegen/Programs/U256GasPricingSAsm.lean`) is the entry-anchored
+  all-outcome contract — frame prologue (6 insns), the Stage-1 body
+  triple (setup, `u256_sub_be`, in-place `u256_min`, status split),
+  and the epilogue (7 insns), ending at the aligned `ra` with `sp` and
+  the four callee-saved registers restored.  Post is the success/reject
+  disjunction.  ABI/resource hypotheses only.
+- **Enablers**: the body/setup specs' saved-register entry values were
+  PINNED to the argument pointers (an artifact of instantiating the mv
+  lemmas at `vOld := new value`) — generalized to arbitrary `v8 v9 v18
+  v19` in place.  New reusable pieces: `cps_or_pre` (disjunctive-pre
+  elimination), `sepConj_or_distrib`, and the epilogue lemma peeling
+  `ra` ownership (both status arms leave different link values).
+- Lesson: when a seq-composition target has a `set`-bound post, unfold
+  it in the COMPOSED hypothesis (`rw [hWholeQ] at s2`) before the final
+  weaken — post-weaken lambdas over an unresolved metavariable break
+  `rw`/xperm.  Filed alongside: #13069 (allowlist burn-down to zero),
+  #13070 (edd unified contract), #13071 (sg_validate_fixed_list row).
+
 ### Recent (#12989 COMPLETE — the ten rejection arms, 2026-08-29)
 
 - ✅ **All three arm families of `extract_deposit_data` proven**:

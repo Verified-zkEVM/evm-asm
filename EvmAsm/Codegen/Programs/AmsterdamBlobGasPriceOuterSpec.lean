@@ -7,7 +7,6 @@
    values for the subsequent exit-divide and outer-loop adapters.
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec

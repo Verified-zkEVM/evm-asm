@@ -1,5 +1,6 @@
 /- Parity-parametric outer-round adapters for K70 (#12851). -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterSpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
 
