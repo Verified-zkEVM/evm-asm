@@ -98,6 +98,12 @@ jobs:
         run: scripts/check-code-preimage-empty-hash.sh
       - name: check-mpt-status-vocab
         run: scripts/check-mpt-status-vocab.sh
+      # #12829: every standalone Function/Program render needs an external
+      # oracle; a *_eq_prog self-tie alone cannot detect shared drift.
+      - name: Guarded render oracle coverage
+        run: |
+          python3 scripts/check-render-oracle-coverage.py --self-test
+          python3 scripts/check-render-oracle-coverage.py
       - name: Opcode-structure (AddrNorm pairing; advisory checklist for new complex dirs)
         run: scripts/check-opcode-structure.sh
       # Advisory naming nudge (camelCase hypotheses newly added in the PR);

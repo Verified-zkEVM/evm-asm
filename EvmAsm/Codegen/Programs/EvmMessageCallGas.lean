@@ -160,6 +160,7 @@ theorem callExtraGasFunction_eq_prog :
     callExtraGasFunction = "call_extra_gas:\n" ++ emitProgram callExtraGas_prog := rfl
 
 #guard callExtraGasFunction.startsWith "call_extra_gas:\n"
+#guard callExtraGas_prog.length = 10
 /-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
     value_nonzero) cases.
     Output:

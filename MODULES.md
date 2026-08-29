@@ -184,10 +184,11 @@ Two of those are traps worth stating outright:
   from un-exposing, and offset tables such as `DivMod/Compose/Offsets.lean` and
   the generated `Codegen/RegionMapLinkPins.lean` are safe by construction.
 
-### The predictor: count plain `def`s, ignore `abbrev`s
+### The predictor (⛔ SUPERSEDED — see the body-size and no-proxy results below): count plain `def`s, ignore `abbrev`s
 
 Because abbrevs stay exposed, the win tracks the number of plain `def`s and
-nothing else. Measured:
+nothing else. **⛔ SUPERSEDED — this historical hypothesis is not a ranking
+rule; see the body-size and no-static-proxy results below.** Measured:
 
 | file | `def` | `abbrev` | public `.olean` |
 | --- | ---: | ---: | ---: |

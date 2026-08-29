@@ -1,5 +1,6 @@
 # asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
 callFrameForwardGasFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
+callExtraGasFunction	EvmAsm/Codegen/Programs/EvmMessageCallGas.lean
 execLogAddrToBalCanonicalFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
 rlpFieldToU64StrictFunction	EvmAsm/Codegen/Programs/RlpFieldToU64StrictProgram.lean
 storageWritesBlockLatestValueFunction	EvmAsm/Codegen/Programs/CommittedStorageLookup.lean
