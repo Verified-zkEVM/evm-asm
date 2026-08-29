@@ -73,14 +73,14 @@ theorem k73_increase_setup_spec_within
     (v8 v9 v18 v19 v20 v20Saved : Word)
     (baseBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree) :
-    cpsTripleWithin 5 (K73 + 64) (K73 + 84) wholeCode
+    cpsTripleWithin 5 (K73 + 68) (K73 + 88) wholeCode
       (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20 v20Saved baseBytes outBytes F)
       (k73IncreaseSetupPost spH raIn gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20Saved baseBytes outBytes F) := by
-  have h0 := li_spec_gen_within .x20 v20 (1 : Word) (K73 + 64) (by decide)
+  have h0 := li_spec_gen_within .x20 v20 (1 : Word) (K73 + 68) (by decide)
   have h0' := cpsTripleWithin_extend_code
-    (fun a i hi => k73_whole_mem 16 _ (K73 + 64) (by decide)
+    (fun a i hi => k73_whole_mem 17 _ (K73 + 68) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi) h0
   have h0F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
@@ -93,9 +93,9 @@ theorem k73_increase_setup_spec_within
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h0'
   have h1 := sub_spec_gen_within .x19 .x11 .x18 gasUsed target v19
-    (K73 + 68) (by decide)
+    (K73 + 72) (by decide)
   have h1' := cpsTripleWithin_extend_code
-    (fun a i hi => k73_whole_mem 17 _ (K73 + 68) (by decide)
+    (fun a i hi => k73_whole_mem 18 _ (K73 + 72) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi) h1
   have h1F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
@@ -106,9 +106,9 @@ theorem k73_increase_setup_spec_within
       frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h1'
-  have h2 := mv_spec_gen_within .x10 .x8 basePtr gasLimit (K73 + 72) (by decide)
+  have h2 := mv_spec_gen_within .x10 .x8 basePtr gasLimit (K73 + 76) (by decide)
   have h2' := cpsTripleWithin_extend_code
-    (fun a i hi => k73_whole_mem 18 _ (K73 + 72) (by decide)
+    (fun a i hi => k73_whole_mem 19 _ (K73 + 76) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi) h2
   have h2F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) **
@@ -121,9 +121,9 @@ theorem k73_increase_setup_spec_within
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h2'
   have h3 := mv_spec_gen_within .x11 .x19 (gasUsed - target) gasUsed
-    (K73 + 76) (by decide)
+    (K73 + 80) (by decide)
   have h3' := cpsTripleWithin_extend_code
-    (fun a i hi => k73_whole_mem 19 _ (K73 + 76) (by decide)
+    (fun a i hi => k73_whole_mem 20 _ (K73 + 80) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi) h3
   have h3F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
@@ -135,9 +135,9 @@ theorem k73_increase_setup_spec_within
       frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20Saved) **
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** F)
     (by pcf; exact hF) h3'
-  have h4 := mv_spec_gen_within .x12 .x9 outPtr basePtr (K73 + 80) (by decide)
+  have h4 := mv_spec_gen_within .x12 .x9 outPtr basePtr (K73 + 84) (by decide)
   have h4' := cpsTripleWithin_extend_code
-    (fun a i hi => k73_whole_mem 20 _ (K73 + 80) (by decide)
+    (fun a i hi => k73_whole_mem 21 _ (K73 + 84) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi) h4
   have h4F := cpsTripleWithin_frameR
     ((.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
@@ -366,17 +366,17 @@ def k73IncreaseMulPost
     (spH raIn gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
-  ((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+  ((.x1 : Reg) ↦ᵣ (K73 + 92)) **
     frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
     (k73MulBodyPostNoRa (spH + signExtend12 (-48 : BitVec 12))
-      (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+      (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
       basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F)
 
 @[irreducible] def k73IncreaseMulCalleePre
     (spH basePtr outPtr target gasUsed : Word)
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
-  EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+  EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 92)
     basePtr outPtr target (gasUsed - target) (1 : Word)
     basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
     baseBytes accBytes outBytes
@@ -385,7 +385,7 @@ def k73IncreaseMulPost
     (spH basePtr outPtr target gasUsed : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
-    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
     basePtr outPtr target (gasUsed - target) (1 : Word)
     basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F
 
@@ -398,17 +398,17 @@ theorem k73_increase_mul_callee_of_mulWhole
     (f0 f1 f2 f3 f4 f5 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (h : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
-      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 92)
         basePtr outPtr target (gasUsed - target) 1
         basePtr (gasUsed - target) outPtr outPtr
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes)
       (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) 1
         basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F)) :
     cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
       (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
@@ -426,12 +426,12 @@ theorem k73_increase_mul_spec_within
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree)
     (hcallee : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
       (k73IncreaseMulCalleePre spH basePtr outPtr target gasUsed
         f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
         baseBytes accBytes outBytes F)) :
-    cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
+    cpsTripleWithin 3856 (K73 + 68) (K73 + 92) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20Live v20Saved f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes F)
       (k73IncreaseMulPost spH raIn gasUsed basePtr outPtr target
@@ -448,32 +448,32 @@ theorem k73_increase_mul_spec_within
     spH raIn gasLimit gasUsed basePtr outPtr target v8 v9 v18 v19 v20Live v20Saved
     baseBytes outBytes Fmul hFmul
   have htarget :
-      (K73 + 84) + signExtend21
+      (K73 + 88) + signExtend21
         (jalOff GuestAddrs.u256_mul_u64_be
-          (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)) =
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 88)) =
       (GuestAddrs.u256_mul_u64_be : Word) := by
     change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
-      BitVec.ofNat 64 84 + _ = BitVec.ofNat 64 GuestAddrs.u256_mul_u64_be
+      BitVec.ofNat 64 88 + _ = BitVec.ofNat 64 GuestAddrs.u256_mul_u64_be
     exact jalOff_correct_add GuestAddrs.u256_mul_u64_be
-      GuestAddrs.eip1559_calc_base_fee_per_gas 84
+      GuestAddrs.eip1559_calc_base_fee_per_gas 88
       (by decide) (by decide) (by decide) (by decide)
-  have hmem : ∀ a i, CodeReq.singleton (K73 + 84)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 88)
       (.JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 84))) a = some i →
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 88))) a = some i →
       wholeCode a = some i := by
     intro a i hi
-    exact k73_whole_mono a i (k73_mem 21 _ (K73 + 84) (by decide)
+    exact k73_whole_mono a i (k73_mem 22 _ (K73 + 88) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi)
   have hcalleeMem : ∀ a i, mulCode a = some i → wholeCode a = some i :=
     mul_whole_mono
   have hcallee' : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
-      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 88)
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre F spH (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word)
         basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes)
       (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word)
         basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes ** F) := by
     simpa only [k73IncreaseMulCalleePre, k73IncreaseMulCalleePost] using hcallee
@@ -484,13 +484,13 @@ theorem k73_increase_mul_spec_within
     exact pcFree_frameSlotsSaved _ _ _
   have hcalleeFramed := cpsTripleWithin_frameR Fframe hFframe hcallee'
   have hcallee'' : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
-      (EvmAsm.Codegen.U256MulU64Be.mulWholePre (Fframe ** F) spH (K73 + 88)
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
+      (EvmAsm.Codegen.U256MulU64Be.mulWholePre (Fframe ** F) spH (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word)
         basePtr (gasUsed - target) outPtr outPtr f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes)
       (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word)
         basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes **
         (Fframe ** F)) := by
@@ -510,11 +510,11 @@ theorem k73_increase_mul_spec_within
     exact pcFree_sepConj hFframe hF
   have hcall := k73_mul_call_spec_within
     (cr := wholeCode) (n := 3850)
-    (K73 + 84) (GuestAddrs.u256_mul_u64_be : Word) raIn spH
+    (K73 + 88) (GuestAddrs.u256_mul_u64_be : Word) raIn spH
     (spH + signExtend12 (-48 : BitVec 12)) basePtr outPtr target
     (gasUsed - target) (1 : Word) basePtr (gasUsed - target) outPtr outPtr
     (jalOff GuestAddrs.u256_mul_u64_be
-      (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)) Fcall hFcall
+      (GuestAddrs.eip1559_calc_base_fee_per_gas + 88)) Fcall hFcall
     f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes
     hcallee'' htarget hmem hcalleeMem
   have hseq := cpsTripleWithin_seq_perm_same_cr
@@ -525,15 +525,15 @@ theorem k73_increase_mul_spec_within
   have hseq' := cpsTripleWithin_mono_nSteps (nSteps' := 3856)
     (by omega) hseq
   simp only [k73IncreaseMulPre, k73IncreaseMulPost] at ⊢
-  have hseqAddr : cpsTripleWithin 3856 (K73 + 64) (K73 + 88) wholeCode
+  have hseqAddr : cpsTripleWithin 3856 (K73 + 68) (K73 + 92) wholeCode
       (k73HeadPost spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 v20Live v20Saved baseBytes outBytes Fmul)
-      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 92)) **
         k73MulBodyPostNoRa (spH + signExtend12 (-48 : BitVec 12))
-          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
           basePtr (gasUsed - target) outPtr baseBytes accBytes outBytes **
         Fcall) := by
-    simpa only [show (K73 + 84) + 4 = K73 + 88 by bv_omega] using hseq'
+    simpa only [show (K73 + 88) + 4 = K73 + 92 by bv_omega] using hseq'
   exact cpsTripleWithin_weaken
     (fun _ hp => by
       dsimp [Fmul] at hp ⊢
@@ -555,12 +555,12 @@ def k73IncreaseMulCarryRest
     (spH raIn gasUsed basePtr outPtr target : Word)
     (v8 v9 v18 v19 v20 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
-  ((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+  ((.x1 : Reg) ↦ᵣ (K73 + 92)) **
     frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
     (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
       (gasUsed - target) outPtr baseBytes **
       (fun s => ∃ k, (k73MulEpilogueNoRa
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion outPtr outBytes **
         k73MulOverflowCoreNoStatus accBytes k) s) ** F)
@@ -653,19 +653,19 @@ theorem k73_increase_mul_post_factor
   dsimp [K73, k73IncreaseMulPost, k73MulBodyPostNoRa,
     k73IncreaseMulCarryRest] at hs ⊢
   have hstatus := k73_mul_overflow_status_factor
-    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
     basePtr outPtr target (gasUsed - target) (1 : Word)
     outPtr accBytes outBytes
   let newOverflow : Assertion :=
     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
       (fun s => ∃ k, (k73MulEpilogueNoRa
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion outPtr outBytes **
         k73MulOverflowCoreNoStatus accBytes k) s)
   have h_over : ∀ h,
       k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
-          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
           outPtr accBytes outBytes h → newOverflow h := by
     intro h hh
     exact hstatus h hh
@@ -673,7 +673,7 @@ theorem k73_increase_mul_post_factor
       (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
           (gasUsed - target) outPtr baseBytes **
         k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
-          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
           outPtr accBytes outBytes) h →
       (EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
           (gasUsed - target) outPtr baseBytes ** newOverflow) h := by
@@ -683,7 +683,7 @@ theorem k73_increase_mul_post_factor
       ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
           (gasUsed - target) outPtr baseBytes **
         k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
-          (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+          (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
           outPtr accBytes outBytes) ** F) h →
       ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
           (gasUsed - target) outPtr baseBytes ** newOverflow) ** F) h := by
@@ -694,7 +694,7 @@ theorem k73_increase_mul_post_factor
         ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
             (gasUsed - target) outPtr baseBytes **
           k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
-            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+            (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
             outPtr accBytes outBytes) ** F)) h →
       (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
@@ -702,14 +702,14 @@ theorem k73_increase_mul_post_factor
     intro h hh
     exact sepConj_mono_right hbody h hh
   have houter : ∀ h,
-      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
             (gasUsed - target) outPtr baseBytes **
           k73MulOverflowNoRa (spH + signExtend12 (-48 : BitVec 12))
-            (K73 + 88) basePtr outPtr target (gasUsed - target) (1 : Word)
+            (K73 + 92) basePtr outPtr target (gasUsed - target) (1 : Word)
             outPtr accBytes outBytes) ** F)) h →
-      (((.x1 : Reg) ↦ᵣ (K73 + 88)) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         ((EvmAsm.Codegen.U256MulU64Be.mulTailExtra basePtr
             (gasUsed - target) outPtr baseBytes ** newOverflow) ** F)) h := by
@@ -726,15 +726,15 @@ theorem k73_increase_status_branch_spec_within
     (v8 v9 v18 v19 v20 : Word)
     (baseBytes accBytes outBytes : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree) :
-    cpsBranchWithin 1 (K73 + 88) wholeCode
+    cpsBranchWithin 1 (K73 + 92) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
           v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
             v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73IncreaseMulCarryRest spH raIn gasUsed basePtr outPtr target
             v8 v9 v18 v19 v20 baseBytes accBytes outBytes F ** regOwn .x10) := by
@@ -743,7 +743,7 @@ theorem k73_increase_status_branch_spec_within
       v8 v9 v18 v19 v20 baseBytes accBytes outBytes F
   have hRest : Rest.pcFree := by
     have hExists : Assertion.pcFree (fun s => ∃ k, (k73MulEpilogueNoRa
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target (gasUsed - target) (1 : Word) **
         bytesRegion outPtr outBytes **
         k73MulOverflowCoreNoStatus accBytes k) s) := by
@@ -754,16 +754,16 @@ theorem k73_increase_status_branch_spec_within
     pcf
     exact hExists
     exact hF
-  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 88) wholeCode
+  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 92) wholeCode
       ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest) **
         ((.x10 : Reg) ↦ᵣ old10))
-      (K73 + 272) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10)
-      (K73 + 92) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10) := by
+      (K73 + 276) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10)
+      (K73 + 96) (((.x0 : Reg) ↦ᵣ (0 : Word)) ** Rest ** regOwn .x10) := by
     intro old10
     have hbne := bne_spec_gen_within .x10 .x0 (184 : BitVec 13)
-      old10 (0 : Word) (K73 + 88)
+      old10 (0 : Word) (K73 + 92)
     have hbneC := cpsBranchWithin_extend_code
-      (k73_whole_mem 22 _ (K73 + 88) (by decide)
+      (k73_whole_mem 23 _ (K73 + 92) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hbne
     have hbneF := cpsBranchWithin_frameR Rest hRest hbneC
     refine cpsBranchWithin_weaken
@@ -791,7 +791,7 @@ def k73IncreaseDivPairCoreFrame
     ((.x2 : Reg) ↦ᵣ spH) **
     ((.x8 : Reg) ↦ᵣ basePtr) ** ((.x19 : Reg) ↦ᵣ (gasUsed - target)) **
     EvmAsm.Codegen.U256MulU64Be.frameSlots
-      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88) basePtr outPtr
+      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92) basePtr outPtr
       target (gasUsed - target) (1 : Word) **
     bytesRegion basePtr baseBytes **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accBytes ** G
@@ -807,7 +807,7 @@ def k73IncreaseDivPairPre
     (spH gasUsed basePtr outPtr target : Word)
     (baseBytes accBytes outBytes : List (BitVec 8))
     (G : Assertion) (k : Nat) : Assertion :=
-  (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+  (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
     ((.x18 : Reg) ↦ᵣ target) **
     ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
     regOwns u256DivU64BeScratch **
@@ -819,7 +819,7 @@ def k73IncreaseDivPairPost
     (spH gasUsed basePtr outPtr target : Word)
     (baseBytes accBytes outBytes : List (BitVec 8))
     (G : Assertion) (k : Nat) : Assertion :=
-  ((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+  ((.x1 : Reg) ↦ᵣ (K73 + 128)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
     ((.x18 : Reg) ↦ᵣ target) **
     ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
       (u256DivU64BeQuotBytes outBytes outBytes target)
@@ -848,13 +848,13 @@ theorem k73_increase_div_pair_spec_within
     (hsz2 : 4 * ((u256DivU64BeInPlaceFn outPtr 8
         (u256DivU64BeQuotBytes outBytes outBytes target)).body.size + 1)
       ≤ 2 ^ 64)
-    (hret1 : ((K73 + 104) + 4) &&& ~~~(1 : Word) = (K73 + 104) + 4)
-    (hret2 : ((K73 + 120) + 4) &&& ~~~(1 : Word) = (K73 + 120) + 4) :
+    (hret1 : ((K73 + 108) + 4) &&& ~~~(1 : Word) = (K73 + 108) + 4)
+    (hret2 : ((K73 + 124) + 4) &&& ~~~(1 : Word) = (K73 + 124) + 4) :
     cpsTripleWithin
       (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
         (u256DivU64BeInPlaceFn outPtr 8
           (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
-      (K73 + 92) (K73 + 124) wholeCode
+      (K73 + 96) (K73 + 128) wholeCode
       (fun s => ∃ k, k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
         baseBytes accBytes outBytes G k s)
       (fun s => ∃ k, k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
@@ -869,14 +869,14 @@ theorem k73_increase_div_pair_spec_within
       (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
         (u256DivU64BeInPlaceFn outPtr 8
           (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
-      (K73 + 92) (K73 + 124) wholeCode
+      (K73 + 96) (K73 + 128) wholeCode
       (k73IncreaseDivPairPre spH gasUsed basePtr outPtr target
         baseBytes accBytes outBytes G k)
       (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
         baseBytes accBytes outBytes G k) := by
     intro k
     have hown := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
-        (P := ((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+        (P := ((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
           ((.x18 : Reg) ↦ᵣ target) **
           ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
           regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
@@ -888,8 +888,8 @@ theorem k73_increase_div_pair_spec_within
               (10 + (u256DivU64BeInPlaceFn outPtr target outBytes).body.steps +
                 (u256DivU64BeInPlaceFn outPtr 8
                   (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps)
-              (K73 + 92) (K73 + 124) wholeCode
-              (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (K73 + 96) (K73 + 128) wholeCode
+              (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
                 ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
                 regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
@@ -898,7 +898,7 @@ theorem k73_increase_div_pair_spec_within
               (k73IncreaseDivPairPost spH gasUsed basePtr outPtr target
                 baseBytes accBytes outBytes G k) := by
             have hpair0 := k73_in_place_div_pair_spec_within
-              outPtr target (K73 + 88) old10 (gasUsed - target) outPtr outBytes
+              outPtr target (K73 + 92) old10 (gasUsed - target) outPtr outBytes
               empAssertion (by pcf) hrw hlenOut hoverOut
               htargetPos hsz1 hsz2 hret1 hret2
             have hpairF := cpsTripleWithin_frameR
@@ -906,20 +906,20 @@ theorem k73_increase_div_pair_spec_within
                 baseBytes accBytes G k) (hframe k) hpair0
             have hpairFW := cpsTripleWithin_extend_code full_whole_mono hpairF
             have hpairFW0 := cpsTripleWithin_weaken
-              (P := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (P := (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
                 ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
                 regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
                 empAssertion) **
                 k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
                   baseBytes accBytes G k)
-              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
                 ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
                 regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes) **
                 k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
                   baseBytes accBytes G k)
-              (Q := (((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (Q := (((.x1 : Reg) ↦ᵣ (K73 + 128)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) **
                 ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
                   (u256DivU64BeQuotBytes outBytes outBytes target)
@@ -932,7 +932,7 @@ theorem k73_increase_div_pair_spec_within
                 empAssertion) **
                 k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
                   baseBytes accBytes G k)
-              (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 124)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 128)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) **
                 ((.x10 : Reg) ↦ᵣ u256DivU64BeRemainder
                   (u256DivU64BeQuotBytes outBytes outBytes target)
@@ -947,7 +947,7 @@ theorem k73_increase_div_pair_spec_within
               (fun _ hp => by simpa only [sepConj_emp_right'] using hp)
               (fun _ hq => by simpa only [sepConj_emp_right'] using hq) hpairFW
             have hpairFW1 := cpsTripleWithin_weaken
-              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+              (P' := (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
                 ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
                 ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
                 regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
@@ -960,13 +960,13 @@ theorem k73_increase_div_pair_spec_within
                 simpa only [k73IncreaseDivPairPost, sepConj_assoc'] using hq) hpairFW0
             exact hpairFW1
           exact cpsTripleWithin_weaken
-            (P := ((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            (P := ((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
               ((.x18 : Reg) ↦ᵣ target) ** ((.x10 : Reg) ↦ᵣ old10) **
               ((.x11 : Reg) ↦ᵣ (gasUsed - target)) ** ((.x12 : Reg) ↦ᵣ outPtr) **
               regOwns u256DivU64BeScratch ** bytesRegion outPtr outBytes **
               k73IncreaseDivPairFrame spH gasUsed basePtr outPtr target
                 baseBytes accBytes G k)
-            (P' := (((.x1 : Reg) ↦ᵣ (K73 + 88)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
+            (P' := (((.x1 : Reg) ↦ᵣ (K73 + 92)) ** ((.x9 : Reg) ↦ᵣ outPtr) **
               ((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ (gasUsed - target)) **
               ((.x12 : Reg) ↦ᵣ outPtr) ** regOwns u256DivU64BeScratch **
               bytesRegion outPtr outBytes **
@@ -994,13 +994,13 @@ theorem k73_increase_div_pair_spec_within
 theorem k73_increase_is_zero_call_spec_within_result
     (ptr oldRa : Word) (w0 w1 w2 w3 : Word) (F : Assertion)
     (hF : F.pcFree) :
-    ∀ old10, cpsTripleWithin 11 (K73 + 128) (K73 + 136) wholeCode
+    ∀ old10, cpsTripleWithin 11 (K73 + 132) (K73 + 140) wholeCode
       (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-      (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
@@ -1015,7 +1015,7 @@ theorem k73_increase_is_zero_call_spec_within_result
           regAtomsOf vf tail) := by
     intro vf
     simp only [u256DivU64BeScratch, tail, regAtomsOf_cons, regAtomsOf_nil]
-  have hmvAny : cpsTripleWithin 1 (K73 + 128) (K73 + 132) wholeCode
+  have hmvAny : cpsTripleWithin 1 (K73 + 132) (K73 + 136) wholeCode
       (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x9 : Reg) ↦ᵣ ptr) **
         ((.x10 : Reg) ↦ᵣ old10) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
@@ -1026,9 +1026,9 @@ theorem k73_increase_is_zero_call_spec_within_result
         ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
-    have hmv := mv_spec_gen_within .x10 .x9 ptr old10 (K73 + 128) (by decide)
+    have hmv := mv_spec_gen_within .x10 .x9 ptr old10 (K73 + 132) (by decide)
     have hmvC := cpsTripleWithin_extend_code
-      (k73_whole_mem 32 _ (K73 + 128) (by decide)
+      (k73_whole_mem 33 _ (K73 + 132) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hmv
     have hR : (((.x1 : Reg) ↦ᵣ oldRa) **
         ((.x11 : Reg) ↦ᵣ (8 : Word)) ** ((.x12 : Reg) ↦ᵣ ptr) **
@@ -1041,34 +1041,34 @@ theorem k73_increase_is_zero_call_spec_within_result
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) hmvF
   have htarget :
-      (K73 + 132) + signExtend21
+      (K73 + 136) + signExtend21
         (jalOff GuestAddrs.u256_is_zero
-          (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) =
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 136)) =
         (GuestAddrs.u256_is_zero : Word) := by
     change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
-      BitVec.ofNat 64 132 + _ = BitVec.ofNat 64 GuestAddrs.u256_is_zero
+      BitVec.ofNat 64 136 + _ = BitVec.ofNat 64 GuestAddrs.u256_is_zero
     exact jalOff_correct_add GuestAddrs.u256_is_zero
-      GuestAddrs.eip1559_calc_base_fee_per_gas 132
+      GuestAddrs.eip1559_calc_base_fee_per_gas 136
       (by decide) (by decide) (by decide) (by decide)
-  have hmem : ∀ a i, CodeReq.singleton (K73 + 132)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 136)
       (.JAL .x1 (jalOff GuestAddrs.u256_is_zero
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132))) a = some i →
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 136))) a = some i →
       wholeCode a = some i := by
     intro a i hi
-    exact k73_whole_mem 33 _ (K73 + 132) (by decide)
+    exact k73_whole_mem 34 _ (K73 + 136) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi
   have hcallAny : ∀ vf : Reg → Word,
-      cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+      cpsTripleWithin 10 (K73 + 136) (K73 + 140) wholeCode
       (((((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch))
-      (((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
+      (((((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regOwns u256DivU64BeScratch)) := by
     intro vf
-    have hzero := u256IsZeroFlat_spec_domain ptr (K73 + 136)
+    have hzero := u256IsZeroFlat_spec_domain ptr (K73 + 140)
       (vf .x5) (vf .x6) (vf .x7) (vf .x28) w0 w1 w2 w3
     have hzeroC := cpsTripleWithin_extend_code isZero_whole_mono hzero
     have hP0 : (((.x10 : Reg) ↦ᵣ ptr) **
@@ -1078,13 +1078,13 @@ theorem k73_increase_is_zero_call_spec_within_result
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3))).pcFree := by
       pcf
     have hcallee0 : cpsTripleWithin 9 (GuestAddrs.u256_is_zero : Word)
-        (K73 + 136) wholeCode
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ ptr) **
+        (K73 + 140) wholeCode
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x10 : Reg) ↦ᵣ ptr) **
           ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
           ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
           ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
             (1 : Word) else 0)) **
           ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
@@ -1109,19 +1109,19 @@ theorem k73_increase_is_zero_call_spec_within_result
         ((.x28 : Reg) ↦ᵣ w3) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)))
-      (K73 + 132) (GuestAddrs.u256_is_zero : Word) oldRa
+      (K73 + 136) (GuestAddrs.u256_is_zero : Word) oldRa
       (jalOff GuestAddrs.u256_is_zero
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)) 9 htarget hmem hP0 hcallee0
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 136)) 9 htarget hmem hP0 hcallee0
     have hcallF := cpsTripleWithin_frameR
       (regAtomsOf vf tail ** F) (by dsimp [tail]; pcf; exact hF) hcall0
-    have hcall : cpsTripleWithin 10 (K73 + 132) (K73 + 136) wholeCode
+    have hcall : cpsTripleWithin 10 (K73 + 136) (K73 + 140) wholeCode
         (((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
           ((.x5 : Reg) ↦ᵣ vf .x5) ** ((.x6 : Reg) ↦ᵣ vf .x6) **
           ((.x7 : Reg) ↦ᵣ vf .x7) ** ((.x28 : Reg) ↦ᵣ vf .x28) **
           regAtomsOf vf tail **
           ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-        (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+        (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
           ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
             (1 : Word) else 0)) **
           ((.x5 : Reg) ↦ᵣ (w0 ||| w1 ||| w2 ||| w3)) **
@@ -1131,7 +1131,7 @@ theorem k73_increase_is_zero_call_spec_within_result
             ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) := by
       simpa only [show 1 + 9 = 10 by decide, sepConj_assoc', sepConj_comm',
         sepConj_left_comm',
-        show (K73 + 132) + 4 = K73 + 136 by bv_omega] using hcallF
+        show (K73 + 136) + 4 = K73 + 140 by bv_omega] using hcallF
     have hownChain : ∀ v10 v5 v6 v7 v28 : Word, ∀ s,
         (((.x10 : Reg) ↦ᵣ v10) ** ((.x5 : Reg) ↦ᵣ v5) **
           ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
@@ -1155,7 +1155,7 @@ theorem k73_increase_is_zero_call_spec_within_result
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regAtomsOf vf u256DivU64BeScratch)
-      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
+      (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
         ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
           ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
         regOwns u256DivU64BeScratch)
@@ -1164,7 +1164,7 @@ theorem k73_increase_is_zero_call_spec_within_result
         xperm_hyp hp)
       (fun s hq => by
         have hq0 :
-            (((.x1 : Reg) ↦ᵣ (K73 + 136)) **
+            (((.x1 : Reg) ↦ᵣ (K73 + 140)) **
               ((.x10 : Reg) ↦ᵣ
                 (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then
                   (1 : Word) else 0)) **
@@ -1184,7 +1184,7 @@ theorem k73_increase_is_zero_call_spec_within_result
     (P := ((.x1 : Reg) ↦ᵣ oldRa) ** ((.x10 : Reg) ↦ᵣ ptr) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F)
-    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
+    (Q := ((((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F) **
       regOwns u256DivU64BeScratch)) hcallAny
@@ -1197,7 +1197,7 @@ theorem k73_increase_is_zero_call_spec_within_result
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
         ((ptr + 16) ↦ₘ w2) ** ((ptr + 24) ↦ₘ w3)) ** F))
-    (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 136)) ** ((.x9 : Reg) ↦ᵣ ptr) **
+    (Q' := (((.x1 : Reg) ↦ᵣ (K73 + 140)) ** ((.x9 : Reg) ↦ᵣ ptr) **
       ((.x10 : Reg) ↦ᵣ (if w0 = 0 ∧ w1 = 0 ∧ w2 = 0 ∧ w3 = 0 then (1 : Word) else 0)) ** ((.x11 : Reg) ↦ᵣ (8 : Word)) **
       ((.x12 : Reg) ↦ᵣ ptr) ** regOwns u256DivU64BeScratch **
       ((ptr ↦ₘ w0) ** ((ptr + 8) ↦ₘ w1) **
@@ -1219,7 +1219,7 @@ theorem k73_failure_tail_spec_within
     (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
     (hret : (raIn &&& ~~~(1 : Word)) = raIn)
     (hsaved : saved .x1 = raIn) (hP : P.pcFree) :
-    cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+    cpsTripleWithin 9 (K73 + 276) raIn wholeCode
       ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** P)
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
@@ -1232,14 +1232,14 @@ theorem k73_failure_tail_spec_within
     exact pcFree_sepConj (pcFree_regIs (r := .x2) (v := spH))
       (pcFree_sepConj (pcFree_regsOwnAt k73Frame)
         (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _) hP))
-  have hliAny : ∀ old10, cpsTripleWithin 1 (K73 + 272) (K73 + 276)
+  have hliAny : ∀ old10, cpsTripleWithin 1 (K73 + 276) (K73 + 280)
       wholeCode (Rest ** (.x10 ↦ᵣ old10))
       (Rest ** (.x10 ↦ᵣ (1 : Word))) := by
     intro old10
-    have hli := li_spec_gen_within .x10 old10 (1 : Word) (K73 + 272)
+    have hli := li_spec_gen_within .x10 old10 (1 : Word) (K73 + 276)
       (by decide)
     have hliC := cpsTripleWithin_extend_code
-      (k73_whole_mem 68 _ (K73 + 272) (by decide)
+      (k73_whole_mem 69 _ (K73 + 276) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hli
     have hliF := cpsTripleWithin_frameR Rest hRest hliC
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
@@ -1252,7 +1252,7 @@ theorem k73_failure_tail_spec_within
     exact pcFree_sepConj (pcFree_regIs (r := .x10) (v := 1)) hP
   have hepi := k73_epilogue_spec_within sp0 spH raIn saved P1
     hsp hret hsaved hP1
-  have hepi' : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+  have hepi' : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved ** (.x10 ↦ᵣ 1) ** P))
       (((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
@@ -1260,7 +1260,7 @@ theorem k73_failure_tail_spec_within
     dsimp [P1] at hepi ⊢
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
       (fun _ hq => by xperm_chunked hq) hepi
-  have hepi'' : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+  have hepi'' : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       (Rest ** (.x10 ↦ᵣ (1 : Word)))
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
         frameSlotsSaved k73Frame spH saved ** (.x10 ↦ᵣ 1) ** P) := by
@@ -1277,7 +1277,7 @@ theorem k73_success_tail_spec_within
     (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
     (hret : (raIn &&& ~~~(1 : Word)) = raIn)
     (hsaved : saved .x1 = raIn) (hP : P.pcFree) :
-    cpsTripleWithin 10 (K73 + 196) raIn wholeCode
+    cpsTripleWithin 10 (K73 + 200) raIn wholeCode
       ((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
         frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** P)
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
@@ -1290,26 +1290,26 @@ theorem k73_success_tail_spec_within
     exact pcFree_sepConj (pcFree_regIs (r := .x2) (v := spH))
       (pcFree_sepConj (pcFree_regsOwnAt k73Frame)
         (pcFree_sepConj (pcFree_frameSlotsSaved _ _ _) hP))
-  have hliAny : ∀ old10, cpsTripleWithin 1 (K73 + 196) (K73 + 200)
+  have hliAny : ∀ old10, cpsTripleWithin 1 (K73 + 200) (K73 + 204)
       wholeCode (Rest ** (.x10 ↦ᵣ old10))
       (Rest ** (.x10 ↦ᵣ (0 : Word))) := by
     intro old10
-    have hli := li_spec_gen_within .x10 old10 (0 : Word) (K73 + 196)
+    have hli := li_spec_gen_within .x10 old10 (0 : Word) (K73 + 200)
       (by decide)
     have hliC := cpsTripleWithin_extend_code
-      (k73_whole_mem 49 _ (K73 + 196) (by decide)
+      (k73_whole_mem 50 _ (K73 + 200) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hli
     have hliF := cpsTripleWithin_frameR Rest hRest hliC
     exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
       (fun _ hq => by xperm_hyp hq) hliF
   have hli' := cpsTripleWithin_of_forall_regIs_to_regOwn (r := .x10)
     (P := Rest) (Q := Rest ** (.x10 ↦ᵣ (0 : Word))) hliAny
-  have hj := jal_x0_spec_gen_within (76 : BitVec 21) (K73 + 200)
-  rw [show (K73 + 200) + signExtend21 (76 : BitVec 21) = K73 + 276 by
+  have hj := jal_x0_spec_gen_within (76 : BitVec 21) (K73 + 204)
+  rw [show (K73 + 204) + signExtend21 (76 : BitVec 21) = K73 + 280 by
     rw [show signExtend21 (76 : BitVec 21) = (76 : Word) from by decide]
     bv_omega] at hj
   have hjC := cpsTripleWithin_extend_code
-    (k73_whole_mem 50 _ (K73 + 200) (by decide)
+    (k73_whole_mem 51 _ (K73 + 204) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hj
   let P0 : Assertion := (.x10 ↦ᵣ (0 : Word)) ** P
   have hP0 : P0.pcFree := by
@@ -1319,14 +1319,14 @@ theorem k73_success_tail_spec_within
     (((.x2 ↦ᵣ spH) ** regsOwnAt k73Frame **
       frameSlotsSaved k73Frame spH saved) ** P0)
     (by dsimp [P0]; pcf; exact hP) hjC
-  have hjump : cpsTripleWithin 1 (K73 + 200) (K73 + 276) wholeCode
+  have hjump : cpsTripleWithin 1 (K73 + 204) (K73 + 280) wholeCode
       (Rest ** (.x10 ↦ᵣ (0 : Word)))
       (Rest ** (.x10 ↦ᵣ (0 : Word))) := by
     simpa [Rest, P0, sepConj_assoc', sepConj_comm', sepConj_left_comm',
       sepConj_emp_left', sepConj_emp_right'] using hjF
   have hepi := k73_epilogue_spec_within sp0 spH raIn saved P0
     hsp hret hsaved hP0
-  have hepi' : cpsTripleWithin 8 (K73 + 276) raIn wholeCode
+  have hepi' : cpsTripleWithin 8 (K73 + 280) raIn wholeCode
       (Rest ** (.x10 ↦ᵣ (0 : Word)))
       ((.x2 ↦ᵣ sp0) ** regsAt k73Frame saved **
         frameSlotsSaved k73Frame spH saved ** (.x10 ↦ᵣ 0) ** P) := by

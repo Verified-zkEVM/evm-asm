@@ -19,22 +19,22 @@ open EvmAsm.Codegen.U256BeFlat
 open EvmAsm.Codegen.U256AddBeBInPlaceSAsm
 open EvmAsm.Codegen.U256AddBeSAsm
 private theorem add_target188 :
-    (K73 + 188) + signExtend21
+    (K73 + 192) + signExtend21
         (jalOff GuestAddrs.u256_add_be
-          (GuestAddrs.eip1559_calc_base_fee_per_gas + 188)) =
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 192)) =
       (GuestAddrs.u256_add_be : Word) := by
   change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
-      BitVec.ofNat 64 188 + _ = BitVec.ofNat 64 GuestAddrs.u256_add_be
+      BitVec.ofNat 64 192 + _ = BitVec.ofNat 64 GuestAddrs.u256_add_be
   exact jalOff_correct_add GuestAddrs.u256_add_be
-    GuestAddrs.eip1559_calc_base_fee_per_gas 188
+    GuestAddrs.eip1559_calc_base_fee_per_gas 192
     (by decide) (by decide) (by decide) (by decide)
 private theorem add_mem188 :
-    ∀ a i, CodeReq.singleton (K73 + 188)
+    ∀ a i, CodeReq.singleton (K73 + 192)
       (.JAL .x1 (jalOff GuestAddrs.u256_add_be
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 188))) a = some i →
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 192))) a = some i →
       wholeCode a = some i := by
   intro a i hi
-  exact k73_whole_mono a i (k73_mem 47 _ (K73 + 188) (by decide)
+  exact k73_whole_mono a i (k73_mem 48 _ (K73 + 192) (by decide)
     (by rw [k73_length]; decide) (by rfl) a i hi)
 @[irreducible] def k73AddBCallSteps
     (srcPtr outPtr : Word) (srcBytes orig : List (BitVec 8)) : Nat :=
@@ -70,7 +70,7 @@ private theorem k73_in_place_add_b_setup_spec_within_v2
     (srcPtr outPtr oldRa v10 v11 v12 : Word)
     (srcBytes orig : List (BitVec 8)) (F : Assertion)
     (hF : F.pcFree) :
-    cpsTripleWithin 3 (K73 + 176) (K73 + 188) wholeCode
+    cpsTripleWithin 3 (K73 + 180) (K73 + 192) wholeCode
       ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -97,20 +97,20 @@ private theorem k73_in_place_add_b_setup_spec_within_v2
   have hR11 : R11.pcFree := by dsimp [R11, G]; pcf
   have hR12 : R12.pcFree := by dsimp [R12, G]; pcf
   have h10 := k73_in_place_add_b_move_spec_within
-    .x10 .x8 srcPtr v10 (K73 + 176) 44 R10 hR10 (by decide)
+    .x10 .x8 srcPtr v10 (K73 + 180) 45 R10 hR10 (by decide)
     (by decide) (by rw [k73_length]; decide) (by rfl)
   have h11 := k73_in_place_add_b_move_spec_within
-    .x11 .x9 outPtr v11 (K73 + 180) 45 R11 hR11 (by decide)
+    .x11 .x9 outPtr v11 (K73 + 184) 46 R11 hR11 (by decide)
     (by decide) (by rw [k73_length]; decide) (by rfl)
   have h12 := k73_in_place_add_b_move_spec_within
-    .x12 .x9 outPtr v12 (K73 + 184) 46 R12 hR12 (by decide)
+    .x12 .x9 outPtr v12 (K73 + 188) 47 R12 hR12 (by decide)
     (by decide) (by rw [k73_length]; decide) (by rfl)
   have h01 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) h10 h11
   have h012 := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by xperm_hyp hp) h01 h12
   have h012F := cpsTripleWithin_frameR F hF h012
-  rw [show (K73 + 184) + 4 = K73 + 188 from by bv_omega] at h012F
+  rw [show (K73 + 188) + 4 = K73 + 192 from by bv_omega] at h012F
   dsimp [R10, R11, R12, G] at h012F ⊢
   simpa only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] using h012F
 theorem k73_in_place_add_b_spec_within
@@ -126,17 +126,17 @@ theorem k73_in_place_add_b_spec_within
     (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
       outPtr.toNat + 32 ≤ srcPtr.toNat)
     (hsz : k73AddBSize srcPtr outPtr srcBytes orig ≤ 2 ^ 64)
-    (hret : ((K73 + 188) + 4) &&& ~~~(1 : Word) = (K73 + 188) + 4) :
+    (hret : ((K73 + 192) + 4) &&& ~~~(1 : Word) = (K73 + 192) + 4) :
     cpsTripleWithin
       (k73AddBCallSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) (K73 + 192) wholeCode
+      (K73 + 180) (K73 + 196) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion srcPtr srcBytes ** F)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-        ((.x1 : Reg) ↦ᵣ (K73 + 192)) **
+        ((.x1 : Reg) ↦ᵣ (K73 + 196)) **
         (.x10 ↦ᵣ u256AddBeCarry srcBytes orig orig) **
         (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
         regOwns u256AddBeBInPlaceScratch **
@@ -145,7 +145,7 @@ theorem k73_in_place_add_b_spec_within
   have hsetup := k73_in_place_add_b_setup_spec_within_v2
     srcPtr outPtr oldRa v10 v11 v12 srcBytes orig F hF
   have hadd := u256AddBeBInPlaceFlat_spec
-    (K73 + 192) srcPtr outPtr srcBytes orig hrw hroSrc hlenSrc hlenOrig
+    (K73 + 196) srcPtr outPtr srcBytes orig hrw hroSrc hlenSrc hlenOrig
     hovSrc hovOut hdisj (by
       simpa only [k73AddBSize] using hsz) hret
   have haddc := cpsTripleWithin_extend_code add_whole_mono hadd
@@ -159,9 +159,9 @@ theorem k73_in_place_add_b_spec_within
       regOwns u256AddBeBInPlaceScratch **
       bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
       bytesRegion srcPtr srcBytes))
-    (K73 + 188) (GuestAddrs.u256_add_be : Word) oldRa
+    (K73 + 192) (GuestAddrs.u256_add_be : Word) oldRa
     (jalOff GuestAddrs.u256_add_be
-      (GuestAddrs.eip1559_calc_base_fee_per_gas + 188))
+      (GuestAddrs.eip1559_calc_base_fee_per_gas + 192))
     ((u256AddBeBInPlaceFn srcPtr outPtr srcBytes orig).body.steps + 1)
     add_target188 add_mem188
     (by
@@ -171,7 +171,7 @@ theorem k73_in_place_add_b_spec_within
             (pcFree_sepConj (pcFree_regOwns _)
               (pcFree_sepConj (bytesRegion_pcFree _ _)
                 (bytesRegion_pcFree _ _))))))
-    (by simpa only [show (K73 + 188) + 4 = K73 + 192 by bv_omega] using haddc)
+    (by simpa only [show (K73 + 192) + 4 = K73 + 196 by bv_omega] using haddc)
   have hcallf := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x8 ↦ᵣ srcPtr) **
       (.x9 ↦ᵣ outPtr) ** F)
@@ -185,7 +185,7 @@ theorem k73_in_place_add_b_spec_within
   refine cpsTripleWithin_weaken
     (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by
-      simp only [show (K73 + 188) + 4 = K73 + 192 by bv_omega] at hq
+      simp only [show (K73 + 192) + 4 = K73 + 196 by bv_omega] at hq
       xperm_chunked hq) hseq'
 theorem k73_in_place_add_b_branch_spec_within
     (srcPtr outPtr oldRa v10 v11 v12 : Word)
@@ -200,31 +200,31 @@ theorem k73_in_place_add_b_branch_spec_within
     (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
       outPtr.toNat + 32 ≤ srcPtr.toNat)
     (hsz : k73AddBSize srcPtr outPtr srcBytes orig ≤ 2 ^ 64)
-    (hret : ((K73 + 188) + 4) &&& ~~~(1 : Word) = (K73 + 188) + 4) :
+    (hret : ((K73 + 192) + 4) &&& ~~~(1 : Word) = (K73 + 192) + 4) :
     cpsBranchWithin
       (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) wholeCode
+      (K73 + 180) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion srcPtr srcBytes ** F)
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          (.x1 ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+          (.x1 ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
           (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
           regOwns u256AddBeBInPlaceScratch **
           bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
           bytesRegion srcPtr srcBytes ** regOwn .x10 ** F)
-      (K73 + 196)
+      (K73 + 200)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-          (.x1 ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+          (.x1 ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
           (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
           regOwns u256AddBeBInPlaceScratch **
           bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
           bytesRegion srcPtr srcBytes ** regOwn .x10 ** F) := by
   let AddRest : Assertion :=
-    ((.x1 : Reg) ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
+    ((.x1 : Reg) ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
       (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
       regOwns u256AddBeBInPlaceScratch **
       bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
@@ -240,7 +240,7 @@ theorem k73_in_place_add_b_branch_spec_within
       hlenSrc hlenOrig hovSrc hovOut hdisj hsz hret
   have hadd0 : cpsTripleWithin
       (k73AddBCallSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) (K73 + 192) wholeCode
+      (K73 + 180) (K73 + 196) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x1 : Reg) ↦ᵣ oldRa) ** (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
@@ -263,19 +263,19 @@ theorem k73_in_place_add_b_branch_spec_within
         simp only [sepConj_assoc', sepConj_comm', sepConj_left_comm'] at hq ⊢
         xperm_hyp hq)
       hadd
-  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 192) wholeCode
+  have hraw : ∀ old10, cpsBranchWithin 1 (K73 + 196) wholeCode
       (BranchRest ** ((.x10 : Reg) ↦ᵣ old10))
-      (K73 + 272) (BranchRest ** regOwn .x10)
-      (K73 + 196) (BranchRest ** regOwn .x10) := by
+      (K73 + 276) (BranchRest ** regOwn .x10)
+      (K73 + 200) (BranchRest ** regOwn .x10) := by
     intro old10
     have hbne := bne_spec_gen_within .x10 .x0 (80 : BitVec 13)
-      old10 (0 : Word) (K73 + 192)
+      old10 (0 : Word) (K73 + 196)
     have hbneC := cpsBranchWithin_extend_code
-      (k73_whole_mem 48 _ (K73 + 192) (by decide)
+      (k73_whole_mem 49 _ (K73 + 196) (by decide)
         (by rw [k73_length]; decide) (by rfl)) hbne
     rw [show signExtend13 (80 : BitVec 13) = (80 : Word) by decide,
-      show (K73 + 192) + (80 : Word) = K73 + 272 by bv_omega,
-      show (K73 + 192) + 4 = K73 + 196 by bv_omega] at hbneC
+      show (K73 + 196) + (80 : Word) = K73 + 276 by bv_omega,
+      show (K73 + 196) + 4 = K73 + 200 by bv_omega] at hbneC
     have hbneF := cpsBranchWithin_frameR AddRest hAddRest hbneC
     refine cpsBranchWithin_weaken
       (fun _ hp => by xperm_hyp hp)
@@ -329,7 +329,7 @@ theorem k73_in_place_add_b_branch_spec_within
 @[irreducible] def k73AddBBranchPost
     (srcPtr outPtr : Word) (srcBytes orig : List (BitVec 8))
     (F : Assertion) : Assertion :=
-  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 192)) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 196)) **
     (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
     (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
     regOwns u256AddBeBInPlaceScratch **
@@ -362,7 +362,7 @@ private theorem k73_in_place_add_tail_post_weaken
   intro s hq
   simp only [k73AddBBranchPost] at hq
   have hq1 :
-      (((.x1 : Reg) ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) **
+      (((.x1 : Reg) ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) **
         (.x9 ↦ᵣ outPtr) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwn .x10 **
         regOwns u256AddBeBInPlaceScratch **
@@ -409,38 +409,38 @@ private theorem k73_in_place_add_tail_branch_weaken
     (hbranch :
       cpsBranchWithin
         (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
-        (K73 + 176) wholeCode
+        (K73 + 180) wholeCode
         (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
           (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
           (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
           regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
           bytesRegion srcPtr srcBytes ** Fadd)
-        (K73 + 272)
+        (K73 + 276)
           (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            (.x1 ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) **
+            (.x1 ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) **
             (.x9 ↦ᵣ outPtr) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
             regOwns u256AddBeBInPlaceScratch **
             bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
             bytesRegion srcPtr srcBytes ** regOwn .x10 ** Fadd)
-        (K73 + 196)
+        (K73 + 200)
           (((.x0 : Reg) ↦ᵣ (0 : Word)) **
-            (.x1 ↦ᵣ (K73 + 192)) ** (.x8 ↦ᵣ srcPtr) **
+            (.x1 ↦ᵣ (K73 + 196)) ** (.x8 ↦ᵣ srcPtr) **
             (.x9 ↦ᵣ outPtr) ** (.x11 ↦ᵣ outPtr) ** (.x12 ↦ᵣ outPtr) **
             regOwns u256AddBeBInPlaceScratch **
             bytesRegion outPtr (u256AddBeBytes srcBytes orig orig) **
             bytesRegion srcPtr srcBytes ** regOwn .x10 ** Fadd)) :
     cpsBranchWithin
       (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) wholeCode
+      (K73 + 180) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion srcPtr srcBytes ** Fadd)
-      (K73 + 272)
+      (K73 + 276)
         (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** TailP)
-      (K73 + 196)
+      (K73 + 200)
         (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** TailP) := by
   have hpost := k73_in_place_add_tail_post_weaken
@@ -449,14 +449,14 @@ private theorem k73_in_place_add_tail_branch_weaken
   have hbranchNamed :
       cpsBranchWithin
         (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
-        (K73 + 176) wholeCode
+        (K73 + 180) wholeCode
         (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
           (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) ** (.x10 ↦ᵣ v10) **
           (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
           regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
           bytesRegion srcPtr srcBytes ** Fadd)
-        (K73 + 272) (k73AddBBranchPost srcPtr outPtr srcBytes orig Fadd)
-        (K73 + 196) (k73AddBBranchPost srcPtr outPtr srcBytes orig Fadd) := by
+        (K73 + 276) (k73AddBBranchPost srcPtr outPtr srcBytes orig Fadd)
+        (K73 + 200) (k73AddBBranchPost srcPtr outPtr srcBytes orig Fadd) := by
     simpa only [k73AddBBranchPost] using hbranch
   have hbranch' := cpsBranchWithin_weaken
     (Q_t' := k73AddBTailPost spH saved TailP)
@@ -485,19 +485,19 @@ theorem k73_in_place_add_tail_branch_spec_within
     (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
       outPtr.toNat + 32 ≤ srcPtr.toNat)
     (hsz : k73AddBSize srcPtr outPtr srcBytes orig ≤ 2 ^ 64)
-    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = (K73 + 188) + 4) :
+    (hcallRet : ((K73 + 192) + 4) &&& ~~~(1 : Word) = (K73 + 192) + 4) :
     cpsBranchWithin
       (k73AddBBranchSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) wholeCode
+      (K73 + 180) wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **
         regOwns u256AddBeBInPlaceScratch ** bytesRegion outPtr orig **
         bytesRegion srcPtr srcBytes ** Fadd)
-      (K73 + 272)
+      (K73 + 276)
         (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** TailP)
-      (K73 + 196)
+      (K73 + 200)
         (((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
           frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** TailP) := by
   have hbranch := k73_in_place_add_b_branch_spec_within
@@ -530,10 +530,10 @@ theorem k73_in_place_add_tail_spec_within
     (hdisj : srcPtr.toNat + 32 ≤ outPtr.toNat ∨
       outPtr.toNat + 32 ≤ srcPtr.toNat)
     (hsz : k73AddBSize srcPtr outPtr srcBytes orig ≤ 2 ^ 64)
-    (hcallRet : ((K73 + 188) + 4) &&& ~~~(1 : Word) = (K73 + 188) + 4) :
+    (hcallRet : ((K73 + 192) + 4) &&& ~~~(1 : Word) = (K73 + 192) + 4) :
     cpsTripleWithin
       (k73AddBTailSteps srcPtr outPtr srcBytes orig)
-      (K73 + 176) raIn wholeCode
+      (K73 + 180) raIn wholeCode
       (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) **
         (.x8 ↦ᵣ srcPtr) ** (.x9 ↦ᵣ outPtr) **
         (.x10 ↦ᵣ v10) ** (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) **

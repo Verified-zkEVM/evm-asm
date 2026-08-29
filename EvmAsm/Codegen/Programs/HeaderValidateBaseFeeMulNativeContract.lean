@@ -111,15 +111,15 @@ theorem k73_mul_status_branch_native_spec_within
     (baseBytes accWin outWin : List (BitVec 8)) (G : Assertion)
     (hG : G.pcFree)
     (hcallee : cpsTripleWithin 3850
-      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 88) mulCode
+      (GuestAddrs.u256_mul_u64_be : Word) (K73 + 92) mulCode
       (EvmAsm.Codegen.U256MulU64Be.mulWholePre
         (frameSlotsSaved k73Frame spH
           (k73Saved raIn v8 v9 v18 v19Saved v20Saved) ** G)
-        spH (K73 + 88) basePtr outPtr target delta (0 : Word)
+        spH (K73 + 92) basePtr outPtr target delta (0 : Word)
         basePtr delta outPtr outPtr f0 f1 f2 f3 f4 f5
         baseBytes accWin outWin)
       (EvmAsm.Codegen.U256MulU64Be.mulWholeBodyPost
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target delta (0 : Word)
         basePtr delta outPtr baseBytes
         (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
@@ -127,14 +127,14 @@ theorem k73_mul_status_branch_native_spec_within
           (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32) outWin 32) **
         (frameSlotsSaved k73Frame spH
           (k73Saved raIn v8 v9 v18 v19Saved v20Saved) ** G))) :
-    cpsBranchWithin 3852 (K73 + 84) wholeCode
+    cpsBranchWithin 3852 (K73 + 88) wholeCode
       (((.x1 : Reg) ↦ᵣ raIn) **
         k73MulPreNoRa spH basePtr outPtr target delta (0 : Word)
           basePtr delta outPtr outPtr f0 f1 f2 f3 f4 f5
           baseBytes accWin outWin
           (frameSlotsSaved k73Frame spH
             (k73Saved raIn v8 v9 v18 v19Saved v20Saved) ** G))
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest spH raIn basePtr outPtr target delta
             v8 v9 v18 v19Saved v20Saved baseBytes
@@ -143,7 +143,7 @@ theorem k73_mul_status_branch_native_spec_within
               (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
               outWin 32) G **
           regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest spH raIn basePtr outPtr target delta
             v8 v9 v18 v19Saved v20Saved baseBytes
@@ -163,45 +163,45 @@ theorem k73_mul_status_branch_native_spec_within
     dsimp [Fcall]
     exact pcFree_sepConj hFframe hG
   have htarget :
-      (K73 + 84) + signExtend21
+      (K73 + 88) + signExtend21
         (jalOff GuestAddrs.u256_mul_u64_be
-          (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)) =
+          (GuestAddrs.eip1559_calc_base_fee_per_gas + 88)) =
       (GuestAddrs.u256_mul_u64_be : Word) := by
     change BitVec.ofNat 64 GuestAddrs.eip1559_calc_base_fee_per_gas +
-      BitVec.ofNat 64 84 + _ = BitVec.ofNat 64 GuestAddrs.u256_mul_u64_be
+      BitVec.ofNat 64 88 + _ = BitVec.ofNat 64 GuestAddrs.u256_mul_u64_be
     exact jalOff_correct_add GuestAddrs.u256_mul_u64_be
-      GuestAddrs.eip1559_calc_base_fee_per_gas 84
+      GuestAddrs.eip1559_calc_base_fee_per_gas 88
       (by decide) (by decide) (by decide) (by decide)
-  have hmem : ∀ a i, CodeReq.singleton (K73 + 84)
+  have hmem : ∀ a i, CodeReq.singleton (K73 + 88)
       (.JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be
-        (GuestAddrs.eip1559_calc_base_fee_per_gas + 84))) a = some i →
+        (GuestAddrs.eip1559_calc_base_fee_per_gas + 88))) a = some i →
       wholeCode a = some i := by
     intro a i hi
-    exact k73_whole_mono a i (k73_mem 21 _ (K73 + 84) (by decide)
+    exact k73_whole_mono a i (k73_mem 22 _ (K73 + 88) (by decide)
       (by rw [k73_length]; decide) (by rfl) a i hi)
   have hcalleeMem : ∀ a i, mulCode a = some i → wholeCode a = some i :=
     mul_whole_mono
   have hcall := k73_mul_call_native_spec_within
     (cr := wholeCode) (n := 3850)
-    (callerPC := K73 + 84) (calleeEntry := GuestAddrs.u256_mul_u64_be)
+    (callerPC := K73 + 88) (calleeEntry := GuestAddrs.u256_mul_u64_be)
     (oldRa := raIn) (spOld := spH) (spNew := spH + signExtend12 (-48 : BitVec 12))
     (v8 := basePtr) (v9 := outPtr) (v18 := target) (v19 := delta) (v20 := 0)
     (aPtr := basePtr) (b := delta) (outPtr := outPtr) (v13 := outPtr)
     (offset := jalOff GuestAddrs.u256_mul_u64_be
-      (GuestAddrs.eip1559_calc_base_fee_per_gas + 84))
+      (GuestAddrs.eip1559_calc_base_fee_per_gas + 88))
     (F := Fcall) hFcall f0 f1 f2 f3 f4 f5
     (aBytes := baseBytes) (accWin := accWin) (outWin := outWin)
     (accImg := EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
     (outImg := EvmAsm.Codegen.U256MulU64Be.copyState
       (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32) outWin 32)
     (by
-      have hEq : (K73 : Word) + 88 = K73 + 84 + 4 := by
+      have hEq : (K73 : Word) + 92 = K73 + 88 + 4 := by
         dsimp only [K73]
         bv_omega
       rw [← hEq]
       exact hcallee)
     htarget hmem hcalleeMem
-  have hmul : cpsTripleWithin 3851 (K73 + 84) (K73 + 88) wholeCode
+  have hmul : cpsTripleWithin 3851 (K73 + 88) (K73 + 92) wholeCode
       (((.x1 : Reg) ↦ᵣ raIn) **
         k73MulPreNoRa spH basePtr outPtr target delta (0 : Word)
           basePtr delta outPtr outPtr f0 f1 f2 f3 f4 f5
@@ -221,7 +221,7 @@ theorem k73_mul_status_branch_native_spec_within
           (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes delta 32)
           outWin 32) G).pcFree := by
     have hExists : Assertion.pcFree (fun s => ∃ k, (k73MulEpilogueNoRa
-        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+        (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target delta (0 : Word) **
         bytesRegion outPtr
           (EvmAsm.Codegen.U256MulU64Be.copyState
@@ -236,7 +236,7 @@ theorem k73_mul_status_branch_native_spec_within
     pcf
     exact hExists
     exact hG
-  have hmul' : cpsTripleWithin 3851 (K73 + 84) (K73 + 88) wholeCode
+  have hmul' : cpsTripleWithin 3851 (K73 + 88) (K73 + 92) wholeCode
       (((.x1 : Reg) ↦ᵣ raIn) **
         k73MulPreNoRa spH basePtr outPtr target delta (0 : Word)
           basePtr delta outPtr outPtr f0 f1 f2 f3 f4 f5
@@ -284,7 +284,7 @@ the increase witnesses (base value 7, target 5000, gasUsed 2500, delta 2500,
 product 17500) but discharged against the deployed flat triple through the
 native contract, not through any name-instantiation trick. -/
 theorem k73_mul_status_branch_native_inhabited :
-    cpsBranchWithin 3852 (K73 + 84) wholeCode
+    cpsBranchWithin 3852 (K73 + 88) wholeCode
       (((.x1 : Reg) ↦ᵣ (0 : Word)) **
         k73MulPreNoRa (0xa0050000 : Word) (0xa0000000 : Word)
           (0xa0000100 : Word) (5000 : Word) (2500 : Word) (0 : Word)
@@ -295,7 +295,7 @@ theorem k73_mul_status_branch_native_inhabited :
           (frameSlotsSaved k73Frame (0xa0050000 : Word)
             (k73Saved 0 0 0 0 0 0) **
             regOwns [.x14, .x15, .x16, .x17] ** empAssertion))
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest (0xa0050000 : Word) 0
             (0xa0000000 : Word) (0xa0000100 : Word) (5000 : Word)
@@ -308,7 +308,7 @@ theorem k73_mul_status_branch_native_inhabited :
                 (2500 : Word) 32) k73MulNatWOutWin 32)
             (regOwns [.x14, .x15, .x16, .x17] ** empAssertion) **
           regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest (0xa0050000 : Word) 0
             (0xa0000000 : Word) (0xa0000100 : Word) (5000 : Word)
@@ -333,7 +333,7 @@ theorem k73_mul_status_branch_native_inhabited :
     (hG := by pcf)
     (hcallee := by
       have hretCall :
-          ((K73 + 88 : Word) &&& ~~~(1 : Word)) = K73 + 88 :=
+          ((K73 + 92 : Word) &&& ~~~(1 : Word)) = K73 + 92 :=
         EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
       exact EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
         (F := frameSlotsSaved k73Frame (0xa0050000 : Word)
@@ -345,7 +345,7 @@ theorem k73_mul_status_branch_native_inhabited :
         (hlenA := by simp [k73MulNatWBase])
         (hlenAcc := by simp [k73MulNatWAccWin])
         (hout := by simp [k73MulNatWOutWin])
-        (spOld := (0xa0050000 : Word)) (vRa := (K73 + 88))
+        (spOld := (0xa0050000 : Word)) (vRa := (K73 + 92))
         (v8 := (0xa0000000 : Word)) (v9 := (0xa0000100 : Word))
         (v18 := (5000 : Word)) (v19 := (2500 : Word)) (v20 := (0 : Word))
         (aPtr := (0xa0000000 : Word)) (b := (2500 : Word))

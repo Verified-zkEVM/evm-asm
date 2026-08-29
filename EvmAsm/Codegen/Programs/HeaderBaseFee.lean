@@ -160,14 +160,14 @@ def eip1559CalcBaseFeePerGas_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def eip1559CalcBaseFeePerGas_relocs : RelocTable :=
-  [ (21, .jal .x1 "u256_mul_u64_be"),
-    (26, .jal .x1 "u256_div_u64_be"),
-    (30, .jal .x1 "u256_div_u64_be"),
-    (33, .jal .x1 "u256_is_zero"),
-    (37, .jal .x1 "u256_from_u64_be"),
-    (42, .jal .x1 "u256_div_u64_be"),
-    (47, .jal .x1 "u256_add_be"),
-    (54, .jal .x1 "u256_sub_be") ]
+  [ (22, .jal .x1 "u256_mul_u64_be"),
+    (27, .jal .x1 "u256_div_u64_be"),
+    (31, .jal .x1 "u256_div_u64_be"),
+    (34, .jal .x1 "u256_is_zero"),
+    (38, .jal .x1 "u256_from_u64_be"),
+    (43, .jal .x1 "u256_div_u64_be"),
+    (48, .jal .x1 "u256_add_be"),
+    (55, .jal .x1 "u256_sub_be") ]
 
 def eip1559CalcBaseFeePerGasFunction : String :=
   "eip1559_calc_base_fee_per_gas:\n" ++ emitProgramR eip1559CalcBaseFeePerGas_prog eip1559CalcBaseFeePerGas_relocs
