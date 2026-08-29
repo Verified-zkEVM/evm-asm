@@ -135,14 +135,17 @@ INVOCATION = re.compile(r'(?<![\w/-])scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&
 # this blind spot.
 RUN_STEP_INVOCATION = re.compile(
     r'^\s*(?:start\s+\S+\s+)?run_step\s+'
-    r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+    r'(?:\./)?scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
 SHELL_SCRIPT_INVOCATION = re.compile(
     r'^\s*(?:if\s+!\s+)?(?:exec\s+)?(?:python3?|bash|sh)\s+'
     r'["\']?(?:\$[A-Za-z_][A-Za-z0-9_]*/)?'
-    r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+    r'(?:\./)?scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
 EXEC_SCRIPT_INVOCATION = re.compile(
     r'^\s*exec\s+["\']?(?:\$[A-Za-z_][A-Za-z0-9_]*/)?'
-    r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+    r'(?:\./)?scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+DIRECT_SCRIPT_INVOCATION = re.compile(
+    r'^\s*(?:if\s+!\s+)?\./scripts/'
+    r'([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
 
 # A `run_step` target is a gate regardless of its spelling (the bundle uses
 # `fuzz-arith-diff.sh` and `codegen-stateless-link-check.sh`).  Nested checker
@@ -211,6 +214,9 @@ def dispatched_invocations(script: Path) -> dict[str, list[tuple[str, str]]]:
                 m = EXEC_SCRIPT_INVOCATION.match(raw)
                 mode = "shell"
             if m is None:
+                m = DIRECT_SCRIPT_INVOCATION.match(raw)
+                mode = "shell"
+            if m is None:
                 continue
             name, args = m.group(1), m.group(2)
             found.setdefault(name, []).append((args.strip(), mode))
@@ -239,7 +245,7 @@ def dispatched_invocations(script: Path) -> dict[str, list[tuple[str, str]]]:
             if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
                 continue
             match = re.search(
-                r'(?<![\w/-])scripts/([A-Za-z0-9._-]+\.(?:sh|py))',
+                r'(?<![\w/-])(?:\./)?scripts/([A-Za-z0-9._-]+\.(?:sh|py))',
                 value.value)
             if match:
                 name = match.group(1)
@@ -558,17 +564,20 @@ def self_test() -> int:
             'set -e\n'
             '# run_step scripts/hidden.py\n'
             'run_step scripts/nested.py\n'
+            './scripts/check-dot-nested.py\n'
             'python3 scripts/gen-helper.py\n')
+        (bundle_sc / "check-dot-nested.py").write_text('print("all good")\n')
         r = check(bundle_wf, bundle_sc, advisory={})
         bundle_inventory = gate_inventory(bundle_wf, bundle_sc)
         bundle_names = bundle_inventory["invocations"]
         bundle_non_gates = bundle_inventory["non_gate_dispatches"]
         assert isinstance(bundle_names, dict)
         assert isinstance(bundle_non_gates, dict)
-        expect_planted(len(r) == 1 and "RULE B" in r[0]
-                       and "nested.py" in r[0],
+        expect_planted(len(r) == 2 and all("RULE B" in problem for problem in r)
+                       and any("nested.py" in problem for problem in r)
+                       and any("check-dot-nested.py" in problem for problem in r),
                        f"bundle dispatch is analysed: {r}",
-                       "nested.py / bundled Rule B")
+                       "nested.py + dot-slash / bundled Rule B")
         expect("hidden.py" not in bundle_names,
                "control: commented bundle dispatch is ignored")
         expect("gen-helper.py" not in bundle_names
