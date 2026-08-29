@@ -226,7 +226,9 @@ jobs:
       # instrument, not a report-only script.  Its self-test needs the
       # Program-derived shape dump, so generate that input only after its Lean
       # producer has been built.  Exercise the missing-input path first: a
-      # self-test that silently accepts an absent dump is a green no-op.
+      # self-test that silently accepts an absent dump is a green no-op.  The
+      # planted controls are hard failures; live-tree exemplar drift is printed
+      # as advisory so routine improvements do not make CI red.
       - name: Callee-composition shape dump and self-test
         run: |
           set -euo pipefail
