@@ -137,6 +137,24 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#12989 COMPLETE — the ten rejection arms, 2026-08-29)
+
+- ✅ **All three arm families of `extract_deposit_data` proven**:
+  `extractDepositData_reject{1..10}_spec` (same file as the ok path)
+  cover `a1 = 576` with checks `1..k-1` passing and check `k` failing —
+  the callee returns `a0 = 0`, its `beq a0, x0` is TAKEN to the shared
+  fail tail (`EddB + 280`, every group's `bofs` lands there), and the
+  routine returns `a0 = 1` through the common epilogue.  New reusable
+  pieces: `edd_entry_spec` (prologue + not-taken guard + the
+  atoms→`regOwns exposedRegs` bridge, fuel 8), `edd_check_group_fail`
+  (the rejecting group combinator, `takenPath` + `eddOut = 0` unpack),
+  `edd_failTail_spec` (`li a0, 1` + epilogue, fuel 6, parametrized by
+  `nsp + 32 = sp0`).  Arm `k` needs only chunks `1..k` in its
+  footprint; fuel `14 + 636k`.
+- **#12989 closed.** Remaining generalization (recorded in the row's
+  gate, not blocking): a single arena-parametric case-split statement
+  instead of twelve separate triples pinned to the probe arenas.
+
 ### Recent (#12989 tranche 2 — edd ok path composed, 2026-08-29)
 
 - ✅ **`extractDepositData_ok_spec`**

@@ -3095,16 +3095,20 @@ def routineRegistry : List RoutineEntry := [
   -- CodeReq is the main body's own program at the guest entry.
   routine "extract_deposit_data" .conditional
       (some "extractDepositData_ok_spec")
-      (gate := "two of the three arm families are claimed. Fail arm "
-        ++ "(`extractDepositData_lenFail_spec`): `a1 ≠ 576` returns "
-        ++ "`a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. Ok path "
-        ++ "(`extractDepositData_ok_spec`): at the deployed probe arenas "
-        ++ "(payload `0x40000010`, out `0xa0010008`), a 576-byte payload "
-        ++ "whose ten ABI header fields all satisfy `eddOk` gets its five "
-        ++ "raw fields copied to the output arena and returns `a0 = 0`. "
-        ++ "UNCLAIMED: the ten mid-check rejection arms (`a1 = 576` but "
-        ++ "some `edd_be32_eq` fails → `beq` taken to the fail tail, "
-        ++ "`a0 = 1`) — the remaining #12989 slice")
+      (gate := "ALL THREE arm families are claimed, as twelve separate "
+        ++ "triples rather than one unified contract, and the ok/reject "
+        ++ "arms are pinned to the deployed probe arenas (payload "
+        ++ "`0x40000010`, out `0xa0010008`). Fail arm "
+        ++ "(`extractDepositData_lenFail_spec`): `a1 ≠ 576` → `a0 = 1`. "
+        ++ "Ok path (`extractDepositData_ok_spec`): all ten ABI header "
+        ++ "fields satisfy `eddOk` → the five raw fields are copied to "
+        ++ "the output arena, `a0 = 0`. Rejection arms "
+        ++ "(`extractDepositData_reject1_spec`…`reject10_spec`): checks "
+        ++ "1..k-1 pass, check k fails → `a0 = 1`; in every arm "
+        ++ "`sp`/`ra`/`s0`/`s1` are restored and only the three frame "
+        ++ "slots (plus, on the ok path, the output arena) are written. "
+        ++ "A single arena-parametric case-split statement is the "
+        ++ "remaining generalization")
       (notes := "ok path: flat whole-path `cpsTripleWithin 7749` over the "
         ++ "shared three-entry bundle image "
         ++ "(`CodeReq.ofProg … extractDepositDataBundle_prog`, 107 insns) "
@@ -5929,6 +5933,12 @@ private noncomputable abbrev _extract_deposit_data_routine_witness :=
   @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
 private noncomputable abbrev _extract_deposit_data_fail_witness :=
   @EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
+-- The ten mid-check rejection arms (#12989, final slice); the first and
+-- last sampled as swept witnesses (all ten share the compositional shape).
+private noncomputable abbrev _extract_deposit_data_reject1_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject1_spec
+private noncomputable abbrev _extract_deposit_data_reject10_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject10_spec
 private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
   @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
