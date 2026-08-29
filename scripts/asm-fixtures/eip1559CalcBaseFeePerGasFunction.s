@@ -7,8 +7,8 @@ eip1559_calc_base_fee_per_gas:
   srli s2, a0, 1               # parent_gas_target = parent.gas_limit / 2
   beq a1, s2, .Lebf_eq         # gas_used == target → expected = base_fee
   li s4, 0                     # path flag: 0 = below, 1 = above
-  bgtu a1, s2, .Lebf_set_above
   beqz s2, .Lebf_fail          # target == 0 is invalid on the increase route
+  bgtu a1, s2, .Lebf_set_above
   beqz a1, .Lebf_below_zero_used
   sub s3, s2, a1               # below: delta = target - gas_used
   j .Lebf_compute

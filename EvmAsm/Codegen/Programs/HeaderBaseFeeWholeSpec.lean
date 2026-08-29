@@ -1270,6 +1270,82 @@ theorem k73_failure_tail_spec_within
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) hseq
 
+/-! The new target-zero guard reaches the existing status-1 tail.  The frame
+    is intentionally expressed with owned registers: this adapter is meant to
+    be composed after a caller has converted its live register pins to the
+    ownership required by the failure tail. -/
+theorem k73_target_zero_failure_tail_spec_within
+    (sp0 spH raIn target gasUsed : Word) (saved : Reg → Word) (P : Assertion)
+    (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
+    (hret : (raIn &&& ~~~(1 : Word)) = raIn)
+    (hsaved : saved .x1 = raIn) (htargetZero : target = 0)
+    (hP : P.pcFree) :
+    cpsTripleWithin 10 (K73 + 48) raIn wholeCode
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+        frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** P)
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt k73Frame saved **
+        frameSlotsSaved k73Frame spH saved ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+        ((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** P) := by
+  let Tail : Assertion :=
+    ((.x2 : Reg) ↦ᵣ spH) ** regsOwnAt k73Frame **
+      frameSlotsSaved k73Frame spH saved ** regOwn .x10 ** P
+  have hguard := beq_spec_gen_within .x18 .x0 (228 : BitVec 13)
+    target (0 : Word) (K73 + 48)
+  have hguardC := cpsBranchWithin_extend_code
+    (k73_whole_mem 12 _ (K73 + 48) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hguard
+  rw [show signExtend13 (228 : BitVec 13) = (228 : Word) by decide,
+    show (K73 + 48) + (228 : Word) = K73 + 276 by bv_omega,
+    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hguardC
+  have hGuardRest :
+      (((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** Tail).pcFree := by
+    dsimp
+    pcf
+    exact hP
+  have hguardF := cpsBranchWithin_frameR
+    (((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** Tail)
+    hGuardRest hguardC
+  have htaken := cpsBranchWithin_takenPath hguardF (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨h_ne, -⟩ := hp
+    rw [htargetZero] at h_ne
+    exact (by decide : ¬ ((0 : Word) ≠ (0 : Word))) h_ne)
+  let GuardPre : Assertion :=
+    ((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** Tail
+  have htaken' :
+      cpsTripleWithin 1 (K73 + 48) (K73 + 276) wholeCode
+        GuardPre GuardPre := by
+    refine cpsTripleWithin_weaken
+      (P' := GuardPre) (Q' := GuardPre)
+      (fun _ hp => by
+        dsimp [GuardPre] at hp ⊢
+        xperm_chunked hp)
+      (fun _ hq => by
+        extract_pure_deep hq
+        obtain ⟨_, hq⟩ := hq
+        dsimp [GuardPre] at hq ⊢
+        xperm_chunked hq) htaken
+  let TailP : Assertion :=
+    ((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** P
+  have hTailP : TailP.pcFree := by
+    dsimp [TailP]
+    pcf
+    exact hP
+  have hfail := k73_failure_tail_spec_within
+    sp0 spH raIn saved TailP hsp hret hsaved hTailP
+  have hseq := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp [GuardPre, Tail, TailP] at hp ⊢
+      xperm_chunked hp)
+    htaken' hfail
+  dsimp [GuardPre, Tail, TailP] at hseq ⊢
+  exact hseq
+
 /-! The successful increase arm has the analogous `li x10,0` plus a jump over
     the failure arm before entering the shared epilogue. -/
 theorem k73_success_tail_spec_within

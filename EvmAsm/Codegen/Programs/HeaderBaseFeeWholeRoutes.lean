@@ -1032,7 +1032,7 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
     (hNq1 : 1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
-    cpsBranchWithin (13 + Nstatus + Ntail) K73 wholeCode
+    cpsBranchWithin (14 + Nstatus + Ntail) K73 wholeCode
       (k73HeadPre sp0 spH raIn (5000 : Word) (5000 : Word)
         basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -1058,7 +1058,7 @@ theorem k73_increase_entry_status_div_zero_to_return_spec_within
     sp0 spH raIn (5000 : Word) (5000 : Word) (2500 : Word)
     basePtr outPtr v8 v9 v18 v19 v20
     f0 f1 f2 f3 f4 f5 baseBytes accBytes outBytes Fstatus hspEntry
-    (by decide) (by decide) (by decide) hFstatus
+    (by decide) (by decide) (by decide) (by decide) hFstatus
   have hroute := k73_increase_status_div_zero_to_return
     (sp0 := sp0) (spH := spH) (raIn := raIn)
     (gasLimit := (5000 : Word)) (gasUsed := (5000 : Word))
@@ -1115,7 +1115,7 @@ def k73Arm4ClampNstatus : Nat := 3857 + (10 + k73Arm4ClampN1 +
 def k73Arm4ClampNtail : Nat := 100000
 
 theorem k73_increase_entry_status_div_zero_clamp_live_spec_within :
-    cpsBranchWithin (13 + k73Arm4ClampNstatus + k73Arm4ClampNtail) K73 wholeCode
+    cpsBranchWithin (14 + k73Arm4ClampNstatus + k73Arm4ClampNtail) K73 wholeCode
       (k73HeadPre (0xa0050038 : Word) (0xa0050000 : Word) (0 : Word)
         (5000 : Word) (5000 : Word) (0xa0000000 : Word) (0xa0000100 : Word)
         (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
@@ -1223,7 +1223,7 @@ def k73Arm4LiveNstatus : Nat := 3857 + (10 + k73Arm4LiveN1 +
 def k73Arm4LiveNtail : Nat := 100000
 
 theorem k73_increase_entry_status_div_zero_live_spec_within :
-    cpsBranchWithin (13 + k73Arm4LiveNstatus + k73Arm4LiveNtail) K73 wholeCode
+    cpsBranchWithin (14 + k73Arm4LiveNstatus + k73Arm4LiveNtail) K73 wholeCode
       (k73HeadPre (0xa0050038 : Word) (0xa0050000 : Word) (0 : Word)
         (5000 : Word) (5000 : Word) (0xa0000000 : Word) (0xa0000100 : Word)
         (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
@@ -1300,4 +1300,3 @@ theorem k73_increase_entry_status_div_zero_live_spec_within :
     (hNq2 := by simp [k73AddBTailSteps]; decide)
     (hNq1 := by simp [k73AddBTailSteps]; decide)
     (hNcarry := by decide)
-

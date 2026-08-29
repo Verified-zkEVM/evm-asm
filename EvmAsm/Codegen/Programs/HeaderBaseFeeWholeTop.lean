@@ -33,8 +33,9 @@ theorem k73_increase_entry_to_mul_spec_within
     (htarget : target = gasLimit >>> 1)
     (hne : gasUsed ≠ target)
     (hlt : target.toNat < gasUsed.toNat)
+    (htargetPos : 0 < target.toNat)
     (hF : F.pcFree) :
-    cpsTripleWithin 13 K73 (K73 + 68) wholeCode
+    cpsTripleWithin 14 K73 (K73 + 68) wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed
         basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -57,6 +58,17 @@ theorem k73_increase_entry_to_mul_spec_within
       bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fmul
   have hFrest : Frest.pcFree := by
     dsimp [Frest, Fmul]
+    pcf
+    exact hF
+  let FrestNoX0 : Assertion :=
+    (.x1 ↦ᵣ raIn) ** (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) **
+      (.x9 ↦ᵣ outPtr) ** (.x19 ↦ᵣ v19) ** (.x10 ↦ᵣ gasLimit) **
+      (.x12 ↦ᵣ basePtr) ** (.x13 ↦ᵣ outPtr) ** regOwn .x5 ** regOwn .x6 **
+      regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+      frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
+      bytesRegion basePtr baseBytes ** bytesRegion outPtr outBytes ** Fmul
+  have hFrestNoX0 : FrestNoX0.pcFree := by
+    dsimp [FrestNoX0, Fmul]
     pcf
     exact hF
   have hhead := k73_head_spec_within
@@ -112,32 +124,65 @@ theorem k73_increase_entry_to_mul_spec_within
     (fun _ hp => by
       dsimp [k73HeadPost, Fli, Frest, Fmul] at hp ⊢
       xperm_chunked hp) hheadneq hliF
-  have hbltu := bltu_spec_gen_within .x18 .x11 (20 : BitVec 13)
-    target gasUsed (K73 + 48)
-  have hbltuC := cpsBranchWithin_extend_code
+  have htarget_nonzero : target ≠ (0 : Word) := by
+    intro hzero
+    apply Nat.ne_of_gt htargetPos
+    simp [hzero]
+  have hguard := beq_spec_gen_within .x18 .x0 (228 : BitVec 13)
+    target (0 : Word) (K73 + 48)
+  have hguardC := cpsBranchWithin_extend_code
     (k73_whole_mem 12 _ (K73 + 48) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hguard
+  rw [show signExtend13 (228 : BitVec 13) = (228 : Word) by decide,
+    show (K73 + 48) + (228 : Word) = K73 + 276 by bv_omega,
+    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hguardC
+  have hguardF := cpsBranchWithin_frameR
+    (((.x11 ↦ᵣ gasUsed) ** (.x20 ↦ᵣ (0 : Word))) ** FrestNoX0)
+    (by dsimp [FrestNoX0]; pcf; exact hF) hguardC
+  have hguardnt := cpsBranchWithin_ntakenPath hguardF (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨h_eq, -⟩ := hp
+    exact htarget_nonzero h_eq)
+  have hguardnt' : cpsTripleWithin 1 (K73 + 48) (K73 + 52) wholeCode
+      (((.x18 ↦ᵣ target) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x11 ↦ᵣ gasUsed) ** (.x20 ↦ᵣ (0 : Word)) ** FrestNoX0))
+      (((.x18 ↦ᵣ target) ** (.x0 ↦ᵣ (0 : Word))) **
+        ((.x11 ↦ᵣ gasUsed) ** (.x20 ↦ᵣ (0 : Word)) ** FrestNoX0)) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by
+        extract_pure_deep hq
+        obtain ⟨_, hq⟩ := hq
+        xperm_chunked hq) hguardnt
+  have hbltu := bltu_spec_gen_within .x18 .x11 (16 : BitVec 13)
+    target gasUsed (K73 + 52)
+  have hbltuC := cpsBranchWithin_extend_code
+    (k73_whole_mem 13 _ (K73 + 52) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbltu
-  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) by decide,
-    show (K73 + 48) + (20 : Word) = K73 + 68 by bv_omega,
-    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hbltuC
+  rw [show signExtend13 (16 : BitVec 13) = (16 : Word) by decide,
+    show (K73 + 52) + (16 : Word) = K73 + 68 by bv_omega,
+    show (K73 + 52) + 4 = K73 + 56 by bv_omega] at hbltuC
   have hbltuF := cpsBranchWithin_frameR
-    ((.x20 ↦ᵣ (0 : Word)) ** Frest) (by
-      dsimp [Frest]
+    (((.x0 ↦ᵣ (0 : Word)) ** (.x20 ↦ᵣ (0 : Word))) ** FrestNoX0) (by
+      dsimp [FrestNoX0]
       pcf
       exact hF) hbltuC
   have htaken := cpsBranchWithin_takenPath hbltuF (fun _ hp => by
     extract_pure_deep hp
     obtain ⟨h_ne, -⟩ := hp
     exact h_ne ((BitVec.ult_iff_toNat_lt).2 hlt))
+  have hmidGuard := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp [Fli, Frest, FrestNoX0] at hp ⊢
+      xperm_chunked hp) hmid hguardnt'
   have hfinal := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
-      dsimp [Fli, Frest, Fmul] at hp ⊢
-      xperm_chunked hp) hmid htaken
+      dsimp [Fli, Frest, FrestNoX0, Fmul] at hp ⊢
+      xperm_chunked hp) hmidGuard htaken
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by
       extract_pure_deep hq
       obtain ⟨_, hq⟩ := hq
-      dsimp [k73HeadPost, Frest, Fmul] at hq ⊢
+      dsimp [k73HeadPost, Frest, FrestNoX0, Fmul] at hq ⊢
       xperm_chunked hq) hfinal
 
 private theorem k73_increase_status_to_div_spec_within
