@@ -110,7 +110,7 @@ theorem full_whole_mono : ∀ a i, fullCode a = some i → wholeCode a = some i 
   intro a i h
   exact CodeReq.union_split_mono k73_whole_mono div_whole_mono a i h
 
-theorem k73_length : eip1559CalcBaseFeePerGas_prog.length = 77 := by decide
+theorem k73_length : eip1559CalcBaseFeePerGas_prog.length = 78 := by decide
 
 theorem k73_prog_bound : 4 * prog.length < 2 ^ 64 := by
   rw [k73_length]

@@ -87,9 +87,10 @@ def eip1559CalcBaseFeePerGas_prog : Program :=
     .MV .x8 .x12,
     .MV .x9 .x13,
     .SRLI .x18 .x10 (1 : BitVec 6),
-    .BEQ .x11 .x18 (192 : BitVec 13),
+    .BEQ .x11 .x18 (196 : BitVec 13),
     .LI .x20 (0 : Word),
-    .BLTU .x18 .x11 (16 : BitVec 13),
+    .BLTU .x18 .x11 (20 : BitVec 13),
+    .BEQ .x18 .x0 (224 : BitVec 13),
     .BEQ .x11 .x0 (104 : BitVec 13),
     .SUB .x19 .x18 .x11,
     .JAL .x0 (12 : BitVec 21),
@@ -180,7 +181,7 @@ theorem eip1559CalcBaseFeePerGasFunction_eq_prog :
     eip1559CalcBaseFeePerGasFunction = "eip1559_calc_base_fee_per_gas:\n" ++ emitProgramR eip1559CalcBaseFeePerGas_prog eip1559CalcBaseFeePerGas_relocs := rfl
 
 #guard eip1559CalcBaseFeePerGasFunction.startsWith "eip1559_calc_base_fee_per_gas:\n"
-#guard eip1559CalcBaseFeePerGas_prog.length = 77
+#guard eip1559CalcBaseFeePerGas_prog.length = 78
 /-- `zisk_eip1559_calc_base_fee_per_gas`: probe BuildUnit. Reads
     (parent_gas_limit u64, parent_gas_used u64, parent_base_fee
     u256 BE) from host input, writes (status, expected_base_fee
