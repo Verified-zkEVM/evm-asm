@@ -1018,6 +1018,45 @@ theorem priceLoopFuel_done_ge (num : Nat) :
               (output + acc) S h
             exact Nat.le_trans (Nat.le_add_right _ _) hle
 
+/- A done result cannot cross the 384-bit sum bound when the current output is
+   below it.  The recursive branch gets exactly the next-state output bound
+   from the current sum guard.  The separate 256-bit representability check
+   belongs to the exit-divide tail, which consumes the completed sum. -/
+theorem priceLoopFuel_done_word384_bound (num : Nat) :
+    ∀ (fuel i acc output S : Nat),
+      output < taylorWord384Bound →
+      priceLoopFuel num fuel i acc output = .done S →
+        S < taylorWord384Bound := by
+  intro fuel
+  induction fuel with
+  | zero =>
+    intro i acc output S _ h
+    simp [priceLoopFuel] at h
+  | succ fuel ih =>
+    intro i acc output S h_output h
+    simp only [priceLoopFuel] at h
+    by_cases h_acc : acc = 0
+    · rw [if_pos h_acc] at h
+      simp only [PriceLoopOut.done.injEq] at h
+      simpa [h] using h_output
+    · rw [if_neg h_acc] at h
+      by_cases h_i : 496 ≤ i
+      · rw [if_pos h_i] at h
+        simp at h
+      · rw [if_neg h_i] at h
+        by_cases h_sum : taylorWord384Bound ≤ output + acc
+        · rw [if_pos h_sum] at h
+          simp at h
+        · rw [if_neg h_sum] at h
+          by_cases h_prod : taylorWord384Bound ≤ acc * num
+          · rw [if_pos h_prod] at h
+            simp at h
+          · rw [if_neg h_prod] at h
+            apply ih (i + 1) (acc * num / (taylorDenominator * i))
+              (output + acc) S
+            · exact Nat.lt_of_not_ge h_sum
+            · exact h
+
 /-- Crux: whenever the machine loop reaches its `acc = 0` exit with a final
     sum below the 256-bit output bound, the SpecRef bounded model agrees and
     returns `some (sum / D)`. -/
@@ -1075,5 +1114,7 @@ theorem priceBytes_length (excess : Word) : (priceBytes excess).length = 32 := b
   split
   · exact beBytes32OfNat_length _
   · simp
+
+#print axioms priceLoopFuel_done_word384_bound
 
 end EvmAsm.Codegen.AmsterdamBlobGasPrice
