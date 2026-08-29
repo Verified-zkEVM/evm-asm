@@ -34,7 +34,7 @@ theorem k73_increase_entry_to_mul_spec_within
     (hne : gasUsed ≠ target)
     (hlt : target.toNat < gasUsed.toNat)
     (hF : F.pcFree) :
-    cpsTripleWithin 13 K73 (K73 + 64) wholeCode
+    cpsTripleWithin 13 K73 (K73 + 68) wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed
         basePtr outPtr v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -65,13 +65,13 @@ theorem k73_increase_entry_to_mul_spec_within
       dsimp [Fmul]
       pcf
       exact hF)
-  have hbeq := beq_spec_gen_within .x11 .x18 (192 : BitVec 13)
+  have hbeq := beq_spec_gen_within .x11 .x18 (196 : BitVec 13)
     gasUsed target (K73 + 40)
   have hbeqC := cpsBranchWithin_extend_code
     (k73_whole_mem 10 _ (K73 + 40) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbeq
-  rw [show signExtend13 (192 : BitVec 13) = (192 : Word) by decide,
-    show (K73 + 40) + (192 : Word) = K73 + 232 by bv_omega,
+  rw [show signExtend13 (196 : BitVec 13) = (196 : Word) by decide,
+    show (K73 + 40) + (196 : Word) = K73 + 236 by bv_omega,
     show (K73 + 40) + 4 = K73 + 44 by bv_omega] at hbeqC
   have hbeqF := cpsBranchWithin_frameR
     ((.x20 ↦ᵣ v20) ** Frest) (by
@@ -112,13 +112,13 @@ theorem k73_increase_entry_to_mul_spec_within
     (fun _ hp => by
       dsimp [k73HeadPost, Fli, Frest, Fmul] at hp ⊢
       xperm_chunked hp) hheadneq hliF
-  have hbltu := bltu_spec_gen_within .x18 .x11 (16 : BitVec 13)
+  have hbltu := bltu_spec_gen_within .x18 .x11 (20 : BitVec 13)
     target gasUsed (K73 + 48)
   have hbltuC := cpsBranchWithin_extend_code
     (k73_whole_mem 12 _ (K73 + 48) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hbltu
-  rw [show signExtend13 (16 : BitVec 13) = (16 : Word) by decide,
-    show (K73 + 48) + (16 : Word) = K73 + 64 by bv_omega,
+  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) by decide,
+    show (K73 + 48) + (20 : Word) = K73 + 68 by bv_omega,
     show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hbltuC
   have hbltuF := cpsBranchWithin_frameR
     ((.x20 ↦ᵣ (0 : Word)) ** Frest) (by
@@ -154,7 +154,7 @@ private theorem k73_increase_status_to_div_spec_within
       (k73IncreaseMulCalleePost spH basePtr outPtr target gasUsed
         baseBytes accBytes outBytes
         (regOwns [.x14, .x15, .x16, .x17] ** G))) :
-    cpsBranchWithin 3857 (K73 + 64) wholeCode
+    cpsBranchWithin 3857 (K73 + 68) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes
@@ -248,7 +248,7 @@ theorem k73_increase_status_div_zero_spec_within
           (u256DivU64BeQuotBytes outBytes outBytes target)).body.steps +
         (12 + (1 + (((1 + 1) + (1 +
           (U256FromU64BeSAsm.u256FromU64BeFn (1 : Word) outPtr q2).body.steps + 1)) + 1)))))
-      (K73 + 64) wholeCode
+      (K73 + 68) wholeCode
       (k73IncreaseMulPre spH raIn gasLimit gasUsed basePtr outPtr target
         v8 v9 v18 v19 (0 : Word) v20 f0 f1 f2 f3 f4 f5
         baseBytes accBytes outBytes
