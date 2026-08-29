@@ -47,6 +47,11 @@ from BUNDLE-REACHABLE scripts and from the weaker source-level
 STATIC-ANALYSED result, and lists any unanalysed names.  `--self-test` adds a
 separate PLANT-PROVEN count for synthetic end-to-end cases; that count is not a
 claim that a generic harness exercised every production gate's defect branch.
+The live check also compares the direct workflow set with the
+`check-build-parallel.sh` closure: every direct-only name needs an exact,
+non-empty omission reason, and stale declarations fail.  A small live-tree
+floor and required-name assertion prevents the discovery function itself from
+quietly seeing no production gates.
 
 Usage:
   scripts/check-gates-can-fail.py              # audit build.yml script invocations
@@ -164,6 +169,89 @@ GENERATOR_SCRIPT_NAMES = frozenset({
     "transcription_queue.py",
 })
 
+# ``check-build-parallel.sh`` is a local post-build bundle, not a replacement
+# for the workflow's source/build-preparation lanes.  Keep that boundary
+# explicit: every direct workflow script which is intentionally *not* a child
+# of the bundle is named here with a reason.  The set is checked against the
+# live workflow and bundle closure below, so adding a direct CI gate without
+# either dispatching it from the bundle or recording why it stays outside is a
+# hard failure.  A reason is part of the declaration, not prose for a reviewer
+# to remember.
+_BUNDLE_ROOT_ONLY = {
+    "check-build-parallel.sh":
+        "the workflow invokes the bundle entry point itself; it is not its own child",
+}
+_BUNDLE_SOURCE_CHECK_ONLY = {
+    "check-code-preimage-empty-hash.sh",
+    "check-correspondence-deps.sh",
+    "check-duplicate-decls.py",
+    "check-eest-sampler-span.py",
+    "check-forbidden-tactics.sh",
+    "check-gates-can-fail.py",
+    "check-guest-elf-override.sh",
+    "check-heartbeats-approved.sh",
+    "check-jaloff-closure.sh",
+    "check-layering.sh",
+    "check-layout-literals.sh",
+    "check-mpt-status-vocab.sh",
+    "check-naming.sh",
+    "check-no-hardcoded-guest-pc.sh",
+    "check-opcode-structure.sh",
+    "check-phase-entry-pinned.py",
+    "check-registry-crosscheck.sh",
+    "check-retired-predicates.sh",
+    "check-routine-liveness.sh",
+    "check-specref-citations.py",
+    "check-unimported.sh",
+    "import-graph-metrics.py",
+}
+_BUNDLE_BUILD_PHASE_ONLY = {
+    "callee-composition-queue.py",
+    "check-derived-artifacts.py",
+    "check-evidence-ledger.py",
+    "check-embedded-counts.sh",
+    "check-no-warnings.sh",
+    "check-nonvacuity-witnessed.py",
+    "check-obligation-blockers.sh",
+    "check-obligation-claims.sh",
+    "check-registry-tallies.py",
+    "check-roundtrip-coverage.sh",
+    "check-seam-contract-ledger.py",
+    "check-statement-tamper.sh",
+    "gen-rv64-shims.py",
+}
+BUNDLE_DIRECT_ONLY_REASONS = {
+    **_BUNDLE_ROOT_ONLY,
+    **{
+        name: "source-checks job runs this before the post-build bundle and owns its setup"
+        for name in _BUNDLE_SOURCE_CHECK_ONLY
+    },
+    **{
+        name: "build job runs this in a phase-specific step whose inputs are not the bundle"
+        for name in _BUNDLE_BUILD_PHASE_ONLY
+    },
+}
+
+# A self-test that only injects miniature workflows can prove that a planted
+# defect fires while completely missing a broken production discovery path.
+# Keep a small live-tree floor and a few names whose presence is not optional;
+# if workflow parsing or bundle traversal goes silent, the meta-gate fails
+# loudly instead of printing a reassuring zero-sized inventory.  These values
+# are intentionally lower bounds: adding a gate is harmless, while removing a
+# known gate requires an explicit review of this assertion.
+LIVE_DIRECT_FLOOR = 38
+LIVE_BUNDLE_REACHABLE_FLOOR = 31
+LIVE_REQUIRED_DIRECT = frozenset({
+    "check-build-parallel.sh",
+    "check-file-size.sh",
+    "check-gates-can-fail.py",
+})
+LIVE_REQUIRED_BUNDLE = frozenset({
+    "check-build-units-link.sh",
+    "check-drift.sh",
+    "check-file-size.sh",
+})
+
 
 def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
     """Return script basename -> argument strings for workflow invocations.
@@ -259,14 +347,18 @@ def gate_invocations(workflows: Path | None = None,
                          dict[str, list[str]],
                          dict[str, list[str]],
                          dict[str, list[str]],
+                         dict[str, list[str]],
                          dict[str, list[str]]]:
-    """Return direct, bundle-only, total gates, and non-gate dispatches.
+    """Return direct, bundle-only, total gates, non-gates, and bundle closure.
 
     ``workflow_invocations`` remains the direct workflow view used by the
     self-test fixtures.  The total view follows executable shell/Python dispatch
     edges from every reachable script, preserving which names were direct and
-    which were found only behind a bundle.  A set of visited parents prevents
-    cycles while still allowing a nested bundle to expose its own child gates.
+    which were found only behind a bundle.  ``bundle_reachable`` is a separate
+    closure rooted only at ``check-build-parallel.sh``; unlike
+    ``bundled_invocations`` it includes direct names that the bundle itself
+    dispatches.  A set of visited parents prevents cycles while still allowing
+    a nested bundle to expose its own child gates.
     Generator/helper
     edges are retained separately so they are visible without being graded as
     gates merely because they lack a failure status.
@@ -278,6 +370,7 @@ def gate_invocations(workflows: Path | None = None,
     }
     bundled: dict[str, list[str]] = {}
     non_gate: dict[str, list[str]] = {}
+    bundle_reachable: dict[str, list[str]] = {}
     pending = list(direct)
     visited: set[str] = set()
     while pending:
@@ -297,7 +390,38 @@ def gate_invocations(workflows: Path | None = None,
                     bundled.setdefault(child, []).append(args)
             if child not in visited:
                 pending.append(child)
-    return direct, bundled, all_invocations, non_gate
+
+    # The local post-build bundle is the boundary checked by
+    # ``bundle_sync_problems``.  Walk it independently from the all-workflow
+    # closure: a direct source/build-preparation script may itself dispatch a
+    # helper, but that does not make the helper part of check-build-parallel's
+    # contract.  Keep the root out of the closure; it is declared separately as
+    # a deliberate root-only omission.
+    bundle_pending = []
+    if "check-build-parallel.sh" in direct:
+        bundle_pending.append("check-build-parallel.sh")
+    bundle_visited: set[str] = set()
+    while bundle_pending:
+        parent = bundle_pending.pop()
+        if parent in bundle_visited:
+            continue
+        bundle_visited.add(parent)
+        for child, edges in dispatched_invocations(scripts / parent).items():
+            for args, mode in edges:
+                is_gate = (mode == "run_step"
+                           or child.startswith(GATE_SCRIPT_PREFIXES))
+                if child.startswith("gen-") or child in GENERATOR_SCRIPT_NAMES:
+                    is_gate = False
+                if not is_gate:
+                    continue
+                bundle_reachable.setdefault(child, []).append(args)
+            # Follow helper edges too: a non-gate wrapper may dispatch a gate
+            # one level farther down, and the set comparison must not miss it
+            # merely because the intermediate basename is not ``check-*``.
+            if child not in bundle_visited:
+                bundle_pending.append(child)
+
+    return direct, bundled, all_invocations, non_gate, bundle_reachable
 
 
 def gate_inventory(workflows: Path | None = None,
@@ -305,14 +429,17 @@ def gate_inventory(workflows: Path | None = None,
     """Classify every workflow-reachable script without using its filename.
 
     ``direct_invocations`` are the closed set named in ``build.yml``;
-    ``bundled_invocations`` are executable dispatch descendants. ``static``
+    ``bundled_invocations`` are executable dispatch descendants found only
+    behind a direct invocation, while ``bundle_reachable_invocations`` is the
+    closure rooted specifically at ``check-build-parallel.sh``. ``static``
     means the source file was read; ``static_can_fail`` is the weaker
     source-level result from ``CAN_FAIL``. Neither is a dynamic proof that a
     defect reaches the branch. The self-test's planted cases are the separate
     end-to-end evidence class.
     """
     scripts = scripts or SCRIPTS
-    direct, bundled, invocations, non_gate = gate_invocations(workflows, scripts)
+    direct, bundled, invocations, non_gate, bundle_reachable = gate_invocations(
+        workflows, scripts)
     static: list[str] = []
     static_can_fail: list[str] = []
     static_silent: list[str] = []
@@ -331,6 +458,7 @@ def gate_inventory(workflows: Path | None = None,
         "invocations": invocations,
         "direct_invocations": direct,
         "bundled_invocations": bundled,
+        "bundle_reachable_invocations": bundle_reachable,
         "non_gate_dispatches": non_gate,
         "static": static,
         "static_can_fail": static_can_fail,
@@ -339,8 +467,98 @@ def gate_inventory(workflows: Path | None = None,
     }
 
 
+def bundle_sync_problems(
+    inventory: dict[str, object],
+    declared: dict[str, str],
+) -> list[str]:
+    """Check the workflow/bundle boundary as an explicit set relation.
+
+    ``direct_invocations`` is the blocking workflow's set and
+    ``bundle_reachable_invocations`` is the set reached from the local
+    parallel bundle (including direct names that the bundle dispatches).
+    The bundle need not duplicate source/build-preparation lanes, but every
+    direct-only name must be declared with a reason.  This turns a silent
+    omission into a reviewable manifest entry and catches both directions:
+    an unannounced new omission and a stale declaration after a gate is moved
+    into the bundle.
+    """
+    direct = inventory.get("direct_invocations", {})
+    bundled = inventory.get("bundle_reachable_invocations", {})
+    if not isinstance(direct, dict) or not isinstance(bundled, dict):
+        return ["  x bundle sync -- inventory did not expose invocation sets"]
+    direct_names = set(direct)
+    bundled_names = set(bundled)
+    direct_only = direct_names - bundled_names
+    declared_names = set(declared)
+    problems: list[str] = []
+
+    for name in sorted(direct_only - declared_names):
+        problems.append(
+            f"  x {name}  BUNDLE SYNC -- direct workflow gate is not reached "
+            "by check-build-parallel and has no declared reason; dispatch it "
+            "from the bundle or add an explicit omission reason"
+        )
+    for name in sorted(declared_names - direct_only):
+        if name in bundled_names:
+            why = "it is now bundled"
+        elif name not in direct_names:
+            why = "it is not directly invoked by the blocking workflow"
+        else:
+            why = "its direct/bundle relation changed"
+        problems.append(
+            f"  x {name}  BUNDLE SYNC -- stale omission declaration: {why}; "
+            "remove the declaration or update the bundle"
+        )
+    for name, reason in sorted(declared.items()):
+        if not isinstance(reason, str) or not reason.strip():
+            problems.append(
+                f"  x {name}  BUNDLE SYNC -- omission declaration has no reason"
+            )
+
+    return problems
+
+
+def live_visibility_problems(inventory: dict[str, object]) -> list[str]:
+    """Ensure the production discovery still sees its known gate population.
+
+    Planted self-tests validate the detector's firing behavior, but they cannot
+    catch a parser that silently stops finding real workflow entries.  This
+    floor is deliberately separate from the direct/bundle boundary manifest:
+    it protects the instrument's input population, while the manifest protects
+    the relation between the two sets.
+    """
+    direct = inventory.get("direct_invocations", {})
+    bundled = inventory.get("bundle_reachable_invocations", {})
+    if not isinstance(direct, dict) or not isinstance(bundled, dict):
+        return ["  x LIVE VISIBILITY -- invocation sets are unavailable"]
+    direct_names = set(direct)
+    bundled_names = set(bundled)
+    problems: list[str] = []
+    if len(direct_names) < LIVE_DIRECT_FLOOR:
+        problems.append(
+            f"  x LIVE VISIBILITY -- direct workflow gate count {len(direct_names)} "
+            f"is below floor {LIVE_DIRECT_FLOOR}; discovery may have gone silent"
+        )
+    if len(bundled_names) < LIVE_BUNDLE_REACHABLE_FLOOR:
+        problems.append(
+            f"  x LIVE VISIBILITY -- bundle-reachable gate count "
+            f"{len(bundled_names)} is below floor {LIVE_BUNDLE_REACHABLE_FLOOR}; "
+            "bundle traversal may have gone silent"
+        )
+    for name in sorted(LIVE_REQUIRED_DIRECT - direct_names):
+        problems.append(
+            f"  x LIVE VISIBILITY -- expected direct gate {name} was not found"
+        )
+    for name in sorted(LIVE_REQUIRED_BUNDLE - bundled_names):
+        problems.append(
+            f"  x LIVE VISIBILITY -- expected bundle gate {name} was not found"
+        )
+    return problems
+
+
 def check(workflows: Path | None = None, scripts: Path | None = None,
-          advisory: dict[str, str] | None = None) -> list[str]:
+          advisory: dict[str, str] | None = None,
+          bundle_direct_only: dict[str, str] | None = None) -> list[str]:
     """Roots are parameters so the self-test can run the WHOLE check over a
     planted tree, rather than only asserting that the regexes match strings.
 
@@ -348,14 +566,27 @@ def check(workflows: Path | None = None, scripts: Path | None = None,
     fired but not that the function under test still reached the code it was
     scanning.  A self-test that never calls `check()` has the same hole.
     """
+    production = workflows is None and scripts is None
     scripts = scripts or SCRIPTS
     advisory = ADVISORY_BY_DESIGN if advisory is None else advisory
     problems: list[str] = []
     inventory = gate_inventory(workflows, scripts)
     invocations = inventory["invocations"]
     bundled = inventory["bundled_invocations"]
+    bundle_reachable = inventory["bundle_reachable_invocations"]
     assert isinstance(invocations, dict)
     assert isinstance(bundled, dict)
+    assert isinstance(bundle_reachable, dict)
+
+    # The production invocation uses the checked-in manifest.  Synthetic
+    # self-tests opt in explicitly so their tiny workflows do not inherit the
+    # live tree's unrelated declarations.
+    if bundle_direct_only is not None:
+        problems.extend(bundle_sync_problems(inventory, bundle_direct_only))
+    elif production:
+        problems.extend(bundle_sync_problems(inventory, BUNDLE_DIRECT_ONLY_REASONS))
+        problems.extend(live_visibility_problems(inventory))
+
     for name, arglists in sorted(invocations.items()):
         path = scripts / name
         if not path.is_file():
@@ -617,6 +848,56 @@ def self_test() -> int:
                         "scripts/check-real.sh")
         r = check(wf, sc, advisory={"check-gone.sh": "reason"})
         expect(len(r) == 1 and "stale" in r[0], f"stale advisory entry: {r}")
+
+        # PLANTED 6a - an extra direct workflow gate which the parallel bundle
+        # does not dispatch must be declared explicitly.  This is the positive
+        # direction of the set-boundary check: a missing declaration is a hard
+        # failure, not an omission someone can forget indefinitely.
+        wf, sc = _plant(tmp / "j", "check-build-parallel.sh", "set -e\n",
+                        "scripts/check-build-parallel.sh")
+        (sc / "check-extra.py").write_text("exit 1\n")
+        planted = wf / "planted.yml"
+        planted.write_text(
+            planted.read_text() + "      - name: extra\n"
+            "        run: scripts/check-extra.py\n"
+        )
+        r = check(wf, sc, advisory={},
+                  bundle_direct_only={
+                      "check-build-parallel.sh": "the bundle root",
+                  })
+        expect_planted(len(r) == 1 and "BUNDLE SYNC" in r[0]
+                       and "check-extra.py" in r[0],
+                       f"undeclared direct-only gate is caught: {r}",
+                       "check-extra.py / undeclared bundle omission")
+
+        # PLANTED 6b - a declaration for a gate that is no longer direct-only
+        # must fail too.  This is the stale direction: moving the child into
+        # the bundle (or removing it from the workflow) cannot leave a silently
+        # rotting exception in the manifest.
+        wf, sc = _plant(tmp / "k", "check-build-parallel.sh",
+                        "set -e\n", "scripts/check-build-parallel.sh")
+        r = check(wf, sc, advisory={},
+                  bundle_direct_only={
+                      "check-build-parallel.sh": "the bundle root",
+                      "check-gone.py": "stale test declaration",
+                  })
+        expect_planted(len(r) == 1 and "BUNDLE SYNC" in r[0]
+                       and "check-gone.py" in r[0],
+                       f"stale bundle omission is caught: {r}",
+                       "check-gone.py / stale bundle omission")
+
+        # CONTROL 5 - the same direct workflow/bundle relation is clean when
+        # every direct-only name has a non-empty declaration.
+        wf, sc = _plant(tmp / "l", "check-build-parallel.sh",
+                        "run_step scripts/check-child.py\n",
+                        "scripts/check-build-parallel.sh")
+        (sc / "check-child.py").write_text("exit 1\n")
+        r = check(wf, sc, advisory={},
+                  bundle_direct_only={
+                      "check-build-parallel.sh": "the bundle root",
+                  })
+        expect(not any("BUNDLE SYNC" in problem for problem in r),
+               f"declared direct/bundle relation is clean: {r}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -628,6 +909,7 @@ def self_test() -> int:
     invocations = live_inventory["invocations"]
     direct = live_inventory["direct_invocations"]
     bundled = live_inventory["bundled_invocations"]
+    bundle_reachable = live_inventory["bundle_reachable_invocations"]
     non_gate = live_inventory["non_gate_dispatches"]
     static = live_inventory["static"]
     static_can_fail = live_inventory["static_can_fail"]
@@ -636,6 +918,7 @@ def self_test() -> int:
     assert isinstance(invocations, dict)
     assert isinstance(direct, dict)
     assert isinstance(bundled, dict)
+    assert isinstance(bundle_reachable, dict)
     assert isinstance(non_gate, dict)
     assert isinstance(static, list)
     assert isinstance(static_can_fail, list)
@@ -646,14 +929,18 @@ def self_test() -> int:
            f"missing={missing}, silent={silent}")
 
     if ok:
+        direct_only = set(direct) - set(bundle_reachable)
         print("check-gates-can-fail --self-test: OK ("
               f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
+              f"bundle-reachable={len(bundle_reachable)}; "
+              f"direct-only={len(direct_only)}; "
               f"reachable={len(invocations)}; static-analysed={len(static)}; "
               f"static-can-fail={len(static_can_fail)}; "
               f"non-gate-dispatches={len(non_gate)}; "
               f"unanalysed=0; plant-proven={planted_passes} synthetic cases; "
-              "18 end-to-end assertions (8 planted + 10 controls, incl. both "
-              "false accusations the first draft made); "
+              "21 end-to-end assertions (10 planted + 11 controls, incl. "
+              "bundle-set visibility and both false accusations the first "
+              "draft made); live visibility floor and required names clean; "
               "live tree clean)")
         print("  plant-proven detector cases: " + ", ".join(planted_labels))
         return 0
@@ -667,6 +954,7 @@ def main() -> int:
     invocations = inventory["invocations"]
     direct = inventory["direct_invocations"]
     bundled = inventory["bundled_invocations"]
+    bundle_reachable = inventory["bundle_reachable_invocations"]
     non_gate = inventory["non_gate_dispatches"]
     static = inventory["static"]
     static_can_fail = inventory["static_can_fail"]
@@ -674,15 +962,19 @@ def main() -> int:
     assert isinstance(invocations, dict)
     assert isinstance(direct, dict)
     assert isinstance(bundled, dict)
+    assert isinstance(bundle_reachable, dict)
     assert isinstance(non_gate, dict)
     assert isinstance(static, list)
     assert isinstance(static_can_fail, list)
     assert isinstance(unanalysed, list)
     problems = check()
     n = len(invocations)
+    direct_only = set(direct) - set(bundle_reachable)
     if problems:
         print(f"check-gates-can-fail: {len(problems)} problem(s); "
               f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
+              f"bundle-reachable={len(bundle_reachable)}; "
+              f"direct-only={len(direct_only)}; "
               f"reachable={n}; static-analysed={len(static)}; "
               f"static-can-fail={len(static_can_fail)}; "
               f"non-gate-dispatches={len(non_gate)}; "
@@ -691,11 +983,15 @@ def main() -> int:
         print(
             "\nA gate that cannot fail is indistinguishable from an absent one, and\n"
             "worse, because the workflow step reads as coverage. Either pass the\n"
-            "strictness flag or declare the gate advisory with a reason.",
+            "strictness flag or declare the gate advisory with a reason. The\n"
+            "direct workflow/bundle sets must also stay in sync: dispatch each\n"
+            "direct-only gate or declare a non-empty omission reason.",
             file=sys.stderr)
         return 1
     print("check-gates-can-fail: OK ("
           f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
+          f"bundle-reachable={len(bundle_reachable)}; "
+          f"direct-only={len(direct_only)}; "
           f"reachable={n}; static-analysed={len(static)}; "
           f"static-can-fail={len(static_can_fail)}; "
           f"non-gate-dispatches={len(non_gate)}; unanalysed=0; "
