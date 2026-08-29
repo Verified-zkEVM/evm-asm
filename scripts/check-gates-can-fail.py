@@ -53,6 +53,7 @@ Usage:
 """
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -126,14 +127,38 @@ def strip_comments(src: str) -> str:
 # A `scripts/foo.sh [args...]` invocation inside a workflow, up to end of line
 # or a shell separator.  Comment lines are dropped first.
 INVOCATION = re.compile(r'(?<![\w/-])scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
-# `check-build-parallel.sh` dispatches child gates through this function rather
-# than from the workflow itself.  Restricting the nested scan to executable
-# `run_step` calls avoids treating source helpers, documentation, or comments
-# as gates.  The closure below is deliberately transitive: a future bundle may
-# delegate to another bundle without reopening this blind spot.
-DISPATCH_INVOCATION = re.compile(
+# Bundle scripts dispatch child gates through `run_step`, while shell wrappers
+# invoke their checker implementations with `python3`/`exec`.  Keep the
+# patterns anchored to shell command position so Python docstrings and usage
+# prose are not mistaken for edges.  The closure below is deliberately
+# transitive: a future bundle may delegate to another bundle without reopening
+# this blind spot.
+RUN_STEP_INVOCATION = re.compile(
     r'^\s*(?:start\s+\S+\s+)?run_step\s+'
     r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+SHELL_SCRIPT_INVOCATION = re.compile(
+    r'^\s*(?:if\s+!\s+)?(?:exec\s+)?(?:python3?|bash|sh)\s+'
+    r'["\']?(?:\$[A-Za-z_][A-Za-z0-9_]*/)?'
+    r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+EXEC_SCRIPT_INVOCATION = re.compile(
+    r'^\s*exec\s+["\']?(?:\$[A-Za-z_][A-Za-z0-9_]*/)?'
+    r'scripts/([A-Za-z0-9._-]+\.(?:sh|py))([^\n|&;)]*)')
+
+# A `run_step` target is a gate regardless of its spelling (the bundle uses
+# `fuzz-arith-diff.sh` and `codegen-stateless-link-check.sh`).  Nested checker
+# and audit entry points are gates too; `gen-*` and the named data/code
+# generators are helpers whose lack of an explicit failure path must not be
+# reported as an inert gate.  Other helper implementations are already covered
+# by their shell wrapper and remain non-gate edges in the provenance graph.
+GATE_SCRIPT_PREFIXES = ("check-", "audit-")
+GENERATOR_SCRIPT_NAMES = frozenset({
+    "asm_to_program.py",
+    "codegen-eest-stateless-check.sh",
+    "drift-report.sh",
+    "guest_image_coverage.py",
+    "shape-census.py",
+    "transcription_queue.py",
+})
 
 
 def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
@@ -162,21 +187,63 @@ def workflow_invocations(workflows: Path | None = None) -> dict[str, list[str]]:
     return found
 
 
-def dispatched_invocations(script: Path) -> dict[str, list[str]]:
-    """Return executable ``run_step scripts/<name>`` edges in one script.
+def dispatched_invocations(script: Path) -> dict[str, list[tuple[str, str]]]:
+    """Return executable shell-dispatch edges in one script.
 
     The source is comment-stripped before matching, so a prose example of a
     dispatch cannot enlarge the gate population.  Missing scripts simply have
     no outgoing edges; their missing-source finding is still emitted by the
-    caller that discovered them.
+    caller that discovered them.  Python command lists are inspected through
+    the AST (not raw prose), so a helper's documentation and self-test strings
+    cannot become edges merely by mentioning a script.
     """
     if not script.is_file():
         return {}
-    found: dict[str, list[str]] = {}
-    for raw in strip_comments(script.read_text()).splitlines():
-        for m in DISPATCH_INVOCATION.finditer(raw):
+    found: dict[str, list[tuple[str, str]]] = {}
+    if script.suffix == ".sh":
+        for raw in strip_comments(script.read_text()).splitlines():
+            m = RUN_STEP_INVOCATION.match(raw)
+            mode = "run_step"
+            if m is None:
+                m = SHELL_SCRIPT_INVOCATION.match(raw)
+                mode = "shell"
+            if m is None:
+                m = EXEC_SCRIPT_INVOCATION.match(raw)
+                mode = "shell"
+            if m is None:
+                continue
             name, args = m.group(1), m.group(2)
-            found.setdefault(name, []).append(args.strip())
+            found.setdefault(name, []).append((args.strip(), mode))
+        return found
+
+    if script.suffix != ".py":
+        return found
+    try:
+        tree = ast.parse(script.read_text(), filename=str(script))
+    except SyntaxError:
+        return found
+    # Only inspect command-running calls.  This avoids treating arbitrary
+    # strings in Python source (including docstrings and fixture prose) as
+    # dispatches while covering the repository's `run([...])` wrappers and
+    # direct subprocess APIs.
+    command_calls = {"run", "check_call", "check_output", "Popen"}
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call) or not node.args:
+            continue
+        func = node.func
+        func_name = func.id if isinstance(func, ast.Name) else (
+            func.attr if isinstance(func, ast.Attribute) else "")
+        if func_name not in command_calls:
+            continue
+        for value in ast.walk(node.args[0]):
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                continue
+            match = re.search(
+                r'(?<![\w/-])scripts/([A-Za-z0-9._-]+\.(?:sh|py))',
+                value.value)
+            if match:
+                name = match.group(1)
+                found.setdefault(name, []).append((value.value, "python"))
     return found
 
 
@@ -184,14 +251,18 @@ def gate_invocations(workflows: Path | None = None,
                      scripts: Path | None = None) -> tuple[
                          dict[str, list[str]],
                          dict[str, list[str]],
+                         dict[str, list[str]],
                          dict[str, list[str]]]:
-    """Return direct, bundle-only, and total workflow-reachable scripts.
+    """Return direct, bundle-only, total gates, and non-gate dispatches.
 
     ``workflow_invocations`` remains the direct workflow view used by the
-    self-test fixtures.  The total view follows ``run_step`` edges from every
+    self-test fixtures.  The total view follows executable shell/Python dispatch
+    edges from every
     reachable script, preserving which names were direct and which were found
     only behind a bundle.  A set of visited parents prevents cycles while still
-    allowing a nested bundle to expose its own child gates.
+    allowing a nested bundle to expose its own child gates.  Generator/helper
+    edges are retained separately so they are visible without being graded as
+    gates merely because they lack a failure status.
     """
     scripts = scripts or SCRIPTS
     direct = workflow_invocations(workflows)
@@ -199,6 +270,7 @@ def gate_invocations(workflows: Path | None = None,
         name: list(args) for name, args in direct.items()
     }
     bundled: dict[str, list[str]] = {}
+    non_gate: dict[str, list[str]] = {}
     pending = list(direct)
     visited: set[str] = set()
     while pending:
@@ -206,13 +278,19 @@ def gate_invocations(workflows: Path | None = None,
         if parent in visited:
             continue
         visited.add(parent)
-        for child, args in dispatched_invocations(scripts / parent).items():
-            all_invocations.setdefault(child, []).extend(args)
-            if child not in direct:
-                bundled.setdefault(child, []).extend(args)
+        for child, edges in dispatched_invocations(scripts / parent).items():
+            for args, mode in edges:
+                is_gate = (mode == "run_step"
+                           or child.startswith(GATE_SCRIPT_PREFIXES))
+                if child.startswith("gen-") or child in GENERATOR_SCRIPT_NAMES:
+                    is_gate = False
+                target = all_invocations if is_gate else non_gate
+                target.setdefault(child, []).append(args)
+                if is_gate and child not in direct:
+                    bundled.setdefault(child, []).append(args)
             if child not in visited:
                 pending.append(child)
-    return direct, bundled, all_invocations
+    return direct, bundled, all_invocations, non_gate
 
 
 def gate_inventory(workflows: Path | None = None,
@@ -220,14 +298,14 @@ def gate_inventory(workflows: Path | None = None,
     """Classify every workflow-reachable script without using its filename.
 
     ``direct_invocations`` are the closed set named in ``build.yml``;
-    ``bundled_invocations`` are executable ``run_step`` descendants. ``static``
+    ``bundled_invocations`` are executable dispatch descendants. ``static``
     means the source file was read; ``static_can_fail`` is the weaker
     source-level result from ``CAN_FAIL``. Neither is a dynamic proof that a
     defect reaches the branch. The self-test's planted cases are the separate
     end-to-end evidence class.
     """
     scripts = scripts or SCRIPTS
-    direct, bundled, invocations = gate_invocations(workflows, scripts)
+    direct, bundled, invocations, non_gate = gate_invocations(workflows, scripts)
     static: list[str] = []
     static_can_fail: list[str] = []
     static_silent: list[str] = []
@@ -246,6 +324,7 @@ def gate_inventory(workflows: Path | None = None,
         "invocations": invocations,
         "direct_invocations": direct,
         "bundled_invocations": bundled,
+        "non_gate_dispatches": non_gate,
         "static": static,
         "static_can_fail": static_can_fail,
         "static_silent": static_silent,
@@ -474,16 +553,54 @@ def self_test() -> int:
                                       'run_step scripts/nested.py\n',
                                       "scripts/bundle.sh")
         (bundle_sc / "nested.py").write_text('print("all good")\n')
+        (bundle_sc / "gen-helper.py").write_text('print("generated")\n')
+        (bundle_sc / "bundle.sh").write_text(
+            'set -e\n'
+            '# run_step scripts/hidden.py\n'
+            'run_step scripts/nested.py\n'
+            'python3 scripts/gen-helper.py\n')
         r = check(bundle_wf, bundle_sc, advisory={})
         bundle_inventory = gate_inventory(bundle_wf, bundle_sc)
         bundle_names = bundle_inventory["invocations"]
+        bundle_non_gates = bundle_inventory["non_gate_dispatches"]
         assert isinstance(bundle_names, dict)
+        assert isinstance(bundle_non_gates, dict)
         expect_planted(len(r) == 1 and "RULE B" in r[0]
                        and "nested.py" in r[0],
                        f"bundle dispatch is analysed: {r}",
                        "nested.py / bundled Rule B")
         expect("hidden.py" not in bundle_names,
                "control: commented bundle dispatch is ignored")
+        expect("gen-helper.py" not in bundle_names
+               and "gen-helper.py" in bundle_non_gates,
+               "control: generator dispatch is not graded as a gate")
+
+        # PLANTED 5 - Python command-list dispatch is also part of the closure;
+        # AST inspection keeps a prose string in the module from becoming an
+        # edge.  The direct wrapper has an explicit status-return path so only
+        # the planted child is expected to trigger Rule B.
+        py_wf, py_sc = _plant(tmp / "h6", "bundle.py",
+                              '"""subprocess.run(["python3", '
+                              '"scripts/hidden.py"])"""\n'
+                              'import subprocess\n'
+                              'def main():\n'
+                              '    subprocess.run(["python3", '
+                              '"scripts/check-nested.py"])\n'
+                              '    return 0\n'
+                              'if __name__ == "__main__":\n'
+                              '    raise SystemExit(main())\n',
+                              "python3 scripts/bundle.py")
+        (py_sc / "check-nested.py").write_text('print("all good")\n')
+        py_r = check(py_wf, py_sc, advisory={})
+        py_inventory = gate_inventory(py_wf, py_sc)
+        py_names = py_inventory["invocations"]
+        assert isinstance(py_names, dict)
+        expect_planted(len(py_r) == 1 and "RULE B" in py_r[0]
+                       and "check-nested.py" in py_r[0],
+                       f"Python bundle dispatch is analysed: {py_r}",
+                       "check-nested.py / Python bundled Rule B")
+        expect("hidden.py" not in py_names,
+               "control: Python docstring is not a dispatch edge")
 
         # CONTROL 4 - a stale advisory entry naming nothing is caught.
         wf, sc = _plant(tmp / "i", "check-real.sh", 'set -e\nexit 1\n',
@@ -501,6 +618,7 @@ def self_test() -> int:
     invocations = live_inventory["invocations"]
     direct = live_inventory["direct_invocations"]
     bundled = live_inventory["bundled_invocations"]
+    non_gate = live_inventory["non_gate_dispatches"]
     static = live_inventory["static"]
     static_can_fail = live_inventory["static_can_fail"]
     missing = live_inventory["missing"]
@@ -508,6 +626,7 @@ def self_test() -> int:
     assert isinstance(invocations, dict)
     assert isinstance(direct, dict)
     assert isinstance(bundled, dict)
+    assert isinstance(non_gate, dict)
     assert isinstance(static, list)
     assert isinstance(static_can_fail, list)
     assert isinstance(missing, list)
@@ -521,8 +640,9 @@ def self_test() -> int:
               f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
               f"reachable={len(invocations)}; static-analysed={len(static)}; "
               f"static-can-fail={len(static_can_fail)}; "
+              f"non-gate-dispatches={len(non_gate)}; "
               f"unanalysed=0; plant-proven={planted_passes} synthetic cases; "
-              "15 end-to-end assertions (7 planted + 8 controls, incl. both "
+              "18 end-to-end assertions (8 planted + 10 controls, incl. both "
               "false accusations the first draft made); "
               "live tree clean)")
         print("  plant-proven detector cases: " + ", ".join(planted_labels))
@@ -537,12 +657,14 @@ def main() -> int:
     invocations = inventory["invocations"]
     direct = inventory["direct_invocations"]
     bundled = inventory["bundled_invocations"]
+    non_gate = inventory["non_gate_dispatches"]
     static = inventory["static"]
     static_can_fail = inventory["static_can_fail"]
     unanalysed = inventory["missing"] + inventory["static_silent"]
     assert isinstance(invocations, dict)
     assert isinstance(direct, dict)
     assert isinstance(bundled, dict)
+    assert isinstance(non_gate, dict)
     assert isinstance(static, list)
     assert isinstance(static_can_fail, list)
     assert isinstance(unanalysed, list)
@@ -553,6 +675,7 @@ def main() -> int:
               f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
               f"reachable={n}; static-analysed={len(static)}; "
               f"static-can-fail={len(static_can_fail)}; "
+              f"non-gate-dispatches={len(non_gate)}; "
               f"unanalysed={len(unanalysed)}")
         print("\n".join(problems))
         print(
@@ -564,7 +687,8 @@ def main() -> int:
     print("check-gates-can-fail: OK ("
           f"direct-invoked={len(direct)}; bundled-only={len(bundled)}; "
           f"reachable={n}; static-analysed={len(static)}; "
-          f"static-can-fail={len(static_can_fail)}; unanalysed=0; "
+          f"static-can-fail={len(static_can_fail)}; "
+          f"non-gate-dispatches={len(non_gate)}; unanalysed=0; "
           f"plant-proven=see --self-test ({len(ADVISORY_BY_DESIGN)} declared "
           "advisory strictness exceptions)")
     return 0
