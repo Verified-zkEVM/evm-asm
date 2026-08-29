@@ -99,6 +99,80 @@ theorem sbackWordsModel_eq_existing
   unfold sbackWordsModel taylorRoundBackedgeSum
   rw [roundS_eq_add384Run]
 
+/- The linked exit-divide window is the Body5 mirror of the Body3 divider
+   already connected to the pure model by `DivisionBridge`.  Keep the
+   namespace bridge explicit: the two source files deliberately duplicate
+   the machine definition, so an unqualified `divst` is not enough to make
+   this equality visible to Lean. -/
+theorem body5_divst_eq_body3_divst
+    (dv r0 t0 q0 : Word) (j : Nat) :
+    AmsterdamBlobGasPriceBody5Spec.divst dv r0 t0 q0 j =
+      AmsterdamBlobGasPriceBody3Spec.divst dv r0 t0 q0 j := by
+  induction j with
+  | zero => rfl
+  | succ j ih =>
+    simp only [AmsterdamBlobGasPriceBody5Spec.divst,
+      AmsterdamBlobGasPriceBody3Spec.divst]
+    rw [ih]
+
+/- `exitdivQ*` are the quotient limbs of the linked Body5 mirror.  This
+   theorem only changes representation: it identifies their six-step list
+   with the Body3-shaped `divstSix` consumed by `DivisionBridge`. -/
+theorem exitdiv_q_eq_divstSix
+    (s0 s1 s2 s3 s4 s5 : Word) :
+    [exitdivQ0 s0 s1 s2 s3 s4 s5, exitdivQ1 s0 s1 s2 s3 s4 s5,
+      exitdivQ2 s0 s1 s2 s3 s4 s5, exitdivQ3 s0 s1 s2 s3 s4 s5,
+      exitdivQ4 s0 s1 s2 s3 s4 s5, exitdivQ5 s0 s1 s2 s3 s4 s5] =
+      (AmsterdamBlobGasPriceDivisionBridge.divstSix
+        EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.taylorDW
+        s0 s1 s2 s3 s4 s5).1 := by
+  simp only [exitdivQ0, exitdivQ1, exitdivQ2, exitdivQ3, exitdivQ4,
+    exitdivQ5, exitdivZ0, exitdivZ1, exitdivZ2, exitdivZ3, exitdivZ4,
+    exitdivZ5, AmsterdamBlobGasPriceDivisionBridge.divstSix]
+  simp only [body5_divst_eq_body3_divst]
+
+/- The terminal exit-divide is the model's final `sum / D`.  At a successful
+   model result, the prefix invariant at `j = 495` has zero accumulator, so
+   the linked six-limb sum is exactly the quotient input consumed by
+   `exitdivQ*`.  This is a terminal step lemma, not a new machine-post
+   premise: all arithmetic facts come from the existing `h_some` result and
+   the invariant's sum equality. -/
+theorem exitdiv_q_model_step
+    (num result : Nat) (s0 s1 s2 s3 s4 s5 : Word)
+    (h_num : num < taylorWord64Bound)
+    (h_some : taylor384Aux num taylorDenominator 1 taylorDenominator 0 =
+      some result)
+    (h_s : limbsToNat [s0, s1, s2, s3, s4, s5] =
+      (priceLoopPrefix num 495).2) :
+    [exitdivQ0 s0 s1 s2 s3 s4 s5, exitdivQ1 s0 s1 s2 s3 s4 s5,
+      exitdivQ2 s0 s1 s2 s3 s4 s5, exitdivQ3 s0 s1 s2 s3 s4 s5,
+      exitdivQ4 s0 s1 s2 s3 s4 s5, exitdivQ5 s0 s1 s2 s3 s4 s5] =
+      natToLimbs 6 result := by
+  have h_zero := priceLoopPrefix_acc_zero_of_some num result h_num h_some
+  have h_rel := priceLoopPrefix_taylorNatAux num 495
+  rw [taylorNatAux.eq_1, if_pos h_zero] at h_rel
+  have h_init := taylor384Aux_some_implies_nat_lt
+    num 1 taylorDenominator 0 result h_some
+  have h_result : (priceLoopPrefix num 495).2 / taylorDenominator = result := by
+    rw [h_rel, h_init.2]
+  have hval : limbsToNat [s0, s1, s2, s3, s4, s5] /
+      taylorDW.toNat = result := by
+    rw [h_s]
+    have hD : taylorDW.toNat = taylorDenominator := by decide
+    rw [hD, h_result]
+  have hdiv := AmsterdamBlobGasPriceDivisionBridge.divstSix_eq_div384by64
+    taylorDW s0 s1 s2 s3 s4 s5
+  have hq := div384by64_quot_to_natToLimbs
+    taylorDW [s0, s1, s2, s3, s4, s5] result
+    (by decide) (by decide) (by simp) hval
+  have hq' :
+      (AmsterdamBlobGasPriceDivisionBridge.divstSix
+        taylorDW s0 s1 s2 s3 s4 s5).1 = natToLimbs 6 result := by
+    rw [hdiv]
+    exact hq
+  rw [exitdiv_q_eq_divstSix]
+  exact hq'
+
 /- QBACK's quotient is the next model accumulator when the ordinary
    recurrence is still live.  The `some` hypothesis supplies the strict
    256-bit result bound; the local `h_acc` and `h_j` hypotheses are the same
