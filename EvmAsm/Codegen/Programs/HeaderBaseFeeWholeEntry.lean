@@ -138,44 +138,19 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
     (fun _ hp => by
       dsimp [k73HeadPost, Fli, Rest] at hp ⊢
       xperm_chunked hp) hheadneq hliF
-  have hbltu := bltu_spec_gen_within .x18 .x11 (20 : BitVec 13)
-    target gasUsed (K73 + 48)
-  have hbltuC := cpsBranchWithin_extend_code
-    (k73_whole_mem 12 _ (K73 + 48) (by decide)
-      (by rw [k73_length]; decide) (by rfl)) hbltu
-  rw [show signExtend13 (20 : BitVec 13) = (20 : Word) by decide,
-    show (K73 + 48) + (20 : Word) = K73 + 68 by bv_omega,
-    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hbltuC
-  have hbltuF := cpsBranchWithin_frameR
-    (((.x20 : Reg) ↦ᵣ (0 : Word)) ** Rest)
-    (by dsimp [Rest]; pcf; exact hF) hbltuC
-  have hntaken := cpsBranchWithin_ntakenPath hbltuF (fun _ hp => by
-    extract_pure_deep hp
-    obtain ⟨h_lt, -⟩ := hp
-    exact hnotlt ((BitVec.ult_iff_toNat_lt).1 h_lt))
-  have hntaken' : cpsTripleWithin 1 (K73 + 48) (K73 + 52) wholeCode
-      (((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ gasUsed) **
-        ((.x20 : Reg) ↦ᵣ (0 : Word)) ** Rest)
-      (((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ gasUsed) **
-        ((.x20 : Reg) ↦ᵣ (0 : Word)) ** Rest) := by
-    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
-      (fun _ hq => by
-        extract_pure_deep hq
-        obtain ⟨_, hq⟩ := hq
-        xperm_chunked hq) hntaken
   have htarget_nonzero : target ≠ (0 : Word) := by
     intro hzero
     apply hnotlt
     have hpos : 0 < gasUsed.toNat := BitVec.toNat_pos_of_ne_zero hnonzero
     simpa [hzero] using hpos
-  have hguard := beq_spec_gen_within .x18 .x0 (224 : BitVec 13)
-    target (0 : Word) (K73 + 52)
+  have hguard := beq_spec_gen_within .x18 .x0 (228 : BitVec 13)
+    target (0 : Word) (K73 + 48)
   have hguardC := cpsBranchWithin_extend_code
-    (k73_whole_mem 13 _ (K73 + 52) (by decide)
+    (k73_whole_mem 12 _ (K73 + 48) (by decide)
       (by rw [k73_length]; decide) (by rfl)) hguard
-  rw [show signExtend13 (224 : BitVec 13) = (224 : Word) by decide,
-    show (K73 + 52) + (224 : Word) = K73 + 276 by bv_omega,
-    show (K73 + 52) + 4 = K73 + 56 by bv_omega] at hguardC
+  rw [show signExtend13 (228 : BitVec 13) = (228 : Word) by decide,
+    show (K73 + 48) + (228 : Word) = K73 + 276 by bv_omega,
+    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hguardC
   have hguardF := cpsBranchWithin_frameR
     (((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** RestNoX0)
     (by dsimp [RestNoX0]; pcf; exact hF) hguardC
@@ -183,7 +158,7 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
     extract_pure_deep hp
     obtain ⟨h_eq, -⟩ := hp
     exact htarget_nonzero h_eq)
-  have hguardnt' : cpsTripleWithin 1 (K73 + 52) (K73 + 56) wholeCode
+  have hguardnt' : cpsTripleWithin 1 (K73 + 48) (K73 + 52) wholeCode
       (((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** RestNoX0)
       (((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
@@ -193,14 +168,39 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
         extract_pure_deep hq
         obtain ⟨_, hq⟩ := hq
         xperm_chunked hq) hguardnt
-  have hmid' := cpsTripleWithin_seq_perm_same_cr
-    (fun _ hp => by
-      dsimp [Fli, Rest] at hp ⊢
-      xperm_chunked hp) hmid hntaken'
+  have hbltu := bltu_spec_gen_within .x18 .x11 (16 : BitVec 13)
+    target gasUsed (K73 + 52)
+  have hbltuC := cpsBranchWithin_extend_code
+    (k73_whole_mem 13 _ (K73 + 52) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hbltu
+  rw [show signExtend13 (16 : BitVec 13) = (16 : Word) by decide,
+    show (K73 + 52) + (16 : Word) = K73 + 68 by bv_omega,
+    show (K73 + 52) + 4 = K73 + 56 by bv_omega] at hbltuC
+  have hbltuF := cpsBranchWithin_frameR
+    (((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** RestNoX0)
+    (by dsimp [RestNoX0]; pcf; exact hF) hbltuC
+  have hntaken := cpsBranchWithin_ntakenPath hbltuF (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨h_lt, -⟩ := hp
+    exact hnotlt ((BitVec.ult_iff_toNat_lt).1 h_lt))
+  have hntaken' : cpsTripleWithin 1 (K73 + 52) (K73 + 56) wholeCode
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ gasUsed) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** RestNoX0)
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x11 : Reg) ↦ᵣ gasUsed) **
+        ((.x0 : Reg) ↦ᵣ (0 : Word)) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** RestNoX0) := by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+      (fun _ hq => by
+        extract_pure_deep hq
+        obtain ⟨_, hq⟩ := hq
+        xperm_chunked hq) hntaken
   have hmidGuard := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
-      dsimp [Rest, RestNoX0] at hp ⊢
-      xperm_chunked hp) hmid' hguardnt'
+      dsimp [Fli, Rest, RestNoX0] at hp ⊢
+      xperm_chunked hp) hmid hguardnt'
+  have hmid' := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by
+      dsimp [Fli, Rest, RestNoX0] at hp ⊢
+      xperm_chunked hp) hmidGuard hntaken'
   have hbeq0 := beq_spec_gen_within .x11 .x0 (104 : BitVec 13)
     gasUsed (0 : Word) (K73 + 56)
   have hbeq0C := cpsBranchWithin_extend_code
@@ -229,7 +229,7 @@ theorem k73_decrease_nonzero_entry_to_mul_spec_within
   have hmid'' := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       dsimp [Rest, RestNoX0] at hp ⊢
-      xperm_chunked hp) hmidGuard hbeq0nt'
+      xperm_chunked hp) hmid' hbeq0nt'
   have hsub := sub_spec_gen_within .x19 .x18 .x11 target gasUsed v19
     (K73 + 60) (by decide)
   have hsubC := cpsTripleWithin_extend_code
@@ -1358,7 +1358,7 @@ theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
     (hNq1 : 1 + k73AddBTailSteps basePtr outPtr baseBytes
         (U256FromU64BeSAsm.u256FromU64Bytes (1 : Word)) ≤ Ntail)
     (hNcarry : 9 ≤ Ntail) :
-    cpsBranchWithin (13 + Nstatus + Ntail) K73 wholeCode
+    cpsBranchWithin (14 + Nstatus + Ntail) K73 wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outBytes
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48)) f0 f1 f2 f3 f4 f5 **
@@ -1383,7 +1383,8 @@ theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
   have hprefix := k73_increase_entry_to_mul_spec_within
     sp0 spH raIn gasLimit gasUsed target basePtr outPtr
     v8 v9 v18 v19 v20 f0 f1 f2 f3 f4 f5
-    baseBytes accBytes outBytes Fstatus hspEntry htarget hne hlt hFstatus
+    baseBytes accBytes outBytes Fstatus hspEntry htarget hne hlt
+    htargetPos hFstatus
   have hroute := k73_increase_status_div_zero_to_return_general
     (sp0 := sp0) (spH := spH) (raIn := raIn)
     (gasLimit := gasLimit) (gasUsed := gasUsed) (basePtr := basePtr)
@@ -1410,5 +1411,39 @@ theorem k73_increase_entry_status_div_zero_to_return_general_spec_within
       dsimp [Fstatus] at hp ⊢
       xperm_chunked hp) hprefix hroute
   simpa only [Nat.add_assoc] using hseq
+
+/-! The corrected target-zero guard is live on the failure edge.  This small
+    adapter keeps the branch proof independent of the larger K73 frame: the
+    caller supplies the four values live at `K73 + 48`, and the zero equality
+    eliminates the fall-through arm. -/
+theorem k73_target_zero_guard_spec_within
+    (target gasUsed : Word) (P : Assertion)
+    (htargetZero : target = 0) (hP : P.pcFree) :
+    cpsTripleWithin 1 (K73 + 48) (K73 + 276) wholeCode
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** P)
+      (((.x18 : Reg) ↦ᵣ target) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** P) := by
+  have hguard := beq_spec_gen_within .x18 .x0 (228 : BitVec 13)
+    target (0 : Word) (K73 + 48)
+  have hguardC := cpsBranchWithin_extend_code
+    (k73_whole_mem 12 _ (K73 + 48) (by decide)
+      (by rw [k73_length]; decide) (by rfl)) hguard
+  rw [show signExtend13 (228 : BitVec 13) = (228 : Word) by decide,
+    show (K73 + 48) + (228 : Word) = K73 + 276 by bv_omega,
+    show (K73 + 48) + 4 = K73 + 52 by bv_omega] at hguardC
+  have hguardF := cpsBranchWithin_frameR
+    (((.x11 : Reg) ↦ᵣ gasUsed) ** ((.x20 : Reg) ↦ᵣ (0 : Word)) ** P)
+    (by pcf; exact hP) hguardC
+  have htaken := cpsBranchWithin_takenPath hguardF (fun _ hp => by
+    extract_pure_deep hp
+    obtain ⟨h_ne, -⟩ := hp
+    rw [htargetZero] at h_ne
+    exact (by decide : ¬ ((0 : Word) ≠ (0 : Word))) h_ne)
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by
+      extract_pure_deep hq
+      obtain ⟨_, hq⟩ := hq
+      xperm_chunked hq) htaken
 
 end EvmAsm.Codegen.HeaderBaseFeeSpec
