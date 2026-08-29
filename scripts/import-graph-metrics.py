@@ -108,9 +108,10 @@ touches.  An interface-CHANGING edit (a declaration added, an `@[expose]`d body
 altered) still invalidates the full `cone`, and for those `cone` remains the
 right number.  Neither column is a timer; see `benchmark.yml` for seconds.
 
-`module_headers` is ratcheted as a monotone FLOOR (a removed header is a
-regression); `redundant_edges` is reported but deliberately NOT ratcheted,
-because ordinary growth can raise it -- see `redundant_edges` for the argument.
+`module_headers` is ratcheted as a monotone FLOOR over surviving modules (a
+removed header is a regression, while deleting the whole module is neutral);
+`redundant_edges` is reported but deliberately NOT ratcheted, because ordinary
+growth can raise it -- see `redundant_edges` for the argument.
 """
 
 from __future__ import annotations
@@ -261,6 +262,12 @@ def measure(tree: str = REPO) -> dict:
         "sum_cone": sum(len(c) for c in cones.values()),
         "sum_private_cone": sum(len(private(m)) for m in graph.modules),
         "module_headers": sum(graph.module_header.values()),
+        # The count alone cannot distinguish a surviving module that lost its
+        # header from a headered module that was deleted.  Persist the identity
+        # set so compare() can restrict the floor to modules present in both
+        # snapshots.
+        "module_header_names": sorted(
+            m for m, has_header in graph.module_header.items() if has_header),
         "module_names": sorted(graph.modules),
         "anchors": {
             a: {
@@ -301,10 +308,14 @@ def insulation(m: dict) -> dict:
 
 
 def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
-    """Return (regressions, notes).  `depth` ratchets on increase; `module_headers`
-    as a floor; the cone metric ratchets on the cone-MIGRATION count (a
-    pre-existing module moving INTO an anchor's cone), which is neutral to
-    additions and deletions.  See `cone-migration` below for the #12962 fix."""
+    """Return (regressions, notes).
+
+    `depth` ratchets on increase; `module_headers` is a floor over the
+    headered modules present in BOTH snapshots; and the cone metric ratchets
+    on the cone-MIGRATION count (a pre-existing module moving INTO an anchor's
+    cone), which is neutral to additions and deletions.  See `cone-migration`
+    below for the #12962 fix.
+    """
     regressions, notes = [], []
 
     c, b = cur["depth"], base.get("depth")
@@ -313,19 +324,35 @@ def compare(cur: dict, base: dict) -> tuple[list[str], list[str]]:
     else:
         (regressions if c > b else notes).append(f"depth: {b} -> {c} ({c - b:+d})")
 
-    # `module_headers` is a pure floor: migration only ever adds headers, and a
-    # NEW unmigrated file leaves the count flat rather than lowering it, so this
-    # is growth-proof without a complement.  A DROP means a `module` header was
-    # removed, i.e. a module silently rejoined the "invalidates its whole cone"
-    # regime.  (Once `requiresModuleSystem` is on, the compiler catches a new
-    # unmigrated file; this ratchet is the backstop that catches an exemption
-    # being widened, which the compiler cannot see.)
+    # `module_headers` is a floor over SURVIVING modules.  A NEW unmigrated
+    # file is absent from the baseline set and cannot lower the value; a
+    # DELETED headered file is absent from the current set and is neutral.  A
+    # surviving module that loses its `module` header remains in the shared set
+    # and is the regression this backstop must catch.
     c, b = cur.get("module_headers"), base.get("module_headers")
     if b is None or c is None:
         notes.append(f"module_headers: {c}/{cur.get('modules')} (no baseline)")
+    elif (not isinstance(cur.get("module_header_names"), list)
+          or not isinstance(base.get("module_header_names"), list)
+          or not isinstance(cur.get("module_names"), list)
+          or not isinstance(base.get("module_names"), list)):
+        regressions.append(
+            "module_headers: baseline/current snapshot lacks module/header name sets; "
+            "regenerate the baseline before trusting this floor")
     else:
-        line = f"module_headers: {b} -> {c} ({c - b:+d}) of {cur.get('modules')}"
-        (regressions if c < b else notes).append(line)
+        cur_modules = set(cur.get("module_names") or ())
+        base_modules = set(base.get("module_names") or ())
+        shared_modules = cur_modules & base_modules
+        cur_shared_headers = (set(cur["module_header_names"]) & shared_modules)
+        base_shared_headers = (set(base["module_header_names"]) & shared_modules)
+        line = (
+            f"module_headers: {len(base_shared_headers)} -> "
+            f"{len(cur_shared_headers)} "
+            f"({len(cur_shared_headers) - len(base_shared_headers):+d}) "
+            f"of {len(shared_modules)} surviving"
+        )
+        (regressions if len(cur_shared_headers) < len(base_shared_headers)
+         else notes).append(line)
 
     # Advisory only -- see `redundant_edges` for why this must not be ratcheted.
     if cur.get("redundant_edges") is not None:
@@ -657,20 +684,37 @@ def self_test() -> int:
         except ValueError:
             pass
 
-    # ---------------- module_headers floor, all four directions ------------
-    def hdr(modules, headers):
-        names = [f"m{i}" for i in range(modules)]
+    # ---------------- module_headers floor, all required directions --------
+    def hdr(modules, headers, header_names=None, module_names=None,
+            cone_names=None):
+        names = ([f"m{i}" for i in range(modules)]
+                 if module_names is None else module_names)
+        if header_names is None:
+            header_names = names[:headers]
+        if cone_names is None:
+            cone_names = names[:2850]
         return {"modules": modules, "module_headers": headers, "sum_cone": 340_000,
                 "depth": 69, "total_bytes": 2_400_000_000,
-                "module_names": names,
-                "anchors": {"X": {"cone": 2850, "cone_bytes": 2_300_000_000,
-                                  "cone_modules": names[:2850]}}}
+                "module_names": names, "module_header_names": header_names,
+                "anchors": {"X": {"cone": len(cone_names), "cone_bytes": 2_300_000_000,
+                                  "cone_modules": cone_names}}}
 
     hbase = hdr(3000, 1500)
-    # A header REMOVED: a module silently rejoined the invalidate-everything
-    # regime.  This is the whole point of the ratchet.
+    # A header REMOVED from a SURVIVING module: it silently rejoins the
+    # invalidate-everything regime.  This is the whole point of the ratchet.
     if not compare(hdr(3000, 1499), hbase)[0]:
         failures.append("  module_headers: a REMOVED header was not reported")
+    # A headered module DELETED altogether: it is absent from the shared set,
+    # so the surviving-module floor must remain neutral.
+    del_headered_modules = ([f"m{i}" for i in range(1499)] +
+                            [f"m{i}" for i in range(1500, 3000)])
+    del_headered_names = [f"m{i}" for i in range(1499)]
+    del_headered_cone = [f"m{i}" for i in range(1499)] + [
+        f"m{i}" for i in range(1500, 2850)]
+    if compare(hdr(2999, 1499, del_headered_names,
+                  del_headered_modules, del_headered_cone), hbase)[0]:
+        failures.append("  module_headers: deleting a HEADERED module was "
+                        "reported as a regression")
     # A wave lands.  Must be clean.
     if compare(hdr(3000, 1750), hbase)[0]:
         failures.append("  module_headers: a migration wave was reported as a "
@@ -685,6 +729,11 @@ def self_test() -> int:
                         " on a ratio")
     if compare(hbase, hbase)[0]:
         failures.append("  module_headers: an unchanged tree was reported")
+    legacy_hbase = dict(hbase)
+    legacy_hbase.pop("module_header_names")
+    if not compare(hbase, legacy_hbase)[0]:
+        failures.append("  module_headers: a baseline without header identity "
+                        "was accepted")
 
     # ---------------- private-cone accounting ------------------------------
     # Equal to `cone` while unmigrated; collapses to 1 once the header lands.
@@ -715,7 +764,7 @@ def self_test() -> int:
         return 1
     print(f"import-graph-metrics --self-test: OK ({len(FIXTURES)} grammar "
           "fixtures, 1 hand-computed graph, 1 regression pin, 6 ratchet-direction "
-          "cases, 3 redundant-edge cases + 1 cycle pin, 4 module_headers-floor "
+          "cases, 3 redundant-edge cases + 1 cycle pin, 6 module_headers-floor "
           "cases, 2 private-cone cases)")
     return 0
 
