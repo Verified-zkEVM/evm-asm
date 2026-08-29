@@ -637,4 +637,7 @@ Post (disjunction via `indexedLookupSpec`):
 def indexedFuel (n : Nat) : Nat :=
   50 + n * (20 + 7 + 293)
 
+#print axioms searchIndex_sound
+#print axioms searchIndex_complete
+
 end EvmAsm.Codegen.WitnessLookupByHashIndexedSpec
