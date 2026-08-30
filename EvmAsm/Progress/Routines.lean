@@ -189,6 +189,7 @@ import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
 import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
 import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
+import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -3516,6 +3517,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "`bah_u32le` / `enrg_u32le`; its `Fn` is pinned by re-delegating its spec to "
         ++ "the already-pinned `bahU32leFn`, leaving the shared `sgLoadU32leFn` alone. "
         ++ "Lives in `Codegen/Programs/SszPayloadWithdrawalsSAsm.lean`"),
+  -- #13090: the alignment-safe byte copy, rowed at its linked entry via
+  -- an ambient-pinned twin of sgMemcpyFn (the shared Fn untouched).
+  routine "sg_memcpy" .proven (some "sgMemcpyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sg_memcpy` over "
+        ++ "`sgmcCr = CodeReq.ofProg … sgMemcpy_prog` (the "
+        ++ "`StatelessGuestEpilogue` emission): `a0` = dst, `a1` = src, "
+        ++ "`a2 = len` — the len-byte destination window becomes the source "
+        ++ "prefix, the source region intact. Domain: lengths/no-wrap/"
+        ++ "src-dst disjointness plus ABI (resource-shaped); total. "
+        ++ "`sgMemcpyFn`'s ambient is free in pre AND post, which "
+        ++ "`Fn.retSpecFlatAmbient` cannot consume, so the lift goes "
+        ++ "through an ambient-pinned twin (`sgmcFn`, same emitted bytes) "
+        ++ "with its own `vcgen` discharge. Lives in "
+        ++ "`Codegen/Proofs/SgMemcpyFlatEntry.lean`"),
   -- #13091: the sixth u32le twin, at its own linked entry.
   routine "sg_load_u32le" .proven (some "sgLoadU32leFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.sg_load_u32le` over "
@@ -6164,6 +6179,9 @@ private noncomputable abbrev _edd_memcpy_routine_witness :=
 -- #13091: the sixth u32le twin at its linked entry.
 private noncomputable abbrev _sg_load_u32le_routine_witness :=
   @EvmAsm.Codegen.SgLoadU32leFlatEntry.sgLoadU32leFlat_spec
+-- #13090: sg_memcpy at its linked entry.
+private noncomputable abbrev _sg_memcpy_routine_witness :=
+  @EvmAsm.Codegen.SgMemcpyFlatEntry.sgMemcpyFlat_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
