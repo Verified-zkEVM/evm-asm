@@ -968,6 +968,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.SgLoadU32leFlatEntry.sgLoadU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.SgMemcpyFlatEntry.sgMemcpyFlat_spec
+
 #print axioms EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
