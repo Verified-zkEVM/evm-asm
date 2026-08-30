@@ -1816,6 +1816,13 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #13089: three more hand-verified DCode leaves rowed at their
+        # linked entries (modexp_iszero, edd_be32_eq, edd_memcpy); like
+        # sg_validate_fixed_list below, their flat whole-routine triples
+        # state the address via GuestAddrs.
+        'modexp_iszero',
+        'edd_be32_eq',
+        'edd_memcpy',
         # GH #13071: sg_validate_fixed_list is a hand-verified SAsm leaf
         # (SgValidateFixedListSAsm) rowed at its linked entry; the flat
         # whole-routine triple states the address via GuestAddrs.
