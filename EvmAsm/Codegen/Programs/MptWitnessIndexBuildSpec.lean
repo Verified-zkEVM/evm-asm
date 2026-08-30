@@ -208,6 +208,218 @@ theorem widxSwapMem_eq_swapK
       apply widxSwapMem_succ_eq_swapK_succ arena qa qb n hlay (by omega)
         (ih (by omega))
 
+/-! ## Final transposition of the two records
+
+`swapK` is deliberately expressed as six dword writes.  The builder post,
+however, wants the two 48-byte records exchanged as two contiguous slices.
+The prefix model below makes that transposition explicit; its induction uses
+only the disjointness in `recLayout`, so the machine adapter does not acquire
+an unproved heap-specific premise.
+-/
+
+/-- The first `k` dwords of a record at byte offset `p`. -/
+def recordPrefixBytes (arena : List (BitVec 8)) (p k : Nat) :
+    List (BitVec 8) :=
+  (arena.drop p).take (8 * k)
+
+theorem recordPrefixBytes_succ (arena : List (BitVec 8)) (p k : Nat) :
+    recordPrefixBytes arena p (k + 1) =
+      recordPrefixBytes arena p k ++ chunk arena (p + 8 * k) := by
+  unfold recordPrefixBytes chunk
+  rw [show 8 * (k + 1) = 8 * k + 8 by omega, List.take_add]
+  rw [List.drop_drop]
+
+theorem recordPrefixBytes_length (arena : List (BitVec 8)) (p k : Nat)
+    (h : p + 8 * k ≤ arena.length) :
+    (recordPrefixBytes arena p k).length = 8 * k := by
+  simp only [recordPrefixBytes, List.length_take, List.length_drop]
+  omega
+
+theorem setBytes_recordPrefix_self (arena : List (BitVec 8)) (p k : Nat)
+    (h : p + 8 * k ≤ arena.length) :
+    setBytes arena p (recordPrefixBytes arena p k) = arena := by
+  simpa [recordPrefixBytes] using setBytes_chunk_self arena p (8 * k) h
+
+theorem setBytes_append_local (xs ys arena : List (BitVec 8)) (k : Nat) :
+    setBytes arena k (xs ++ ys) =
+      setBytes (setBytes arena k xs) (k + xs.length) ys := by
+  induction xs generalizing arena k with
+  | nil => simp
+  | cons x xs ih =>
+      simp only [List.cons_append, setBytes_cons, List.length_cons]
+      rw [ih]
+      congr 1
+      omega
+
+/-- Splices into separated windows commute.  The one-sided theorem is kept
+    private to this bridge so callers only need the disjunction supplied by
+    `recLayout`. -/
+theorem setBytes_commute_disjoint
+    (arena ns ms : List (BitVec 8)) (i j : Nat)
+    (hij : i + ns.length ≤ j)
+    (hms : j + ms.length ≤ arena.length) :
+    setBytes (setBytes arena i ns) j ms =
+      setBytes (setBytes arena j ms) i ns := by
+  apply List.ext_getElem
+  · simp only [length_setBytes]
+  · intro k hk1 hk2
+    have hbase : k < arena.length := by
+      simpa only [length_setBytes] using hk1
+    have hns : i + ns.length ≤ arena.length := by omega
+    have hleft := getByteAt_setBytes ns arena i k hns
+    have hright := getByteAt_setBytes ms arena j k hms
+    have hright' := getByteAt_setBytes ms (setBytes arena i ns) j k (by
+      rw [length_setBytes]
+      exact hms)
+    have hleft' := getByteAt_setBytes ns (setBytes arena j ms) i k (by
+      rw [length_setBytes]
+      exact hns)
+    have hL : getByteAt (setBytes (setBytes arena i ns) j ms) k =
+        (setBytes (setBytes arena i ns) j ms)[k]'hk1 := by
+      unfold getByteAt
+      rw [dif_pos]
+    have hR : getByteAt (setBytes (setBytes arena j ms) i ns) k =
+        (setBytes (setBytes arena j ms) i ns)[k]'hk2 := by
+      unfold getByteAt
+      rw [dif_pos]
+    rw [← hL, ← hR, hright', hleft', hright, hleft]
+    by_cases hki : i ≤ k ∧ k < i + ns.length
+    · have hkj : ¬ (j ≤ k ∧ k < j + ms.length) := by omega
+      simp [hki, hkj]
+    · by_cases hkj : j ≤ k ∧ k < j + ms.length
+      · simp [hki, hkj]
+      · simp [hki, hkj]
+
+theorem setBytes_commute_separated
+    (arena ns ms : List (BitVec 8)) (i j : Nat)
+    (hns : i + ns.length ≤ arena.length)
+    (hms : j + ms.length ≤ arena.length)
+    (hsep : i + ns.length ≤ j ∨ j + ms.length ≤ i) :
+    setBytes (setBytes arena i ns) j ms =
+      setBytes (setBytes arena j ms) i ns := by
+  rcases hsep with hsep | hsep
+  · exact setBytes_commute_disjoint arena ns ms i j hsep hms
+  · symm
+    exact setBytes_commute_disjoint arena ms ns j i hsep hns
+
+theorem swapK_eq_two_setBytes
+    (arena : List (BitVec 8)) (oa ob k : Nat)
+    (hlay : recLayout arena.length oa ob) (hk : k ≤ 6) :
+    swapK arena oa ob k =
+      setBytes (setBytes arena oa (recordPrefixBytes arena ob k))
+        ob (recordPrefixBytes arena oa k) := by
+  obtain ⟨hda, hdb, hoa, hob, hdisj⟩ := hlay
+  rcases hdisj with heq | hsep
+  · subst ob
+    rw [swapK_self arena oa k hk hoa,
+      setBytes_recordPrefix_self arena oa k (by omega),
+      setBytes_recordPrefix_self arena oa k (by omega)]
+  · induction k with
+    | zero => simp [swapK, recordPrefixBytes]
+    | succ k ih =>
+      have hA : ob + 8 * k ≤ arena.length := by omega
+      have hB : oa + 8 * k ≤ arena.length := by omega
+      have hA_len : (recordPrefixBytes arena ob k).length = 8 * k :=
+        recordPrefixBytes_length arena ob k hA
+      have hB_len : (recordPrefixBytes arena oa k).length = 8 * k :=
+        recordPrefixBytes_length arena oa k hB
+      have hC_len : (chunk arena (ob + 8 * k)).length = 8 :=
+        length_chunk arena (ob + 8 * k) (by omega)
+      have hbase :
+          (setBytes arena oa (recordPrefixBytes arena ob k)).length =
+            arena.length := length_setBytes _ _ _
+      have hAfit : ob + (recordPrefixBytes arena oa k).length ≤
+          (setBytes arena oa (recordPrefixBytes arena ob k)).length := by
+        rw [hB_len, hbase]
+        omega
+      have hCfit : oa + 8 * k + (chunk arena (ob + 8 * k)).length ≤
+          (setBytes arena oa (recordPrefixBytes arena ob k)).length := by
+        rw [hC_len, hbase]
+        omega
+      have hsep' :
+          ob + (recordPrefixBytes arena oa k).length ≤ oa + 8 * k ∨
+            oa + 8 * k + (chunk arena (ob + 8 * k)).length ≤ ob := by
+        rcases hsep with h | h
+        · right
+          rw [hC_len]
+          omega
+        · left
+          rw [hB_len]
+          omega
+      have hcomm := setBytes_commute_separated
+          (setBytes arena oa (recordPrefixBytes arena ob k))
+          (recordPrefixBytes arena oa k) (chunk arena (ob + 8 * k))
+          ob (oa + 8 * k) hAfit hCfit hsep'
+      have hAgroup :
+          setBytes (setBytes arena oa (recordPrefixBytes arena ob k))
+              (oa + 8 * k) (chunk arena (ob + 8 * k)) =
+            setBytes arena oa (recordPrefixBytes arena ob (k + 1)) := by
+        calc
+          _ = setBytes (setBytes arena oa (recordPrefixBytes arena ob k))
+                (oa + (recordPrefixBytes arena ob k).length)
+                (chunk arena (ob + 8 * k)) := by rw [hA_len]
+          _ = setBytes arena oa
+                (recordPrefixBytes arena ob k ++ chunk arena (ob + 8 * k)) :=
+            (setBytes_append_local (recordPrefixBytes arena ob k)
+              (chunk arena (ob + 8 * k)) arena oa).symm
+          _ = _ := by
+            exact congrArg (fun t => setBytes arena oa t)
+              (recordPrefixBytes_succ arena ob k).symm
+      have hBgroup :
+          setBytes
+              (setBytes (setBytes arena oa
+                (recordPrefixBytes arena ob (k + 1)))
+                ob (recordPrefixBytes arena oa k))
+              (ob + 8 * k) (chunk arena (oa + 8 * k)) =
+            setBytes (setBytes arena oa
+              (recordPrefixBytes arena ob (k + 1)))
+              ob (recordPrefixBytes arena oa (k + 1)) := by
+        calc
+          _ = setBytes
+              (setBytes (setBytes arena oa
+                (recordPrefixBytes arena ob (k + 1)))
+                ob (recordPrefixBytes arena oa k))
+              (ob + (recordPrefixBytes arena oa k).length)
+              (chunk arena (oa + 8 * k)) := by rw [hB_len]
+          _ = setBytes (setBytes arena oa
+              (recordPrefixBytes arena ob (k + 1))) ob
+              (recordPrefixBytes arena oa k ++ chunk arena (oa + 8 * k)) :=
+            (setBytes_append_local (recordPrefixBytes arena oa k)
+              (chunk arena (oa + 8 * k))
+              (setBytes arena oa (recordPrefixBytes arena ob (k + 1))) ob).symm
+          _ = _ := by
+            exact congrArg (fun t =>
+              setBytes (setBytes arena oa
+                (recordPrefixBytes arena ob (k + 1))) ob t)
+              (recordPrefixBytes_succ arena oa k).symm
+      calc
+        swapK arena oa ob (k + 1) =
+            setBytes
+              (setBytes (setBytes (setBytes arena oa
+                (recordPrefixBytes arena ob k))
+                ob (recordPrefixBytes arena oa k))
+                (oa + 8 * k) (chunk arena (ob + 8 * k)))
+              (ob + 8 * k) (chunk arena (oa + 8 * k)) := by
+          rw [swapK, ih (by omega)]
+        _ = setBytes
+              (setBytes
+                (setBytes (setBytes arena oa
+                  (recordPrefixBytes arena ob k))
+                  (oa + 8 * k) (chunk arena (ob + 8 * k)))
+                ob (recordPrefixBytes arena oa k))
+              (ob + 8 * k) (chunk arena (oa + 8 * k)) := by
+          rw [hcomm]
+        _ = setBytes
+              (setBytes
+                (setBytes arena oa (recordPrefixBytes arena ob (k + 1)))
+                ob (recordPrefixBytes arena oa k))
+              (ob + 8 * k) (chunk arena (oa + 8 * k)) := by
+          rw [hAgroup]
+        _ = setBytes
+              (setBytes arena oa (recordPrefixBytes arena ob (k + 1)))
+              ob (recordPrefixBytes arena oa (k + 1)) := by
+          exact hBgroup
+
 /-! ## Exact sortedness bridge consumed by indexed search -/
 
 theorem recordsSorted_of_witnessIndexSorted
