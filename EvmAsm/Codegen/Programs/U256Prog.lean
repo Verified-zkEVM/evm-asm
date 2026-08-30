@@ -505,16 +505,16 @@ theorem u256MaxFunction_eq_prog :
 
     Aliasing safe: each iteration reads `src[i]` then writes
     `out[i]`; subsequent iterations advance to `src[i+1]`. -/
-def u256DivU64Be_prog_of (_L : GuestLayout) : Program :=
+def u256DivU64Be_prog_of (L : GuestLayout) : Program :=
   [ .LI .x5 (0 : Word),
     .LI .x6 (0 : Word),
     .LI .x7 (32 : Word),
-    .BEQ .x6 .x7 (104 : BitVec 13),
+    .BEQ .x6 .x7 (brOff (L.u256_div_u64_be + 116) (L.u256_div_u64_be + 12)),
     .ADD .x28 .x10 .x6,
     .LBU .x29 .x28 (0 : BitVec 12),
     .LI .x31 (0 : Word),
     .LI .x7 (8 : Word),
-    .BEQ .x7 .x0 (68 : BitVec 13),
+    .BEQ .x7 .x0 (brOff (L.u256_div_u64_be + 100) (L.u256_div_u64_be + 32)),
     .SRLI .x28 .x5 (63 : BitVec 6),
     .SLLI .x5 .x5 (1 : BitVec 6),
     .SRLI .x30 .x29 (7 : BitVec 6),
@@ -530,11 +530,11 @@ def u256DivU64Be_prog_of (_L : GuestLayout) : Program :=
     .AND .x28 .x28 .x11,
     .SUB .x5 .x5 .x28,
     .ADDI .x7 .x7 (-1 : BitVec 12),
-    .JAL .x0 (-64 : BitVec 21),
+    .JAL .x0 (jalOff (L.u256_div_u64_be + 32) (L.u256_div_u64_be + 96)),
     .ADD .x28 .x12 .x6,
     .SB .x28 .x31 (0 : BitVec 12),
     .ADDI .x6 .x6 (1 : BitVec 12),
-    .JAL .x0 (-104 : BitVec 21),
+    .JAL .x0 (jalOff (L.u256_div_u64_be + 8) (L.u256_div_u64_be + 112)),
     .MV .x10 .x5,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -550,8 +550,6 @@ theorem u256DivU64BeFunction_eq_prog :
 
 #guard u256DivU64BeFunction.startsWith "u256_div_u64_be:\n"
 #guard (u256DivU64Be_prog_of .zero).length = 31
-
-
 /-! ## u256_eq -- PR-K53 equality companion to PR-K50 u256_lt
 
     Equality predicate on two 32-byte big-endian `u256` buffers.
@@ -658,12 +656,12 @@ def u256MulU64Be_prog_of (L : GuestLayout) : Program :=
     .JAL .x0 (-16 : BitVec 21),
     .LI .x20 (0 : Word),
     .LI .x5 (32 : Word),
-    .BEQ .x20 .x5 (156 : BitVec 13),
+    .BEQ .x20 .x5 (brOff (L.u256_mul_u64_be + 240) (L.u256_mul_u64_be + 84)),
     .LI .x5 (31 : Word),
     .SUB .x5 .x5 .x20,
     .ADD .x5 .x8 .x5,
     .LBU .x5 .x5 (0 : BitVec 12),
-    .BEQ .x5 .x0 (128 : BitVec 13),
+    .BEQ .x5 .x0 (brOff (L.u256_mul_u64_be + 232) (L.u256_mul_u64_be + 104)),
     .MUL .x6 .x5 .x9,
     .MULHU .x7 .x5 .x9,
     .ADD .x28 .x19 .x20,
@@ -696,7 +694,7 @@ def u256MulU64Be_prog_of (L : GuestLayout) : Program :=
     .ADDI .x28 .x28 (1 : BitVec 12),
     .JAL .x0 (-28 : BitVec 21),
     .ADDI .x20 .x20 (1 : BitVec 12),
-    .JAL .x0 (-156 : BitVec 21),
+    .JAL .x0 (jalOff (L.u256_mul_u64_be + 80) (L.u256_mul_u64_be + 236)),
     .MV .x5 .x19,
     .ADDI .x6 .x18 (32 : BitVec 12),
     .LI .x7 (32 : Word),
@@ -748,8 +746,6 @@ theorem u256MulU64BeFunction_eq_prog :
 
 #guard u256MulU64BeFunction.startsWith "u256_mul_u64_be:\n"
 #guard (u256MulU64Be_prog_of .zero).length = 88
-
-
 /-! ## u256_to_u64_be -- PR-K57 truncate BE u256 → u64 with overflow flag
 
     Truncate a 32-byte big-endian `u256` buffer down to its

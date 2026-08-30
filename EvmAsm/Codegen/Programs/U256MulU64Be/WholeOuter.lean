@@ -1,5 +1,7 @@
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeRipple
 
+set_option maxRecDepth 8000
+
 namespace EvmAsm.Codegen.U256MulU64Be
 
 open EvmAsm Rv64 Rv64.SAsm Rv64.SAsm.Stmt
@@ -358,9 +360,27 @@ theorem highBody_exact
       xperm_hyp hq) hseq6
 
 /-! The outer back-edge is a small cyclic continuation shared by the zero and
-nonzero arms.  Keeping it separate makes the arm proofs end at the same
-header guard, rather than hiding the `JAL`/header reload in an arm-specific
-alias. -/
+    nonzero arms.  Keeping it separate makes the arm proofs end at the same
+    header guard, rather than hiding the `JAL`/header reload in an arm-specific
+    alias. -/
+
+private theorem mulProg_len : mulProg.length = 88 := by
+  rfl
+
+private theorem mulProg_bound : 4 * mulProg.length < 2 ^ 64 := by
+  rw [mulProg_len]
+  norm_num
+
+private theorem outerBack_mem :
+    ∀ a i, CodeReq.singleton (mulBase + 236)
+        (.JAL .x0 (-156 : BitVec 21)) a = some i → mulCR a = some i := by
+  have hA : mulBase + 236 = mulBase + BitVec.ofNat 64 (4 * 59) := by decide
+  have hk : 59 < mulProg.length := by change 59 < 88; decide
+  have hins : mulProg[59]'hk = (.JAL .x0 (-156 : BitVec 21)) := by
+    simp only [mulProg, u256MulU64Be_prog, u256MulU64Be_prog_of]
+    rfl
+  exact CodeReq.ofProg_mem_at mulBase (mulBase + 236) mulProg 59
+    (.JAL .x0 (-156 : BitVec 21)) hA hk hins mulProg_bound
 
 theorem outerNext_spec
     (P : Assertion) (hP : P.pcFree) (i : Nat) (hi : i < 32) :
@@ -379,7 +399,7 @@ theorem outerNext_spec
   rw [hctr] at haddi
   have haddiF := cpsTripleWithin_frameR
     (regOwn .x5 ** P) (pcFree_sepConj pcFree_regOwn hP) haddi
-  have hjal := cpsTripleWithin_extend_code (cr' := mulCR) (hmono := by code_mem)
+  have hjal := cpsTripleWithin_extend_code (cr' := mulCR) (hmono := outerBack_mem)
     (jal_x0_spec_gen_within (-156 : BitVec 21) (mulBase + 236))
   rw [show mulBase + 236 + Rv64.signExtend21 (-156 : BitVec 21) = mulBase + 80 from by decide]
     at hjal
@@ -716,6 +736,17 @@ theorem mulNonzero_spec
     branch merge a genuine single-cycle triple; the zero arm is padded only
     to the nonzero arm's bound, not given a weaker semantic post. -/
 
+private theorem outerZero_mem :
+    ∀ a i, CodeReq.singleton (mulBase + 104)
+        (.BEQ .x5 .x0 (128 : BitVec 13)) a = some i → mulCR a = some i := by
+  have hA : mulBase + 104 = mulBase + BitVec.ofNat 64 (4 * 26) := by decide
+  have hk : 26 < mulProg.length := by change 26 < 88; decide
+  have hins : mulProg[26]'hk = (.BEQ .x5 .x0 (128 : BitVec 13)) := by
+    simp only [mulProg, u256MulU64Be_prog, u256MulU64Be_prog_of]
+    rfl
+  exact CodeReq.ofProg_mem_at mulBase (mulBase + 104) mulProg 26
+    (.BEQ .x5 .x0 (128 : BitVec 13)) hA hk hins mulProg_bound
+
 theorem outerCycle_spec
     (F : Assertion) (hF : F.pcFree)
     (aBytes : List (BitVec 8)) (hlen : aBytes.length = 32)
@@ -752,7 +783,7 @@ theorem outerCycle_spec
         ((.x5 : Reg) ↦ᵣ byte) ** P) := by
     simpa only [byte, P] using hprefix
   have hbeq := cpsBranchWithin_extend_code (cr' := mulCR)
-    (hmono := by code_mem)
+    (hmono := outerZero_mem)
     (h := beq_spec_gen_within .x5 .x0 (128 : BitVec 13)
       byte (0 : Word) (mulBase + 104))
   rw [show mulBase + 104 + Rv64.signExtend13 (128 : BitVec 13) = mulBase + 232 from by decide,

@@ -551,7 +551,12 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # blocks use a hand-authored base and are not matched by this counter).
 # Keep the delta explicit so a rebase can fold in intervening main changes;
 # #13108's pending retirement removes no J sites.
-EXPECTED_BARE_J_SITES = 129
+# #13093 Wave 4 was re-censused at e3ed7cff8.  The 129-site population has
+# 128 source-owned local-J sites named.  One blocked manifest row
+# (balStorageReadsInExecLogFunction) remains in the intentional fail-closed
+# fallback because its bsr_krev data symbol is absent from SYMMAP; that single
+# unresolved row is reported honestly rather than hidden by the ratchet.
+EXPECTED_BARE_J_SITES = 1
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -578,7 +583,12 @@ EXPECTED_BARE_J_SITES = 129
 # Wave 3 was measured against origin/main 5c8d20835 (634 bare local-B
 # sites) and removes 31 of them.  Main now includes #13108, which independently
 # retires two bare B sites (634 -> 632), so this wave's ratchet is 601.
-EXPECTED_BARE_B_SITES = 601
+# #13093 Wave 4 was re-censused at e3ed7cff8: 601 bare local-B sites split
+# strictly by source ownership.  557 wrapper-owned sites were converted;
+# the remaining 44 are the two imported core RLP wrappers (22 each, sourced
+# from WalkInit/WalkNext), which must stay numeric because the Codegen wrapper
+# cannot rewrite the core Program.  The endpoint is therefore B=44, not zero.
+EXPECTED_BARE_B_SITES = 44
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

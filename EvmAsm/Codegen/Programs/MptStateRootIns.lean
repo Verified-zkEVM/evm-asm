@@ -76,7 +76,7 @@ def mptStateRootIns_prog : Program :=
     .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 152)),
     .SD .x5 .x0 (0 : BitVec 12),
     .LI .x21 (0 : Word),
-    .BEQ .x21 .x19 (136 : BitVec 13),
+    .BEQ .x21 .x19 (brOff (GuestAddrs.mpt_state_root_ins + 304) (GuestAddrs.mpt_state_root_ins + 168)),
     .SLLI .x5 .x21 (5 : BitVec 6),
     .SLLI .x6 .x21 (3 : BitVec 6),
     .ADD .x5 .x5 .x6,
@@ -107,9 +107,9 @@ def mptStateRootIns_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.mpt_set_acc (GuestAddrs.mpt_state_root_ins + 280)),
     .JAL .x0 (8 : BitVec 21),
     .LI .x10 (0 : Word),
-    .BNE .x10 .x0 (92 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.mpt_state_root_ins + 384) (GuestAddrs.mpt_state_root_ins + 292)),
     .ADDI .x21 .x21 (1 : BitVec 12),
-    .JAL .x0 (-132 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.mpt_state_root_ins + 168) (GuestAddrs.mpt_state_root_ins + 300)),
     .AUIPC .x5 (laHi GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 304)),
     .ADDI .x5 .x5 (laLo GuestAddrs.mset_dr_root (GuestAddrs.mpt_state_root_ins + 304)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -142,7 +142,7 @@ def mptStateRootIns_prog : Program :=
     .AUIPC .x5 (laHi GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 420)),
     .ADDI .x5 .x5 (laLo GuestAddrs.sri_fail_status (GuestAddrs.mpt_state_root_ins + 420)),
     .SD .x5 .x10 (0 : BitVec 12),
-    .JAL .x0 (-84 : BitVec 21) ]
+    .JAL .x0 (jalOff (GuestAddrs.mpt_state_root_ins + 348) (GuestAddrs.mpt_state_root_ins + 432)) ]
 
 /-- Reloc side-table for `mptStateRootIns_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program

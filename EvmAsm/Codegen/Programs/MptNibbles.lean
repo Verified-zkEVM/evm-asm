@@ -22,6 +22,10 @@ public import EvmAsm.Codegen.Emit
 meta import EvmAsm.Rv64.Program
 meta import EvmAsm.Codegen.Layout
 meta import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.GuestAddrs
 
 @[expose] public section
 
@@ -191,7 +195,7 @@ def ziskMptNibblesToCompactDataSection : String :=
 def mptCompactToNibbles_prog : Program :=
   [ .SD .x13 .x0 (0 : BitVec 12),
     .SD .x14 .x0 (0 : BitVec 12),
-    .BEQ .x11 .x0 (120 : BitVec 13),
+    .BEQ .x11 .x0 (brOff 2147483776 2147483656),
     .LBU .x5 .x10 (0 : BitVec 12),
     .SRLI .x6 .x5 (4 : BitVec 6),
     .ANDI .x7 .x6 (2 : BitVec 12),
