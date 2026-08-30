@@ -4,7 +4,7 @@
   `bgvU32leFlat_spec` needs `Region.wf` ⇒ pointer base % 8 = 0. Production
   callers (including `execution_requests_hash` offs 4 and 12) pass unaligned
   `a0`. Re-root the four LBUs on aligned `bytesRegion listBase bs` with
-  `a0 = listBase + off` (RlpItemSpanSizeOffset / ParentHeaderFrame pattern).
+  `a0 = listBase + off` (RlpItemSpanSizeOffset / ABI-frame pattern).
 
   Parent: #11578 rescope.
 -/

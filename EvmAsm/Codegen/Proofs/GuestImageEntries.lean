@@ -134,7 +134,6 @@ import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.Secp256k1Recover
 import EvmAsm.Codegen.Programs.SeedTxAccessList
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.Ssz
 import EvmAsm.Codegen.Programs.SszParentHeader
 import EvmAsm.Codegen.Programs.SszPayloadWithdrawals
@@ -487,7 +486,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.tx_gas_result_increments, txGasResultIncrements_prog),
   (GuestAddrs.multi_tx_running_sender_balance_step, multiTxRunningSenderBalanceStep_prog),
   (GuestAddrs.sender_debit_from_gas, senderDebitFromGas_prog),
-  (GuestAddrs.sender_post_nonce_consistent, senderPostNonceConsistent_prog),
   (GuestAddrs.eip7778_remaining_block_gas_check, eip7778RemainingBlockGasCheck_prog),
   (GuestAddrs.eip7778_remaining_block_gas_from_results, eip7778RemainingBlockGasFromResults_prog),
   (GuestAddrs.block_verdict_tx_gas_limits, blockVerdictTxGasLimits_prog),
@@ -660,6 +658,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 476
+#guard guestImageEntries.length = 475
 
 end EvmAsm.Codegen

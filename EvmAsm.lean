@@ -79,7 +79,6 @@ import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
 import EvmAsm.Codegen.Programs.BalSerializerLeSAsm
 import EvmAsm.Codegen.Programs.SgValidateFixedListSAsm
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistentSAsm
 import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsSAsm
 import EvmAsm.Codegen.Programs.ReceiptRecordsAppendSpec
@@ -146,4 +145,3 @@ import EvmAsm.Tests.Correspondence.Rlp
 import EvmAsm.Tests.SpecRefEestCheck
 import EvmAsm.Tests.GuestImageShapeDump
 import EvmAsm.Tests.RunBlockLayoutBridge
-
