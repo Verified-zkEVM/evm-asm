@@ -54,6 +54,11 @@ namespace EvmAsm.Stateless.SpecRef
 
 def taylorDenominator : Nat := 11684671
 
+/-! Keep the concrete denominator available to downstream bridges without
+    requiring them to unfold this module's definition across the boundary. -/
+theorem taylorDenominator_eq : taylorDenominator = 11684671 := by
+  rfl
+
 def taylorResultBound : Nat := 2 ^ 256
 
 def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
@@ -97,6 +102,18 @@ decreasing_by
 
 def taylorExpNat (factor numerator denominator : Nat) : Nat :=
   taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator
+
+/-! This interface lemma keeps the defining equation available to downstream
+    modules without exposing the implementation body of `taylorExpNat`. -/
+theorem taylorExpNat_eq_aux (factor numerator denominator : Nat) :
+    taylorExpNat factor numerator denominator =
+      taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator := by
+  rfl
+
+theorem taylorNatAux_zero (num denominator i output : Nat) :
+    taylorNatAux num denominator i 0 output = output := by
+  rw [taylorNatAux.eq_1]
+  simp
 
 theorem taylorNatAux_output_le (num denominator i acc output : Nat) :
     output ≤ taylorNatAux num denominator i acc output := by
