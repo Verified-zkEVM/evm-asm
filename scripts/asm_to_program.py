@@ -1922,6 +1922,9 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #13090: the sg_memcpy leaf, rowed at its linked entry via an
+        # ambient-pinned twin of sgMemcpyFn.
+        'sg_memcpy',
         # GH #13091: the sixth u32le twin, rowed at its linked entry via
         # the pinned bahU32leFn spec (like sws_u32le/spw_u32le).
         'sg_load_u32le',

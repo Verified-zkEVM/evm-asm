@@ -1157,6 +1157,7 @@ def selfdestruct_balance_transfer : Nat := 0x800333d4
 def sender_debit_from_gas : Nat := 0x800289b0
 def sender_post_nonce_consistent : Nat := 0x80028f30
 def sg_load_u32le : Nat := 0x800020c0
+def sg_memcpy : Nat := 0x800020f0
 def sg_validate_fixed_list : Nat := 0x80002110
 def sha256_w_input : Nat := 0xa3a0a938
 def sha256_w_iv : Nat := 0xa0b00000
