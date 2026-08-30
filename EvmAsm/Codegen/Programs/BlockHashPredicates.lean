@@ -717,6 +717,12 @@ def ziskWitnessHeadersChainValidateDataSection : String :=
         0 = success (is_match holds 0 or 1)
         1 = witness.headers section is empty (is_match = 0)
 -/
+/- The routine is retained as a standalone probe helper after its production
+   BuildUnit was retired. Keep a named concrete PC base for its verified
+   Program; it is intentionally not a GuestAddrs pin because the routine is
+   absent from the monolithic `stateless_guest` link. -/
+def parentHeaderMatchesWitnessFirstPc : Nat := 0x80000000
+
 def parentHeaderMatchesWitnessFirst_prog : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -733,7 +739,7 @@ def parentHeaderMatchesWitnessFirst_prog : Program :=
     .MV .x19 .x13,
     .MV .x20 .x14,
     .SD .x20 .x0 (0 : BitVec 12),
-    .BEQ .x19 .x0 (232 : BitVec 13),
+    .BEQ .x19 .x0 (brOff (parentHeaderMatchesWitnessFirstPc + 292) (parentHeaderMatchesWitnessFirstPc + 60)),
     .MV .x31 .x18,
     .LBU .x5 .x31 (0 : BitVec 12),
     .ADDI .x31 .x31 (1 : BitVec 12),
@@ -749,12 +755,12 @@ def parentHeaderMatchesWitnessFirst_prog : Program :=
     .ADD .x5 .x5 .x7,
     .ADD .x5 .x5 .x28,
     .SRLI .x29 .x5 (2 : BitVec 6),
-    .BEQ .x29 .x0 (168 : BitVec 13),
+    .BEQ .x29 .x0 (brOff (parentHeaderMatchesWitnessFirstPc + 292) (parentHeaderMatchesWitnessFirstPc + 124)),
     .ADD .x21 .x18 .x5,
     .LI .x30 (1 : Word),
     .BLTU .x30 .x29 (12 : BitVec 13),
     .ADD .x22 .x18 .x19,
-    .JAL .x0 (64 : BitVec 21),
+    .JAL .x0 (jalOff (parentHeaderMatchesWitnessFirstPc + 208) (parentHeaderMatchesWitnessFirstPc + 144)),
     .ADDI .x31 .x18 (4 : BitVec 12),
     .LBU .x5 .x31 (0 : BitVec 12),
     .ADDI .x31 .x31 (1 : BitVec 12),
@@ -771,7 +777,7 @@ def parentHeaderMatchesWitnessFirst_prog : Program :=
     .ADD .x5 .x5 .x28,
     .ADD .x22 .x18 .x5,
     .SUB .x5 .x22 .x21,
-    .BNE .x5 .x9 (72 : BitVec 13),
+    .BNE .x5 .x9 (brOff (parentHeaderMatchesWitnessFirstPc + 284) (parentHeaderMatchesWitnessFirstPc + 212)),
     .MV .x6 .x8,
     .MV .x7 .x21,
     .MV .x28 .x9,

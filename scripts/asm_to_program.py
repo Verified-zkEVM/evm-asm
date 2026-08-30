@@ -544,7 +544,8 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # (unlinked, unreferenced); their two bare local-J sites leave the corpus.
 # #13093's first conversion wave removes four additional local-J sites while
 # retaining the unlinked probe programs behind their source-owned PC bases.
-EXPECTED_BARE_J_SITES = 147
+# The deferred probe redo removes one more local-J site from the live debt.
+EXPECTED_BARE_J_SITES = 146
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -565,9 +566,10 @@ EXPECTED_BARE_J_SITES = 147
 # (unlinked, unreferenced); their 33 bare local-B sites leave the corpus.
 # #13081 adds one local-B site for the reachable K73 target-zero guard.
 # #13093's first conversion wave removes 24 additional local-B sites; the
-# remaining unlinked probe branches stay numeric until they have a real named
-# source/guest anchor.
-EXPECTED_BARE_B_SITES = 649
+# deferred probe redo removes 15 more using source-owned PC bases.  Remaining
+# unlinked branches stay numeric until they have a real named source/guest
+# anchor.
+EXPECTED_BARE_B_SITES = 634
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).
