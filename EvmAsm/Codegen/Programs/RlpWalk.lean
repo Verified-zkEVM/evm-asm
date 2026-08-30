@@ -141,6 +141,10 @@ theorem rlpWalkNextEntryFunction_eq_prog :
     policy.  `depthCap` is the strict upper bound loaded into `x7` and compared
     with the current list-depth counter in `x9`: descent is allowed only while
     `x9 < depthCap`, and the `x9 ≥ depthCap` arm is the clean depth rejection.
+    The externally observed nesting count includes two wrapper levels above
+    this machine counter: with cap `C`, the linked walk accepts through
+    observed depth `C + 1` and first rejects at observed depth `C + 2`.
+    This offset is an interface fact, not another cap or a replacement value.
     Keep the instruction-level program parameterized so changing that policy
     is an instantiation, not a second literal (GH #12846). -/
 def rlpWalkNextShared_prog_with_cap (depthCap : Word) : Program :=
