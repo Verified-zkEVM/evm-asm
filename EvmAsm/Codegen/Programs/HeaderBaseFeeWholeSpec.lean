@@ -7,6 +7,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderBaseFeeSpec
+import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
 import EvmAsm.Codegen.Programs.RlpListNthItemSAsmBase
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
