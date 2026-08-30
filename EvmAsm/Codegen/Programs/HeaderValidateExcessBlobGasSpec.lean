@@ -453,17 +453,27 @@ def priceEntryRest
     regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
     regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
 
-def priceCalleePost
+/-! The machine-owned part of the price post is independent of the caller's
+    residual assertion.  Keep that residual diagonal at the contract boundary:
+    the body has no instruction that can turn one arbitrary assertion into a
+    different one. -/
+def priceCalleePostCore
     (sp0 ret : Word) (vals : Reg → Word)
     (status outPtr : Word) (outBytes : List (BitVec 8))
-    (scratchPost : Assertion) : Assertion :=
+    : Assertion :=
   (.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
   frameSlotsSaved priceFrame (sp0 + signExtend12 (-208 : BitVec 12))
     (priceFrameVals ret vals) ** regsAt priceSavedFrame vals **
   priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
   (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
   regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
-  priceOutputPost status outPtr outBytes ** scratchPost
+  priceOutputPost status outPtr outBytes
+
+def priceCalleePost
+    (sp0 ret : Word) (vals : Reg → Word)
+    (status outPtr : Word) (outBytes : List (BitVec 8))
+    (scratch : Assertion) : Assertion :=
+  priceCalleePostCore sp0 ret vals status outPtr outBytes ** scratch
 
 def priceCode : CodeReq := CodeReq.ofProg PriceK amsterdamBlobGasPriceU256_prog
 
@@ -472,14 +482,45 @@ def priceCode : CodeReq := CodeReq.ofProg PriceK amsterdamBlobGasPriceU256_prog
     while status 1 leaves the output unspecified and therefore returns only
     ownership of its four dwords.  Both branches return to the K70 instruction
     immediately after the call. -/
+def priceContractCore
+    (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (outBytes : List (BitVec 8))
+    : Prop :=
+  cpsNBranchWithin n PriceK priceCode
+    (priceEntryRest sp0 ret vals excess outPtr empAssertion)
+    [ (ret, priceCalleePost sp0 ret vals 0 outPtr outBytes empAssertion),
+      (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes empAssertion) ]
+
+/-! The public K70 seam contract is diagonal in the residual assertion: the
+    price routine preserves the caller's `scratch` on every exit.  Its core
+    `empAssertion` instance can be framed to any PC-free caller residual by
+    `priceContract_frame`; there is no independent `scratchPost` transition.
+-/
 def priceContract
     (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
     (excess outPtr : Word) (outBytes : List (BitVec 8))
-    (scratch scratchPost : Assertion) : Prop :=
+    (scratch : Assertion) : Prop :=
   cpsNBranchWithin n PriceK priceCode
     (priceEntryRest sp0 ret vals excess outPtr scratch)
-    [ (ret, priceCalleePost sp0 ret vals 0 outPtr outBytes scratchPost),
-      (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes scratchPost) ]
+    [ (ret, priceCalleePost sp0 ret vals 0 outPtr outBytes scratch),
+      (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes scratch) ]
+
+/-- Frame the diagonal price contract with any caller-owned, PC-free residual.
+    The core contract is the machine-owned `empAssertion` instance; the
+    residual is carried unchanged through every exit. -/
+theorem priceContract_frame
+    {n : Nat} (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (outBytes : List (BitVec 8))
+    (scratch : Assertion)
+    (hcore : priceContractCore n sp0 ret vals excess outPtr outBytes)
+    (hscratch : scratch.pcFree) :
+    priceContract n sp0 ret vals excess outPtr outBytes scratch := by
+  unfold priceContract
+  unfold priceContractCore at hcore
+  have hfr := cpsNBranchWithin_frameR hscratch hcore
+  simpa only [List.map, priceEntryRest, priceCalleePost,
+    priceCalleePostCore, sepConj_emp_right', sepConj_emp_left',
+    sepConj_assoc'] using hfr
 
 def priceScratch : Assertion :=
   empAssertion
@@ -1067,5 +1108,7 @@ theorem k70_abi_from_body
       sepConj_emp_right'] at hq ⊢
     rw [← hret]
     xperm_hyp hq
+
+#print axioms priceContract_frame
 
 end EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
