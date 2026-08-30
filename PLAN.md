@@ -137,6 +137,22 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13090 — sg_memcpy rowed, 2026-08-30)
+
+- ✅ **`sg_memcpy` rowed `.proven`** (228/174/188):
+  `sgMemcpyFlat_spec` (`Codegen/Proofs/SgMemcpyFlatEntry.lean`) — the
+  alignment-safe byte copy (28 call sites) at its new
+  `GuestAddrs.sg_memcpy` pin.  `sgMemcpyFn`'s ambient is free in BOTH
+  pre and post, which `Fn.retSpecFlatAmbient` cannot consume
+  (`hpostAmb` needs a pinned post ambient), so the lift goes through an
+  ambient-pinned twin (`sgmcFn`, identical emitted bytes, invariant
+  conjoined with `A = empAssertion`) with its own `vcgen` discharge —
+  the #12244 leaf-pin done as a twin so the shared `Fn` and its
+  `MsetMemcpySAsm` consumer stay untouched.
+- Adapter note: `retSpecFlatAmbient`'s flat pre carries an explicit
+  `** A` conjunct — with `A = empAssertion`, `rw [sepConj_emp_right']`
+  it away before the final xperm weaken (xperm won't invent `emp`).
+
 ### Recent (#13091 — sg_load_u32le, the sixth u32le twin, 2026-08-30)
 
 - ✅ **`sg_load_u32le` rowed `.proven`** (227/173/187):
