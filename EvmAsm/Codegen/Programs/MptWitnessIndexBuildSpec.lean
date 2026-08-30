@@ -103,6 +103,80 @@ def flatRecordBytes : List WitnessIndexRecord → List (BitVec 8)
   | [] => []
   | r :: rest => r.bytes ++ flatRecordBytes rest
 
+theorem setBytes_same_length
+    (a b : List (BitVec 8)) (h : a.length = b.length) :
+    setBytes a 0 b = b := by
+  apply List.ext_getElem
+  · rw [length_setBytes, h]
+  · intro k hk1 hk2
+    have hg := getByteAt_setBytes b a 0 k (by omega)
+    rw [if_pos ⟨by omega, by omega⟩] at hg
+    have hgl : getByteAt (setBytes a 0 b) k =
+        (setBytes a 0 b)[k]'hk1 := by
+      unfold getByteAt
+      rw [dif_pos]
+    have hgr : getByteAt b (k - 0) = b[k]'hk2 := by
+      unfold getByteAt
+      rw [show k - 0 = k from by omega, dif_pos hk2]
+    rw [hgl, hgr] at hg
+    exact hg
+
+theorem flatRecordBytes_set
+    (records : List WitnessIndexRecord) (i : Nat)
+    (r : WitnessIndexRecord)
+    (hall : ∀ q ∈ records, q.WF) (hr : r.WF)
+    (hi : i < records.length) :
+    flatRecordBytes (records.set i r) =
+      setBytes (flatRecordBytes records)
+        (WITNESS_INDEX_RECORD_BYTES * i) r.bytes := by
+  induction records generalizing i with
+  | nil => simp at hi
+  | cons a rest ih =>
+      by_cases hz : i = 0
+      · subst i
+        have ha_len := a.bytes_length (hall a (by simp))
+        have hr_len := r.bytes_length hr
+        simp only [List.set, flatRecordBytes, Nat.mul_zero]
+        rw [EvmAsm.Rv64.SAsm.setBytes_append_left a.bytes
+          (flatRecordBytes rest) r.bytes 0 (by omega),
+          setBytes_same_length a.bytes r.bytes (ha_len.trans hr_len.symm)]
+      · obtain ⟨i', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hz
+        have hi' : i' < rest.length := by
+          simp only [List.length_cons] at hi
+          omega
+        have hs := ih i' (fun q hq => hall q (by simp [hq])) hi'
+        have ha_len := a.bytes_length (hall a (by simp))
+        simp only [List.set, flatRecordBytes, Nat.mul_succ]
+        rw [EvmAsm.Rv64.SAsm.setBytes_append_right a.bytes
+          (flatRecordBytes rest) r.bytes
+          (WITNESS_INDEX_RECORD_BYTES * i' + WITNESS_INDEX_RECORD_BYTES)
+          (by rw [ha_len]; omega)]
+        rw [ha_len]
+        rw [show WITNESS_INDEX_RECORD_BYTES * i' + WITNESS_INDEX_RECORD_BYTES -
+          WITNESS_INDEX_RECORD_BYTES = WITNESS_INDEX_RECORD_BYTES * i' by omega]
+        rw [hs]
+
+theorem flatRecordBytes_swap
+    (records : List WitnessIndexRecord) (i j : Nat)
+    (hall : ∀ q ∈ records, q.WF)
+    (hi : i < records.length) (hj : j < records.length) :
+    flatRecordBytes (records.swap i j) =
+      setBytes (setBytes (flatRecordBytes records)
+        (WITNESS_INDEX_RECORD_BYTES * i) (records[j].bytes))
+        (WITNESS_INDEX_RECORD_BYTES * j) (records[i].bytes) := by
+  rw [List.swap_eq_of_lt hi hj]
+  have hsi : records[i].WF := hall _ (List.getElem_mem hi)
+  have hsj : records[j].WF := hall _ (List.getElem_mem hj)
+  have hfirst := flatRecordBytes_set records i records[j] hall hsj hi
+  have hall_set : ∀ q ∈ records.set i records[j], q.WF := by
+    intro q hq
+    obtain hq' | hq' := List.mem_or_eq_of_mem_set hq
+    · exact hall q hq'
+    · simpa [hq'] using hsj
+  have hsecond := flatRecordBytes_set (records.set i records[j]) j
+    records[i] hall_set hsi (by simpa using hj)
+  rw [hsecond, hfirst]
+
 theorem witnessIndexRecordIs_eq_bytesRegion
     {base : Word} {r : WitnessIndexRecord} (hwf : r.WF) :
     witnessIndexRecordIs base r = bytesRegion base r.bytes := by
@@ -419,6 +493,16 @@ theorem swapK_eq_two_setBytes
               (setBytes arena oa (recordPrefixBytes arena ob (k + 1)))
               ob (recordPrefixBytes arena oa (k + 1)) := by
           exact hBgroup
+
+theorem widxSwapMem_eq_record_transpose
+    (arena : List (BitVec 8)) (qa qb : Nat)
+    (hlay : recLayout arena.length (8 * qa) (8 * qb)) :
+    widxSwapMem arena qa qb 6 =
+      setBytes (setBytes arena (8 * qa)
+        (recordPrefixBytes arena (8 * qb) 6))
+        (8 * qb) (recordPrefixBytes arena (8 * qa) 6) := by
+  rw [widxSwapMem_eq_swapK arena qa qb 6 hlay (by decide)]
+  exact swapK_eq_two_setBytes arena (8 * qa) (8 * qb) 6 hlay (by decide)
 
 /-! ## Exact sortedness bridge consumed by indexed search -/
 
