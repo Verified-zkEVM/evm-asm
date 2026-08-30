@@ -17,6 +17,23 @@ open EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 
 set_option maxRecDepth 8000
 
+private theorem cpsTripleWithin_add_pure_post {n : Nat} {entry exit_ : Word} {cr : CodeReq}
+    {P Q : Assertion} {fact : Prop}
+    (h : cpsTripleWithin n entry exit_ cr P Q)
+    (hpre_fact : ∀ h, P h → fact) :
+    cpsTripleWithin n entry exit_ cr P (Q ** ⌜fact⌝) := by
+  intro R hR s hcr hPR hpc
+  have hPRcopy := hPR
+  obtain ⟨hstate, hcompat, hPR'⟩ := hPR
+  obtain ⟨hPstate, hRstate, hd, hu, hP, hRstate'⟩ := hPR'
+  have hfact : fact := hpre_fact hPstate hP
+  obtain ⟨k, hk, s', hstep, hpc', hQR⟩ := h R hR s hcr hPRcopy hpc
+  obtain ⟨hpost, hpostcomp, hQR'⟩ := hQR
+  refine ⟨k, hk, s', hstep, hpc', ?_⟩
+  have hPureQR : (⌜fact⌝ ** (Q ** R)).holdsFor s' := by
+    exact ⟨hpost, hpostcomp, (sepConj_pure_left hpost).2 ⟨hfact, hQR'⟩⟩
+  exact holdsFor_sepConj_pull_second.mpr hPureQR
+
 /-- The copy arm: li t5, 0; 31 byte rounds; the final round; li a0, 0; j B+968.
 Extracted from `tail_core` (file-size cap); consumes the bne fall post `FP`
 and produces the status-0 exit shape. -/
@@ -1138,5 +1155,26 @@ theorem tail_copyarm (newSp excess outPtr : Word) (vals : Reg → Word)
   have hCOPY := cpsTripleWithin_seq_same_cr hca hJALF'
   exact hCOPY
 
-#print axioms tail_copyarm
+set_option linter.defProp false in
+def tail_copyarm_with_qzero (newSp excess outPtr : Word) (vals : Reg → Word)
+    (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 : Word)
+    (v6 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (FR : Assertion) (hFR : FR.pcFree) :=
+  cpsTripleWithin_add_pure_post
+    (tail_copyarm newSp excess outPtr vals q0 q1 q2 q3 q4 q5 o0 o1 o2 o3
+      a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v6 v7 v18 v19 v20 v28 v29 v30 v31
+      hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR)
+    (by
+      intro h hp
+      obtain ⟨h12, hRest, hd, hu, h12p, hRestp⟩ := hp
+      obtain ⟨h5, h0pure, hd5, hu5, h5p, h0purep⟩ := h12p
+      exact ((sepConj_pure_right h0pure).mp h0purep).2)
 
+#print axioms tail_copyarm

@@ -483,6 +483,9 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Backedge
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Composition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterSpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModelBounds
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModelFuel
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterModelSpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms

@@ -8,6 +8,7 @@
 -/
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
+import EvmAsm.Rv64.Tactics.ExtractPure
 
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
 
@@ -205,7 +206,7 @@ theorem tailOutputBytes_decode_kat :
 /- The linked status-1 tail post also owns x0, but the outer exit-divide
    adapter needs that cell factored uniformly out of both tail exits.  Keep
    the rest as the exact emitted post, with only the x0 atom removed. -/
-@[reducible] private def tailStatus1NoX0
+@[reducible] def tailStatus1NoX0
     (newSp excess outPtr : Word) (vals : Reg → Word)
     (q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
       p0 p1 p2 p3 p4 p5 v7 v18 v19 v20 v28 v29 v30 v31 : Word)
@@ -245,7 +246,7 @@ theorem tailOutputBytes_decode_kat :
        ((outPtr + BitVec.ofNat 64 16) ↦ₘ o2) **
        ((outPtr + BitVec.ofNat 64 24) ↦ₘ o3) ** FR))
 
-@[reducible] private def tailStatus0RestNoX0
+@[reducible] def tailStatus0RestNoX0
     (newSp excess outPtr : Word) (vals : Reg → Word)
     (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
       p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
@@ -342,7 +343,7 @@ theorem tailOutputBytes_decode_kat :
     a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 FR **
     bytesRegion outPtr (tailOutputBytes q0 q1 q2 q3)
 
-@[reducible] private def tailStatus0BytesNoX0
+@[reducible] def tailStatus0BytesNoX0
     (newSp excess outPtr : Word) (vals : Reg → Word)
     (q0 q1 q2 q3 q4 q5 a0 a1 a2 a3 a4 a5
       p0 p1 p2 p3 p4 p5 v18 v19 v20 v31 : Word)
@@ -387,7 +388,7 @@ theorem tailStatus0Source_to_bytes
    abstract while changing only the second (status-0) post; this lets the
    concrete `tail_core` theorem supply the first post without copying it into
    this adapter. -/
-private theorem cpsNBranchWithin_weaken_second_same_pc
+theorem cpsNBranchWithin_weaken_second_same_pc
     {n : Nat} {entry pc : Word} {cr : CodeReq} {P Q1 Q0 Q0' : Assertion}
     (h : cpsNBranchWithin n entry cr P [(pc, Q1), (pc, Q0)])
     (hQ0 : ∀ h, Q0 h → Q0' h) :
@@ -403,7 +404,7 @@ private theorem cpsNBranchWithin_weaken_second_same_pc
       exact ⟨(pc, Q0'), by simp, rfl, hQ0⟩
     · simp at hnil
 
-private theorem cpsNBranchWithin_weaken_two_same_pc
+theorem cpsNBranchWithin_weaken_two_same_pc
     {n : Nat} {entry pc : Word} {cr : CodeReq} {P Q1 Q0 Q1' Q0' : Assertion}
     (h : cpsNBranchWithin n entry cr P [(pc, Q1), (pc, Q0)])
     (hQ1 : ∀ h, Q1 h → Q1' h)
@@ -507,11 +508,14 @@ theorem tail_core_status0_source_of_tail_core
     q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
     p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31
     hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
+  have hTailWeak := cpsNBranchWithin_weaken_second_same_pc hTail (by
+    intro h hp
+    exact ((sepConj_pure_right h).mp hp).1)
   have hAdapt := tail_core_status0_source_to_bytes
     newSp excess outPtr vals
     q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
     p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31 FR
-    (hTail := hTail)
+    (hTail := hTailWeak)
   exact ⟨_, hAdapt⟩
 
 /- The outer exit-divide continuation appends x0 to every chosen exit.  The
@@ -549,7 +553,10 @@ theorem tail_core_status0_source_of_tail_core_x0_split
     q0 q1 q2 q3 q4 q5 o0 o1 o2 o3 a0 a1 a2 a3 a4 a5
     p0 p1 p2 p3 p4 p5 v5 v6 v7 v18 v19 v20 v28 v29 v30 v31
     hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid FR hFR
-  apply cpsNBranchWithin_weaken_two_same_pc hTail
+  have hTailWeak := cpsNBranchWithin_weaken_second_same_pc hTail (by
+    intro h hp
+    exact ((sepConj_pure_right h).mp hp).1)
+  apply cpsNBranchWithin_weaken_two_same_pc hTailWeak
   · intro h hp
     simp only [tailStatus1NoX0]
     xperm_hyp hp

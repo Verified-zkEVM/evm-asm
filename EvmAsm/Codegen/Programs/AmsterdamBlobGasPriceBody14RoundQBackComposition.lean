@@ -927,8 +927,55 @@ theorem taylor_round_source_full_from_parity_tail_core
     o0 o1 o2 o3 FR hFR rfl rfl (exits := tailExits) hZero
   exact ⟨_, hFull⟩
 
+/- Source-preserving sibling for the model-linked outer fold.  The ordinary
+   adapter above closes the final QBACK into the parity invariant, which is
+   the right public post for callers that do not inspect the recurrence.  The
+   outer model needs the concrete QBACK representation first, so retain that
+   last exit here and leave its conversion to the model bridge. -/
+theorem taylor_round_source_full_from_parity_tail_core_source
+    (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (j : Nat) (evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hEvenBase : evenBase = newSp + signExtend12 (64 : BitVec 12))
+    (hOddBase : oddBase = newSp + signExtend12 (112 : BitVec 12))
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (hFR : FR.pcFree) :
+    ∃ exits : List (Word × Assertion),
+      cpsNBranchWithin
+        (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1)
+        (PriceK + 144) priceCode
+        (taylorRoundSourcePre newSp excess outPtr iVal
+          (parityBuffer j evenBase oddBase)
+          (parityBuffer j oddBase evenBase) vals
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          s0 s1 s2 s3 s4 s5 v5 v6 v7 v28 v29 v30 v31
+          (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR)) exits := by
+  obtain ⟨tailExits, hZero⟩ := round_zero_from_parity_tail_core
+    newSp excess outPtr iVal vals j evenBase oddBase
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    s0 s1 s2 s3 s4 s5 v7 v28 v29 v30 v31
+    o0 o1 o2 o3 FR hEvenBase hOddBase
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid hFR
+  have hFull := EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round_source_full_status1
+    newSp excess outPtr iVal
+    (parityBuffer j evenBase oddBase)
+    (parityBuffer j oddBase evenBase) vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    s0 s1 s2 s3 s4 s5 v5 v6 v7 v28 v29 v30 v31
+    o0 o1 o2 o3 FR hFR (exits := tailExits) hZero
+  exact ⟨_, hFull⟩
+
 #print axioms round_zero_from_parity_tail_core
 #print axioms taylor_round_source_full_from_parity_tail_core
+#print axioms taylor_round_source_full_from_parity_tail_core_source
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
@@ -1345,6 +1392,71 @@ theorem finite_nbranch_loop_spec
           have hfold := nbranch_extend_last_same_terminal hfirst hrest
           simpa [Nat.succ_eq_add_one, Nat.mul_succ, Nat.add_assoc,
             Nat.add_left_comm, Nat.add_comm] using hfold
+
+theorem flatMap_range_succ_shift {α : Type} (f : Nat → List α) (n : Nat) :
+    List.flatMap f (List.range (n + 1)) =
+      f 0 ++ List.flatMap (fun j => f (j + 1)) (List.range n) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+      calc
+        List.flatMap f (List.range (Nat.succ n + 1)) =
+            List.flatMap f (List.range (n + 1) ++ [n + 1]) := by
+              simp [List.range_succ]
+        _ = List.flatMap f (List.range (n + 1)) ++ f (n + 1) := by
+              simp [List.flatMap_append]
+        _ = (f 0 ++ List.flatMap (fun j => f (j + 1)) (List.range n)) ++
+              f (n + 1) := by
+              rw [ih]
+        _ = f 0 ++ List.flatMap (fun j => f (j + 1))
+              (List.range (Nat.succ n)) := by
+              simp [List.range_succ, List.flatMap_append, List.append_assoc]
+
+/- A finite fold for rounds whose terminal exits depend on the iteration index.
+   The per-round terminal lists are retained in order; only the final invariant
+   exit is threaded into the next round. -/
+theorem finite_nbranch_loop_spec_indexed
+    {N m mLast : Nat} {hdr : Word} {cr : CodeReq}
+    {inv : Nat → Assertion} {terminal : Nat → List (Word × Assertion)}
+    (hround : ∀ j, j < N →
+      cpsNBranchWithin m hdr cr (inv j)
+        (terminal j ++ [(hdr, inv (j + 1))]))
+    (htail : cpsNBranchWithin mLast hdr cr (inv N) (terminal N)) :
+    cpsNBranchWithin (m * N + mLast) hdr cr (inv 0)
+      ((List.range N).flatMap terminal ++ terminal N) := by
+  revert mLast inv terminal
+  induction N using Nat.strongRecOn with
+  | _ N ih =>
+      intro mLast inv terminal hround htail
+      cases N with
+      | zero =>
+          simpa using htail
+      | succ N =>
+          have hfirst := hround 0 (by omega)
+          have hround' : ∀ j, j < N →
+              cpsNBranchWithin m hdr cr (inv (j + 1))
+                (terminal (j + 1) ++ [(hdr, inv ((j + 1) + 1))]) := by
+            intro j hj
+            exact hround (j + 1) (by omega)
+          have htail' : cpsNBranchWithin mLast hdr cr
+              (inv (N + 1)) (terminal (N + 1)) := by
+            simpa [Nat.succ_eq_add_one] using htail
+          have hrest := ih N (by omega) (mLast := mLast)
+            (inv := fun j => inv (j + 1))
+            (terminal := fun j => terminal (j + 1)) hround' htail'
+          have hfold := nbranch_extend_last hfirst hrest
+          have hflat := flatMap_range_succ_shift terminal N
+          have hlist :
+              terminal 0 ++
+                  (List.flatMap (fun j => terminal (j + 1)) (List.range N) ++
+                    terminal (N + 1)) =
+                List.flatMap terminal (List.range (N + 1)) ++ terminal (N + 1) := by
+            rw [hflat]
+            simp [List.append_assoc]
+          rw [hlist] at hfold
+          simpa [Nat.succ_eq_add_one, List.range_succ,
+            List.flatMap_cons, List.flatMap_nil, Nat.mul_succ,
+            Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hfold
 
 theorem taylor_outer_fold_from_rounds
     {N m mLast : Nat} {hdr : Word} {cr : CodeReq}
