@@ -80,13 +80,39 @@ DISCHARGE STATUS: open.  This is the seam premise that K70
 (`k70_abi_from_body` / `priceContract`) and #12851 consume; proving it
 requires the loop-nest Hoare triple for the 252-instruction routine.  It is
 stated here so the seam has one canonical model-tied shape instead of a
-proof-convenient weakening. -/
+proof-convenient weakening.  The public contract preserves one caller
+residual assertion on both sides; `taylorPriceContractCore` is its
+machine-owned `empAssertion` form and `taylorPriceContract_frame` supplies
+the general PC-free frame. -/
+def taylorPriceContractCore (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) : Prop :=
+  cpsTripleWithin n PriceK ret priceCode
+    (priceEntryRest sp0 ret vals excess outPtr empAssertion)
+    (priceCalleePost sp0 ret vals (priceOutcome excess.toNat).1 outPtr
+      (priceOutcome excess.toNat).2 empAssertion)
+
 def taylorPriceContract (n : Nat) (sp0 ret : Word) (vals : Reg → Word)
-    (excess outPtr : Word) (scratch scratchPost : Assertion) : Prop :=
+    (excess outPtr : Word) (scratch : Assertion) : Prop :=
   cpsTripleWithin n PriceK ret priceCode
     (priceEntryRest sp0 ret vals excess outPtr scratch)
     (priceCalleePost sp0 ret vals (priceOutcome excess.toNat).1 outPtr
-      (priceOutcome excess.toNat).2 scratchPost)
+      (priceOutcome excess.toNat).2 scratch)
+
+/-- Carry a caller-owned, PC-free residual through the model-indexed
+    whole-routine contract.  This is the same frame step as the body and K70
+    N-branch forms; the machine-owned core is proved once against `empAssertion`.
+-/
+theorem taylorPriceContract_frame
+    {n : Nat} (sp0 ret : Word) (vals : Reg → Word)
+    (excess outPtr : Word) (scratch : Assertion)
+    (hcore : taylorPriceContractCore n sp0 ret vals excess outPtr)
+    (hscratch : scratch.pcFree) :
+    taylorPriceContract n sp0 ret vals excess outPtr scratch := by
+  unfold taylorPriceContract
+  unfold taylorPriceContractCore at hcore
+  have hfr := cpsTripleWithin_frameR scratch hscratch hcore
+  simpa only [priceEntryRest, priceCalleePost, priceCalleePostCore,
+    sepConj_emp_right', sepConj_emp_left', sepConj_assoc'] using hfr
 
 /-! ## Kernel calibration -/
 
@@ -153,6 +179,7 @@ theorem taylor_price_entry_inhabited :
       (0 : Word) sampleOutPtr priceScratch).holdsFor sampleState :=
   priceEntryRest_inhabited
 
+#print axioms taylorPriceContract_frame
 #print axioms taylor_price_outcome_zero
 #print axioms taylor_price_outcomes_discriminate
 #print axioms taylor_price_outcome_zero_bytes_length

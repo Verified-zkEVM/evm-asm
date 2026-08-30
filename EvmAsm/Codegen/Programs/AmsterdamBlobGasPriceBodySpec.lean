@@ -792,7 +792,7 @@ theorem amsterdam_blob_gas_price_abi_from_body
       frameSlotsOwn, regsAt, regOwns, sepConj_emp_right'] at hp ⊢
     xperm_hyp hp
   · intro h hq
-    simp [priceCalleePost, priceFrame, priceSavedFrame,
+    simp [priceCalleePost, priceCalleePostCore, priceFrame, priceSavedFrame,
       priceFrameVals, frameSlotsSaved, regsAt, regOwns,
       sepConj_emp_right'] at hq ⊢
     rw [← hret]
