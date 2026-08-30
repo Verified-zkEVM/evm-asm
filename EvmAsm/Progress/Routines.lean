@@ -190,6 +190,7 @@ import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
 import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
 import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
+import EvmAsm.Codegen.Proofs.ExtractDepositDataUnified
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -3147,22 +3148,23 @@ def routineRegistry : List RoutineEntry := [
   -- bytes over the whole three-entry unit); this arm is call-free, so its
   -- CodeReq is the main body's own program at the guest entry.
   routine "extract_deposit_data" .conditional
-      (some "extractDepositData_ok_spec")
-      (gate := "ALL THREE arm families are claimed, as twelve separate "
-        ++ "triples rather than one unified contract, and the ok/reject "
-        ++ "arms are pinned to the deployed probe arenas (payload "
-        ++ "`0x40000010`, out `0xa0010008`). Fail arm "
-        ++ "(`extractDepositData_lenFail_spec`): `a1 ≠ 576` → `a0 = 1`. "
-        ++ "Ok path (`extractDepositData_ok_spec`): all ten ABI header "
-        ++ "fields satisfy `eddOk` → the five raw fields are copied to "
-        ++ "the output arena, `a0 = 0`. Rejection arms "
-        ++ "(`extractDepositData_reject1_spec`…`reject10_spec`): checks "
-        ++ "1..k-1 pass, check k fails → `a0 = 1`; in every arm "
-        ++ "`sp`/`ra`/`s0`/`s1` are restored and only the three frame "
-        ++ "slots (plus, on the ok path, the output arena) are written. "
-        ++ "A single arena-parametric case-split statement is the "
-        ++ "remaining generalization")
-      (notes := "ok path: flat whole-path `cpsTripleWithin 7749` over the "
+      (some "extractDepositData_spec")
+      (gate := "ONE unified contract (#13070 step 2): the post cases on "
+        ++ "the decidable `eddAccept` (canonical 576 length ∧ all ten ABI "
+        ++ "header checks) — accept: `a0 = 0` with the five raw fields "
+        ++ "copied to the output arena; otherwise `a0 = 1` and NOTHING "
+        ++ "written; in both arms `sp`/`ra`/`s0`/`s1` and the frame are "
+        ++ "restored. Total over the payload (no eddOk hypotheses — the "
+        ++ "split is internal; the twelve arm triples remain as the "
+        ++ "dispatch targets). Remaining: the statement is pinned to the "
+        ++ "deployed probe arenas (payload `0x40000010`, out "
+        ++ "`0xa0010008`) — the arena-parametric generalization is "
+        ++ "#13070's step 1")
+      (notes := "unified: `extractDepositData_spec` "
+        ++ "(`Codegen/Proofs/ExtractDepositDataUnified.lean`), a single "
+        ++ "`cpsTripleWithin 7749` whose post is "
+        ++ "`if eddAccept … then eddOkPost else eddRejPost`. Underneath, "
+        ++ "the ok path: flat whole-path `cpsTripleWithin 7749` over the "
         ++ "shared three-entry bundle image "
         ++ "(`CodeReq.ofProg … extractDepositDataBundle_prog`, 107 insns) "
         ++ "— prologue, guard not taken, ten `jal ra, edd_be32_eq` and "
@@ -6185,6 +6187,10 @@ private noncomputable abbrev _sg_load_u32le_routine_witness :=
 -- #13090: sg_memcpy at its linked entry.
 private noncomputable abbrev _sg_memcpy_routine_witness :=
   @EvmAsm.Codegen.SgMemcpyFlatEntry.sgMemcpyFlat_spec
+-- #13070 step 2: the unified extract_deposit_data contract (row witness);
+-- the twelve arm triples stay swept via the earlier abbrevs.
+private noncomputable abbrev _extract_deposit_data_unified_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
