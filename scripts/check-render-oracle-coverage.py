@@ -42,10 +42,15 @@ SOURCE_ROOT = REPO / "EvmAsm" / "Codegen"
 ENTRIES = REPO / "EvmAsm" / "Codegen" / "Proofs" / "GuestImageEntries.lean"
 FIXTURES = REPO / "scripts" / "asm-fixtures"
 
-# Measured on origin/main a1dcd2d36.  This is a lower bound rather than an
-# exact equality: adding a guarded pair is harmless, while a drop requires an
-# explicit review of the source population and an intentional floor update.
-EXPECTED_GUARDED_PAIRS_FLOOR = 570
+# Measured after #13108 (merge b98d6bc09; current origin/main is
+# 3e2d4d8bf).  That retirement removed exactly four standalone pairs:
+# balGasValidFunction_eq_prog, balSectionInfoFunction_eq_prog,
+# parentHeaderMatchesWitnessFirstFunction_eq_prog, and
+# senderPostNonceConsistentFunction_eq_prog, taking the population from 570
+# to 566.  This is a lower bound rather than an exact equality: adding a
+# guarded pair is harmless, while a drop requires an explicit review of the
+# source population and an intentional floor update.
+EXPECTED_GUARDED_PAIRS_FLOOR = 566
 
 THEOREM_START = re.compile(
     r"(?m)^\s*theorem\s+(?P<function>[A-Za-z_][A-Za-z0-9_]*Function)_eq_prog\b"
