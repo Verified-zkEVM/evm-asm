@@ -1393,6 +1393,71 @@ theorem finite_nbranch_loop_spec
           simpa [Nat.succ_eq_add_one, Nat.mul_succ, Nat.add_assoc,
             Nat.add_left_comm, Nat.add_comm] using hfold
 
+theorem flatMap_range_succ_shift {α : Type} (f : Nat → List α) (n : Nat) :
+    List.flatMap f (List.range (n + 1)) =
+      f 0 ++ List.flatMap (fun j => f (j + 1)) (List.range n) := by
+  induction n with
+  | zero => simp
+  | succ n ih =>
+      calc
+        List.flatMap f (List.range (Nat.succ n + 1)) =
+            List.flatMap f (List.range (n + 1) ++ [n + 1]) := by
+              simp [List.range_succ]
+        _ = List.flatMap f (List.range (n + 1)) ++ f (n + 1) := by
+              simp [List.flatMap_append]
+        _ = (f 0 ++ List.flatMap (fun j => f (j + 1)) (List.range n)) ++
+              f (n + 1) := by
+              rw [ih]
+        _ = f 0 ++ List.flatMap (fun j => f (j + 1))
+              (List.range (Nat.succ n)) := by
+              simp [List.range_succ, List.flatMap_append, List.append_assoc]
+
+/- A finite fold for rounds whose terminal exits depend on the iteration index.
+   The per-round terminal lists are retained in order; only the final invariant
+   exit is threaded into the next round. -/
+theorem finite_nbranch_loop_spec_indexed
+    {N m mLast : Nat} {hdr : Word} {cr : CodeReq}
+    {inv : Nat → Assertion} {terminal : Nat → List (Word × Assertion)}
+    (hround : ∀ j, j < N →
+      cpsNBranchWithin m hdr cr (inv j)
+        (terminal j ++ [(hdr, inv (j + 1))]))
+    (htail : cpsNBranchWithin mLast hdr cr (inv N) (terminal N)) :
+    cpsNBranchWithin (m * N + mLast) hdr cr (inv 0)
+      ((List.range N).flatMap terminal ++ terminal N) := by
+  revert mLast inv terminal
+  induction N using Nat.strongRecOn with
+  | _ N ih =>
+      intro mLast inv terminal hround htail
+      cases N with
+      | zero =>
+          simpa using htail
+      | succ N =>
+          have hfirst := hround 0 (by omega)
+          have hround' : ∀ j, j < N →
+              cpsNBranchWithin m hdr cr (inv (j + 1))
+                (terminal (j + 1) ++ [(hdr, inv ((j + 1) + 1))]) := by
+            intro j hj
+            exact hround (j + 1) (by omega)
+          have htail' : cpsNBranchWithin mLast hdr cr
+              (inv (N + 1)) (terminal (N + 1)) := by
+            simpa [Nat.succ_eq_add_one] using htail
+          have hrest := ih N (by omega) (mLast := mLast)
+            (inv := fun j => inv (j + 1))
+            (terminal := fun j => terminal (j + 1)) hround' htail'
+          have hfold := nbranch_extend_last hfirst hrest
+          have hflat := flatMap_range_succ_shift terminal N
+          have hlist :
+              terminal 0 ++
+                  (List.flatMap (fun j => terminal (j + 1)) (List.range N) ++
+                    terminal (N + 1)) =
+                List.flatMap terminal (List.range (N + 1)) ++ terminal (N + 1) := by
+            rw [hflat]
+            simp [List.append_assoc]
+          rw [hlist] at hfold
+          simpa [Nat.succ_eq_add_one, List.range_succ,
+            List.flatMap_cons, List.flatMap_nil, Nat.mul_succ,
+            Nat.add_assoc, Nat.add_left_comm, Nat.add_comm] using hfold
+
 theorem taylor_outer_fold_from_rounds
     {N m mLast : Nat} {hdr : Word} {cr : CodeReq}
     {inv : Nat → Assertion} {terminal : List (Word × Assertion)}
