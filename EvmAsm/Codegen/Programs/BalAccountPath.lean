@@ -38,7 +38,7 @@ def balAccountPath_prog : Program :=
     .MV .x8 .x10,
     .MV .x9 .x12,
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_init (GuestAddrs.bal_account_path + 24)),
-    .BNE .x12 .x0 (68 : BitVec 13),
+    .BNE .x12 .x0 (brOff (GuestAddrs.bal_account_path + 96) (GuestAddrs.bal_account_path + 28)),
     .JAL .x1 (jalOff GuestAddrs.rlp_walk_next (GuestAddrs.bal_account_path + 32)),
     .BNE .x11 .x0 (60 : BitVec 13),
     .LI .x7 (20 : Word),

@@ -178,7 +178,7 @@ def requestsHashVerify_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 40)),
     .ADDI .x12 .x12 (laLo GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 40)),
     .JAL .x1 (jalOff GuestAddrs.execution_requests_hash (GuestAddrs.requests_hash_verify + 48)),
-    .BNE .x10 .x0 (68 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.requests_hash_verify + 120) (GuestAddrs.requests_hash_verify + 52)),
     .AUIPC .x5 (laHi GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 56)),
     .ADDI .x5 .x5 (laLo GuestAddrs.rhv_hash (GuestAddrs.requests_hash_verify + 56)),
     .MV .x6 .x8,

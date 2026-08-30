@@ -76,7 +76,7 @@ def nonceAtHeaderStateRoot_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.header_extract_state_root (GuestAddrs.nonce_at_header_state_root + 80)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (4 : Word),
-    .JAL .x0 (80 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.nonce_at_header_state_root + 172) (GuestAddrs.nonce_at_header_state_root + 92)),
     .MV .x10 .x18,
     .LI .x11 (20 : Word),
     .AUIPC .x12 (laHi GuestAddrs.nonce_state_root (GuestAddrs.nonce_at_header_state_root + 104)),

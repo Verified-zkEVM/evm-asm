@@ -53,7 +53,7 @@ def txIntrinsicStateGas_prog : Program :=
     .AUIPC .x13 (laHi GuestAddrs.tis_is_creation (GuestAddrs.tx_intrinsic_state_gas + 64)),
     .ADDI .x13 .x13 (laLo GuestAddrs.tis_is_creation (GuestAddrs.tx_intrinsic_state_gas + 64)),
     .JAL .x1 (jalOff GuestAddrs.tx_extract_to_address (GuestAddrs.tx_intrinsic_state_gas + 72)),
-    .BNE .x10 .x0 (80 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.tx_intrinsic_state_gas + 156) (GuestAddrs.tx_intrinsic_state_gas + 76)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .AUIPC .x12 (laHi GuestAddrs.tis_type (GuestAddrs.tx_intrinsic_state_gas + 88)),
@@ -115,7 +115,6 @@ theorem txIntrinsicStateGasFunction_eq_prog :
 
 #guard txIntrinsicStateGasFunction.startsWith "tx_intrinsic_state_gas:\n"
 #guard txIntrinsicStateGas_prog.length = 54
-
 def ziskTxIntrinsicStateGasPrologue : String :=
   "  li sp, 0xa0050000\n" ++
   "  li a4, 0x40000000\n" ++

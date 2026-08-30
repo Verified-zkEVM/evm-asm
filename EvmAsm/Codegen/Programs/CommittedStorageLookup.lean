@@ -114,7 +114,7 @@ def storageWritesBlockLatestValue_prog : Program :=
     .LI .x10 (1 : Word),
     .JAL .x0 (28 : BitVec 21),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-152 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.storage_writes_block_latest_value + 132) (GuestAddrs.storage_writes_block_latest_value + 284)),
     .LI .x10 (0 : Word),
     .JAL .x0 (12 : BitVec 21),
     .LI .x10 (2 : Word),
@@ -126,20 +126,18 @@ def storageWritesBlockLatestValue_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def storageWritesBlockLatestValue_relocs : RelocTable := []
-
 def storageWritesBlockLatestValueFunction : String :=
-  "storage_writes_block_latest_value:\n" ++
-    emitProgramR storageWritesBlockLatestValue_prog storageWritesBlockLatestValue_relocs
+  "storage_writes_block_latest_value:\n" ++ emitProgram storageWritesBlockLatestValue_prog
 
+/-- Kernel-checked drift guard: the Codegen helper string is exactly
+    `storageWritesBlockLatestValue_prog` rendered under its label (bead evm-asm-4ch8f.9,
+    mechanical conversion by `scripts/asm_to_program.py`; guest binary
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem storageWritesBlockLatestValueFunction_eq_prog :
-    storageWritesBlockLatestValueFunction =
-      "storage_writes_block_latest_value:\n" ++
-        emitProgramR storageWritesBlockLatestValue_prog storageWritesBlockLatestValue_relocs := rfl
+    storageWritesBlockLatestValueFunction = "storage_writes_block_latest_value:\n" ++ emitProgram storageWritesBlockLatestValue_prog := rfl
 
 #guard storageWritesBlockLatestValueFunction.startsWith "storage_writes_block_latest_value:\n"
 #guard storageWritesBlockLatestValue_prog.length = 82
-
 /-! ## Focused ABI probe
 
     The probe uses a local table because the helper's ABI is intentionally

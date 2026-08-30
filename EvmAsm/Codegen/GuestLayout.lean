@@ -51,8 +51,10 @@ structure GuestLayout where
   -- BloomAddValue (bloom_add_value); `zkvm_keccak256` already above.
   bav_hash : Nat
   bloom_add_value : Nat
-  -- U256 (u256_mul_u64_be: accumulator window and entry).
+  -- U256 (u256_div_u64_be / u256_mul_u64_be: routine entries and the
+  -- multiply accumulator window).
   u256m_acc : Nat
+  u256_div_u64_be : Nat
   u256_mul_u64_be : Nat
   -- U256GasPricing (priority_fee_per_gas_eip1559: own entry and the two
   -- helpers it calls).
@@ -88,6 +90,7 @@ def GuestLayout.zero : GuestLayout :=
     bav_hash := 0
     bloom_add_value := 0
     u256m_acc := 0
+    u256_div_u64_be := 0
     u256_mul_u64_be := 0
     priority_fee_per_gas_eip1559 := 0
     u256_sub_be := 0

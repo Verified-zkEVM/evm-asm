@@ -388,7 +388,7 @@ def eip8037BlockGasUsed_prog : Program :=
     .ADD .x15 .x5 .x31,
     .LD .x15 .x15 (0 : BitVec 12),
     .ADD .x16 .x29 .x15,
-    .BLTU .x16 .x29 (80 : BitVec 13),
+    .BLTU .x16 .x29 (brOff (GuestAddrs.eip8037_block_gas_used + 124) (GuestAddrs.eip8037_block_gas_used + 44)),
     .MV .x29 .x16,
     .ADD .x15 .x6 .x31,
     .LD .x15 .x15 (0 : BitVec 12),
@@ -425,5 +425,4 @@ theorem eip8037BlockGasUsedFunction_eq_prog :
 
 #guard eip8037BlockGasUsedFunction.startsWith "eip8037_block_gas_used:\n"
 #guard eip8037BlockGasUsed_prog.length = 35
-
 end EvmAsm.Codegen

@@ -22,6 +22,8 @@ import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
 import EvmAsm.Rv64.SAsm.Flatten
 import EvmAsm.Stateless.SpecRef.Crypto
 
+set_option maxRecDepth 8000
+
 namespace EvmAsm.Codegen.Proofs
 
 open EvmAsm.Rv64
@@ -516,11 +518,29 @@ def keccakWrapperStmt (L : GuestLayout) (len : Nat)
 /- The list shape is a proof-only view: the emitted program remains the
    generated flat `zkvmKeccak256_prog_of`; no emitter or byte changes flow from
    this statement.  Keeping the guard here makes that promise kernel-checked. -/
+private theorem keccakAbsorb_brOff (L : GuestLayout) :
+    brOff (L.zkvm_keccak256 + 136) (L.zkvm_keccak256 + 68) =
+      (68 : BitVec 13) := by
+  unfold brOff
+  rw [Nat.cast_add, Nat.cast_add]
+  norm_num
+  decide
+
+private theorem keccakAbsorb_jalOff (L : GuestLayout) :
+    jalOff (L.zkvm_keccak256 + 64) (L.zkvm_keccak256 + 132) =
+      (-68 : BitVec 21) := by
+  unfold jalOff
+  rw [Nat.cast_add, Nat.cast_add]
+  norm_num
+  decide
+
 theorem keccakWrapperStmt_flatten (L : GuestLayout) (len : Nat)
     (outputBase : Word) (output : Bytes)
     (zeroInv dwordInv absorbInv remainderInv : KeccakLoopInv) :
     (keccakWrapperStmt L len outputBase output zeroInv dwordInv absorbInv remainderInv).flatten 0 =
       zkvmKeccak256_prog_of L := by
+  unfold zkvmKeccak256_prog_of
+  rw [keccakAbsorb_brOff L, keccakAbsorb_jalOff L]
   rfl
 
 #guard (keccakWrapperStmt .zero 0 0 []

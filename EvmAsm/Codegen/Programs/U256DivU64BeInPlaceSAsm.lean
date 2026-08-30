@@ -9,6 +9,8 @@
 
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
 
+set_option maxRecDepth 8000
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
@@ -136,12 +138,27 @@ def u256DivU64BeInPlaceFn (ptr b : Word)
     ws = u256DivU64BeQuotBytes aBytes aBytes b ∧ A = empAssertion
   body := u256DivU64BeInPlaceBody ptr b aBytes
 
+private theorem u256DivU64BeInPlaceBody_flatten_eq_generic :
+    (u256DivU64BeInPlaceBody 0 1 []).flatten 0 ++
+        [Instr.JALR .x0 .x1 (0 : BitVec 12)] =
+      (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++
+        [Instr.JALR .x0 .x1 (0 : BitVec 12)] := by
+  decide
+
 theorem u256DivU64BeInPlaceBody_flatten (L : GuestLayout) :
     (u256DivU64BeInPlaceBody 0 1 []).flatten 0 ++
       [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256DivU64Be_prog_of L := by
+  rw [u256DivU64BeInPlaceBody_flatten_eq_generic]
+  exact u256DivU64BeBody_flatten L
+
+private theorem u256DivU64BeInPlaceFn_programRet_eq
+    (ptr b : Word) (aBytes : List (BitVec 8)) :
+    (u256DivU64BeInPlaceFn ptr b aBytes).programRet
+        (GuestAddrs.u256_div_u64_be : Word) = u256DivU64Be_prog := by
   change (u256DivU64BeInPlaceBody 0 1 []).flatten 0 ++
-      [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256DivU64Be_prog_of (.zero)
-  decide
+      [Instr.JALR .x0 .x1 (0 : BitVec 12)] =
+        u256DivU64Be_prog_of guestLayout
+  rw [u256DivU64BeInPlaceBody_flatten guestLayout]
 
 private theorem execBlock_lbu_rw_div (ptr : Word) (rf : RegFile)
     (ws aBytes : List (BitVec 8)) (i : Nat) (hi : i < 32)
@@ -727,8 +744,7 @@ theorem u256DivU64BeInPlaceFlat_spec (ret ptr b : Word)
       have hh2 := sepConj_mono_right
         (regAtomsOf_to_regOwns (fun r => rf' r) u256DivU64BeScratch) hp hh1
       xperm_hyp hh2)
-  rw [show (u256DivU64BeInPlaceFn ptr b aBytes).programRet
-      (GuestAddrs.u256_div_u64_be : Word) = u256DivU64Be_prog from rfl] at had
+  rw [u256DivU64BeInPlaceFn_programRet_eq ptr b aBytes] at had
   rw [show (u256DivU64BeInPlaceFn ptr b aBytes).region = Region.empty from rfl,
     show (u256DivU64BeInPlaceFn ptr b aBytes).rw.base = ptr from rfl,
     show Region.empty.base = (0 : Word) from rfl,

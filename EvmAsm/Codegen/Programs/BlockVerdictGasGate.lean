@@ -36,28 +36,28 @@ open EvmAsm.Rv64
     `min(TX_MAX_GAS_LIMIT, tx.gas)` and state inclusion uses full `tx.gas`. -/
 def eip8037PriorStateUsedExact_prog : Program :=
   [ .SD .x11 .x0 (0 : BitVec 12),
-    .BEQ .x10 .x0 (152 : BitVec 13),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 156) (GuestAddrs.eip8037_prior_state_used_exact + 4)),
     .AUIPC .x5 (laHi GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_prior_state_used_exact + 8)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bsg_exact_state_ok (GuestAddrs.eip8037_prior_state_used_exact + 8)),
     .LD .x5 .x5 (0 : BitVec 12),
-    .BEQ .x5 .x0 (144 : BitVec 13),
+    .BEQ .x5 .x0 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 164) (GuestAddrs.eip8037_prior_state_used_exact + 20)),
     .AUIPC .x5 (laHi GuestAddrs.bvgr_runtime_count (GuestAddrs.eip8037_prior_state_used_exact + 24)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bvgr_runtime_count (GuestAddrs.eip8037_prior_state_used_exact + 24)),
     .LD .x5 .x5 (0 : BitVec 12),
-    .BLTU .x5 .x10 (128 : BitVec 13),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 164) (GuestAddrs.eip8037_prior_state_used_exact + 36)),
     .LI .x5 (16 : Word),
-    .BLTU .x5 .x10 (120 : BitVec 13),
+    .BLTU .x5 .x10 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 164) (GuestAddrs.eip8037_prior_state_used_exact + 44)),
     .MV .x5 .x10,
     .LI .x6 (0 : Word),
     .LI .x7 (0 : Word),
-    .BEQ .x6 .x5 (92 : BitVec 13),
+    .BEQ .x6 .x5 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 152) (GuestAddrs.eip8037_prior_state_used_exact + 60)),
     .SLLI .x28 .x6 (3 : BitVec 6),
     .AUIPC .x29 (laHi GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 68)),
     .ADDI .x29 .x29 (laLo GuestAddrs.bvgr_tx_state_gas (GuestAddrs.eip8037_prior_state_used_exact + 68)),
     .ADD .x29 .x29 .x28,
     .LD .x30 .x29 (0 : BitVec 12),
     .ADD .x31 .x7 .x30,
-    .BLTU .x31 .x7 (76 : BitVec 13),
+    .BLTU .x31 .x7 (brOff (GuestAddrs.eip8037_prior_state_used_exact + 164) (GuestAddrs.eip8037_prior_state_used_exact + 88)),
     .MV .x7 .x31,
     .AUIPC .x29 (laHi GuestAddrs.bv_tx_status_arr (GuestAddrs.eip8037_prior_state_used_exact + 96)),
     .ADDI .x29 .x29 (laLo GuestAddrs.bv_tx_status_arr (GuestAddrs.eip8037_prior_state_used_exact + 96)),
@@ -72,7 +72,7 @@ def eip8037PriorStateUsedExact_prog : Program :=
     .BLTU .x31 .x7 (28 : BitVec 13),
     .MV .x7 .x31,
     .ADDI .x6 .x6 (1 : BitVec 12),
-    .JAL .x0 (-88 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.eip8037_prior_state_used_exact + 60) (GuestAddrs.eip8037_prior_state_used_exact + 148)),
     .SD .x11 .x7 (0 : BitVec 12),
     .LI .x10 (0 : Word),
     .JALR .x0 .x1 (0 : BitVec 12),
@@ -102,7 +102,6 @@ theorem eip8037PriorStateUsedExactFunction_eq_prog :
 
 #guard eip8037PriorStateUsedExactFunction.startsWith "eip8037_prior_state_used_exact:\n"
 #guard eip8037PriorStateUsedExact_prog.length = 43
-
 /-- Absolute PC of instruction index `i` inside `eip8037_tx_gas_gate`. -/
 private def gatePc (i : Nat) : Nat := GuestAddrs.eip8037_tx_gas_gate + 4 * i
 

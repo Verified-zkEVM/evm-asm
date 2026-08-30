@@ -106,7 +106,7 @@ def bnfBeToLe_prog : Program :=
     .SD .x7 .x28 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (4 : Word),
-    .BNE .x5 .x6 (-68 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.bnf_be_to_le + 4) (GuestAddrs.bnf_be_to_le + 72)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bn254FieldBeToLeFunction : String :=
@@ -142,7 +142,7 @@ def bnfLeToBe_prog : Program :=
     .BNE .x29 .x0 (-20 : BitVec 13),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (4 : Word),
-    .BNE .x5 .x6 (-64 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.bnf_le_to_be + 4) (GuestAddrs.bnf_le_to_be + 68)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bn254FieldLeToBeFunction : String :=
