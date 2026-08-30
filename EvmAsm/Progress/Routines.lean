@@ -187,6 +187,7 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
 import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
+import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -3053,6 +3054,39 @@ def routineRegistry : List RoutineEntry := [
   -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
   -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
   -- threading, no proof content changed).
+  -- #13089: the four remaining proof-first (DCode) leaves, rowed at
+  -- their linked entries with flat derivations of their retSpecs
+  -- (Codegen/Proofs/DCodeLeafFlatEntries.lean).
+  routine "modexp_iszero" .proven (some "modexpIszeroFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.modexp_iszero` "
+        ++ "over `CodeReq.ofProg … modexpIszero_prog`: `a0` = limb ptr, "
+        ++ "`a1` = limb count `n` (`n ≤ 256`, `8n` bytes readable) — "
+        ++ "returns `a0 = mizOut ptr bs n`, `1` iff all `n` little-endian "
+        ++ "dwords are zero. Proof-first `dretWhileBreakSwap` scan; ABI/"
+        ++ "resource hypotheses only"),
+  routine "sender_post_nonce_consistent" .proven (some "spncFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.sender_post_nonce_consistent` over `CodeReq.ofProg "
+        ++ "… spnc_prog`: `a0` = the 144-byte sender record — returns "
+        ++ "`a0 = spncOut bs` (0 consistent / 1 mismatch / 2 skip). "
+        ++ "Proof-first guard cascade + 8-byte accumulate loop; ABI/"
+        ++ "resource hypotheses only (record readable, no wrap)"),
+  routine "edd_be32_eq" .proven (some "eddBe32EqFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.edd_be32_eq` "
+        ++ "over `CodeReq.ofProg … eddBe32Eq_prog`: `a0` = 32-byte BE "
+        ++ "field ptr, `a1 = K` — returns `a0 = eddOut ptr bs K`, `1` iff "
+        ++ "the high 28 bytes are zero and the trailing BE u32 equals `K`. "
+        ++ "The same DCode retSpec the #12989 extract_deposit_data ok-path "
+        ++ "composition consumes at the bundle-interior copy; this row "
+        ++ "makes the standalone linked entry census-visible"),
+  routine "edd_memcpy" .proven (some "eddMemcpyFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.edd_memcpy` over "
+        ++ "`CodeReq.ofProg … eddMemcpy_prog`: `a0` = src, `a1` = dst, "
+        ++ "`a2 = n` — the n-byte destination window becomes the source "
+        ++ "prefix. `mcStatic` (bounds + no-wrap + src/dst disjointness) "
+        ++ "is a resource-shaped hypothesis; #12805 discharges it at the "
+        ++ "deployed call sites. Same retSpec as the #12989 bundle-"
+        ++ "interior copy, rowed at the standalone linked entry"),
   -- #13071: the SSZ fixed-list framing validator, rowed at its linked
   -- entry with the flat derivation of its DCode guard-cascade retSpec.
   routine "sg_validate_fixed_list" .proven
@@ -4695,10 +4729,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 222 := by decide
+theorem routineCount_eq : routineCount = 226 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 168 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 172 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
 set_option maxRecDepth 16000 in
@@ -4718,7 +4752,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 182 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6108,6 +6142,15 @@ private noncomputable abbrev _priority_fee_per_gas_eip1559_routine_witness :=
 -- #13071: sg_validate_fixed_list at its linked entry.
 private noncomputable abbrev _sg_validate_fixed_list_routine_witness :=
   @EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
+-- #13089: the four remaining DCode leaves at their linked entries.
+private noncomputable abbrev _modexp_iszero_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
+private noncomputable abbrev _sender_post_nonce_consistent_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.spncFlat_spec
+private noncomputable abbrev _edd_be32_eq_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
+private noncomputable abbrev _edd_memcpy_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.eddMemcpyFlat_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
