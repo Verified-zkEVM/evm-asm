@@ -186,6 +186,7 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 -- registry row remains honestly `.partly` until that prologue is composed.
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
+import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -3052,6 +3053,21 @@ def routineRegistry : List RoutineEntry := [
   -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
   -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
   -- threading, no proof content changed).
+  -- #13071: the SSZ fixed-list framing validator, rowed at its linked
+  -- entry with the flat derivation of its DCode guard-cascade retSpec.
+  routine "sg_validate_fixed_list" .proven
+      (some "sgValidateFixedListFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.sg_validate_fixed_list` over "
+        ++ "`CodeReq.ofProg … sgValidateFixedList_prog` (the emitted "
+        ++ "program — the stateless-guest bundle slice is `emitProgram` of "
+        ++ "it, byte-identity checked at the port): entered with `a1` = "
+        ++ "section byte length, `a2` = element size, `a3` = max element "
+        ++ "count, returns `a0 = sgvOut len esz maxc` — `0` iff `esz ≠ 0 ∧ "
+        ++ "len % esz = 0 ∧ len / esz ≤ maxc`. Register-only leaf (proof-"
+        ++ "first `dretCascade` derivation, three guards into one shared "
+        ++ "fail tail); ABI hypotheses only (aligned `ra`). Lives in "
+        ++ "`Codegen/Proofs/SgValidateFixedListFlatEntry.lean`"),
   routine "call_frame_forward_gas" .proven
       (some "callFrameForwardGasFlat_spec")
       (notes := "whole-routine flat triple at "
@@ -4679,10 +4695,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 221 := by decide
+theorem routineCount_eq : routineCount = 222 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 167 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 168 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
 set_option maxRecDepth 16000 in
@@ -4702,7 +4718,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 181 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 182 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6089,6 +6105,9 @@ private noncomputable abbrev _priority_fee_per_gas_eip1559_body_routine_witness 
 -- #13068 Stage 2: the entry-anchored whole-routine contract (row witness).
 private noncomputable abbrev _priority_fee_per_gas_eip1559_routine_witness :=
   @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_spec
+-- #13071: sg_validate_fixed_list at its linked entry.
+private noncomputable abbrev _sg_validate_fixed_list_routine_witness :=
+  @EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=

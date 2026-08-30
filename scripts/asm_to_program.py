@@ -1815,6 +1815,10 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #13071: sg_validate_fixed_list is a hand-verified SAsm leaf
+        # (SgValidateFixedListSAsm) rowed at its linked entry; the flat
+        # whole-routine triple states the address via GuestAddrs.
+        'sg_validate_fixed_list',
         # GH #12534: the RecDecode adapter's fixed frame arena is a linked
         # BSS target of the hand-maintained RlpWalk renderer, not a manifest
         # fixture relocation.  Keep its GuestAddrs pin by name.

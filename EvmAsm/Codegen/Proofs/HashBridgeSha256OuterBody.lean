@@ -5,6 +5,12 @@
   `sha256OuterBody_step` discharges the body hyp of
   `sha256FullBlockLoop_reload_spec` (window-focus + OuterInv reshape).
 
+  This is the phase-3 checkpoint for `zkvm_sha256`: the emitted outer
+  countdown shell reloads x5 with the 64-byte stride, tests x18 with a signed
+  BLT, runs the full-block body, and jumps back to the reload header.  The body
+  is intentionally an explicit contract here; padding, digest/output, and the
+  top-level SHA theorem remain later phases.
+
   CSRS remains an explicit semantic residual (`hsem`) matching Block.lean:
   Accel discharge (params layout → real `sha256Compress`) is a later pure
   bridge, not required to close the countdown shell.
