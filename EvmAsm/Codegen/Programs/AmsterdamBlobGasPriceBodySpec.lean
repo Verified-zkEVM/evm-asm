@@ -611,10 +611,15 @@ theorem priceBodyFrameRel_postVals
   · have hmod : swapCount % 2 = 1 := by omega
     simp [priceBodyFrameRel, priceBodyPostVals, hmod]
 
-def priceBodyOutcomePost
+/-! The executable body has no operation that changes the caller's residual
+    assertion.  Keep that residual outside the existential outcome witness so
+    the frame rule can carry it from entry to exit.  In particular, do not
+    quantify an unrelated `scratchPost`: that would promise a transition from
+    one arbitrary resource to another that the body cannot perform. -/
+def priceBodyOutcomeCore
     (outcome : Word → Word × List (BitVec 8))
     (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
-    (scratchPost : Assertion) : Assertion :=
+    : Assertion :=
   fun h => ∃ (finalIndex : Word) (swapCount : Nat),
     priceBodyFrameRel newSp excess outPtr finalIndex vals
         (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount ∧
@@ -622,7 +627,13 @@ def priceBodyOutcomePost
     priceBodyOutcomeRel outcome excess status (outcome excess).2 ∧
     priceBodyPost newSp vals
       (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount)
-      status outPtr (outcome excess).2 scratchPost h
+      status outPtr (outcome excess).2 empAssertion h
+
+def priceBodyOutcomePost
+    (outcome : Word → Word × List (BitVec 8))
+    (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
+    (scratch : Assertion) : Assertion :=
+  priceBodyOutcomeCore outcome newSp vals excess outPtr status ** scratch
 
 /-! The open seam statement (#12851 / K70 item 7): a model-indexed two-exit
     triple for the functional body between the frame entry (`PriceK + 36`)
@@ -630,21 +641,42 @@ def priceBodyOutcomePost
     bytes; the status-1 arm carries only output ownership through
     `priceOutputPost`.  Discharging this over the emitted body — including the
     6-limb bignum arithmetic and the Taylor recurrence invariant — is the
-    remaining machine work. -/
+    remaining machine work.  The same `scratch` assertion is used on both
+    sides: the body preserves the caller's residual frame, and arbitrary
+    `pcFree` scratch is obtained by framing the core (`empAssertion`) contract.
+    The former independent `scratchPost` quantified a behavior the body cannot
+    perform and was therefore not a stronger contract. -/
 def priceBodyContract
     (bodySteps : Nat) (sp0 : Word) (vals : Reg → Word)
     (excess outPtr : Word)
     (outcome : Word → Word × List (BitVec 8))
-    (scratch scratchPost : Assertion) : Prop :=
+    (scratch : Assertion) : Prop :=
   cpsNBranchWithin bodySteps
     (PriceK + 36) priceCode
     (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
     [(PriceK + 968,
         priceBodyOutcomePost outcome
-          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratchPost),
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratch),
       (PriceK + 968,
         priceBodyOutcomePost outcome
-          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratchPost)]
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratch)]
+
+/-- Frame the core body contract with any caller-owned, PC-free residual.
+    This is the general form used by callers: the executable body is proved
+    once against `empAssertion`, then `scratch` is carried unchanged by the
+    separation-logic frame rule. -/
+theorem priceBodyContract_frame
+    {bodySteps : Nat} (sp0 : Word) (vals : Reg → Word)
+    (excess outPtr : Word)
+    (outcome : Word → Word × List (BitVec 8))
+    (scratch : Assertion)
+    (hcore : priceBodyContract bodySteps sp0 vals excess outPtr outcome empAssertion)
+    (hscratch : scratch.pcFree) :
+    priceBodyContract bodySteps sp0 vals excess outPtr outcome scratch := by
+  unfold priceBodyContract at hcore ⊢
+  have hfr := cpsNBranchWithin_frameR hscratch hcore
+  simpa only [List.map, priceBodyOutcomePost, priceBodyOutcomeCore,
+    priceBodyPre, sepConj_emp_right', sepConj_emp_left', sepConj_assoc'] using hfr
 
 theorem priceOutputPost_pcFree (status outPtr : Word) (outBytes : List (BitVec 8)) :
     (priceOutputPost status outPtr outBytes).pcFree := by
@@ -768,6 +800,7 @@ theorem amsterdam_blob_gas_price_abi_from_body
 
 #print axioms amsterdam_blob_gas_price_prog_eq_abiFrameProg
 #print axioms priceCode_sub_abiFrameProg
+#print axioms priceBodyContract_frame
 #print axioms amsterdam_blob_gas_price_abi_from_body
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell
