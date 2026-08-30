@@ -353,7 +353,7 @@ def blqSmul_prog : Program :=
     .ADDI .x10 .x31 (48 : BitVec 12),
     .ADDI .x11 .x11 (48 : BitVec 12),
     .ADDI .x30 .x30 (-1 : BitVec 12),
-    .BNE .x30 .x0 (-68 : BitVec 13),
+    .BNE .x30 .x0 (brOff (GuestAddrs.blq_smul + 4) (GuestAddrs.blq_smul + 72)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 /-- Reloc side-table for `blqSmul_prog`: the `la`/cross-`jal` instruction indices
