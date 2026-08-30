@@ -55,7 +55,6 @@ import EvmAsm.Codegen.Programs.PrecompileSharedExecute
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig
@@ -406,8 +405,8 @@ def ziskStatelessVerdictV2Prologue : String :=
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
-  -- #11838 M6: bal_section_info unlinked (0 guest jals post-M1–M4; probe keeps it)
-  -- #11172: bal_gas_valid unlinked; KEEP from_builder (live at Lbv_ret)
+  -- #11172/#11838: retired probe-only BAL helpers; keep only
+  -- bal_gas_valid_from_builder and its live support.
   balGasValidFromBuilderFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
   -- #11183 rows 11-12 / #11410: bal_code_preimages_valid unlinked (0 guest jal).
@@ -448,7 +447,6 @@ def ziskStatelessVerdictV2Prologue : String :=
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
-  senderPostNonceConsistentFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   dispatcherCaptureExecStateGasFunction ++ "\n" ++

@@ -306,8 +306,6 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
 
-#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.spncFlat_spec
-
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
 #print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight

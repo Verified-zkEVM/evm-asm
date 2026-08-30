@@ -67,7 +67,6 @@ SEEDS = (
 BAL_FAMILY = re.compile(r"\b(?:bv|bsr|c1)_bal_[A-Za-z0-9_]+\b")
 BODY_CALLS = frozenset(
     {
-        "bal_section_info",
         "bal_account_record_array",
         "rlp_walk_init",
         "rlp_walk_next",

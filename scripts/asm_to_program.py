@@ -569,7 +569,8 @@ EXPECTED_BARE_J_SITES = 146
 # deferred probe redo removes 15 more using source-owned PC bases.  Remaining
 # unlinked branches stay numeric until they have a real named source/guest
 # anchor.
-EXPECTED_BARE_B_SITES = 634
+# #13096 retires the sender-post-nonce probe, removing its two bare B sites.
+EXPECTED_BARE_B_SITES = 632
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

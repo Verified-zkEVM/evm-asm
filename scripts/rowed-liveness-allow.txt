@@ -42,7 +42,6 @@
 # #12541 records both resolutions: retire it with its pairing and row in one PR
 # (#12351 pattern, the likely answer since its caller went for the same reason), or
 # wire it — in which case this exemption expires by itself.
-sender_post_nonce_consistent	issue=13096	probe-only on the fresh link: the zisk known-answer probe and the block_verdict sender-auth fragment call it, but that fragment's path is not wired into the linked verdict route yet; rowed .proven at its entry (#13089)
 
 enrg_u32le	issue=12541	the retired EIP-7702 nonce-reuse guard was its only caller; kept in the image as "still linked" but nothing reaches it on a fresh link
 

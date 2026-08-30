@@ -3056,7 +3056,7 @@ def routineRegistry : List RoutineEntry := [
   -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
   -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
   -- threading, no proof content changed).
-  -- #13089: the four remaining proof-first (DCode) leaves, rowed at
+  -- #13089: the three remaining proof-first (DCode) leaves, rowed at
   -- their linked entries with flat derivations of their retSpecs
   -- (Codegen/Proofs/DCodeLeafFlatEntries.lean).
   routine "modexp_iszero" .proven (some "modexpIszeroFlat_spec")
@@ -3066,13 +3066,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "returns `a0 = mizOut ptr bs n`, `1` iff all `n` little-endian "
         ++ "dwords are zero. Proof-first `dretWhileBreakSwap` scan; ABI/"
         ++ "resource hypotheses only"),
-  routine "sender_post_nonce_consistent" .proven (some "spncFlat_spec")
-      (notes := "whole-routine flat triple at "
-        ++ "`GuestAddrs.sender_post_nonce_consistent` over `CodeReq.ofProg "
-        ++ "… spnc_prog`: `a0` = the 144-byte sender record — returns "
-        ++ "`a0 = spncOut bs` (0 consistent / 1 mismatch / 2 skip). "
-        ++ "Proof-first guard cascade + 8-byte accumulate loop; ABI/"
-        ++ "resource hypotheses only (record readable, no wrap)"),
   routine "edd_be32_eq" .proven (some "eddBe32EqFlat_spec")
       (notes := "whole-routine flat triple at `GuestAddrs.edd_be32_eq` "
         ++ "over `CodeReq.ofProg … eddBe32Eq_prog`: `a0` = 32-byte BE "
@@ -4742,10 +4735,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 227 := by decide
+theorem routineCount_eq : routineCount = 226 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 172 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
 set_option maxRecDepth 16000 in
@@ -4765,7 +4758,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 187 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6161,11 +6154,9 @@ private noncomputable abbrev _priority_fee_per_gas_eip1559_routine_witness :=
 -- #13071: sg_validate_fixed_list at its linked entry.
 private noncomputable abbrev _sg_validate_fixed_list_routine_witness :=
   @EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
--- #13089: the four remaining DCode leaves at their linked entries.
+-- #13089: the three remaining DCode leaves at their linked entries.
 private noncomputable abbrev _modexp_iszero_routine_witness :=
   @EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
-private noncomputable abbrev _sender_post_nonce_consistent_routine_witness :=
-  @EvmAsm.Codegen.DCodeLeafFlatEntries.spncFlat_spec
 private noncomputable abbrev _edd_be32_eq_routine_witness :=
   @EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
 private noncomputable abbrev _edd_memcpy_routine_witness :=

@@ -89,7 +89,7 @@ work.
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
 | 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
@@ -326,18 +326,18 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 909 | 909 |
-| converted **and linked** | 476 | 476 |
+| `.text` symbols | 908 | 908 |
+| converted **and linked** | 475 | 475 |
 | unconverted | 433 | 433 |
 | unconverted bytes | 211868 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 564 conversion rows, of
-which 88 have no entry symbol in the linker-facts table
+`scripts/asm-fixtures/MANIFEST.tsv` has 560 conversion rows, of
+which 85 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 564 as "converted symbols" is the easy error here.
+Quoting 560 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -364,7 +364,7 @@ bytes.
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
 | 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |

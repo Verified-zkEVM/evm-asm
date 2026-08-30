@@ -458,8 +458,8 @@ def statelessVerdictV2GuestClosure : String :=
   bgvU64leFunction ++ "\n" ++
   headersKeccakArrayFunction ++ "\n" ++
   headersValidateChainFunction ++ "\n" ++
-  -- #11838 M6: bal_section_info unlinked (0 guest jals post-M1–M4; probe keeps it)
-  -- #11172: bal_gas_valid (RLP walker) unlinked; KEEP from_builder + bgv_* helpers
+  -- #11172/#11838: retired probe-only BAL helpers; keep only
+  -- bal_gas_valid_from_builder and its live support.
   balGasValidFromBuilderFunction ++ "\n" ++
   accountAtHeaderStateRootFunction ++ "\n" ++
   codeHashAtHeaderStateRootFunction ++ "\n" ++
@@ -600,7 +600,6 @@ def statelessVerdictV2GuestClosure : String :=
   multiTxRunningSenderBalanceStepFunction ++ "\n" ++
   senderDebitFromGasFunction ++ "\n" ++
   txGasBalPostVerifyRuntimeFunction ++ "\n" ++
-  senderPostNonceConsistentFunction ++ "\n" ++
   eip7778RemainingBlockGasCheckFunction ++ "\n" ++
   eip7778RemainingBlockGasFromResultsFunction ++ "\n" ++
   blockVerdictTxGasLimitsFunction ++ "\n" ++

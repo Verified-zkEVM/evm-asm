@@ -1,9 +1,9 @@
 /-
   EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 
-  Flat whole-routine contracts at the linked guest entries for the four
+  Flat whole-routine contracts at the linked guest entries for the three
   remaining proof-first (DCode) leaves (#13089): `modexp_iszero`,
-  `sender_post_nonce_consistent`, `edd_be32_eq`, and `edd_memcpy` — the
+  `edd_be32_eq`, and `edd_memcpy` — the
   same census gap #13071 closed for `sg_validate_fixed_list`.  Each is
   the leaf's base-generic `retSpec` with the caller's exposed-register
   atoms packed into / unpacked from the callee's `asrtM` register file.
@@ -12,7 +12,6 @@
 -/
 
 import EvmAsm.Codegen.Programs.ModexpIszeroSAsm
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistentSAsm
 import EvmAsm.Codegen.Programs.ExtractDepositData
 import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FnFlat
@@ -216,102 +215,6 @@ theorem modexpIszeroFlat_spec (ptr ret : Word) (bs : List (BitVec 8))
       h' hq''
     xperm_hyp hfin
 
-/-! ## `sender_post_nonce_consistent` -/
-
-abbrev SpncB : Word := (GuestAddrs.sender_post_nonce_consistent : Word)
-abbrev spncCode : CodeReq :=
-  CodeReq.ofProg SpncB SenderPostNonceConsistentSAsm.spnc_prog
-
-set_option maxRecDepth 1000000 in
-/-- Ghost-erasure hop: `flatten` drops the derivation's `Prop`-valued
-    annotations, so the ghosts can be zeroed first (the one-step
-    identity times out the elaborator's `whnf` at the default budget;
-    the two hops each reduce within it). -/
-private theorem spnc_flatten_ghost_free (rec b : Word)
-    (bs : List (BitVec 8)) :
-    ((SenderPostNonceConsistentSAsm.spncDeriv rec bs).stmt.flatten b
-        : List Instr)
-      = ((SenderPostNonceConsistentSAsm.spncDeriv 0 []).stmt.flatten b
-        : List Instr) := rfl
-
-set_option maxRecDepth 1000000 in
-private theorem spnc_flatten_zero (b : Word) :
-    ((SenderPostNonceConsistentSAsm.spncDeriv 0 []).stmt.flatten b
-        : List Instr)
-      = SenderPostNonceConsistentSAsm.spnc_prog := rfl
-
-private theorem spnc_flatten (rec b : Word) (bs : List (BitVec 8)) :
-    ((SenderPostNonceConsistentSAsm.spncDeriv rec bs).stmt.flatten b
-        : List Instr)
-      = SenderPostNonceConsistentSAsm.spnc_prog := by
-  rw [spnc_flatten_ghost_free, spnc_flatten_zero]
-
-/-- ⭐ **`sender_post_nonce_consistent` at its linked guest address.**
-    Entered with `a0` = the 144-byte sender record and an aligned return
-    address, it returns `a0 = spncOut bs` (0 consistent / 1 mismatch /
-    2 skip). -/
-theorem spncFlat_spec (rec ret : Word) (bs : List (BitVec 8))
-    (hwf : (Region.mk rec bs).wf)
-    (hst : SenderPostNonceConsistentSAsm.spncStatic rec bs)
-    (halign : (ret &&& ~~~(1 : Word)) = ret) :
-    cpsTripleWithin
-      (SenderPostNonceConsistentSAsm.spncDeriv rec bs).stmt.steps
-      SpncB ret spncCode
-      (((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ rec) **
-        regOwns leafScr14 ** bytesRegion rec bs)
-      (((.x1 : Reg) ↦ᵣ ret) **
-        ((.x10 : Reg) ↦ᵣ SenderPostNonceConsistentSAsm.spncOut bs) **
-        regOwns leafScr14 ** bytesRegion rec bs) := by
-  refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
-    (fun _ hq => hq)
-    (cpsTripleWithin_peel_regOwns leafScr14 (by decide)
-      (P := ((.x1 : Reg) ↦ᵣ ret) ** ((.x10 : Reg) ↦ᵣ rec) **
-        bytesRegion rec bs)
-      (fun vf => ?_))
-  have hret := SenderPostNonceConsistentSAsm.spnc_retSpec rec bs hwf
-    SpncB ret halign
-  rw [spnc_flatten] at hret
-  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hret
-  · refine sepConj_mono_right (fun h' hp' => ?_) h (by xperm_hyp hp :
-      ((((.x1 : Reg) ↦ᵣ ret)) **
-        ((((.x10 : Reg) ↦ᵣ rec) ** regAtomsOf vf leafScr14) **
-          bytesRegion rec bs)) h)
-    show (asrtOf RwRegion.empty _ ** bytesRegion rec bs) h'
-    refine sepConj_mono_left (fun h'' hp'' => ?_) h' hp'
-    refine ⟨fun r => if r = .x10 then rec else vf r, [], empAssertion,
-      rfl, pcFree_emp,
-      ⟨by
-        show RegFile.get _ .x10 = rec
-        rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]
-        exact if_pos rfl, hst, rfl⟩, ?_⟩
-    rw [bytesRegion_nil, sepConj_emp_right', sepConj_emp_right',
-      regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
-      leaf_split_1,
-      show (if (Reg.x10 : Reg) = .x10 then rec else vf .x10) = rec from
-        if_pos rfl,
-      regAtomsOf_congr (fun r => if r = .x10 then rec else vf r) vf
-        leafScr14
-        (fun r hr => by
-          show (if r = .x10 then rec else vf r) = vf r
-          rw [if_neg (fun hc => (by decide :
-              (Reg.x10 : Reg) ∉ leafScr14) (by rw [← hc]; exact hr))])]
-    exact hp''
-  · refine sepConj_mono_right (fun h' hq' => ?_) h hq
-    have hq'' : (asrtOf RwRegion.empty _ ** bytesRegion rec bs) h' := hq'
-    have hfin := sepConj_mono_left (fun h'' hq2 => by
-      obtain ⟨rf, ws, A, hws, -, ⟨h10, rfl⟩, hh⟩ := hq2
-      obtain rfl : ws = [] := List.eq_nil_of_length_eq_zero hws
-      rw [bytesRegion_nil, sepConj_emp_right', sepConj_emp_right',
-        regFileIs_eq_regAtoms, regAtoms_eq_regAtomsOf _ _ (by decide),
-        leaf_split_1,
-        show rf .x10 = SenderPostNonceConsistentSAsm.spncOut bs from by
-          rw [show rf .x10 = rf.get .x10 from by
-            rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
-          exact h10] at hh
-      exact sepConj_mono_right (regAtomsOf_to_regOwns _ _) h'' hh)
-      h' hq''
-    xperm_hyp hfin
-
 /-! ## `edd_be32_eq` -/
 
 abbrev EddBeB : Word := (GuestAddrs.edd_be32_eq : Word)
@@ -461,7 +364,6 @@ theorem eddMemcpyFlat_spec (src dst ret : Word) (bs ws0 : List (BitVec 8))
     xperm_hyp hq3
 
 #print axioms modexpIszeroFlat_spec
-#print axioms spncFlat_spec
 #print axioms eddBe32EqFlat_spec
 #print axioms eddMemcpyFlat_spec
 

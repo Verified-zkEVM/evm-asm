@@ -23,7 +23,7 @@
      ```
      (For a re-emitted drop-in, `fooProgList` must also equal the emitted
      `Program` by `rfl`, and ziskemu/EEST A/B parity vs the old bytes is
-     mandatory — see `ParentHeaderFrame.lean` / PR #9975.)
+     mandatory — see the historical parent-header frame port / PR #9975.)
 
   2. **State the genuine post** (unweakened: the routine's full semantics) and
      prove the **body triple** — the only bespoke work.  Straight-line pieces
@@ -69,7 +69,7 @@
     consumed by `callWithin_spec` inside an `abi_frame` wrap.
 
   Known limits: `abi_frame` at very large scale (the 84-instruction
-  `ParentHeaderFrame` routine) hits elaboration limits in the automated
+  historical parent-header frame routine) hits elaboration limits in the automated
   side-condition search — such routines keep the explicit `abiFrame_spec`
   application (same statement, spelled side-conditions).  `runBlock` chains
   single-instruction specs; multi-instruction sub-triples (a lifted loop, a
