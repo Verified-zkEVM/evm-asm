@@ -16,6 +16,7 @@
 
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterFold
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Crypto.BeBytesBridge
@@ -581,6 +582,64 @@ def siftDownContract (entry exit : Word) (cr : CodeReq)
       (recordFillPost idxBase sectionPtr sectionBytes after)
 
 abbrev widxSiftDownContract := siftDownContract
+
+/-! ## Finite sift-down fold
+
+The sift loop has two independent quantities in its contract.  The round
+count is a structural bound on the selected-child descent; `steps` is a
+machine-step bound for one CPS round.  Keeping those quantities as separate
+fields prevents a step-count maximum from being mistaken for a well-founded
+descent measure.  The fold below supplies only the control-flow induction;
+the round and tail records still have to be discharged by the concrete
+framed machine proof.
+-/
+
+/-- A safe structural bound on child selections for the 131072-record arena.
+    This is the heap-depth cap (`2^17 = 131072`), not a CPS instruction
+    bound. -/
+def widxSiftDownMaxRounds : Nat := 17
+
+/-- Contract for one sift round.  `round` is the structural induction index;
+    `steps` bounds only the machine execution of that round.  The terminal
+    exits are supplied by the caller and the final exit is the loop back-edge
+    carrying the next invariant. -/
+structure WidxSiftRoundContract
+    (hdr : Word) (cr : CodeReq) (inv : Nat → Assertion)
+    (terminal : List (Word × Assertion)) (round : Nat) : Type where
+  steps : Nat
+  proof : cpsNBranchWithin steps hdr cr (inv round)
+    (terminal ++ [(hdr, inv (round + 1))])
+
+/-- Fold explicit per-round contracts through the finite sift-down loop.
+    `roundSteps` is a common CPS bound, while `widxSiftDownMaxRounds` is the
+    independent structural descent bound.  The terminal continuation is
+    intentionally a separate hypothesis so a zero-round case cannot be
+    mistaken for a successful terminal arm. -/
+theorem widxSiftDown_finite_loop_of_rounds
+    {hdr : Word} {cr : CodeReq} {inv : Nat → Assertion}
+    {terminal : List (Word × Assertion)}
+    (roundSteps : Nat)
+    (hround : ∀ round, round < widxSiftDownMaxRounds →
+      WidxSiftRoundContract hdr cr inv terminal round)
+    (hbound : ∀ round (h_round : round < widxSiftDownMaxRounds),
+      (hround round h_round).steps ≤ roundSteps)
+    (tailSteps : Nat)
+    (htail : cpsNBranchWithin tailSteps hdr cr
+      (inv widxSiftDownMaxRounds) terminal) :
+    cpsNBranchWithin
+      (roundSteps * widxSiftDownMaxRounds + tailSteps)
+      hdr cr (inv 0) terminal := by
+  have hfold :=
+    EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec.finite_nbranch_loop_spec
+      (N := widxSiftDownMaxRounds) (m := roundSteps)
+      (mLast := tailSteps) (hdr := hdr) (cr := cr)
+      (inv := inv) (terminal := terminal)
+      (fun round h_round =>
+        cpsNBranchWithin_mono_nSteps
+          (hbound round h_round)
+          (hround round h_round).proof)
+      htail
+  exact hfold
 
 /-! ## One-step functional leaf
 
