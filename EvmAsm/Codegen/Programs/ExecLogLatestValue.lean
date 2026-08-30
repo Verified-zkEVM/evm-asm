@@ -32,6 +32,10 @@ public import EvmAsm.Codegen.Emit
 meta import EvmAsm.Rv64.Program
 meta import EvmAsm.Codegen.Layout
 meta import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.GuestAddrs
 
 @[expose] public section
 
@@ -49,27 +53,27 @@ open EvmAsm.Rv64
 def execLogLatestValue_prog : Program :=
   [ .LI .x31 (0 : Word),
     .LI .x5 (0 : Word),
-    .BEQ .x5 .x13 (152 : BitVec 13),
+    .BEQ .x5 .x13 (brOff 2147483808 2147483656),
     .SLLI .x6 .x5 (7 : BitVec 6),
     .ADD .x7 .x12 .x6,
     .LD .x28 .x7 (0 : BitVec 12),
     .LD .x29 .x10 (0 : BitVec 12),
-    .BNE .x28 .x29 (124 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483676),
     .LD .x28 .x7 (8 : BitVec 12),
     .LD .x29 .x10 (8 : BitVec 12),
-    .BNE .x28 .x29 (112 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483688),
     .LD .x28 .x7 (16 : BitVec 12),
     .LD .x29 .x10 (16 : BitVec 12),
-    .BNE .x28 .x29 (100 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483700),
     .LD .x28 .x7 (24 : BitVec 12),
     .LD .x29 .x10 (24 : BitVec 12),
-    .BNE .x28 .x29 (88 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483712),
     .LD .x28 .x7 (32 : BitVec 12),
     .LD .x29 .x11 (0 : BitVec 12),
-    .BNE .x28 .x29 (76 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483724),
     .LD .x28 .x7 (40 : BitVec 12),
     .LD .x29 .x11 (8 : BitVec 12),
-    .BNE .x28 .x29 (64 : BitVec 13),
+    .BNE .x28 .x29 (brOff 2147483800 2147483736),
     .LD .x28 .x7 (48 : BitVec 12),
     .LD .x29 .x11 (16 : BitVec 12),
     .BNE .x28 .x29 (52 : BitVec 13),
@@ -86,7 +90,7 @@ def execLogLatestValue_prog : Program :=
     .SD .x14 .x28 (24 : BitVec 12),
     .LI .x31 (1 : Word),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-148 : BitVec 21),
+    .JAL .x0 (jalOff 2147483656 2147483804),
     .MV .x10 .x31,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -96,8 +100,7 @@ def execLogLatestValueFunction : String :=
 /-- Kernel-checked drift guard: the Codegen helper string is exactly
     `execLogLatestValue_prog` rendered under its label (bead evm-asm-4ch8f.9,
     mechanical conversion by `scripts/asm_to_program.py`; guest binary
-    byte-identity verified offline by assemble+cmp of the `.text`).
-    #11178: unlinked from `stateless_guest` (0 refs); probe-only. -/
+    byte-identity verified offline by assemble+cmp of the `.text`). -/
 theorem execLogLatestValueFunction_eq_prog :
     execLogLatestValueFunction = "exec_log_latest_value:\n" ++ emitProgram execLogLatestValue_prog := rfl
 

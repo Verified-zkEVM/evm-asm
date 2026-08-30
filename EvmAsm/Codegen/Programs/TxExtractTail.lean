@@ -7,6 +7,9 @@
 -/
 
 import EvmAsm.Codegen.Programs.TxExtractBase
+import EvmAsm.Codegen.Emit
+import EvmAsm.Codegen.AsmReloc
+import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen
 
@@ -64,7 +67,7 @@ def txEffectiveGasPricing_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.tx_extract_gas_pricing (GuestAddrs.tx_effective_gas_pricing + 84)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (1 : Word),
-    .JAL .x0 (148 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.tx_effective_gas_pricing + 244) (GuestAddrs.tx_effective_gas_pricing + 96)),
     .AUIPC .x10 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
     .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 100)),
     .AUIPC .x11 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 108)),
@@ -74,7 +77,7 @@ def txEffectiveGasPricing_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.tx_effective_gas_pricing + 124)),
     .BEQ .x10 .x0 (12 : BitVec 13),
     .LI .x10 (2 : Word),
-    .JAL .x0 (108 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.tx_effective_gas_pricing + 244) (GuestAddrs.tx_effective_gas_pricing + 136)),
     .AUIPC .x10 (laHi GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
     .ADDI .x10 .x10 (laLo GuestAddrs.tefgp_max_priority (GuestAddrs.tx_effective_gas_pricing + 140)),
     .AUIPC .x11 (laHi GuestAddrs.tefgp_max_fee (GuestAddrs.tx_effective_gas_pricing + 148)),
@@ -138,7 +141,6 @@ theorem txEffectiveGasPricingFunction_eq_prog :
 
 #guard txEffectiveGasPricingFunction.startsWith "tx_effective_gas_pricing:\n"
 #guard txEffectiveGasPricing_prog.length = 68
-
 /-! ## access_list_count -- PR-K48 EIP-2930+ access-list cardinality
 
     Walk an RLP-encoded EIP-2930+ access_list and return
@@ -199,13 +201,13 @@ def accessListCount_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
     .ADDI .x12 .x12 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 64)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_count_items (GuestAddrs.access_list_count + 72)),
-    .BNE .x10 .x0 (228 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.access_list_count + 304) (GuestAddrs.access_list_count + 76)),
     .AUIPC .x5 (laHi GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
     .ADDI .x5 .x5 (laLo GuestAddrs.alc_scratch (GuestAddrs.access_list_count + 80)),
     .LD .x20 .x5 (0 : BitVec 12),
-    .BEQ .x20 .x0 (200 : BitVec 13),
+    .BEQ .x20 .x0 (brOff (GuestAddrs.access_list_count + 292) (GuestAddrs.access_list_count + 92)),
     .LI .x21 (0 : Word),
-    .BEQ .x21 .x20 (192 : BitVec 13),
+    .BEQ .x21 .x20 (brOff (GuestAddrs.access_list_count + 292) (GuestAddrs.access_list_count + 100)),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x21,
@@ -214,7 +216,7 @@ def accessListCount_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
     .ADDI .x14 .x14 (laLo GuestAddrs.alc_entry_length (GuestAddrs.access_list_count + 124)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 132)),
-    .BNE .x10 .x0 (168 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.access_list_count + 304) (GuestAddrs.access_list_count + 136)),
     .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
     .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 140)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -229,7 +231,7 @@ def accessListCount_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
     .ADDI .x14 .x14 (laLo GuestAddrs.alc_keys_length (GuestAddrs.access_list_count + 184)),
     .JAL .x1 (jalOff GuestAddrs.rlp_list_nth_item (GuestAddrs.access_list_count + 192)),
-    .BNE .x10 .x0 (108 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.access_list_count + 304) (GuestAddrs.access_list_count + 196)),
     .AUIPC .x5 (laHi GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
     .ADDI .x5 .x5 (laLo GuestAddrs.alc_entry_offset (GuestAddrs.access_list_count + 200)),
     .LD .x6 .x5 (0 : BitVec 12),
@@ -252,7 +254,7 @@ def accessListCount_prog : Program :=
     .ADD .x7 .x7 .x6,
     .SD .x19 .x7 (0 : BitVec 12),
     .ADDI .x21 .x21 (1 : BitVec 12),
-    .JAL .x0 (-188 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.access_list_count + 100) (GuestAddrs.access_list_count + 288)),
     .SD .x18 .x20 (0 : BitVec 12),
     .LI .x10 (0 : Word),
     .JAL .x0 (16 : BitVec 21),
@@ -304,6 +306,4 @@ theorem accessListCountFunction_eq_prog :
 
 #guard accessListCountFunction.startsWith "access_list_count:\n"
 #guard accessListCount_prog.length = 88
-
-
 end EvmAsm.Codegen
