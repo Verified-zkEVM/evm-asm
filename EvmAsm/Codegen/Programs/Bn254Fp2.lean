@@ -385,7 +385,7 @@ def bnpFpPow_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.bnp_fp_mul (GuestAddrs.bnp_fp_pow + 120)),
     .BEQ .x19 .x0 (12 : BitVec 13),
     .ADDI .x19 .x19 (-1 : BitVec 12),
-    .JAL .x0 (-72 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.bnp_fp_pow + 60) (GuestAddrs.bnp_fp_pow + 132)),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
