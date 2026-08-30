@@ -561,7 +561,8 @@ EXPECTED_BARE_J_SITES = 151
 # from the pre-existing 710-site population.
 # #12960 retires 7 dead balance-account field-comparator probe files
 # (unlinked, unreferenced); their 33 bare local-B sites leave the corpus.
-EXPECTED_BARE_B_SITES = 672
+# #13081 adds one local-B site for the reachable K73 target-zero guard.
+EXPECTED_BARE_B_SITES = 673
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).

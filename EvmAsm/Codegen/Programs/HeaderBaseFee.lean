@@ -87,8 +87,9 @@ def eip1559CalcBaseFeePerGas_prog : Program :=
     .MV .x8 .x12,
     .MV .x9 .x13,
     .SRLI .x18 .x10 (1 : BitVec 6),
-    .BEQ .x11 .x18 (192 : BitVec 13),
+    .BEQ .x11 .x18 (196 : BitVec 13),
     .LI .x20 (0 : Word),
+    .BEQ .x18 .x0 (228 : BitVec 13),
     .BLTU .x18 .x11 (16 : BitVec 13),
     .BEQ .x11 .x0 (104 : BitVec 13),
     .SUB .x19 .x18 .x11,
@@ -98,40 +99,40 @@ def eip1559CalcBaseFeePerGas_prog : Program :=
     .MV .x10 .x8,
     .MV .x11 .x19,
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 84)),
+    .JAL .x1 (jalOff GuestAddrs.u256_mul_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 88)),
     .BNE .x10 .x0 (184 : BitVec 13),
     .MV .x10 .x9,
     .MV .x11 .x18,
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 104)),
+    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 108)),
     .MV .x10 .x9,
     .LI .x11 (8 : Word),
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 120)),
+    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 124)),
     .BEQ .x20 .x0 (48 : BitVec 13),
     .MV .x10 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.eip1559_calc_base_fee_per_gas + 132)),
+    .JAL .x1 (jalOff GuestAddrs.u256_is_zero (GuestAddrs.eip1559_calc_base_fee_per_gas + 136)),
     .BEQ .x10 .x0 (36 : BitVec 13),
     .LI .x10 (1 : Word),
     .MV .x11 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_from_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 148)),
+    .JAL .x1 (jalOff GuestAddrs.u256_from_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 152)),
     .JAL .x0 (20 : BitVec 21),
     .MV .x10 .x8,
     .LI .x11 (8 : Word),
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 168)),
+    .JAL .x1 (jalOff GuestAddrs.u256_div_u64_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 172)),
     .BEQ .x20 .x0 (32 : BitVec 13),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 188)),
+    .JAL .x1 (jalOff GuestAddrs.u256_add_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 192)),
     .BNE .x10 .x0 (80 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (76 : BitVec 21),
     .MV .x10 .x8,
     .MV .x11 .x9,
     .MV .x12 .x9,
-    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 216)),
+    .JAL .x1 (jalOff GuestAddrs.u256_sub_be (GuestAddrs.eip1559_calc_base_fee_per_gas + 220)),
     .BNE .x10 .x0 (52 : BitVec 13),
     .LI .x10 (0 : Word),
     .JAL .x0 (48 : BitVec 21),
@@ -159,14 +160,14 @@ def eip1559CalcBaseFeePerGas_prog : Program :=
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def eip1559CalcBaseFeePerGas_relocs : RelocTable :=
-  [ (21, .jal .x1 "u256_mul_u64_be"),
-    (26, .jal .x1 "u256_div_u64_be"),
-    (30, .jal .x1 "u256_div_u64_be"),
-    (33, .jal .x1 "u256_is_zero"),
-    (37, .jal .x1 "u256_from_u64_be"),
-    (42, .jal .x1 "u256_div_u64_be"),
-    (47, .jal .x1 "u256_add_be"),
-    (54, .jal .x1 "u256_sub_be") ]
+  [ (22, .jal .x1 "u256_mul_u64_be"),
+    (27, .jal .x1 "u256_div_u64_be"),
+    (31, .jal .x1 "u256_div_u64_be"),
+    (34, .jal .x1 "u256_is_zero"),
+    (38, .jal .x1 "u256_from_u64_be"),
+    (43, .jal .x1 "u256_div_u64_be"),
+    (48, .jal .x1 "u256_add_be"),
+    (55, .jal .x1 "u256_sub_be") ]
 
 def eip1559CalcBaseFeePerGasFunction : String :=
   "eip1559_calc_base_fee_per_gas:\n" ++ emitProgramR eip1559CalcBaseFeePerGas_prog eip1559CalcBaseFeePerGas_relocs
@@ -180,7 +181,7 @@ theorem eip1559CalcBaseFeePerGasFunction_eq_prog :
     eip1559CalcBaseFeePerGasFunction = "eip1559_calc_base_fee_per_gas:\n" ++ emitProgramR eip1559CalcBaseFeePerGas_prog eip1559CalcBaseFeePerGas_relocs := rfl
 
 #guard eip1559CalcBaseFeePerGasFunction.startsWith "eip1559_calc_base_fee_per_gas:\n"
-#guard eip1559CalcBaseFeePerGas_prog.length = 77
+#guard eip1559CalcBaseFeePerGas_prog.length = 78
 /-- `zisk_eip1559_calc_base_fee_per_gas`: probe BuildUnit. Reads
     (parent_gas_limit u64, parent_gas_used u64, parent_base_fee
     u256 BE) from host input, writes (status, expected_base_fee

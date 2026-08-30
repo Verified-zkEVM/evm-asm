@@ -5,17 +5,17 @@
   (`k73_increase_entry_status_div_zero_to_return_general_spec_within`).  The
   decreasing arm only ships seams.  This file assembles them bottom-up:
 
-    entry            (19, premise-free)              K73 .. K73 + 84
-    mul call/status  (needs deployed mul callee)     K73 + 84 .. K73 + 92
-    div pair         (premise-free, htargetPos)      K73 + 92 .. K73 + 124
-    branch x20=0     (premise-free)                  K73 + 124 .. K73 + 172
-    div-to-sub       (premise-free modulo ABI facts) K73 + 172 .. K73 + 220
-    borrow branch                                    K73 + 220 .. K73 + 224
-    tails            (symbolic raIn, saved-generic)  K73 + 224/+272 .. raIn
+    entry            (20, premise-free)              K73 .. K73 + 88
+    mul call/status  (needs deployed mul callee)     K73 + 88 .. K73 + 96
+    div pair         (premise-free, htargetPos)      K73 + 96 .. K73 + 128
+    branch x20=0     (premise-free)                  K73 + 128 .. K73 + 176
+    div-to-sub       (premise-free modulo ABI facts) K73 + 176 .. K73 + 224
+    borrow branch                                    K73 + 224 .. K73 + 228
+    tails            (symbolic raIn, saved-generic)  K73 + 228/+276 .. raIn
 
   Everything here composes already-proven seams; no new instruction is
   interpreted.  The borrow branch below is the only machine-level piece that
-  was missing entirely: the decrease subtract's overflow test at K73 + 220
+  was missing entirely: the decrease subtract's overflow test at K73 + 224
   branches on the callee borrow register against x0.
 -/
 
@@ -69,13 +69,13 @@ theorem k73_decrease_entry_status_native_discharged
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (hvalidOut : ∀ j, j < 32 →
       isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true) :
-    cpsBranchWithin (19 + 3852) K73 wholeCode
+    cpsBranchWithin (20 + 3852) K73 wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outWin
         (EvmAsm.Codegen.U256MulU64Be.frameSlots
           (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin ** G))
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest spH raIn basePtr outPtr target
             (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
@@ -84,7 +84,7 @@ theorem k73_decrease_entry_status_native_discharged
               (EvmAsm.Codegen.U256MulU64Be.mulState baseBytes (target - gasUsed) 32)
               outWin 32) G **
           regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest spH raIn basePtr outPtr target
             (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
@@ -97,12 +97,12 @@ theorem k73_decrease_entry_status_native_discharged
       (frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G).pcFree := by
     pcf
     exact hG
-  have hretCall : ((K73 + 88 : Word) &&& ~~~(1 : Word)) = K73 + 88 :=
+  have hretCall : ((K73 + 92 : Word) &&& ~~~(1 : Word)) = K73 + 92 :=
     EvmAsm.Rv64.BitAux.word_add_even_andn_one (by decide) (by decide)
   have hcallee := mulWhole_spec
     (F := frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) ** G)
     hFamb baseBytes accWin outWin hlenA hlenAcc houtW
-    spH (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word)
+    spH (K73 + 92) basePtr outPtr target (target - gasUsed) (0 : Word)
     basePtr (target - gasUsed) outPtr outPtr
     f0 f1 f2 f3 f4 f5 halignA hoverA hvalidA halignOut hoverOut hvalidOut
     hretCall
@@ -137,7 +137,7 @@ private theorem k73_regsOwnAt_k73Frame_flat :
   simp [k73Frame, regsOwnAt_cons, regsOwnAt_nil, sepConj_emp_right']
 
 /-- Outer overflow failure returning to the caller: the multiply stage exit
-    at K73 + 272 (multiply carry junk carried in `P`) runs the shared
+    at K73 + 276 (multiply carry junk carried in `P`) runs the shared
     `li x10, 1` plus epilogue tail.  The source pins the registers the
     epilogue overwrites (`w8..w20` are the mid-body values the multiply left,
     supplied by the feeder window); the proof lifts them to ownerships since
@@ -149,8 +149,8 @@ theorem k73_decrease_mulfail_outer_return_spec_within
     (hsp : spH + signExtend12 (56 : BitVec 12) = sp0)
     (hret : (raIn &&& ~~~(1 : Word)) = raIn)
     (hP : P.pcFree) :
-    cpsTripleWithin 9 (K73 + 272) raIn wholeCode
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+    cpsTripleWithin 9 (K73 + 276) raIn wholeCode
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
         (.x19 ↦ᵣ w19) ** (.x20 ↦ᵣ w20) ** regOwn .x10 ** P)
@@ -166,7 +166,7 @@ theorem k73_decrease_mulfail_outer_return_spec_within
     hsp hret hsavedU hPi
   -- Flat spelling of the shared failure-tail premise.
   have htFlat :
-      cpsTripleWithin 9 (K73 + 272) raIn wholeCode
+      cpsTripleWithin 9 (K73 + 276) raIn wholeCode
         ((.x2 ↦ᵣ spH) ** (regOwn .x1 ** regOwn .x8 ** regOwn .x9 **
             regOwn .x18 ** regOwn .x19 ** regOwn .x20) **
           frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
@@ -183,7 +183,7 @@ theorem k73_decrease_mulfail_outer_return_spec_within
   -- Lift the incoming pins to the ownerships the tail machinery consumes,
   -- deepest first (each tower descends the chain heads to its pin).
   have c20 :
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
         (.x19 ↦ᵣ w19) ** regOwn .x20 ** regOwn .x10 ** P) s :=
@@ -191,7 +191,7 @@ theorem k73_decrease_mulfail_outer_return_spec_within
       (decr_under_id (decr_under_id (decr_under_id
         (decr_sep_pin_lift (r := Reg.x20) (v := w20))))))))) s hp
   have c19 :
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) ** (.x18 ↦ᵣ w18) **
         regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
@@ -199,7 +199,7 @@ theorem k73_decrease_mulfail_outer_return_spec_within
       (decr_under_id (decr_under_id
         (decr_sep_pin_lift (r := Reg.x19) (v := w19)))))))) s c20
   have c18 :
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** (.x9 ↦ᵣ w9) **
         regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
@@ -207,14 +207,14 @@ theorem k73_decrease_mulfail_outer_return_spec_within
       (decr_under_id
         (decr_sep_pin_lift (r := Reg.x18) (v := w18))))))) s c19
   have c9 :
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ w8) ** regOwn .x9 ** regOwn .x18 **
         regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
     decr_under_id (decr_under_id (decr_under_id (decr_under_id (decr_under_id
       (decr_sep_pin_lift (r := Reg.x9) (v := w9)))))) s c18
   have c8 :
-      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
         regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P) s :=
@@ -222,16 +222,16 @@ theorem k73_decrease_mulfail_outer_return_spec_within
       (decr_sep_pin_lift (r := Reg.x8) (v := w8))))) s c9
   -- Regroup with the link-register pin at the head ...
   have egrpa :
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
           frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
           (.x2 ↦ᵣ spH) ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
           regOwn .x19 ** regOwn .x20 ** regOwn .x10 ** P)) =
-      (((.x1 ↦ᵣ (K73 + 88)) ** ((.x2 ↦ᵣ spH) **
+      (((.x1 ↦ᵣ (K73 + 92)) ** ((.x2 ↦ᵣ spH) **
           frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
           regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
           regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P))) := by
     xperm_cert_eq
-  have hx1 : ((.x1 ↦ᵣ (K73 + 88)) ** ((.x2 ↦ᵣ spH) **
+  have hx1 : ((.x1 ↦ᵣ (K73 + 92)) ** ((.x2 ↦ᵣ spH) **
       frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
       regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
       regOwn .x20 ** regOwn .x10 ** (.x0 ↦ᵣ (0 : Word)) ** P)) s := egrpa ▸ c8
@@ -298,7 +298,7 @@ def k73_decr_ghole (_spH : Word) (G : Assertion) : Assertion :=
 def k73_decr_mulfail_win (spH deltaV target basePtr outPtr : Word)
     (baseBytes outWin : List (BitVec 8)) : Assertion :=
   fun s => ∃ k,
-    (U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+    (U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
         basePtr outPtr target deltaV (0 : Word) **
       bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
       k73MulOverflowCoreNoStatus (k73_decr_img1 baseBytes deltaV) k) s
@@ -328,7 +328,7 @@ private theorem k73_decr_mulfail_twinfeed
           (k73_decr_img1 baseBytes deltaV)
           (k73_decr_img2 baseBytes deltaV outWin)
           (k73_decr_ghole spH Grest) ** regOwn .x10) s →
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
         frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
         (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
         (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) ** (.x20 ↦ᵣ (0 : Word)) **
@@ -352,12 +352,12 @@ private theorem k73_decr_mulfail_twinfeed
   dsimp only [k73DecreaseMulCarryRest, k73_decr_ghole] at hp
   -- Pull the existential window out of the chain.
   have hpW :
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
             frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
             U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
           ((fun u => ∃ k,
               (k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
-                  (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
+                  (K73 + 92) basePtr outPtr target deltaV (0 : Word) **
                 bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
                 k73MulOverflowCoreNoStatus
                   (k73_decr_img1 baseBytes deltaV) k) u) **
@@ -365,13 +365,13 @@ private theorem k73_decr_mulfail_twinfeed
               regOwn .x20 ** Grest ** regOwn .x10))) s := by
     xperm_hyp hp
   have hpE :
-      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
             frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
             U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
           ((fun u =>
               ∃ k,
                 ((k73MulEpilogueNoRa (spH + signExtend12 (-48 : BitVec 12))
-                      (K73 + 88) basePtr outPtr target deltaV (0 : Word) **
+                      (K73 + 92) basePtr outPtr target deltaV (0 : Word) **
                     bytesRegion outPtr
                       (k73_decr_img2 baseBytes deltaV outWin) **
                     k73MulOverflowCoreNoStatus
@@ -388,14 +388,14 @@ private theorem k73_decr_mulfail_twinfeed
   -- the existential re-wrap happens (every later split stays inside the
   -- original partition tree, so no cross-block recombination is needed).
   have hkFlat :
-      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+      (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
           frameSlotsSaved k73Frame spH (k73Saved raIn v8 v9 v18 v19 v20) **
           (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
           (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) **
           (.x20 ↦ᵣ (0 : Word)) ** regOwn .x10 **
           (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
             (((U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12))
-                  (K73 + 88) basePtr outPtr target deltaV (0 : Word)) **
+                  (K73 + 92) basePtr outPtr target deltaV (0 : Word)) **
                 (bytesRegion outPtr
                     (k73_decr_img2 baseBytes deltaV outWin) **
                   k73MulOverflowCoreNoStatus
@@ -403,7 +403,7 @@ private theorem k73_decr_mulfail_twinfeed
               (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
                 regOwn .x20 ** Grest)))) s := by
     have hEq :
-        ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
               frameSlotsSaved k73Frame spH
                 (k73Saved raIn v8 v9 v18 v19 v20) **
               U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes) **
@@ -411,7 +411,7 @@ private theorem k73_decr_mulfail_twinfeed
                     (.x18 ↦ᵣ target) ** (.x19 ↦ᵣ deltaV) **
                     (.x20 ↦ᵣ (0 : Word)) **
                     U256MulU64Be.frameSlots
-                      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+                      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
                       basePtr outPtr target deltaV (0 : Word)) **
                   (bytesRegion outPtr
                       (k73_decr_img2 baseBytes deltaV outWin) **
@@ -419,7 +419,7 @@ private theorem k73_decr_mulfail_twinfeed
                       (k73_decr_img1 baseBytes deltaV) k)) **
               (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
                 regOwn .x20 ** (Grest ** regOwn .x10)))) =
-        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 88)) **
+        (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
             frameSlotsSaved k73Frame spH
               (k73Saved raIn v8 v9 v18 v19 v20) **
             (.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ basePtr) ** (.x9 ↦ᵣ outPtr) **
@@ -427,7 +427,7 @@ private theorem k73_decr_mulfail_twinfeed
             (.x20 ↦ᵣ (0 : Word)) ** regOwn .x10 **
             (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
               (((U256MulU64Be.frameSlots
-                    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+                    (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
                     basePtr outPtr target deltaV (0 : Word)) **
                   (bytesRegion outPtr
                       (k73_decr_img2 baseBytes deltaV outWin) **
@@ -487,7 +487,7 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
     (hoverOut : outPtr.toNat + 32 < 2 ^ 64)
     (hvalidOut : ∀ j, j < 32 →
       isValidByteAccess (outPtr + BitVec.ofNat 64 j) = true) :
-    cpsBranchWithin (19 + 3852 + 9) K73 wholeCode
+    cpsBranchWithin (20 + 3852 + 9) K73 wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outWin
         (EvmAsm.Codegen.U256MulU64Be.frameSlots
@@ -500,7 +500,7 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
         (.x10 ↦ᵣ 1) ** (.x0 ↦ᵣ (0 : Word)) **
         k73_decr_mulfail_junk spH (target - gasUsed) target basePtr outPtr
           baseBytes outWin (k73_decr_ghole spH Grest))
-      (K73 + 92)
+      (K73 + 96)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73DecreaseMulCarryRest spH raIn basePtr outPtr target
           (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
@@ -520,21 +520,21 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
     halignA hoverA hvalidA halignOut hoverOut hvalidOut
   -- Re-typed at the statement's image-token spelling so the final combinator
   -- unifies against the goal syntactically.
-  have hciiiT : cpsBranchWithin (19 + 3852) K73 wholeCode
+  have hciiiT : cpsBranchWithin (20 + 3852) K73 wholeCode
       (k73HeadPre sp0 spH raIn gasLimit gasUsed basePtr outPtr
         v8 v9 v18 v19 v20 baseBytes outWin
         (EvmAsm.Codegen.U256MulU64Be.frameSlots
           (spH + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
           k73_decr_ghole spH Grest))
-      (K73 + 272)
+      (K73 + 276)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73DecreaseMulCarryRest spH raIn basePtr outPtr target
           (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
           (k73_decr_img1 baseBytes (target - gasUsed))
           (k73_decr_img2 baseBytes (target - gasUsed) outWin)
           (k73_decr_ghole spH Grest) ** regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
       (((.x0 : Reg) ↦ᵣ (0 : Word)) **
         k73DecreaseMulCarryRest spH raIn basePtr outPtr target
           (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
@@ -552,7 +552,7 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
         baseBytes outWin).pcFree :=
     k73_pcFree_exists (A := fun k =>
         (U256MulU64Be.frameSlots (spH + signExtend12 (-48 : BitVec 12))
-            (K73 + 88) basePtr outPtr target (target - gasUsed) (0 : Word) **
+            (K73 + 92) basePtr outPtr target (target - gasUsed) (0 : Word) **
           bytesRegion outPtr
             (k73_decr_img2 baseBytes (target - gasUsed) outWin) **
           k73MulOverflowCoreNoStatus
@@ -630,7 +630,7 @@ def k73_decr_sub_return_post
           8)) **
     bytesRegion basePtr baseBytes **
     EvmAsm.Codegen.U256MulU64Be.frameSlots
-      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 88)
+      (spH + signExtend12 (-48 : BitVec 12)) (K73 + 92)
       basePtr outPtr target (target - gasUsed) (0 : Word) **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 baseBytes (target - gasUsed)) **
@@ -705,7 +705,7 @@ theorem k73_decrease_route_machine_spec_within
             (k73_decr_img2 baseBytes (target - gasUsed) outWin) target)
           8)).body.size + 1)
         ≤ 2 ^ 64) :
-    cpsBranchWithin ((19 + 3852 + 9) +
+    cpsBranchWithin ((20 + 3852 + 9) +
         (((((10 +
               (u256DivU64BeInPlaceFn outPtr target
                 (k73_decr_img2 baseBytes (target - gasUsed) outWin)).body.steps +
@@ -806,14 +806,14 @@ theorem k73_decrease_route_machine_spec_within
     gasUsed = 2500`, `gasLimit = 10000`, zero scratch windows, empty
     ambience.  Discharged by direct application - no hypotheses, no sorry. -/
 theorem k73_decr_entry_status_native_inhabited :
-    cpsBranchWithin (19 + 3852) K73 wholeCode
+    cpsBranchWithin (20 + 3852) K73 wholeCode
       (k73HeadPre (0xa0050038 : Word) 0xa0050000 0 10000 2500 0xa0000000
         0xa0000100 0 0 0 0 0 (List.replicate 32 0) (List.replicate 32 0)
         (EvmAsm.Codegen.U256MulU64Be.frameSlots
           (0xa0050000 + signExtend12 (-48 : BitVec 12)) 0 0 0 0 0 0 **
           bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
             (List.replicate 40 0) ** empAssertion))
-      (K73 + 272)
+      (K73 + 276)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest 0xa0050000 0 0xa0000000 0xa0000100 5000
             (5000 - 2500 : Word) 0 0 0 0 0 (List.replicate 32 0)
@@ -824,7 +824,7 @@ theorem k73_decr_entry_status_native_inhabited :
                 (5000 - 2500 : Word) 32) (List.replicate 32 0) 32)
             empAssertion **
           regOwn .x10)
-      (K73 + 92)
+      (K73 + 96)
         (((.x0 : Reg) ↦ᵣ (0 : Word)) **
           k73DecreaseMulCarryRest 0xa0050000 0 0xa0000000 0xa0000100 5000
             (5000 - 2500 : Word) 0 0 0 0 0 (List.replicate 32 0)
