@@ -156,7 +156,6 @@ abbrev mizCode : CodeReq :=
   CodeReq.ofProg MizB ModexpIszeroSAsm.modexpIszero_prog
 
 set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 4000000 in
 private theorem miz_flatten (ptr b : Word) (bs : List (BitVec 8)) (n : Nat) :
     ((ModexpIszeroSAsm.mizDeriv ptr bs n).stmt.flatten b : List Instr)
       = ModexpIszeroSAsm.modexpIszero_prog := rfl
@@ -224,11 +223,28 @@ abbrev spncCode : CodeReq :=
   CodeReq.ofProg SpncB SenderPostNonceConsistentSAsm.spnc_prog
 
 set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 4000000 in
+/-- Ghost-erasure hop: `flatten` drops the derivation's `Prop`-valued
+    annotations, so the ghosts can be zeroed first (the one-step
+    identity times out the elaborator's `whnf` at the default budget;
+    the two hops each reduce within it). -/
+private theorem spnc_flatten_ghost_free (rec b : Word)
+    (bs : List (BitVec 8)) :
+    ((SenderPostNonceConsistentSAsm.spncDeriv rec bs).stmt.flatten b
+        : List Instr)
+      = ((SenderPostNonceConsistentSAsm.spncDeriv 0 []).stmt.flatten b
+        : List Instr) := rfl
+
+set_option maxRecDepth 1000000 in
+private theorem spnc_flatten_zero (b : Word) :
+    ((SenderPostNonceConsistentSAsm.spncDeriv 0 []).stmt.flatten b
+        : List Instr)
+      = SenderPostNonceConsistentSAsm.spnc_prog := rfl
+
 private theorem spnc_flatten (rec b : Word) (bs : List (BitVec 8)) :
     ((SenderPostNonceConsistentSAsm.spncDeriv rec bs).stmt.flatten b
         : List Instr)
-      = SenderPostNonceConsistentSAsm.spnc_prog := rfl
+      = SenderPostNonceConsistentSAsm.spnc_prog := by
+  rw [spnc_flatten_ghost_free, spnc_flatten_zero]
 
 /-- ⭐ **`sender_post_nonce_consistent` at its linked guest address.**
     Entered with `a0` = the 144-byte sender record and an aligned return
@@ -385,7 +401,6 @@ abbrev eddMcCode : CodeReq :=
   CodeReq.ofProg EddMcB EddMemcpySAsm.eddMemcpy_prog
 
 set_option maxRecDepth 1000000 in
-set_option maxHeartbeats 4000000 in
 private theorem eddMc_flatten (src dst b : Word) (bs ws : List (BitVec 8))
     (n : Nat) :
     ((EddMemcpySAsm.mcDeriv src dst bs ws n).stmt.flatten b : List Instr)
