@@ -22,6 +22,7 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkChain
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceU256Sat
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractWitness
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterModelSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashSpec
 import EvmAsm.Codegen.Programs.HeadersParentHashPrologues
 import EvmAsm.Codegen.Programs.HeadersParentHashMain
