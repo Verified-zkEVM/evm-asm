@@ -481,9 +481,25 @@ theorem calculate_blob_gas_price_eq_pure_taylorExpNat
   apply taylor_exponential_one_eq_pure
   norm_num [GasCosts.BLOB_BASE_FEE_UPDATE_FRACTION]
 
+theorem calculate_blob_gas_price_toOption_eq_taylorExp384
+    (excess_blob_gas : U64)
+    (h_num : excess_blob_gas < taylorWord64Bound)
+    (h_result : taylorExpNat 1 excess_blob_gas taylorDenominator <
+      taylorResultBound) :
+    (calculate_blob_gas_price excess_blob_gas).toOption =
+      taylorExp384 excess_blob_gas := by
+  rw [calculate_blob_gas_price_eq_pure_taylorExpNat]
+  rw [taylorExp384_some_of_lt excess_blob_gas h_num h_result]
+  have h_den : GasCosts.BLOB_BASE_FEE_UPDATE_FRACTION = taylorDenominator := by
+    rw [taylorDenominator_eq]
+    norm_num [GasCosts.BLOB_BASE_FEE_UPDATE_FRACTION]
+  rw [h_den]
+  rfl
+
 #print axioms taylor_exponential_one_fuel_sufficient
 #print axioms calculate_blob_gas_price_fuel_sufficient
 #print axioms taylor_exponential_one_eq_pure
 #print axioms calculate_blob_gas_price_eq_pure_taylorExpNat
+#print axioms calculate_blob_gas_price_toOption_eq_taylorExp384
 
 end EvmAsm.Stateless.SpecRef
