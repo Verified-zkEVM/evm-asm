@@ -136,6 +136,7 @@ SPEC_SUFFIXES = (
     "Flat_spec_domain",
     "Flat_spec",
     "_spec_within",
+    "_retSpec",
     "_spec",
 )
 SPEC_SUFFIX_PATTERN = "|".join(re.escape(suf) for suf in SPEC_SUFFIXES)
@@ -497,6 +498,7 @@ def self_test() -> int:
         ("theorem tx_signing_hash_specRef_correspondence",
          "tx_signing_hash_specRef_correspondence"),
         ("theorem mptNodeKindSpec_rlp", "mptNodeKindSpec_rlp"),
+        ("theorem sgValidateFixedList_retSpec", "sgValidateFixedList_retSpec"),
     ]
     failures: list[str] = []
     for src, want in must_match:
@@ -514,7 +516,8 @@ def self_test() -> int:
                           ("blsgLtP_spec_specref", "blsg_lt_p"),
                           ("hp_decode_nibbles_spec_ported", "hp_decode_nibbles"),
                           ("tx_signing_hash_specRef_correspondence", "tx_signing_hash"),
-                          ("mptNodeKindSpec_rlp", "mpt_node_kind")]:
+                          ("mptNodeKindSpec_rlp", "mpt_node_kind"),
+                          ("sgValidateFixedList_retSpec", "sg_validate_fixed_list")]:
         base = strip_spec_suffix(thm)
         if camel_to_snake(base) != want_sym:
             failures.append(
