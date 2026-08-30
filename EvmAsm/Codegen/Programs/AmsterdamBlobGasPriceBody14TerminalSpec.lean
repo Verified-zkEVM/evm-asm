@@ -208,7 +208,12 @@ theorem round_terminal_status1
     In the linked artifact
     `70ce14de6cd119437d05785633ec3f03b4b535fa73f4eb5c77d6f2f924b31959`,
     `li x5,496` is at `0x8000b414` (`PriceK+200`) and the taken `bgeu` is at
-    `0x8000b418` (`PriceK+204`), targeting `0x8000b710` (`PriceK+964`). -/
+    `0x8000b418` (`PriceK+204`), targeting `0x8000b710` (`PriceK+964`).  In
+    the same linked loop, the sum/carry checks span `0x8000b41c`--`0x8000b4f8`
+    and the product checks begin at `0x8000b4fc`, while the 256-bit result
+    width check is deferred to `0x8000b6d0`--`0x8000b6dc` after final division.
+    Thus there is no per-iteration `taylorOutputBound` check in the emitted
+    routine; see #12850 for the complete model-versus-emitted comparison. -/
 theorem taylor_round_terminal_496
     (newSp excess outPtr iVal AB PB : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
