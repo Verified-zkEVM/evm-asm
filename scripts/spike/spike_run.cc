@@ -8,6 +8,9 @@
 //   - registers the zisk_accel crypto-CSR extension;
 //   - runs to HTIF exit, then writes SPIKE_OUTPUT_LEN bytes (default 256) from
 //     0xa0010000 to <output-file>.
+// A clean halt also emits `spike_run: halted cleanly steps=N` on stderr so
+// callers can persist the consumed instruction count without guessing from a
+// step budget or a missing output file.
 //
 // Debug env (optional; unset = previous byte-identical behavior):
 //   SPIKE_COMMITLOG=<file>   per-instruction commit log (existing)
@@ -623,6 +626,10 @@ int main(int argc, char** argv) {
             (unsigned long long)mcause, (unsigned long long)mtval, (unsigned long long)mepc);
   } else if (flagv == 0) {
     fprintf(stderr, "spike_run: step cap reached without halt (or watch-stop)\n");
+  } else if (flagv == 1) {
+    const uint64_t steps_used = STEP_CAP - steps_left;
+    fprintf(stderr, "spike_run: halted cleanly steps=%llu\n",
+            (unsigned long long)steps_used);
   }
   bool halted = (flagv == 1);
 
