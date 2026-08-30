@@ -927,8 +927,55 @@ theorem taylor_round_source_full_from_parity_tail_core
     o0 o1 o2 o3 FR hFR rfl rfl (exits := tailExits) hZero
   exact ⟨_, hFull⟩
 
+/- Source-preserving sibling for the model-linked outer fold.  The ordinary
+   adapter above closes the final QBACK into the parity invariant, which is
+   the right public post for callers that do not inspect the recurrence.  The
+   outer model needs the concrete QBACK representation first, so retain that
+   last exit here and leave its conversion to the model bridge. -/
+theorem taylor_round_source_full_from_parity_tail_core_source
+    (newSp excess outPtr iVal : Word) (vals : Reg → Word)
+    (j : Nat) (evenBase oddBase : Word)
+    (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
+    (v5 v6 v7 v28 v29 v30 v31 : Word)
+    (o0 o1 o2 o3 : Word) (FR : Assertion)
+    (hEvenBase : evenBase = newSp + signExtend12 (64 : BitVec 12))
+    (hOddBase : oddBase = newSp + signExtend12 (112 : BitVec 12))
+    (hSumAlign : (newSp + signExtend12 (160 : BitVec 12)).toNat % 8 = 0)
+    (hOutAlign : outPtr.toNat % 8 = 0)
+    (hSumRange : (newSp + signExtend12 (160 : BitVec 12)).toNat + 40 < 2 ^ 64)
+    (hOutRange : outPtr.toNat + 32 < 2 ^ 64)
+    (hSumValid : ∀ i < 32,
+      isValidByteAccess ((newSp + signExtend12 (160 : BitVec 12)) + BitVec.ofNat 64 i) = true)
+    (hOutValid : ∀ i < 32, isValidByteAccess (outPtr + BitVec.ofNat 64 i) = true)
+    (hFR : FR.pcFree) :
+    ∃ exits : List (Word × Assertion),
+      cpsNBranchWithin
+        (4028 + 4183 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1 + 1)
+        (PriceK + 144) priceCode
+        (taylorRoundSourcePre newSp excess outPtr iVal
+          (parityBuffer j evenBase oddBase)
+          (parityBuffer j oddBase evenBase) vals
+          a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+          s0 s1 s2 s3 s4 s5 v5 v6 v7 v28 v29 v30 v31
+          (exitdivOutputCells outPtr o0 o1 o2 o3 ** FR)) exits := by
+  obtain ⟨tailExits, hZero⟩ := round_zero_from_parity_tail_core
+    newSp excess outPtr iVal vals j evenBase oddBase
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    s0 s1 s2 s3 s4 s5 v7 v28 v29 v30 v31
+    o0 o1 o2 o3 FR hEvenBase hOddBase
+    hSumAlign hOutAlign hSumRange hOutRange hSumValid hOutValid hFR
+  have hFull := EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round_source_full_status1
+    newSp excess outPtr iVal
+    (parityBuffer j evenBase oddBase)
+    (parityBuffer j oddBase evenBase) vals
+    a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5
+    s0 s1 s2 s3 s4 s5 v5 v6 v7 v28 v29 v30 v31
+    o0 o1 o2 o3 FR hFR (exits := tailExits) hZero
+  exact ⟨_, hFull⟩
+
 #print axioms round_zero_from_parity_tail_core
 #print axioms taylor_round_source_full_from_parity_tail_core
+#print axioms taylor_round_source_full_from_parity_tail_core_source
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
