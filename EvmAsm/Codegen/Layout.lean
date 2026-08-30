@@ -88,7 +88,12 @@ def RAM_MEM_END : Nat := 0xc0000000
     adapter has one root frame in addition to one 40-byte frame per bounded
     recursive level. -/
 
-/-- Input-derived recursion cap instantiated by the linked Amsterdam guest. -/
+/-- Machine recursion threshold used by the linked Amsterdam guest.
+    The externally observed nesting count includes two wrapper levels above the
+    machine counter: with cap `C`, the walk accepts through observed depth
+    `C + 1` and first rejects at observed depth `C + 2`.  This offset describes
+    how to interpret depth measurements; it does not make an observed reference
+    threshold a specification-mandated value for this machine cap. -/
 def rlpRecursiveDecodeDepthCap : Nat := 1024
 
 /-- Bytes reserved by the adapter's frame arena for a given depth cap. -/
