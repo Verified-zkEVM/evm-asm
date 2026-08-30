@@ -16,16 +16,18 @@
 
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
-import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterFold
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Crypto.BeBytesBridge
 import EvmAsm.Rv64.CPSSpec
+import EvmAsm.Rv64.SAsm.AbiFrameOwn
 
 namespace EvmAsm.Codegen.WitnessIndexBuildSpec
 
 open EvmAsm
 open EvmAsm.Rv64
+open EvmAsm.Rv64.SAsm
 open EvmAsm.Evm64
 open EvmAsm.Crypto
 open EvmAsm.Codegen.Proofs
@@ -640,6 +642,182 @@ theorem widxSiftDown_finite_loop_of_rounds
           (hround round h_round).proof)
       htail
   exact hfold
+
+/-! ## ABI frame and the concrete round boundary
+
+`widx_sift_down` is emitted as the standard eight-register ABI frame.  The
+prologue and epilogue are not part of the loop invariant: `abiFrame_spec_own`
+owns their stack slots, while the round and terminal contracts below talk only
+about the body state.  In particular, `hround` and `htail` remain explicit
+machine obligations; this adapter does not turn a missing round proof into a
+frame assertion.
+-/
+
+/-- Callee-saved registers written by `widx_sift_down`'s frame. -/
+def widxSiftDownFrame : FrameDesc :=
+  [(.x1, 0), (.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40),
+   (.x21, 48), (.x22, 56)]
+
+/-- The 44 instructions between the eight-save prologue and the restore tail. -/
+def widxSiftDownBody : List Instr := (widxSiftDown_prog.drop 9).take 44
+
+@[simp] theorem widxSiftDownFrame_length : widxSiftDownFrame.length = 8 := by
+  decide
+
+@[simp] theorem widxSiftDownBody_length : widxSiftDownBody.length = 44 := by
+  decide
+
+/-- The raw `Program` is exactly the ABI-frame flatten of the body above. -/
+theorem widxSiftDown_prog_eq_abiFrame :
+    abiFrameProg (-64 : BitVec 12) (64 : BitVec 12) widxSiftDownFrame
+      widxSiftDownBody = widxSiftDown_prog := by
+  decide
+
+abbrev widxSiftDownBodyEntry (base : Word) : Word :=
+  base + BitVec.ofNat 64 36
+
+abbrev widxSiftDownLoopEntry (base : Word) : Word :=
+  base + BitVec.ofNat 64 44
+
+abbrev widxSiftDownBodyExit (base : Word) : Word :=
+  base + BitVec.ofNat 64 212
+
+private theorem widxSiftDown_frame_restore (sp0 : Word) :
+    (sp0 + signExtend12 (-64 : BitVec 12)) + signExtend12 (64 : BitVec 12) = sp0 := by
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) by decide,
+    show signExtend12 (64 : BitVec 12) = (64 : Word) by decide]
+  bv_omega
+
+/--
+The setup plus the finite round fold, with an outer read/write frame `F`.
+
+`inv` intentionally does not contain `F`: the frame rule adds `F` to every
+round and terminal exit.  This is the shape needed by the ABI wrapper, where
+the saved-register slots are owned by the caller and must not be smuggled into
+the loop invariant.  The first two setup instructions are a separate
+straight-line contract; the round and terminal contracts are likewise
+separate hypotheses.
+-/
+theorem widxSiftDown_body_from_rounds
+    {bodyEntry hdr bodyExit : Word} {cr : CodeReq}
+    {P Q F : Assertion} {inv : Nat → Assertion}
+    (hF : F.pcFree)
+    (hsetup : cpsTripleWithin 2 bodyEntry hdr cr P (inv 0))
+    (roundSteps : Nat)
+    (hround : ∀ round, round < widxSiftDownMaxRounds →
+      WidxSiftRoundContract hdr cr inv [(bodyExit, Q)] round)
+    (hbound : ∀ round (h_round : round < widxSiftDownMaxRounds),
+      (hround round h_round).steps ≤ roundSteps)
+    (tailSteps : Nat)
+    (htail : cpsNBranchWithin tailSteps hdr cr (inv widxSiftDownMaxRounds)
+      [(bodyExit, Q)]) :
+    cpsTripleWithin (2 + roundSteps * widxSiftDownMaxRounds + tailSteps)
+      bodyEntry bodyExit cr (P ** F) (Q ** F) := by
+  have hfold := widxSiftDown_finite_loop_of_rounds
+    (hdr := hdr) (cr := cr) (inv := inv) (terminal := [(bodyExit, Q)])
+    roundSteps hround hbound tailSteps htail
+  have hfoldF := cpsNBranchWithin_frameR hF hfold
+  have hfoldT : cpsTripleWithin
+      (roundSteps * widxSiftDownMaxRounds + tailSteps)
+      hdr bodyExit cr (inv 0 ** F) (Q ** F) := by
+    simpa using cpsNBranchWithin_as_cpsTripleWithin hfoldF
+  have hsetupF := cpsTripleWithin_frameR F hF hsetup
+  have hseq := cpsTripleWithin_seq_same_cr hsetupF hfoldT
+  convert hseq using 1
+  all_goals omega
+
+/-! The next theorem instantiates that boundary with the actual ABI frame.  Its
+    `hsetup`, `hround`, and `htail` arguments are deliberately visible: this is
+    the consumer-facing contract, while discharging those three premises is
+    the remaining machine proof for the sift-down body.
+-/
+
+theorem widxSiftDown_spec_of_rounds
+    (base sp0 ret : Word) (vals : Reg → Word)
+    (callerPre callerPost : Assertion) (cr : CodeReq)
+    (inv : Nat → Assertion)
+    (roundSteps tailSteps : Nat)
+    (hret : vals .x1 = ret)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret)
+    (hcpPre : callerPre.pcFree) (hcpPost : callerPost.pcFree)
+    (hsub : ∀ a i,
+      CodeReq.ofProg base
+        (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+          widxSiftDownFrame widxSiftDownBody) a = some i → cr a = some i)
+    (hsetup : cpsTripleWithin 2 (widxSiftDownBodyEntry base)
+      (widxSiftDownLoopEntry base) cr
+      (((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-64 : BitVec 12))) **
+        regsAt widxSiftDownFrame vals ** callerPre)
+      (inv 0))
+    (hround : ∀ round, round < widxSiftDownMaxRounds →
+      WidxSiftRoundContract (widxSiftDownLoopEntry base) cr inv
+        [(widxSiftDownBodyExit base,
+          ((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-64 : BitVec 12))) **
+            regsOwnAt widxSiftDownFrame ** callerPost)] round)
+    (hbound : ∀ round (h_round : round < widxSiftDownMaxRounds),
+      (hround round h_round).steps ≤ roundSteps)
+    (htail : cpsNBranchWithin tailSteps (widxSiftDownLoopEntry base) cr
+      (inv widxSiftDownMaxRounds)
+      [(widxSiftDownBodyExit base,
+        ((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-64 : BitVec 12))) **
+          regsOwnAt widxSiftDownFrame ** callerPost)]) :
+    cpsTripleWithin
+      (1 + widxSiftDownFrame.length +
+        (2 + roundSteps * widxSiftDownMaxRounds + tailSteps) +
+        widxSiftDownFrame.length + 1 + 1)
+      base ret cr
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt widxSiftDownFrame vals **
+        frameSlotsOwn widxSiftDownFrame
+          (sp0 + signExtend12 (-64 : BitVec 12)) ** callerPre)
+      (((.x2 : Reg) ↦ᵣ sp0) ** regsAt widxSiftDownFrame vals **
+        frameSlotsSaved widxSiftDownFrame
+          (sp0 + signExtend12 (-64 : BitVec 12)) vals ** callerPost) := by
+  set newSp := sp0 + signExtend12 (-64 : BitVec 12) with hNS
+  have hbody0 := widxSiftDown_body_from_rounds
+    (bodyEntry := widxSiftDownBodyEntry base)
+    (hdr := widxSiftDownLoopEntry base)
+    (bodyExit := widxSiftDownBodyExit base)
+    (cr := cr)
+    (P := (((.x2 : Reg) ↦ᵣ newSp) ** regsAt widxSiftDownFrame vals ** callerPre))
+    (Q := (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt widxSiftDownFrame ** callerPost))
+    (F := frameSlotsSaved widxSiftDownFrame newSp vals)
+    (inv := inv)
+    (pcFree_frameSlotsSaved widxSiftDownFrame newSp vals)
+    hsetup roundSteps hround hbound tailSteps htail
+  have hbody : cpsTripleWithin
+      (2 + roundSteps * widxSiftDownMaxRounds + tailSteps)
+      (widxSiftDownBodyEntry base) (widxSiftDownBodyExit base) cr
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsAt widxSiftDownFrame vals **
+        frameSlotsSaved widxSiftDownFrame newSp vals ** callerPre)
+      (((.x2 : Reg) ↦ᵣ newSp) ** regsOwnAt widxSiftDownFrame **
+        frameSlotsSaved widxSiftDownFrame newSp vals ** callerPost) := by
+    refine cpsTripleWithin_weaken
+      (fun h hp => by xperm_hyp hp)
+      (fun h hq => by xperm_hyp hq) hbody0
+  have hprogBound :
+      4 * (abiFrameProg (-64 : BitVec 12) (64 : BitVec 12)
+        widxSiftDownFrame widxSiftDownBody).length < 2 ^ 64 := by
+    rw [widxSiftDown_prog_eq_abiFrame]
+    decide
+  apply abiFrame_spec_own base sp0 ret (-64 : BitVec 12) (64 : BitVec 12)
+    widxSiftDownFrame (0 : BitVec 12)
+    [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40),
+      (.x21, 48), (.x22, 56)]
+    vals widxSiftDownBody
+    (2 + roundSteps * widxSiftDownMaxRounds + tailSteps)
+    callerPre callerPost cr
+  · rfl
+  · decide
+  · decide
+  · exact hprogBound
+  · exact hret
+  · exact halignRet
+  · exact widxSiftDown_frame_restore sp0
+  · exact hcpPre
+  · exact hcpPost
+  · simpa only [widxSiftDown_prog_eq_abiFrame] using hsub
+  · simpa [widxSiftDownBodyEntry, widxSiftDownBodyExit,
+      widxSiftDownFrame_length, widxSiftDownBody_length, hNS] using hbody
 
 /-! ## One-step functional leaf
 
