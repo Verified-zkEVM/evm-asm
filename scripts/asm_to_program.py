@@ -545,7 +545,13 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # #13093's first conversion wave removes four additional local-J sites while
 # retaining the unlinked probe programs behind their source-owned PC bases.
 # The deferred probe redo removes one more local-J site from the live debt.
-EXPECTED_BARE_J_SITES = 146
+# Wave 3 was measured against origin/main 5c8d20835 (146 bare local-J
+# sites).  It converts 23 source sites in this tranche; 17 are represented by
+# this generated-block ratchet (the six ChainValidate offline, source-owned
+# blocks use a hand-authored base and are not matched by this counter).
+# Keep the delta explicit so a rebase can fold in intervening main changes;
+# #13108's pending retirement removes no J sites.
+EXPECTED_BARE_J_SITES = 129
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -569,8 +575,10 @@ EXPECTED_BARE_J_SITES = 146
 # deferred probe redo removes 15 more using source-owned PC bases.  Remaining
 # unlinked branches stay numeric until they have a real named source/guest
 # anchor.
-# #13096 retires the sender-post-nonce probe, removing its two bare B sites.
-EXPECTED_BARE_B_SITES = 632
+# Wave 3 was measured against origin/main 5c8d20835 (634 bare local-B
+# sites) and removes 31 of them.  Main now includes #13108, which independently
+# retires two bare B sites (634 -> 632), so this wave's ratchet is 601.
+EXPECTED_BARE_B_SITES = 601
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).
