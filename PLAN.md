@@ -137,6 +137,25 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13070 step 2 — the unified edd contract, 2026-08-30)
+
+- ✅ **`extractDepositData_spec`**
+  (`Codegen/Proofs/ExtractDepositDataUnified.lean`): ONE whole-routine
+  contract for `extract_deposit_data`, total over the payload — the
+  post is `if eddAccept lenW chunks… then eddOkPost else eddRejPost`
+  with `eddAccept` (length = 576 ∧ ten `eddOk`s) decidable.  The key
+  collapse: every failure arm — wrong length, or check `k` rejecting —
+  leaves the SAME machine state, so twelve arms fold into a two-way
+  `if`, not a twelve-way match.  Proof: 11 nested `by_cases` dispatch
+  to the arm triples (fail / reject-k / ok), each framed and
+  fuel-monotoned to 7749.  Row witness switched to the unified
+  theorem; the arena-parametric generalization is #13070's remaining
+  step 1.
+- Ops lesson: `git checkout main` with a dirty tree CARRIES the
+  uncommitted edits onto the new branch — the abandoned #13069
+  duplicate rows leaked in and had to be surgically reverted (restore
+  file from main + re-pin counts from `git show main:`).
+
 ### Recent (#13090 — sg_memcpy rowed, 2026-08-30)
 
 - ✅ **`sg_memcpy` rowed `.proven`** (228/174/188):
