@@ -34,7 +34,6 @@ import EvmAsm.Codegen.Programs.CreateCodeEffectLog
 import EvmAsm.Codegen.Programs.CreateDeployedCodeValid
 import EvmAsm.Codegen.Programs.CreateInitcodeSizeValid
 import EvmAsm.Codegen.Programs.CreateCreatorNonce
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.NonstorageEffectLog
 import EvmAsm.Codegen.Programs.CreateRoundtrip
 import EvmAsm.Codegen.Programs.CallBalanceGate

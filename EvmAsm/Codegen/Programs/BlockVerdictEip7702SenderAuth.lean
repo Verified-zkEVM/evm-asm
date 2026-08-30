@@ -11,7 +11,8 @@ module
 namespace EvmAsm.Codegen
 
 /-- Inline block_verdict fragment for the type-4 sender-as-authority nonce case.
-    Reached only after `sender_post_nonce_consistent` reports that BAL post_nonce
+    Reached only after the BAL sender post-nonce validation path reports that
+    the BAL post_nonce
     is not `sender_pre + 1`. The fragment proves the single-auth self-authority
     case and then requires `sender_pre + 2`; otherwise it branches to
     `.Lbv_sender_nonce_fail`. -/
