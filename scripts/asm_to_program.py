@@ -1816,6 +1816,9 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #13091: the sixth u32le twin, rowed at its linked entry via
+        # the pinned bahU32leFn spec (like sws_u32le/spw_u32le).
+        'sg_load_u32le',
         # GH #13089: three more hand-verified DCode leaves rowed at their
         # linked entries (modexp_iszero, edd_be32_eq, edd_memcpy); like
         # sg_validate_fixed_list below, their flat whole-routine triples
