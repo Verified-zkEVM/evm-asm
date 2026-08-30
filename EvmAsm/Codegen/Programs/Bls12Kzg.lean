@@ -501,7 +501,7 @@ def blskNegScalar_prog : Program :=
     .ADDI .x11 .x11 (laLo GuestAddrs.blsg_n_be (GuestAddrs.blsk_neg_scalar + 16)),
     .LI .x12 (32 : Word),
     .JAL .x1 (jalOff GuestAddrs.blsk_lt_be (GuestAddrs.blsk_neg_scalar + 28)),
-    .BEQ .x10 .x0 (124 : BitVec 13),
+    .BEQ .x10 .x0 (brOff (GuestAddrs.blsk_neg_scalar + 156) (GuestAddrs.blsk_neg_scalar + 32)),
     .AUIPC .x6 (laHi GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 36)),
     .ADDI .x6 .x6 (laLo GuestAddrs.blsk_scal_be (GuestAddrs.blsk_neg_scalar + 36)),
     .LI .x5 (16 : Word),
@@ -591,7 +591,7 @@ def blskG1Wire_prog : Program :=
     .BNE .x28 .x0 (-20 : BitVec 13),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (2 : Word),
-    .BNE .x5 .x6 (-80 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.blsk_g1_wire + 4) (GuestAddrs.blsk_g1_wire + 84)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bls12KzgG1WireFunction : String :=
@@ -634,7 +634,7 @@ def blskG2Wire_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.blsg_le_to_be (GuestAddrs.blsk_g2_wire + 88)),
     .ADDI .x18 .x18 (1 : BitVec 12),
     .LI .x5 (4 : Word),
-    .BNE .x18 .x5 (-68 : BitVec 13),
+    .BNE .x18 .x5 (brOff (GuestAddrs.blsk_g2_wire + 32) (GuestAddrs.blsk_g2_wire + 100)),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),
