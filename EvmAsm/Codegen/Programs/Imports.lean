@@ -484,6 +484,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Composition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterSpec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractWitness
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
@@ -494,6 +495,7 @@ import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus7Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeErrorArmWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus1Witness
 import EvmAsm.Codegen.Programs.ValidateHeaderPair
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlp
 import EvmAsm.Codegen.Programs.BlockHeaderSszToRlpSpec
