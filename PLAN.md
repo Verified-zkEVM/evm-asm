@@ -137,6 +137,23 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13089 — the four remaining DCode leaves rowed, 2026-08-30)
+
+- ✅ **`modexp_iszero`, `sender_post_nonce_consistent`, `edd_be32_eq`,
+  `edd_memcpy` rowed `.proven`** (226/172/186):
+  `Codegen/Proofs/DCodeLeafFlatEntries.lean` derives each leaf's flat
+  whole-routine triple at its linked entry from the DCode retSpec
+  (asrtM pack/unpack; shared `rf2`/`rf3` callee register files and
+  exposed-register split lemmas).  Three new GuestAddrs pins via the
+  `asm_to_program.py` extras.
+- **Flatten-identity findings**: `mizDeriv` (fuel-256 break-swap loop),
+  `spncDeriv` (cascade + fuel-8 accumulate), and `mcDeriv` all admit
+  DIRECT `rfl` ghost-free flatten at `maxHeartbeats 4000000` +
+  `maxRecDepth 1000000` — only `eddDeriv`'s `dretWhileHeaderBreak`
+  shape blows the kernel recursion guard and needs the stmt-pin.
+- Keeping fuel SYMBOLIC (`(deriv …).stmt.steps`) in the flat statements
+  avoids the steps identities entirely — only the CodeReq is rewritten.
+
 ### Recent (#13071 — sg_validate_fixed_list rowed, 2026-08-30)
 
 - ✅ **`sg_validate_fixed_list` rowed `.proven`** (219/168/179):

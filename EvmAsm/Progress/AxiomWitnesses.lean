@@ -300,6 +300,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
 
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.eddMemcpyFlat_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.spncFlat_spec
+
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
 #print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
