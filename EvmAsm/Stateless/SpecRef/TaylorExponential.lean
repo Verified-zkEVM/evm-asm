@@ -98,6 +98,18 @@ decreasing_by
 def taylorExpNat (factor numerator denominator : Nat) : Nat :=
   taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator
 
+/-! This interface lemma keeps the defining equation available to downstream
+    modules without exposing the implementation body of `taylorExpNat`. -/
+theorem taylorExpNat_eq_aux (factor numerator denominator : Nat) :
+    taylorExpNat factor numerator denominator =
+      taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator := by
+  rfl
+
+theorem taylorNatAux_zero (num denominator i output : Nat) :
+    taylorNatAux num denominator i 0 output = output := by
+  rw [taylorNatAux.eq_1]
+  simp
+
 theorem taylorNatAux_output_le (num denominator i acc output : Nat) :
     output ≤ taylorNatAux num denominator i acc output := by
   induction i, acc, output using taylorNatAux.induct num denominator with
