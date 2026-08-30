@@ -950,4 +950,125 @@ theorem numberNotSucc_reject
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) s4
 
+-- ---------------------------------------------------------------------
+-- Core-body argument-setup arms (the ten instructions feeding the K70 /
+-- K74 / K67 JALs from the `validateHeaderCoreContract` route, #12346).
+-- Each is a pure 1-step LD/ADDI: ESTABLISHES the loaded/base+imm value in
+-- the target register; OWNS the source register and the (base + imm) mem
+-- atom. They are callee-free, so nothing about them depends on K70/K67
+-- landing, and they compose into every one of the twelve remaining exits.
+
+/-- `LD x10, 136(x18)` @ H+64: load `this.excessBlobGas` into x10. -/
+theorem ldThisExcessBlobGas (thisPtr o10 excessBlobGas : Word) :
+    cpsTripleWithin 1 (H + 64) (H + 68) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ o10) ** ((thisPtr + 136) ↦ₘ excessBlobGas))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ excessBlobGas) ** ((thisPtr + 136) ↦ₘ excessBlobGas)) := by
+  have h := ld_spec_gen_within .x10 .x18 thisPtr o10 excessBlobGas (136 : BitVec 12) (H + 64) (by decide)
+  rw [show signExtend12 (136 : BitVec 12) = (136 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 64) prog 16 (.LD .x10 .x18 (136 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x11, 128(x19)` @ H+68: load `parent.blobGasUsed` into x11. -/
+theorem ldParentBlobGasUsed (parentPtr o11 blobGasUsed : Word) :
+    cpsTripleWithin 1 (H + 68) (H + 72) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 128) ↦ₘ blobGasUsed))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ blobGasUsed) ** ((parentPtr + 128) ↦ₘ blobGasUsed)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 blobGasUsed (128 : BitVec 12) (H + 68) (by decide)
+  rw [show signExtend12 (128 : BitVec 12) = (128 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 68) prog 17 (.LD .x11 .x19 (128 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x12, 136(x19)` @ H+72: load `parent.excessBlobGas` into x12. -/
+theorem ldParentExcessBlobGas (parentPtr o12 excessBlobGas : Word) :
+    cpsTripleWithin 1 (H + 72) (H + 76) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ o12) ** ((parentPtr + 136) ↦ₘ excessBlobGas))
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ excessBlobGas) ** ((parentPtr + 136) ↦ₘ excessBlobGas)) := by
+  have h := ld_spec_gen_within .x12 .x19 parentPtr o12 excessBlobGas (136 : BitVec 12) (H + 72) (by decide)
+  rw [show signExtend12 (136 : BitVec 12) = (136 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 72) prog 18 (.LD .x12 .x19 (136 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `ADDI x13, x19, 96` @ H+76: set x13 := parentPtr + 96 (the excess-blob
+    argument block pointer). ESTABLISHES `x13 = parentPtr + 96`. -/
+theorem addiParentStructPtr96 (parentPtr x13Old : Word) :
+    cpsTripleWithin 1 (H + 76) (H + 80) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ x13Old))
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ (parentPtr + 96))) := by
+  have h := addi_spec_gen_within .x13 .x19 x13Old parentPtr (96 : BitVec 12) (H + 76) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 76) prog 19 (.ADDI .x13 .x19 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x10, 80(x18)` @ H+100: load `this.gasLimit` into x10. -/
+theorem ldThisGasLimit (thisPtr o10 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 100) (H + 104) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ o10) ** ((thisPtr + 80) ↦ₘ gasLimit))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ gasLimit) ** ((thisPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x10 .x18 thisPtr o10 gasLimit (80 : BitVec 12) (H + 100) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 100) prog 25 (.LD .x10 .x18 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x11, 80(x19)` @ H+104: load `parent.gasLimit` into x11. -/
+theorem ldParentGasLimit (parentPtr o11 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 104) (H + 108) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ gasLimit) ** ((parentPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 gasLimit (80 : BitVec 12) (H + 104) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 104) prog 26 (.LD .x11 .x19 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `ADDI x10, x18, 96` @ H+116: set x10 := thisPtr + 96 (the base-fee
+    argument block pointer). ESTABLISHES `x10 = thisPtr + 96`. -/
+theorem addiThisStructPtr96 (thisPtr x10Old : Word) :
+    cpsTripleWithin 1 (H + 116) (H + 120) callerCode
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ x10Old))
+      ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ (thisPtr + 96))) := by
+  have h := addi_spec_gen_within .x10 .x18 x10Old thisPtr (96 : BitVec 12) (H + 116) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 116) prog 29 (.ADDI .x10 .x18 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x11, 80(x19)` @ H+120: load `parent.gasLimit` into x11 (base-fee block). -/
+theorem ldParentGasLimitRe (parentPtr o11 gasLimit : Word) :
+    cpsTripleWithin 1 (H + 120) (H + 124) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit))
+      ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ gasLimit) ** ((parentPtr + 80) ↦ₘ gasLimit)) := by
+  have h := ld_spec_gen_within .x11 .x19 parentPtr o11 gasLimit (80 : BitVec 12) (H + 120) (by decide)
+  rw [show signExtend12 (80 : BitVec 12) = (80 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 120) prog 30 (.LD .x11 .x19 (80 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `LD x12, 88(x19)` @ H+124: load `parent.gasUsed` into x12. -/
+theorem ldParentGasUsed (parentPtr o12 gasUsed : Word) :
+    cpsTripleWithin 1 (H + 124) (H + 128) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ o12) ** ((parentPtr + 88) ↦ₘ gasUsed))
+      ((.x19 ↦ᵣ parentPtr) ** (.x12 ↦ᵣ gasUsed) ** ((parentPtr + 88) ↦ₘ gasUsed)) := by
+  have h := ld_spec_gen_within .x12 .x19 parentPtr o12 gasUsed (88 : BitVec 12) (H + 124) (by decide)
+  rw [show signExtend12 (88 : BitVec 12) = (88 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 124) prog 31 (.LD .x12 .x19 (88 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `ADDI x13, x19, 96` @ H+128: set x13 := parentPtr + 96 (the base-fee
+    argument block pointer). ESTABLISHES `x13 = parentPtr + 96`. -/
+theorem addiParentStructPtr96Re (parentPtr x13Old : Word) :
+    cpsTripleWithin 1 (H + 128) (H + 132) callerCode
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ x13Old))
+      ((.x19 ↦ᵣ parentPtr) ** (.x13 ↦ᵣ (parentPtr + 96))) := by
+  have h := addi_spec_gen_within .x13 .x19 x13Old parentPtr (96 : BitVec 12) (H + 128) (by decide)
+  rw [show signExtend12 (96 : BitVec 12) = (96 : Word) from by decide] at h
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 128) prog 32 (.ADDI .x13 .x19 (96 : BitVec 12))
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
 end EvmAsm.Codegen.ValidateHeaderInlineArms
