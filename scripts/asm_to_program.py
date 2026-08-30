@@ -1951,7 +1951,7 @@ SOURCE_DRIFT_ALLOW = {
     # fixture/assembly byte-identity check remain the drift guard.
     'rlpValidatePayloadFunction',
     # #12846: the shared walker's recursion guard is parameterized by the same
-    # depth cap and renders through the sibling `_with_cap` helper, so its
+    # depth cap and renders through the sibling `_prog_of` helper, so its
     # source is not the mechanically pasted gen_lean block either. Its
     # dedicated rfl tie plus the fixture/assembly byte-identity check remain
     # the drift guard, same as rlpValidatePayloadFunction above.

@@ -867,7 +867,7 @@ theorem shared_list_depth_branch_with_cap (depthCap depth : Word) :
       show RlpWalkNextStrictTie.S + 68 + 4 = RlpWalkNextStrictTie.S + 72 by bv_omega] at h
   exact cpsBranchWithin_extend_code
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      (rlpWalkNextShared_prog_with_cap depthCap) 17 (RlpWalkNextStrictTie.S + 68)
+      (rlpWalkNextShared_prog_of depthCap) 17 (RlpWalkNextStrictTie.S + 68)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))) h
 
@@ -902,9 +902,9 @@ theorem shared_list_depth_increment_with_cap (depthCap depth : Word) :
   have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 72)
       (.ADDI .x9 .x9 (1 : BitVec 12)) a = some i →
       CodeReq.ofProg RlpWalkNextStrictTie.S
-        (rlpWalkNextShared_prog_with_cap depthCap) a = some i :=
+        (rlpWalkNextShared_prog_of depthCap) a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      (rlpWalkNextShared_prog_with_cap depthCap) 18 (RlpWalkNextStrictTie.S + 72)
+      (rlpWalkNextShared_prog_of depthCap) 18 (RlpWalkNextStrictTie.S + 72)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))
   have hcode := cpsTripleWithin_extend_code hmono h
@@ -936,9 +936,9 @@ theorem shared_list_length_limit_with_cap (depthCap endPtr : Word) :
   have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 80)
       (.LI .x7 (248 : Word)) a = some i →
       CodeReq.ofProg RlpWalkNextStrictTie.S
-        (rlpWalkNextShared_prog_with_cap depthCap) a = some i :=
+        (rlpWalkNextShared_prog_of depthCap) a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      (rlpWalkNextShared_prog_with_cap depthCap) 20 (RlpWalkNextStrictTie.S + 80)
+      (rlpWalkNextShared_prog_of depthCap) 20 (RlpWalkNextStrictTie.S + 80)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))
   have hcode := cpsTripleWithin_extend_code hmono h
