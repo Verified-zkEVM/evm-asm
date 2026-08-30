@@ -44,10 +44,12 @@ _handler:
   li   t4, 2                 # halt flag = 2 (fault)
   sd   t4, 0(t5)
 .Lfspin:
-  j    .Lfspin
+  wfi
 .Lhalt:
   li   t5, 0x60008000        # halt flag = 1 (clean)
   li   t4, 1
   sd   t4, 0(t5)
 .Lspin:
-  j    .Lspin
+  # WFI makes processor_t::step return at the halt boundary.  The driver can
+  # keep Spike's large instruction batches while reading minstret exactly.
+  wfi
