@@ -88,6 +88,7 @@ import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
 import EvmAsm.Codegen.Proofs.ExtractDepositDataFailSpec
 import EvmAsm.Codegen.Proofs.ExtractDepositDataOkSpec
 import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
+import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
