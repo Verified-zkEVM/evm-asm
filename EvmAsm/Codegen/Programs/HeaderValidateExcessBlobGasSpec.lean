@@ -396,6 +396,13 @@ def priceOutputOwn (outPtr : Word) : Assertion :=
   memOwn outPtr ** memOwn (outPtr + 8) ** memOwn (outPtr + 16) **
     memOwn (outPtr + 24)
 
+theorem priceOutputOwn_pcFree (outPtr : Word) :
+    (priceOutputOwn outPtr).pcFree := by
+  unfold priceOutputOwn
+  exact pcFree_sepConj pcFree_memOwn
+    (pcFree_sepConj pcFree_memOwn
+      (pcFree_sepConj pcFree_memOwn pcFree_memOwn))
+
 /-- ABI geometry required by the Amsterdam price body for its 32-byte output.
     The pointer value in `x11` does not establish these facts, so they travel
     as an explicit pure premise of the caller contract.  The static linked
@@ -442,6 +449,7 @@ def priceEntryRest
   ((.x1 ↦ᵣ ret) ** (.x2 ↦ᵣ sp0) **
     frameSlotsOwn priceFrame (sp0 + signExtend12 (-208 : BitVec 12)) **
     priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+    priceOutputOwn outPtr **
     regsAt priceSavedFrame vals ** (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
     regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
 
@@ -474,7 +482,17 @@ def priceContract
       (ret, priceCalleePost sp0 ret vals 1 outPtr outBytes scratchPost) ]
 
 def priceScratch : Assertion :=
-  bytesRegion sampleOutPtr zero32
+  empAssertion
+
+private theorem zero32_to_memOwn4 (base : Word) :
+    ∀ h, bytesRegion base zero32 h →
+      (memOwn base ** memOwn (base + 8) ** memOwn (base + 16) **
+        memOwn (base + 24)) h := by
+  intro h hp
+  rw [zero32_region_expands base] at hp
+  exact sepConj_mono memIs_implies_memOwn
+    (sepConj_mono memIs_implies_memOwn
+      (sepConj_mono memIs_implies_memOwn memIs_implies_memOwn)) h hp
 
 private theorem zero48_to_memOwn6 (base : Word) :
     ∀ h, bytesRegion base zero48 h →
@@ -535,14 +553,14 @@ private def priceSamplePrefix : Assertion :=
 private def priceSampleSuffix : Assertion :=
   regsAt priceSavedFrame sampleSaved ** (.x10 ↦ᵣ (0 : Word)) **
   (.x11 ↦ᵣ sampleOutPtr) **
-  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
-  bytesRegion sampleOutPtr zero32
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31]
 
 private theorem entryPre_sample_shape :
     ∀ h, entryPre h →
       (priceSamplePrefix **
         ((bytesRegion sampleStackA zero48 ** bytesRegion sampleStackB zero48 **
-          bytesRegion sampleStackC zero48) ** priceSampleSuffix)) h := by
+          bytesRegion sampleStackC zero48) **
+          (bytesRegion sampleOutPtr zero32 ** priceSampleSuffix))) h := by
   intro h hp
   simp [entryPre, priceSamplePrefix, priceSampleSuffix, priceFrame,
     priceSavedFrame, sampleFrame, sampleSaved, sampleSp0, sampleNewSp,
@@ -559,23 +577,30 @@ private theorem priceEntryRest_sample_from_entryPre :
   have hshape := entryPre_sample_shape h hp
   have hown :
       (priceSamplePrefix **
-        (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix)) h := by
+        (priceWorkspaceOwn sampleNewSp **
+          (bytesRegion sampleOutPtr zero32 ** priceSampleSuffix))) h := by
     exact sepConj_mono (fun _ hp' => hp')
-      (sepConj_mono sample_stacks_to_workspace (fun _ hp' => hp')) h hshape
+      (sepConj_mono sample_stacks_to_workspace
+        (fun _ hp' => hp')) h hshape
   have hown' :
       (priceSamplePrefix **
-        (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix)) h := by
-    simpa only [sepConj_assoc'] using hown
+        (priceWorkspaceOwn sampleNewSp **
+          (priceOutputOwn sampleOutPtr ** priceSampleSuffix))) h := by
+    exact sepConj_mono (fun _ hp' => hp')
+      (sepConj_mono (fun _ hp' => hp')
+        (sepConj_mono (zero32_to_memOwn4 sampleOutPtr)
+          (fun _ hp' => hp'))) h hown
   have hgeom : priceOutputGeometry sampleOutPtr := by
     unfold priceOutputGeometry
     decide
   have hwithgeom :
       (⌜priceOutputGeometry sampleOutPtr⌝ **
         (priceSamplePrefix **
-          (priceWorkspaceOwn sampleNewSp ** priceSampleSuffix))) h := by
+          (priceWorkspaceOwn sampleNewSp **
+            (priceOutputOwn sampleOutPtr ** priceSampleSuffix)))) h := by
     exact (sepConj_pure_left h).2 ⟨hgeom, hown'⟩
   simpa [priceEntryRest, priceScratch, priceSamplePrefix, priceSampleSuffix,
-    sampleNewSp, sepConj_assoc'] using hwithgeom
+    sampleNewSp, sepConj_assoc', sepConj_emp_right'] using hwithgeom
 
 /-- The price premise is not an uninhabited symbolic shape: it has the
     concrete non-overlapping layout used by the existing Amsterdam witness.
