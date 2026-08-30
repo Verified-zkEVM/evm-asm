@@ -283,7 +283,7 @@ def blockValidateLogsBloom_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.bvlb_header_bloom (GuestAddrs.block_validate_logs_bloom + 56)),
     .ADDI .x12 .x12 (laLo GuestAddrs.bvlb_header_bloom (GuestAddrs.block_validate_logs_bloom + 56)),
     .JAL .x1 (jalOff GuestAddrs.header_extract_logs_bloom (GuestAddrs.block_validate_logs_bloom + 64)),
-    .BNE .x10 .x0 (92 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.block_validate_logs_bloom + 160) (GuestAddrs.block_validate_logs_bloom + 68)),
     .AUIPC .x5 (laHi GuestAddrs.bvlb_computed_bloom (GuestAddrs.block_validate_logs_bloom + 72)),
     .ADDI .x5 .x5 (laLo GuestAddrs.bvlb_computed_bloom (GuestAddrs.block_validate_logs_bloom + 72)),
     .LI .x6 (32 : Word),
