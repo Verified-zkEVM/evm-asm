@@ -496,10 +496,56 @@ theorem calculate_blob_gas_price_toOption_eq_taylorExp384
   rw [h_den]
   rfl
 
+/-! The U64 input bound is weaker than the actual U256 output envelope.  The
+    predecessor of the measured boundary is still below `2^256`; together
+    with numerator monotonicity this gives the tight caller-side guard. -/
+
+theorem taylorExpNat_lt_result_bound_at_pred :
+    taylorExpNat 1 2073394370 taylorDenominator < taylorResultBound := by
+  have h_eval :
+      taylor_exponential 1 2073394370 taylorDenominator =
+        pure 115792085157819435616670057335491363320393331960321608070891430301789171348051 := by
+    rw [taylorDenominator_eq]
+    rfl
+  have h_pure := taylor_exponential_one_eq_pure
+    2073394370 taylorDenominator (by
+      rw [taylorDenominator_eq]
+      norm_num)
+  have h_eq :
+      (pure (taylorExpNat 1 2073394370 taylorDenominator) : Except SpecError Nat) =
+        pure 115792085157819435616670057335491363320393331960321608070891430301789171348051 := by
+    exact h_pure.symm.trans h_eval
+  have h_nat :
+      taylorExpNat 1 2073394370 taylorDenominator =
+        115792085157819435616670057335491363320393331960321608070891430301789171348051 := by
+    exact Except.ok.inj h_eq
+  rw [h_nat]
+  rw [taylorResultBound_eq]
+  norm_num
+
+theorem taylorExpNat_lt_result_bound_of_lt
+    (numerator : Nat) (h_num : numerator < 2073394371) :
+    taylorExpNat 1 numerator taylorDenominator < taylorResultBound := by
+  have h_num_le : numerator ≤ 2073394370 := by omega
+  exact lt_of_le_of_lt (taylorExpNat_mono_num h_num_le)
+    taylorExpNat_lt_result_bound_at_pred
+
+theorem calculate_blob_gas_price_toOption_eq_taylorExp384_of_lt
+    (excess_blob_gas : U64) (h_num : excess_blob_gas < 2073394371) :
+    (calculate_blob_gas_price excess_blob_gas).toOption =
+      taylorExp384 excess_blob_gas := by
+  apply calculate_blob_gas_price_toOption_eq_taylorExp384 excess_blob_gas
+  · rw [taylorWord64Bound_eq]
+    exact lt_trans h_num (by norm_num)
+  · exact taylorExpNat_lt_result_bound_of_lt excess_blob_gas h_num
+
 #print axioms taylor_exponential_one_fuel_sufficient
 #print axioms calculate_blob_gas_price_fuel_sufficient
 #print axioms taylor_exponential_one_eq_pure
 #print axioms calculate_blob_gas_price_eq_pure_taylorExpNat
 #print axioms calculate_blob_gas_price_toOption_eq_taylorExp384
+#print axioms taylorExpNat_lt_result_bound_at_pred
+#print axioms taylorExpNat_lt_result_bound_of_lt
+#print axioms calculate_blob_gas_price_toOption_eq_taylorExp384_of_lt
 
 end EvmAsm.Stateless.SpecRef

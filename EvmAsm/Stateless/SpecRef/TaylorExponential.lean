@@ -61,11 +61,17 @@ theorem taylorDenominator_eq : taylorDenominator = 11684671 := by
 
 def taylorResultBound : Nat := 2 ^ 256
 
+theorem taylorResultBound_eq : taylorResultBound = 2 ^ 256 := by
+  rfl
+
 def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
 
 def taylorWord384Bound : Nat := 2 ^ 384
 
 def taylorWord64Bound : Nat := 2 ^ 64
+
+theorem taylorWord64Bound_eq : taylorWord64Bound = 2 ^ 64 := by
+  rfl
 
 def taylorNatAux (num denominator : Nat) : Nat → Nat → Nat → Nat
   | i, acc, output =>
