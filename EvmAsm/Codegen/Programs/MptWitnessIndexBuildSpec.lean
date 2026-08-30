@@ -164,6 +164,62 @@ def siftDownContract (entry exit : Word) (cr : CodeReq)
 
 abbrev widxSiftDownContract := siftDownContract
 
+/-! ## One-step functional leaf
+
+The machine sift routine chooses a child and delegates the only arena write to
+`widx_swap_records`.  The leaf-level functional fact needed by the builder is
+independent of the heap-order predicate: swapping two slots is a permutation,
+so a property quantified over records (such as `matchesSection`) is preserved.
+The conversion from the flat `bytesRegion` used by `widx_swap_records` to the
+structured `witnessIndexIs` assertion remains a separate machine adapter; this
+lemma deliberately does not hide that obligation behind a premise.
+-/
+
+/-- The list model of one `widx_sift_down` step: exchange the root slot with
+    the selected child.  Out-of-range indices are harmless for the functional
+    permutation theorem (`List.swap` is total); the machine contract supplies
+    the in-range/arena-validity facts when it is instantiated. -/
+def widxSiftDownStep (records : List WitnessIndexRecord)
+    (root child : Nat) : List WitnessIndexRecord :=
+  records.swap root child
+
+theorem widxSiftDownStep_perm (records : List WitnessIndexRecord)
+    (root child : Nat) :
+    (widxSiftDownStep records root child).Perm records := by
+  exact List.swap_perm records root child
+
+theorem perm_records_preserves_matches
+    {sectionBytes : List (BitVec 8)}
+    {source records : List WitnessIndexRecord}
+    (hperm : records.Perm source)
+    (hmatch : ∀ r ∈ source, r.matchesSection sectionBytes) :
+    ∀ r ∈ records, r.matchesSection sectionBytes := by
+  intro r hr
+  apply hmatch r
+  exact (hperm.mem_iff).mp hr
+
+/-- **One sift-step functional contract.**  Given the intermediate builder
+    facts for the current record list, the selected-child swap preserves both
+    permutation of the section-derived records and the per-record
+    `matchesSection` binding.  Heap ordering is intentionally absent: it is a
+    caller/heapify obligation, not a property of this leaf. -/
+theorem widxSiftDownStep_preserves_recordFillFacts
+    {sectionBytes : List (BitVec 8)}
+    {records : List WitnessIndexRecord}
+    (root child : Nat)
+    (hperm : records.Perm (indexOfSection sectionBytes))
+    (hmatch : ∀ r ∈ records, r.matchesSection sectionBytes) :
+    (widxSiftDownStep records root child).Perm (indexOfSection sectionBytes) ∧
+      (∀ r ∈ widxSiftDownStep records root child,
+        r.matchesSection sectionBytes) := by
+  constructor
+  · exact (widxSiftDownStep_perm records root child).trans hperm
+  · apply perm_records_preserves_matches
+      (sectionBytes := sectionBytes)
+      (source := records)
+      (widxSiftDownStep_perm records root child)
+    exact hmatch
+
 /-- A swap phase contract over the intermediate builder post. -/
 def swapContract (entry exit : Word) (cr : CodeReq)
     (idxBase sectionPtr : Word) (sectionBytes : List (BitVec 8))
