@@ -292,7 +292,10 @@ the full U64 domain it found a maximum of 495 nonzero states, attained at
 `4033036207587913316` in state `i = 9`.  The latter is the domain maximum from
 the monotone fixed-state prefix analysis; U64_MAX reaches only `i = 8` and has
 359 bits.  These are sizing measurements, while the exactness claims below
-remain kernel-checked theorems.
+remain kernel-checked theorems.  This guard order belongs to the bounded model:
+the linked K70 loop has no per-iteration output-bound check and checks 256-bit
+width only after its final division.  See #12850 for the complete
+model-versus-emitted comparison.
 -/
 
 theorem taylor384Aux_some_of_nat_lt

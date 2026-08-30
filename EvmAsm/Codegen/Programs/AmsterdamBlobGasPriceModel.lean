@@ -1047,7 +1047,9 @@ between the raw-result boundary and the prefix boundary the loop can reach
 the 256-bit output.  Loop termination and final-result representability are
 separate obligations.  The prefix pair lets the cap arm be correlated with
 the model only after this reachability relation has been supplied by the
-outer-loop invariant. -/
+outer-loop invariant.  `priceLoopPrefix` is therefore a model-side recurrence,
+not a transcription of the emitted guard sequence; the distinction is
+documented in #12850 and summarized at `priceLoopFuel` below. -/
 
 def priceLoopPrefix (num : Nat) : Nat → Nat × Nat
   | 0 => (taylorDenominator, 0)
@@ -1182,7 +1184,10 @@ theorem priceLoopPrefix_cap_model_none {num : Nat}
     guard order exactly: `acc = 0` exit, `i ≥ 496` exit, 384-bit sum
     overflow, 384-bit product overflow.  The `D·i ≥ 2^64` machine check is
     absent because it is provably dead while `i < 496`
-    (`taylorDenominator * 495 < 2^64`). -/
+    (`taylorDenominator * 495 < 2^64`).  This deliberately mirrors the
+    emitted control flow rather than `taylorExp384`: the machine has no
+    per-iteration output-bound check and checks 256-bit width only after final
+    division.  See #12850 for the full guard-order comparison. -/
 def priceLoopFuel (num : Nat) : Nat → Nat → Nat → Nat → PriceLoopOut
   | 0, _, _, _ => .ovf
   | fuel + 1, i, acc, output =>
