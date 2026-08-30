@@ -54,6 +54,11 @@ namespace EvmAsm.Stateless.SpecRef
 
 def taylorDenominator : Nat := 11684671
 
+/-! Keep the concrete denominator available to downstream bridges without
+    requiring them to unfold this module's definition across the boundary. -/
+theorem taylorDenominator_eq : taylorDenominator = 11684671 := by
+  rfl
+
 def taylorResultBound : Nat := 2 ^ 256
 
 def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
