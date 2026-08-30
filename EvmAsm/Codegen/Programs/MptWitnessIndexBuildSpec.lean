@@ -15,6 +15,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
+import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Evm64.WitnessAssertions
 import EvmAsm.Crypto.BeBytesBridge
@@ -28,6 +29,7 @@ open EvmAsm.Evm64
 open EvmAsm.Crypto
 open EvmAsm.Codegen.Proofs
 open EvmAsm.Codegen.WitnessLookupByHashIndexedSpec
+open EvmAsm.Codegen.WcidxSwapRecordsSAsm
 
 /-! ## The list produced by the record/keccak loop -/
 
@@ -136,6 +138,75 @@ theorem witnessIndexIs_eq_flatRecordBytes
           WITNESS_INDEX_RECORD_BYTES) (fun r hr => hwf r (by simp [hr]))]
       rw [← bytesRegion_record_append base r rest (hwf r (by simp))]
       rfl
+
+/-! ## Raw six-dword swap and its byte-level loop model
+
+The older flat triple names the six-dword memory image `widxSwapMem`, while
+the deployed SAsm derivation names the same image `swapK` and writes the
+source chunks explicitly.  The following lemma discharges that small
+representation mismatch.  The layout hypothesis is the same two-record
+disjointness needed by the machine swap: it ensures that an earlier dword
+round cannot change the source chunk of a later round.
+-/
+
+theorem widxSwapMem_succ_eq_swapK_succ
+    (arena : List (BitVec 8)) (qa qb n : Nat)
+    (hlay : recLayout arena.length (8 * qa) (8 * qb))
+    (hn : n < 6)
+    (hrec : widxSwapMem arena qa qb n =
+      swapK arena (8 * qa) (8 * qb) n) :
+    widxSwapMem arena qa qb (n + 1) =
+      swapK arena (8 * qa) (8 * qb) (n + 1) := by
+  rw [widxSwapMem_succ, swapK, hrec]
+  have hA : 8 * (qa + n) + 8 ≤ arena.length := by
+    obtain ⟨_, _, hoa, hob, _⟩ := hlay
+    omega
+  have hB : 8 * (qb + n) + 8 ≤ arena.length := by
+    obtain ⟨_, _, hoa, hob, _⟩ := hlay
+    omega
+  have hca :
+      ((swapK arena (8 * qa) (8 * qb) n).drop (8 * (qa + n))).take 8 =
+        ((arena.drop (8 * (qa + n))).take 8) := by
+    apply chunk_swapK arena (8 * qa) (8 * qb) n n (8 * (qa + n))
+      hlay (Nat.le_refl n) hn
+    left
+    simp [Nat.mul_add]
+  have hcb :
+      ((swapK arena (8 * qa) (8 * qb) n).drop (8 * (qb + n))).take 8 =
+        ((arena.drop (8 * (qb + n))).take 8) := by
+    apply chunk_swapK arena (8 * qa) (8 * qb) n n (8 * (qb + n))
+      hlay (Nat.le_refl n) hn
+    right
+    simp [Nat.mul_add]
+  have hpa : dwordBytes (packBytes
+      (((swapK arena (8 * qa) (8 * qb) n).drop (8 * (qa + n))).take 8)) =
+      ((arena.drop (8 * (qa + n))).take 8) := by
+    rw [hca]
+    apply dwordBytes_packBytes
+    simp only [List.length_take, List.length_drop]
+    omega
+  have hpb : dwordBytes (packBytes
+      (((swapK arena (8 * qa) (8 * qb) n).drop (8 * (qb + n))).take 8)) =
+      ((arena.drop (8 * (qb + n))).take 8) := by
+    rw [hcb]
+    apply dwordBytes_packBytes
+    simp only [List.length_take, List.length_drop]
+    omega
+  dsimp only
+  rw [hpa, hpb]
+  simp [chunk, Nat.mul_add]
+
+theorem widxSwapMem_eq_swapK
+    (arena : List (BitVec 8)) (qa qb n : Nat)
+    (hlay : recLayout arena.length (8 * qa) (8 * qb))
+    (hn : n ≤ 6) :
+    widxSwapMem arena qa qb n =
+      swapK arena (8 * qa) (8 * qb) n := by
+  induction n with
+  | zero => rfl
+  | succ n ih =>
+      apply widxSwapMem_succ_eq_swapK_succ arena qa qb n hlay (by omega)
+        (ih (by omega))
 
 /-! ## Exact sortedness bridge consumed by indexed search -/
 
