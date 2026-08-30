@@ -45,7 +45,15 @@ FIXTURES = REPO / "scripts" / "asm-fixtures"
 # Measured on origin/main a1dcd2d36.  This is a lower bound rather than an
 # exact equality: adding a guarded pair is harmless, while a drop requires an
 # explicit review of the source population and an intentional floor update.
-EXPECTED_GUARDED_PAIRS_FLOOR = 570
+#
+# #13108 retired 4 unreachable probe-only routines (balGasValidFunction,
+# balSectionInfoFunction, parentHeaderMatchesWitnessFirstFunction,
+# senderPostNonceConsistentFunction) along with their fixtures; each carried
+# a guarded standalone render, so the true population dropped to 566.
+# Verified via a clean pre-#13108/post-#13108 worktree diff: those are the
+# only 4 names that disappeared, and none of the four survives anywhere in
+# EvmAsm/ under any name -- a clean deletion, not silent discovery loss.
+EXPECTED_GUARDED_PAIRS_FLOOR = 566
 
 THEOREM_START = re.compile(
     r"(?m)^\s*theorem\s+(?P<function>[A-Za-z_][A-Za-z0-9_]*Function)_eq_prog\b"
