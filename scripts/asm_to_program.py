@@ -1953,6 +1953,12 @@ SOURCE_DRIFT_ALLOW = {
     # the mechanically pasted gen_lean block.  Its dedicated rfl tie plus the
     # fixture/assembly byte-identity check remain the drift guard.
     'rlpValidatePayloadFunction',
+    # #12846: the shared walker's recursion guard is parameterized by the same
+    # depth cap and renders through the sibling `_prog_of` helper, so its
+    # source is not the mechanically pasted gen_lean block either. Its
+    # dedicated rfl tie plus the fixture/assembly byte-identity check remain
+    # the drift guard, same as rlpValidatePayloadFunction above.
+    'rlpWalkNextSharedFunction',
     # #12134: pre-existing proved Program registered into MANIFEST/
     # GuestImageEntries. Its source is a hand-written core-side copy with a
     # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity
