@@ -137,6 +137,18 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13091 — sg_load_u32le, the sixth u32le twin, 2026-08-30)
+
+- ✅ **`sg_load_u32le` rowed `.proven`** (227/173/187):
+  `sgLoadU32leFlat_spec` (`Codegen/Proofs/SgLoadU32leFlatEntry.lean`)
+  — the sws_u32le lift verbatim: a separate ambient-pinned `Fn`
+  literal (`sgluFn`, the shared five-consumer `sgLoadU32leFn`
+  untouched) whose spec delegates to `bahU32leFn_spec` by `exact`
+  (Fn.Spec ignores `name`), then `Fn.retSpecFlatAmbient` at the new
+  `GuestAddrs.sg_load_u32le` pin.  39 call sites become
+  census-covered; the emission tie is `StatelessGuestEpilogue`'s
+  `emitProgram sgLoadU32le_prog`.
+
 ### Recent (#13089 — the four remaining DCode leaves rowed, 2026-08-30)
 
 - ✅ **`modexp_iszero`, `sender_post_nonce_consistent`, `edd_be32_eq`,
