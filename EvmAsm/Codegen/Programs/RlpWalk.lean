@@ -137,7 +137,13 @@ theorem rlpWalkNextEntryFunction_eq_prog :
 #guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
 #guard rlpWalkNext_prog.length = 13
 
-def rlpWalkNextShared_prog : Program :=
+/-! The shared walker and the eager validator consume the same depth-budget
+    policy.  `depthCap` is the strict upper bound loaded into `x7` and compared
+    with the current list-depth counter in `x9`: descent is allowed only while
+    `x9 < depthCap`, and the `x9 ≥ depthCap` arm is the clean depth rejection.
+    Keep the instruction-level program parameterized so changing that policy
+    is an instantiation, not a second literal (GH #12846). -/
+def rlpWalkNextShared_prog_with_cap (depthCap : Word) : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x10 (8 : BitVec 12),
@@ -154,7 +160,7 @@ def rlpWalkNextShared_prog : Program :=
     .LBU .x6 .x5 (0 : BitVec 12),
     .LI .x7 (192 : Word),
     .BLTU .x6 .x7 (124 : BitVec 13),
-    .LI .x7 (1024 : Word),
+    .LI .x7 depthCap,
     .BGEU .x9 .x7 (100 : BitVec 13),
     .ADDI .x9 .x9 (1 : BitVec 12),
     .LD .x11 .x2 (24 : BitVec 12),
@@ -191,6 +197,11 @@ def rlpWalkNextShared_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-! The linked Amsterdam image uses the one policy instantiation shared with
+    `rlpValidatePayload_prog`; no replacement value is chosen here. -/
+def rlpWalkNextShared_prog : Program :=
+  rlpWalkNextShared_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)
+
 /-- Reloc side-table for `rlpWalkNextShared_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
@@ -198,8 +209,12 @@ def rlpWalkNextShared_relocs : RelocTable :=
   [ (4, .jal .x1 "rlp_walk_next_core"),
     (39, .jal .x1 "rlp_validate_payload") ]
 
+def rlpWalkNextSharedFunction_with_cap (depthCap : Word) : String :=
+  "rlp_walk_next_shared:\n" ++
+    emitProgramR (rlpWalkNextShared_prog_with_cap depthCap) rlpWalkNextShared_relocs
+
 def rlpWalkNextSharedFunction : String :=
-  "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs
+  rlpWalkNextSharedFunction_with_cap (rlpRecursiveDecodeDepthCap : Word)
 
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `rlpWalkNextShared_prog` rendered under its label with the `la`/`jal`
@@ -209,8 +224,15 @@ def rlpWalkNextSharedFunction : String :=
 theorem rlpWalkNextSharedFunction_eq_prog :
     rlpWalkNextSharedFunction = "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs := rfl
 
+theorem rlpWalkNextSharedFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpWalkNextSharedFunction_with_cap depthCap =
+      "rlp_walk_next_shared:\n" ++
+        emitProgramR (rlpWalkNextShared_prog_with_cap depthCap)
+          rlpWalkNextShared_relocs := rfl
+
 #guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
 #guard rlpWalkNextShared_prog.length = 52
+#guard (rlpWalkNextShared_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)).length = 52
 
 /-! ## Recursive payload validator (parameterized cap)
 
@@ -294,6 +316,10 @@ def rlpRecursiveDecodeFunction : String :=
 
 #guard rlpRecursiveDecodeFunction.startsWith "rlp_recursive_decode:\n"
 
+/-- Validator entry parameterization.  `depthCap` is copied to the recursive
+    decoder's budget register (`x12`); the decoder consumes that budget and
+    returns its existing failure status when it reaches zero.  The linked
+    caller supplies the same policy value as `rlpWalkNextShared_prog`. -/
 def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -317,6 +343,9 @@ def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-! The validator's linked entry uses the same policy instantiation as the
+    shared walker above.  The cap remains a parameter of the program family;
+    this default is the single production instantiation. -/
 def rlpValidatePayload_prog : Program :=
   rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)
 

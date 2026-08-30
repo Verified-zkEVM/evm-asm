@@ -844,15 +844,21 @@ theorem shared_list_length_prefix_branch (pfx : Word) :
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
 
-theorem shared_list_depth_branch (depth : Word) :
+/-! The cap is a machine-depth boundary, not a CPS/fuel bound: the theorem
+    below exposes both outcomes at the comparison.  The `S+72` continuation
+    is the `depth < depthCap` descent arm; `S+168` is the first rejection arm
+    reached when the machine depth is `depthCap` or greater.  Any offset used
+    by a caller's externally counted nesting depth remains a caller-side fact,
+    rather than being hidden in this parameter. -/
+theorem shared_list_depth_branch_with_cap (depthCap depth : Word) :
     cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 68)
-      RlpWalkNextStrictTie.sharedCode
-      ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)))
+      (RlpWalkNextStrictTie.sharedCodeWithCap depthCap)
+      ((regIs .x9 depth) ** (regIs .x7 depthCap))
       (RlpWalkNextStrictTie.S + 168)
-        ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)) ** pure (¬ BitVec.ult depth (1024 : Word)))
+        ((regIs .x9 depth) ** (regIs .x7 depthCap) ** pure (¬ BitVec.ult depth depthCap))
       (RlpWalkNextStrictTie.S + 72)
-        ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)) ** pure (BitVec.ult depth (1024 : Word))) := by
-  have h := bgeu_spec_gen_within .x9 .x7 (100 : BitVec 13) depth (1024 : Word)
+        ((regIs .x9 depth) ** (regIs .x7 depthCap) ** pure (BitVec.ult depth depthCap)) := by
+  have h := bgeu_spec_gen_within .x9 .x7 (100 : BitVec 13) depth depthCap
     (RlpWalkNextStrictTie.S + 68)
   rw [show (RlpWalkNextStrictTie.S + 68) + signExtend13 (100 : BitVec 13) =
       RlpWalkNextStrictTie.S + 168 from by
@@ -861,28 +867,82 @@ theorem shared_list_depth_branch (depth : Word) :
       show RlpWalkNextStrictTie.S + 68 + 4 = RlpWalkNextStrictTie.S + 72 by bv_omega] at h
   exact cpsBranchWithin_extend_code
     (CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      rlpWalkNextShared_prog 17 (RlpWalkNextStrictTie.S + 68)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))) h
+      (rlpWalkNextShared_prog_with_cap depthCap) 17 (RlpWalkNextStrictTie.S + 68)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))) h
 
-theorem shared_list_depth_increment (depth : Word) :
+theorem shared_list_depth_branch (depth : Word) :
+    cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 68)
+      RlpWalkNextStrictTie.sharedCode
+      ((regIs .x9 depth) **
+        (regIs .x7 (rlpRecursiveDecodeDepthCap : Word)))
+      (RlpWalkNextStrictTie.S + 168)
+        ((regIs .x9 depth) **
+          (regIs .x7 (rlpRecursiveDecodeDepthCap : Word)) **
+          pure (¬ BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)))
+      (RlpWalkNextStrictTie.S + 72)
+        ((regIs .x9 depth) **
+          (regIs .x7 (rlpRecursiveDecodeDepthCap : Word)) **
+          pure (BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word))) := by
+  simpa [RlpWalkNextStrictTie.sharedCode,
+    RlpWalkNextStrictTie.sharedCodeWithCap, rlpWalkNextShared_prog] using
+    (shared_list_depth_branch_with_cap
+      (rlpRecursiveDecodeDepthCap : Word) depth)
+
+theorem shared_list_depth_increment_with_cap (depthCap depth : Word) :
     cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 72)
-      (RlpWalkNextStrictTie.S + 76) RlpWalkNextStrictTie.sharedCode
-      ((regIs .x9 depth) ** (regIs .x7 (1024 : Word)))
-      ((regIs .x9 (depth + 1)) ** (regIs .x7 (1024 : Word))) := by
+      (RlpWalkNextStrictTie.S + 76)
+      (RlpWalkNextStrictTie.sharedCodeWithCap depthCap)
+      ((regIs .x9 depth) ** (regIs .x7 depthCap))
+      ((regIs .x9 (depth + 1)) ** (regIs .x7 depthCap)) := by
   have h := addi_spec_gen_same_within .x9 depth (1 : BitVec 12)
     (RlpWalkNextStrictTie.S + 72) (by decide)
   rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide,
     show RlpWalkNextStrictTie.S + 72 + 4 = RlpWalkNextStrictTie.S + 76 by bv_omega] at h
   have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 72)
       (.ADDI .x9 .x9 (1 : BitVec 12)) a = some i →
-      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
+      CodeReq.ofProg RlpWalkNextStrictTie.S
+        (rlpWalkNextShared_prog_with_cap depthCap) a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      rlpWalkNextShared_prog 18 (RlpWalkNextStrictTie.S + 72)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
+      (rlpWalkNextShared_prog_with_cap depthCap) 18 (RlpWalkNextStrictTie.S + 72)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))
   have hcode := cpsTripleWithin_extend_code hmono h
-  have hframe := cpsTripleWithin_frameR (regIs .x7 (1024 : Word))
+  have hframe := cpsTripleWithin_frameR (regIs .x7 depthCap)
+    (by exact pcFree_regIs) hcode
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hp => by xperm_hyp hp) hframe
+
+theorem shared_list_depth_increment (depth : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 72)
+      (RlpWalkNextStrictTie.S + 76) RlpWalkNextStrictTie.sharedCode
+      ((regIs .x9 depth) **
+        (regIs .x7 (rlpRecursiveDecodeDepthCap : Word)))
+      ((regIs .x9 (depth + 1)) **
+        (regIs .x7 (rlpRecursiveDecodeDepthCap : Word))) := by
+  simpa [RlpWalkNextStrictTie.sharedCode,
+    RlpWalkNextStrictTie.sharedCodeWithCap, rlpWalkNextShared_prog] using
+    (shared_list_depth_increment_with_cap
+      (rlpRecursiveDecodeDepthCap : Word) depth)
+
+theorem shared_list_length_limit_with_cap (depthCap endPtr : Word) :
+    cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 80)
+      (RlpWalkNextStrictTie.S + 84)
+      (RlpWalkNextStrictTie.sharedCodeWithCap depthCap)
+      ((regIs .x7 depthCap) ** (regIs .x11 endPtr))
+      ((regIs .x7 (248 : Word)) ** (regIs .x11 endPtr)) := by
+  have h := li_spec_gen_within .x7 depthCap (248 : Word)
+    (RlpWalkNextStrictTie.S + 80) (by decide)
+  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 80)
+      (.LI .x7 (248 : Word)) a = some i →
+      CodeReq.ofProg RlpWalkNextStrictTie.S
+        (rlpWalkNextShared_prog_with_cap depthCap) a = some i :=
+    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
+      (rlpWalkNextShared_prog_with_cap depthCap) 20 (RlpWalkNextStrictTie.S + 80)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num)
+      (by rw [RlpWalkNextStrictTie.shared_length_with_cap]; norm_num) (by bv_omega))
+  have hcode := cpsTripleWithin_extend_code hmono h
+  have hframe := cpsTripleWithin_frameR (regIs .x11 endPtr)
     (by exact pcFree_regIs) hcode
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hp => by xperm_hyp hp) hframe
@@ -890,22 +950,13 @@ theorem shared_list_depth_increment (depth : Word) :
 theorem shared_list_length_limit (endPtr : Word) :
     cpsTripleWithin 1 (RlpWalkNextStrictTie.S + 80)
       (RlpWalkNextStrictTie.S + 84) RlpWalkNextStrictTie.sharedCode
-      ((regIs .x7 (1024 : Word)) ** (regIs .x11 endPtr))
+      ((regIs .x7 (rlpRecursiveDecodeDepthCap : Word)) **
+        (regIs .x11 endPtr))
       ((regIs .x7 (248 : Word)) ** (regIs .x11 endPtr)) := by
-  have h := li_spec_gen_within .x7 (1024 : Word) (248 : Word)
-    (RlpWalkNextStrictTie.S + 80) (by decide)
-  have hmono : ∀ a i, CodeReq.singleton (RlpWalkNextStrictTie.S + 80)
-      (.LI .x7 (248 : Word)) a = some i →
-      CodeReq.ofProg RlpWalkNextStrictTie.S rlpWalkNextShared_prog a = some i :=
-    CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr RlpWalkNextStrictTie.S
-      rlpWalkNextShared_prog 20 (RlpWalkNextStrictTie.S + 80)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num)
-      (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
-  have hcode := cpsTripleWithin_extend_code hmono h
-  have hframe := cpsTripleWithin_frameR (regIs .x11 endPtr)
-    (by exact pcFree_regIs) hcode
-  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-    (fun _ hp => by xperm_hyp hp) hframe
+  simpa [RlpWalkNextStrictTie.sharedCode,
+    RlpWalkNextStrictTie.sharedCodeWithCap, rlpWalkNextShared_prog] using
+    (shared_list_length_limit_with_cap
+      (rlpRecursiveDecodeDepthCap : Word) endPtr)
 
 theorem shared_long_prefix_branch (remaining : Word) :
     cpsBranchWithin 1 (RlpWalkNextStrictTie.S + 108)
