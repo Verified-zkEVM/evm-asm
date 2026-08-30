@@ -108,7 +108,7 @@ def blsgBeToLe_prog : Program :=
     .SD .x7 .x28 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (6 : Word),
-    .BNE .x5 .x6 (-68 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.blsg_be_to_le + 4) (GuestAddrs.blsg_be_to_le + 72)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bls12G1BeToLeFunction : String :=
@@ -143,7 +143,7 @@ def blsgLeToBe_prog : Program :=
     .BNE .x29 .x0 (-20 : BitVec 13),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (6 : Word),
-    .BNE .x5 .x6 (-64 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.blsg_le_to_be + 4) (GuestAddrs.blsg_le_to_be + 68)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def bls12G1LeToBeFunction : String :=
