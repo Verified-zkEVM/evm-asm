@@ -35,7 +35,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefCompose
-import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeWitnessSupport
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeWitness
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef
 
