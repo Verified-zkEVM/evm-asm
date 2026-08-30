@@ -542,7 +542,10 @@ JAL_NAMED_THRESHOLD = BR_NAMED_THRESHOLD
 # #12812 (u256 restoring divider) adds two local-J sites.
 # #12960 retires 7 dead balance-account field-comparator probe files
 # (unlinked, unreferenced); their two bare local-J sites leave the corpus.
-EXPECTED_BARE_J_SITES = 151
+# #13093's first conversion wave removes four additional local-J sites while
+# retaining the unlinked probe programs behind their source-owned PC bases.
+# The deferred probe redo removes one more local-J site from the live debt.
+EXPECTED_BARE_J_SITES = 146
 
 # Site-level ratchet for the local-B geometry guard.  The predicate is every
 # manifest fixture local conditional branch with abs(target_pc - branch_pc) >=
@@ -562,7 +565,11 @@ EXPECTED_BARE_J_SITES = 151
 # #12960 retires 7 dead balance-account field-comparator probe files
 # (unlinked, unreferenced); their 33 bare local-B sites leave the corpus.
 # #13081 adds one local-B site for the reachable K73 target-zero guard.
-EXPECTED_BARE_B_SITES = 673
+# #13093's first conversion wave removes 24 additional local-B sites; the
+# deferred probe redo removes 15 more using source-owned PC bases.  Remaining
+# unlinked branches stay numeric until they have a real named source/guest
+# anchor.
+EXPECTED_BARE_B_SITES = 634
 
 def br_imm(off, entry, cur):
     """Render a B-type byte offset; long arms use named `brOff` (#11512).
@@ -601,16 +608,111 @@ def jal_imm(off, entry, cur):
         return f"(jalOff {pc_expr(entry, tgt)} {pc_expr(entry, cur)})"
     return bv(off, 21)
 
+_LOCAL_PC_ALIASES = None
+
+
+def _load_local_pc_aliases():
+    """Find source-owned ``…Pc`` bases for unlinked probe programs.
+
+    A probe entry is intentionally absent from ``SYMMAP``.  That does not mean
+    its Program has to lose the named PC base, though: several probe modules
+    already define (for example) ``balGasValidPc := 0x80000000`` and use that
+    name in their hand-written concrete Program.  The old converter silently
+    replaced those names with raw decimal ``0x80000000 + offset`` literals.
+    Keep the source convention when the entry-to-``Pc`` name is unambiguous;
+    otherwise retain the documented numeric placeholder.
+
+    This scan is deliberately limited to Codegen/Programs and to declarations
+    whose name can be mapped back to the exact snake-case entry.  A mismatched
+    or duplicate name is not guessed: it remains an explicit placeholder and
+    can be pinned later when the routine enters the guest image.
+    """
+    global _LOCAL_PC_ALIASES
+    if _LOCAL_PC_ALIASES is not None:
+        return _LOCAL_PC_ALIASES
+    aliases = {}
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                        '..', 'EvmAsm', 'Codegen', 'Programs')
+    # CamelCase → snake_case, including the acronym boundaries that occur in
+    # names such as ``Eip7702`` and ``U256``.  Only the exact reverse of
+    # ``lean_camel`` is useful here; an ambiguous spelling is rejected below.
+    camel_boundary = re.compile(r'(?<=[a-z0-9])(?=[A-Z])')
+    for dirpath, _dirs, names in os.walk(root):
+        for name in names:
+            if not name.endswith('.lean'):
+                continue
+            path = os.path.join(dirpath, name)
+            try:
+                text = open(path).read()
+            except OSError:
+                continue
+            for m in re.finditer(r'(?m)^\s*def\s+([A-Za-z_][A-Za-z0-9_]*Pc)\s*:\s*Nat\s*:=', text):
+                pc_name = m.group(1)
+                base = pc_name[:-2]
+                entry = camel_boundary.sub('_', base).lower()
+                old = aliases.get(entry)
+                if old is None:
+                    aliases[entry] = pc_name
+                elif old != pc_name:
+                    # Do not let two similarly named source bases silently
+                    # select one another.  Mark the entry ambiguous.
+                    aliases[entry] = False
+    _LOCAL_PC_ALIASES = {entry: pc for entry, pc in aliases.items()
+                         if pc is not False}
+    return _LOCAL_PC_ALIASES
+
+
+def _pc_base_symbol(entry):
+    """Return the named PC base available for ``entry``, if any."""
+    if entry in SYMMAP:
+        return f"{GA}.{ga_name(entry)}"
+    return _load_local_pc_aliases().get(entry)
+
+
 def pc_expr(entry, offset):
     """Render a program-counter expression for a function entry.
 
-    Linked guest entries use the generated GuestAddrs symbol. Probe-only
-    entries deliberately use the stable ``0x80000000`` placeholder because
-    they are not present in the monolithic guest link.
+    Linked guest entries use the generated GuestAddrs symbol.  Probe-only
+    entries reuse an unambiguous source-owned ``…Pc`` base when one exists;
+    only entries with neither kind of pin fall back to the documented stable
+    ``0x80000000`` placeholder.  Keeping a named base is important even when
+    the numeric value is currently the same: it prevents a conversion from
+    baking a layout into the concrete Program and makes the pin-vs-placeholder
+    decision visible to the drift guard.
     """
-    if entry in SYMMAP:
-        return f"({GA}.{ga_name(entry)} + {offset})"
+    base = _pc_base_symbol(entry)
+    if base is not None:
+        return f"({base} + {offset})"
     return str(0x80000000 + offset)
+
+
+# A decimal PC base in a named-offset constructor is a concrete placeholder,
+# not a relocatable expression.  It is legitimate only for an entry that has
+# neither a GuestAddrs pin nor a source-owned ``…Pc`` base.  Byte identity is
+# blind to this distinction, so the converter must reject it before a rewrite
+# can land whenever a named base was available.
+_ABSOLUTE_NAMED_OFFSET_RE = re.compile(
+    r'\b(?:brOff|jalOff)\b[^\n]*\b-?\d{9,}\b')
+
+
+def _absolute_named_offset_lines(renders):
+    """Return ``(index, line)`` pairs containing a raw nine-digit offset."""
+    return [(i, line) for i, line in enumerate(renders)
+            if _ABSOLUTE_NAMED_OFFSET_RE.search(line)]
+
+
+def _check_named_pc_forms(entry, renders):
+    """Fail closed if a pinned entry still has absolute named offsets."""
+    if _pc_base_symbol(entry) is None:
+        return
+    bad = _absolute_named_offset_lines(renders)
+    if bad:
+        sample = '; '.join(f"{i}: {line.strip()}" for i, line in bad[:3])
+        raise ConvError(
+            f"{entry}: named brOff/jalOff uses absolute PC literal despite "
+            f"available base {_pc_base_symbol(entry)} ({len(bad)} sites; {sample}). "
+            "Use the GuestAddrs/source Pc expression so the pin cannot be "
+            "silently lost (GH #13093).")
 
 def render_insn(mn, ops, off_of):
     R = reg
@@ -1653,6 +1755,10 @@ def rewrite_file(path, funcs):
                 if not os.path.exists(fp): raise
                 asm=open(fp).read()
         entry,renders,emitted,ok,la,lb,relocs=do_asm(asm)
+        # Do this before touching the source file.  A byte-identical render can
+        # still replace a relocatable PC base with a raw 0x80000000 literal;
+        # that is precisely the name-level drift this wave is meant to remove.
+        _check_named_pc_forms(entry, renders)
         if not ok:
             raise ConvError(f"{fn}: guest-linked .text differs -- refusing to rewrite")
         # A local long B/J also names the entry through `brOff`/`jalOff`, so it
@@ -2650,6 +2756,11 @@ def check_file(path, funcs, rendered=None):
                                     f"hand-written source (probe-only, SYMMAP-excluded)"); continue
                 continue
             problems.append(f"{fn}: {e}"); continue
+        try:
+            _check_named_pc_forms(entry, renders)
+        except ConvError as e:
+            problems.append(f"{fn}: {e}")
+            continue
         if not ok: problems.append(f"{fn}: py_emit render no longer assembles identically"); continue
         if fn not in rendered:
             problems.append(f"{fn}: no Lean render captured"); continue
