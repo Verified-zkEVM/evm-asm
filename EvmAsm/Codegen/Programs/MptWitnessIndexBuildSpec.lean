@@ -175,29 +175,34 @@ def swapContract (entry exit : Word) (cr : CodeReq)
 
 abbrev widxSwapContract := swapContract
 
-/-- Compose the three phase contracts.  The theorem does not manufacture a
-    sift or loop proof: those are explicit hypotheses, while the resulting
-    post is the permutation-plus-`matchesSection` post consumed by the later
-    heap/sortedness proof. -/
-theorem compose_record_fill_sift_swap
-    {entry fillExit siftExit swapExit : Word} {cr : CodeReq}
+/-- Compose the phases in the order emitted by `witnessIndexBuild_prog`:
+    record fill, heapify sift, extraction swap, and extraction sift.  The
+    theorem does not manufacture a sift or loop proof: those are explicit
+    hypotheses, while the resulting post is the permutation-plus-
+    `matchesSection` post consumed by the later heap/sortedness proof. -/
+theorem compose_record_fill_heapify_extract
+    {entry fillExit heapExit swapExit extractExit : Word} {cr : CodeReq}
     {pre : Assertion} {idxBase sectionPtr : Word}
     {sectionBytes : List (BitVec 8)}
-    {records0 records1 records2 : List WitnessIndexRecord}
+    {records0 records1 records2 records3 : List WitnessIndexRecord}
     (hfill : recordFillContract entry fillExit cr pre idxBase sectionPtr
       sectionBytes records0)
-    (hsift : siftDownContract fillExit siftExit cr idxBase sectionPtr
+    (hheapify : siftDownContract fillExit heapExit cr idxBase sectionPtr
       sectionBytes records0 records1)
-    (hswap : swapContract siftExit swapExit cr idxBase sectionPtr
-      sectionBytes records1 records2) :
+    (hswap : swapContract heapExit swapExit cr idxBase sectionPtr
+      sectionBytes records1 records2)
+    (hextract : siftDownContract swapExit extractExit cr idxBase sectionPtr
+      sectionBytes records2 records3) :
     ∃ nSteps : Nat,
-      cpsTripleWithin nSteps entry swapExit cr pre
-        (recordFillPost idxBase sectionPtr sectionBytes records2) := by
+      cpsTripleWithin nSteps entry extractExit cr pre
+        (recordFillPost idxBase sectionPtr sectionBytes records3) := by
   rcases hfill with ⟨nFill, hFill⟩
-  rcases hsift with ⟨nSift, hSift⟩
+  rcases hheapify with ⟨nHeapify, hHeapify⟩
   rcases hswap with ⟨nSwap, hSwap⟩
-  have h12 := cpsTripleWithin_seq_same_cr hFill hSift
+  rcases hextract with ⟨nExtract, hExtract⟩
+  have h12 := cpsTripleWithin_seq_same_cr hFill hHeapify
   have h123 := cpsTripleWithin_seq_same_cr h12 hSwap
-  exact ⟨nFill + nSift + nSwap, h123⟩
+  have h1234 := cpsTripleWithin_seq_same_cr h123 hExtract
+  exact ⟨nFill + nHeapify + nSwap + nExtract, h1234⟩
 
 end EvmAsm.Codegen.WitnessIndexBuildSpec
