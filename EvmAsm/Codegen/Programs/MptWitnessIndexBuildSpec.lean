@@ -86,6 +86,57 @@ theorem recordFillPost_matches {idxBase sectionPtr : Word}
     {ps : PartialState} (h : recordFillPost idxBase sectionPtr sectionBytes records ps) :
     ∀ r ∈ records, r.matchesSection sectionBytes := h.1.2
 
+/-! ## Flat arena bridge for record-level reasoning
+
+`witnessIndexIs` is the structured, recursive assertion used by the builder
+contract, while `widx_swap_records` receives one flat byte arena.  The bridge
+below makes that representation change explicit.  It is deliberately stated
+only for well-formed records: the machine writes exactly a 32-byte hash and
+two eight-byte little-endian fields, so a malformed record is not a valid
+instantiation of the arena contract.
+-/
+
+/-- The byte concatenation represented by a list of witness-index records. -/
+def flatRecordBytes : List WitnessIndexRecord → List (BitVec 8)
+  | [] => []
+  | r :: rest => r.bytes ++ flatRecordBytes rest
+
+theorem witnessIndexRecordIs_eq_bytesRegion
+    {base : Word} {r : WitnessIndexRecord} (hwf : r.WF) :
+    witnessIndexRecordIs base r = bytesRegion base r.bytes := by
+  funext ps
+  exact propext ⟨fun h => h.2, fun h => ⟨hwf, h⟩⟩
+
+theorem bytesRegion_record_append
+    (base : Word) (r : WitnessIndexRecord)
+    (rest : List WitnessIndexRecord) (hwf : r.WF) :
+    bytesRegion base (r.bytes ++ flatRecordBytes rest) =
+      (bytesRegion base r.bytes **
+        bytesRegion (base + BitVec.ofNat 64 (WITNESS_INDEX_RECORD_BYTES))
+          (flatRecordBytes rest)) := by
+  have hlen : r.bytes.length = WITNESS_INDEX_RECORD_BYTES :=
+    r.bytes_length hwf
+  have h8 : WITNESS_INDEX_RECORD_BYTES % 8 = 0 := by decide
+  have hn : WITNESS_INDEX_RECORD_BYTES ≤
+      (r.bytes ++ flatRecordBytes rest).length := by
+    simp [hlen]
+  rw [EvmAsm.Evm64.bytesRegion_split base (r.bytes ++ flatRecordBytes rest)
+    WITNESS_INDEX_RECORD_BYTES h8 hn]
+  simp [hlen]
+
+theorem witnessIndexIs_eq_flatRecordBytes
+    (base : Word) (records : List WitnessIndexRecord)
+    (hwf : ∀ r ∈ records, r.WF) :
+    witnessIndexIs base records = bytesRegion base (flatRecordBytes records) := by
+  induction records generalizing base with
+  | nil => rfl
+  | cons r rest ih =>
+      rw [witnessIndexIs_cons, witnessIndexRecordIs_eq_bytesRegion
+        (hwf r (by simp)), ih (base := base + BitVec.ofNat 64
+          WITNESS_INDEX_RECORD_BYTES) (fun r hr => hwf r (by simp [hr]))]
+      rw [← bytesRegion_record_append base r rest (hwf r (by simp))]
+      rfl
+
 /-! ## Exact sortedness bridge consumed by indexed search -/
 
 theorem recordsSorted_of_witnessIndexSorted
