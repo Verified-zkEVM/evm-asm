@@ -19,8 +19,6 @@
 //   SPIKE_WATCH_STOP=1       stop the run after the first watch hit (default: log+continue)
 //   SPIKE_BREAK_PC=<hex>     stop after executing the insn at this PC (logs once)
 //   SPIKE_RUN_DEBUG=1        existing: dump first 60 steps
-//   SPIKE_COUNT_STEPS=1      execute one instruction per host step so the
-//                            clean-halt count is exact (slower than batching)
 //   SPIKE_INIT_WRITES=<addr>:<u64>[,<addr>:<u64>...]
 //                            tooling-only LE dword writes after ELF/input load
 //   SPIKE_DUMP_RANGES=<addr:length,...> + SPIKE_DUMP_FILE=<file>
@@ -532,6 +530,11 @@ int main(int argc, char** argv) {
     wr(&sim, write.addr, value, sizeof(value));
   }
 
+  // Spike maintains minstret independently of the host-side step batch.  Read
+  // it around the complete guest run so the clean-halt marker is exact while
+  // retaining the normal fast batching in the driver.
+  const uint64_t minstret_start = p->get_state()->minstret->read();
+
   if (getenv("SPIKE_RUN_DEBUG")) {
     uint8_t insn[4]; rd(&sim, entry, insn, 4);
     fprintf(stderr, "[dbg] entry=0x%llx insn@entry=%02x%02x%02x%02x pc=0x%llx\n",
@@ -584,12 +587,9 @@ int main(int argc, char** argv) {
 
   // step until the handler signals halt (HALT_FLAG nonzero) or the cap is hit.
   // flag==1 clean halt; flag==2 guest fault (info at HALT_FLAG+0x10/0x18/0x20).
-  const char* count_steps_env = getenv("SPIKE_COUNT_STEPS");
-  const bool count_steps = count_steps_env && count_steps_env[0] != '\0' &&
-                           count_steps_env[0] != '0';
   uint64_t flagv = rd_u64(&sim, HALT_FLAG);
   if (!flagv) {
-    const bool fine = have_watch || have_break_pc || count_steps;
+    const bool fine = have_watch || have_break_pc;
     const size_t batch = fine ? 1 : STEP_BATCH;
     while (steps_left > 0) {
       size_t n = batch;
@@ -632,7 +632,7 @@ int main(int argc, char** argv) {
   } else if (flagv == 0) {
     fprintf(stderr, "spike_run: step cap reached without halt (or watch-stop)\n");
   } else if (flagv == 1) {
-    const uint64_t steps_used = STEP_CAP - steps_left;
+    const uint64_t steps_used = p->get_state()->minstret->read() - minstret_start;
     fprintf(stderr, "spike_run: halted cleanly steps=%llu\n",
             (unsigned long long)steps_used);
   }
