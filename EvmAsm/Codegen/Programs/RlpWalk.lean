@@ -218,7 +218,7 @@ def rlpWalkNextSharedFunction_with_cap (depthCap : Word) : String :=
     emitProgramR (rlpWalkNextShared_prog_with_cap depthCap) rlpWalkNextShared_relocs
 
 def rlpWalkNextSharedFunction : String :=
-  rlpWalkNextSharedFunction_with_cap (rlpRecursiveDecodeDepthCap : Word)
+  "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs
 
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `rlpWalkNextShared_prog` rendered under its label with the `la`/`jal`
