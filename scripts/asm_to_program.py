@@ -1816,6 +1816,9 @@ def _collect_guest_addr_syms():
         'rlp_walk_next_shared',
         'rlp_validate_payload',
         'rlp_walk_next_core',
+        # GH #13091: the sixth u32le twin, rowed at its linked entry via
+        # the pinned bahU32leFn spec (like sws_u32le/spw_u32le).
+        'sg_load_u32le',
         # GH #13089: three more hand-verified DCode leaves rowed at their
         # linked entries (modexp_iszero, edd_be32_eq, edd_memcpy); like
         # sg_validate_fixed_list below, their flat whole-routine triples
@@ -1950,6 +1953,12 @@ SOURCE_DRIFT_ALLOW = {
     # the mechanically pasted gen_lean block.  Its dedicated rfl tie plus the
     # fixture/assembly byte-identity check remain the drift guard.
     'rlpValidatePayloadFunction',
+    # #12846: the shared walker's recursion guard is parameterized by the same
+    # depth cap and renders through the sibling `_prog_of` helper, so its
+    # source is not the mechanically pasted gen_lean block either. Its
+    # dedicated rfl tie plus the fixture/assembly byte-identity check remain
+    # the drift guard, same as rlpValidatePayloadFunction above.
+    'rlpWalkNextSharedFunction',
     # #12134: pre-existing proved Program registered into MANIFEST/
     # GuestImageEntries. Its source is a hand-written core-side copy with a
     # dedicated rfl tie, not a paste of gen_lean's decimal form; byte-identity

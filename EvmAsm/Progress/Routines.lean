@@ -188,6 +188,7 @@ import EvmAsm.Codegen.Programs.U256GasPricingSAsm
 import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
 import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
 import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
+import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -3522,6 +3523,17 @@ def routineRegistry : List RoutineEntry := [
         ++ "`bah_u32le` / `enrg_u32le`; its `Fn` is pinned by re-delegating its spec to "
         ++ "the already-pinned `bahU32leFn`, leaving the shared `sgLoadU32leFn` alone. "
         ++ "Lives in `Codegen/Programs/SszPayloadWithdrawalsSAsm.lean`"),
+  -- #13091: the sixth u32le twin, at its own linked entry.
+  routine "sg_load_u32le" .proven (some "sgLoadU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sg_load_u32le` over "
+        ++ "`sgluCr = CodeReq.ofProg … sgLoadU32le_prog` (the "
+        ++ "`StatelessGuestEpilogue` emission): `a0` becomes `leU32 bs 0`. "
+        ++ "Memory UNTOUCHED (read-only region intact, empty writable "
+        ++ "window). Domain: `4 ≤ bs.length` plus ABI; total. Sixth twin of "
+        ++ "the u32le family, same lift as `sws_u32le` via a separate "
+        ++ "ambient-pinned `Fn` delegating to `bahU32leFn_spec` (the shared "
+        ++ "five-consumer `sgLoadU32leFn` untouched). Lives in "
+        ++ "`Codegen/Proofs/SgLoadU32leFlatEntry.lean`"),
   routine "sws_u32le" .proven (some "swsU32leFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.sws_u32le` over `swsU32leCr = "
         ++ "CodeReq.ofProg … swsU32le_prog`, the `GuestImageEntries` pairing: `a0` "
@@ -4730,10 +4742,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 226 := by decide
+theorem routineCount_eq : routineCount = 227 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 172 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
 set_option maxRecDepth 16000 in
@@ -4753,7 +4765,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 187 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6158,6 +6170,9 @@ private noncomputable abbrev _edd_be32_eq_routine_witness :=
   @EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
 private noncomputable abbrev _edd_memcpy_routine_witness :=
   @EvmAsm.Codegen.DCodeLeafFlatEntries.eddMemcpyFlat_spec
+-- #13091: the sixth u32le twin at its linked entry.
+private noncomputable abbrev _sg_load_u32le_routine_witness :=
+  @EvmAsm.Codegen.SgLoadU32leFlatEntry.sgLoadU32leFlat_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=

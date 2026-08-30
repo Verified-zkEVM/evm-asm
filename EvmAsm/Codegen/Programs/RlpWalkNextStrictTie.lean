@@ -14,6 +14,15 @@ abbrev S : Word := (GuestAddrs.rlp_walk_next_shared : Word)
 /-- Guest entry of the lenient 412-byte core. -/
 abbrev C : Word := (GuestAddrs.rlp_walk_next_core : Word)
 
+/-! Code requirements are parameterized by the same depth cap consumed by the
+    shared program.  The default alias is the linked Amsterdam instantiation;
+    cap-sensitive contracts use `sharedCodeWithCap` directly. -/
+def sharedCodeWithCap (depthCap : Word) : CodeReq :=
+  CodeReq.ofProg S (rlpWalkNextShared_prog_of depthCap)
+
+/- Keep the historical default requirement directly tied to the default Program
+   so existing fixed-address block proofs continue to reduce cheaply.  Generic
+   cap-sensitive contracts use `sharedCodeWithCap` above. -/
 abbrev sharedCode : CodeReq := CodeReq.ofProg S rlpWalkNextShared_prog
 
 /-- `pcf` closes `P.pcFree` for the atoms used in this module. -/
@@ -30,6 +39,9 @@ local macro "pcf" : tactic =>
       | exact bytesRegion_pcFree _ _)
 
 theorem shared_length : rlpWalkNextShared_prog.length = 52 := rfl
+
+theorem shared_length_with_cap (depthCap : Word) :
+    (rlpWalkNextShared_prog_of depthCap).length = 52 := rfl
 
 /-- The Codegen transcription of the core is literally the verified core body. -/
 theorem core_prog_eq : rlpWalkNextCore_prog = rlp_walk_next_prog := rfl
