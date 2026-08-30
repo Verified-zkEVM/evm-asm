@@ -201,6 +201,55 @@ theorem status1TailToSeam (oldStatus : Word) :
       (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) s1
   runBlock s0C s1C
 
+/-- `BEQ x5,x0` @ `H+60` taken (number = 0) without naming `x0` in the
+    assertion.  `x0` is hardwired zero (`RegFile.get_x0`), so the branch
+    semantics do not depend on `R` owning `x0`; the contract pre
+    `(validateHeaderCorePre ** (x5 ↦ o5))` does not own `x0`, so the route
+    must not demand it either. -/
+private theorem numberZeroBeq_taken_branch (number : Word) (hnum : number = 0) :
+    cpsBranchWithin 1 (H + 60) (CodeReq.singleton (H + 60) (.BEQ .x5 .x0 numberZeroBrOff))
+      (.x5 ↦ᵣ number)
+      (H + 60 + signExtend13 numberZeroBrOff) (.x5 ↦ᵣ number)
+      (H + 64) ((.x5 ↦ᵣ number) ** ⌜number ≠ 0⌝) := by
+  intro R hR s hcr hPR hpc
+  have hfetch : s.code s.pc = some (.BEQ .x5 .x0 numberZeroBrOff) := by
+    rw [hpc]
+    exact CodeReq.singleton_satisfiedBy.mp hcr
+  have hr5 : s.getReg .x5 = number :=
+    holdsFor_regIs.mp (holdsFor_sepConj_elim_left hPR)
+  have hr0 : s.getReg .x0 = (0 : Word) := rfl
+  have hstep' : step s = some (execInstrBr s (.BEQ .x5 .x0 numberZeroBrOff)) :=
+    step_non_ecall_non_mem hfetch (by nofun) (by nofun) (by rfl)
+  have hexec' : execInstrBr s (.BEQ .x5 .x0 numberZeroBrOff) =
+      s.setPC (s.pc + signExtend13 numberZeroBrOff) := by
+    simp only [execInstrBr, hr5, hr0, hnum, beq_self_eq_true, ite_true]
+  refine ⟨1, Nat.le_refl 1, s.setPC (s.pc + signExtend13 numberZeroBrOff), ?_, Or.inl ⟨?_, ?_⟩⟩
+  · show (step s).bind (stepN 0) = some _
+    rw [hstep', hexec']
+    rfl
+  · rw [hpc]
+    rfl
+  · have hpc_free : ((.x5 ↦ᵣ number) ** R).pcFree :=
+      pcFree_sepConj (by pcFree) hR
+    have hPR' := holdsFor_pcFree_setPC hpc_free
+      (v := s.pc + signExtend13 numberZeroBrOff) hPR
+    obtain ⟨hp, hcompat, h1, h2, hd, hu, hP1, hR2⟩ := hPR'
+    exact ⟨hp, hcompat, h1, h2, hd, hu, hP1, hR2⟩
+
+/-- `cpsTripleWithin` version of `numberZeroBeq_taken` over `callerCode`
+    (`BEQ x5,x0` @ `H+60` taken, no `x0` atom). -/
+private theorem numberZeroBeq_taken_noX0 (number : Word) (hnum : number = 0) :
+    cpsTripleWithin 1 (H + 60) (H + 260) callerCode
+      (.x5 ↦ᵣ number) (.x5 ↦ᵣ number) := by
+  have hbr := numberZeroBeq_taken_branch number hnum
+  rw [numberZeroBeq_taken_pc] at hbr
+  have hbr' := cpsBranchWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 60) prog 15 (.BEQ .x5 .x0 numberZeroBrOff)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) hbr
+  exact cpsBranchWithin_takenPath hbr' (fun _ hQf => by
+    obtain ⟨_, _, _, _, _, hpure⟩ := hQf
+    exact hpure.2 hnum)
+
 /-- Status-1 route from the core entry (`H+56`) to the epilogue seam (`H+352`):
     `LD x5,x18+64`; `BEQ x5,x0` (taken); `LI x10,1`; `JAL x0`.  The post is
     the status-1 exit with entry register/stack values. -/
@@ -220,10 +269,10 @@ theorem validateHeaderCoreStatus1Route
         rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
         headerStruct parentStruct header headerLen thisStruct parentStructPtr parentRlpPtr
         parentRlpLen G **
-        (.x5 ↦ᵣ o5) ** (.x0 ↦ᵣ (0 : Word)))
+        (.x5 ↦ᵣ o5))
       (validateHeaderCoreStatus1Post parentSpec headerSpec spC raIn header headerLen thisStruct
         parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes headerStruct parentStruct
-        G ** (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word))) := by
+        G ** (.x5 ↦ᵣ (0 : Word))) := by
   have hresult : validateHeaderStatusResult parentSpec headerSpec (1 : Word) header rawBytes := by
     right; left; exact ⟨rfl, hrej⟩
   have hq : 8 * 8 < headerStruct.length := by rw [hlen]; norm_num
@@ -252,7 +301,7 @@ theorem validateHeaderCoreStatus1Route
       (.x11 ↦ᵣ headerLen) ** (.x12 ↦ᵣ thisStruct) ** (.x13 ↦ᵣ parentStructPtr) **
       (.x14 ↦ᵣ parentRlpPtr) ** (.x15 ↦ᵣ parentRlpLen)
   let ambient1 : Assertion :=
-    ((.x0 ↦ᵣ (0 : Word)) ** (.x10 ↦ᵣ header) ** savedRegs ** stackCells **
+    ((.x10 ↦ᵣ header) ** savedRegs ** stackCells **
       memRegions ** framePures ** G)
   have hpf1 : ambient1.pcFree := by
     unfold ambient1 savedRegs stackCells memRegions framePures
@@ -267,11 +316,11 @@ theorem validateHeaderCoreStatus1Route
     unfold ambient2 savedRegs stackCells memRegions framePures
     repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_memIs |
       exact pcFree_pure | exact bytesRegion_pcFree _ _ | exact hG | exact hf | exact hr
-  have hb := numberZeroBeq_taken (0 : Word) rfl
+  have hb := numberZeroBeq_taken_noX0 (0 : Word) rfl
   have hbF := cpsTripleWithin_frameR ambient2 hpf2 hb
   let ambient3 : Assertion :=
     ((.x18 ↦ᵣ thisStruct) ** ((thisStruct + 64) ↦ₘ (0 : Word)) **
-      (.x5 ↦ᵣ (0 : Word)) ** (.x0 ↦ᵣ (0 : Word)) **
+      (.x5 ↦ᵣ (0 : Word)) **
       savedRegs ** stackCells ** memRegions ** framePures ** G)
   have hpf3 : ambient3.pcFree := by
     unfold ambient3 savedRegs stackCells memRegions framePures
@@ -296,3 +345,97 @@ theorem validateHeaderCoreStatus1Route
       have hq' := (sepConj_pure_right _).2 ⟨hq, hresult⟩
       xperm_hyp hq')
     s2
+
+/-- Drop the middle conjunct of a three-way separating conjunction at the
+    `holdsFor` level: `(P ** Q ** R).holdsFor s` → `(P ** R).holdsFor s`. -/
+private theorem holdsFor_sepConj_elim_mid {P Q R : Assertion} {s : MachineState}
+    (h : (P ** Q ** R).holdsFor s) : (P ** R).holdsFor s := by
+  obtain ⟨hp, hcompat, hP⟩ := h
+  obtain ⟨h1, hQR, hd1, hunion1, hp1, hQRp⟩ := hP
+  obtain ⟨h2, h3, hd2, hunion2, hq2, hr3⟩ := hQRp
+  have h1c : h1.CompatibleWith s := by
+    rw [← hunion1] at hcompat
+    exact (PartialState.CompatibleWith_union hd1).mp hcompat |>.1
+  have hQRc : hQR.CompatibleWith s := by
+    rw [← hunion1] at hcompat
+    exact (PartialState.CompatibleWith_union hd1).mp hcompat |>.2
+  have h3c : h3.CompatibleWith s := by
+    rw [← hunion2] at hQRc
+    exact (PartialState.CompatibleWith_union hd2).mp hQRc |>.2
+  have hd13 : h1.Disjoint h3 := by
+    have hQR_eq : hQR = h2.union h3 := hunion2.symm
+    rw [hQR_eq] at hd1
+    have hcomm : h2.union h3 = h3.union h2 := PartialState.union_comm_of_disjoint hd2
+    rw [hcomm] at hd1
+    exact RiscvZkvm.Rv64.disjoint_left_of_disjoint_union_right hd1
+  refine ⟨h1.union h3, ?_, ?_⟩
+  · exact (PartialState.CompatibleWith_union hd13).mpr ⟨h1c, h3c⟩
+  · exact ⟨h1, h3, hd13, rfl, hp1, hr3⟩
+
+/-- A concrete satisfiability witness for `validateHeaderCoreContract`: the
+    status-1 (number < 1) header route runs the core from `H+56` to the epilogue
+    seam at `H+352` with exit status 1.  This discharges the contract at a
+    concrete instance, completing the status-1 arm. -/
+theorem validateHeaderCoreContract_hcoreStatus1_inhabited :
+    validateHeaderCoreContract 4 callerCode
+      hcoreWitnessParentSpec hcoreStatus1HeaderSpec
+      hcoreWitnessSpC 0 errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      hcoreStatus1HeaderRlp hcoreWitnessParentRlpBytes
+      hcoreStatus1HeaderStruct hcoreWitnessParentStruct
+      0 0 errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes) := by
+  unfold validateHeaderCoreContract
+  intro R hRfree s hcr hpre hpc
+  have hroute := validateHeaderCoreStatus1Route
+      hcoreWitnessSpC 0 errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      hcoreWitnessParentSpec hcoreStatus1HeaderSpec
+      hcoreStatus1HeaderRlp hcoreWitnessParentRlpBytes
+      hcoreStatus1HeaderStruct hcoreWitnessParentStruct
+      (0 : Word) (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)
+      (bytesRegion_pcFree hcoreWitnessGAddr hcoreWitnessGBytes)
+      hcoreStatus1_struct hcoreStatus1_struct.1 rfl hcoreStatus1_spec_reject
+  rcases hroute R hRfree s hcr hpre hpc with ⟨k, hk, s', hstep, hpc', hpost⟩
+  let Post := validateHeaderCorePost hcoreWitnessParentSpec hcoreStatus1HeaderSpec 1 hcoreWitnessSpC 0
+      errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      hcoreStatus1HeaderRlp hcoreWitnessParentRlpBytes
+      hcoreStatus1HeaderStruct hcoreWitnessParentStruct
+      0 errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)
+  let Q1 := (.x11 ↦ᵣ (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)) **
+    (.x12 ↦ᵣ hcoreWitnessParent) ** (.x13 ↦ᵣ hcoreWitnessParent2) **
+    (.x14 ↦ᵣ hcoreWitnessParentRlp) **
+    (.x15 ↦ᵣ (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length))
+  have hpost0 : (((Post ** Q1) ** (.x5 ↦ᵣ (0 : Word))) ** R).holdsFor s' := by
+    simpa [Post, Q1, validateHeaderCoreStatus1Post] using hpost
+  have hpost1 : ((Post ** Q1) ** ((.x5 ↦ᵣ (0 : Word)) ** R)).holdsFor s' :=
+    (holdsFor_sepConj_assoc (P := Post ** Q1) (Q := (.x5 ↦ᵣ (0 : Word))) (R := R)).mp hpost0
+  have hpost2 : (Post ** (Q1 ** ((.x5 ↦ᵣ (0 : Word)) ** R))).holdsFor s' :=
+    (holdsFor_sepConj_assoc (P := Post) (Q := Q1) (R := (.x5 ↦ᵣ (0 : Word)) ** R)).mp hpost1
+  have hpost3 : (Post ** ((.x5 ↦ᵣ (0 : Word)) ** R)).holdsFor s' :=
+    holdsFor_sepConj_elim_mid (P := Post) (Q := Q1) (R := (.x5 ↦ᵣ (0 : Word)) ** R) hpost2
+  have hpostCore : (Post ** R).holdsFor s' :=
+    holdsFor_sepConj_elim_mid (P := Post) (Q := (.x5 ↦ᵣ (0 : Word))) (R := R) hpost3
+  refine ⟨k, hk, s', hstep, ?_⟩
+  refine ⟨(H + 352, validateHeaderCorePost hcoreWitnessParentSpec
+      hcoreStatus1HeaderSpec 1 hcoreWitnessSpC 0 errorArmHeaderPtr
+      (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length) hcoreWitnessParent hcoreWitnessParent2
+      hcoreWitnessParentRlp (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      hcoreStatus1HeaderRlp hcoreWitnessParentRlpBytes
+      hcoreStatus1HeaderStruct hcoreWitnessParentStruct
+      0 errorArmHeaderPtr (BitVec.ofNat 64 hcoreStatus1HeaderRlp.length)
+      hcoreWitnessParent hcoreWitnessParent2 hcoreWitnessParentRlp
+      (BitVec.ofNat 64 hcoreWitnessParentRlpBytes.length)
+      (bytesRegion hcoreWitnessGAddr hcoreWitnessGBytes)), ?_, hpc', (by simpa [Post] using hpostCore)⟩
+  simp [validateHeaderCoreExits]
+
+#print axioms validateHeaderCoreContract_hcoreStatus1_inhabited

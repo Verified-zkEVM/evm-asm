@@ -263,6 +263,7 @@ import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus1Witness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
@@ -5860,6 +5861,12 @@ private noncomputable abbrev _k73_incr_route_adapter_witness :=
 -- monotonicity at real linked ranges.
 private noncomputable abbrev _header_validate_base_fee_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+-- #12346: concrete satisfiability witness for the K67 core contract's status-1
+-- arm: the number < 1 header route discharges `validateHeaderCoreContract` at a
+-- concrete instance (number=0 header whose canonical RLP decodes and SpecRef
+-- rejects with "block number < 1").
+private noncomputable abbrev _validateHeaderCore_status1_witness :=
+  @EvmAsm.Codegen.ValidateHeaderWhole.validateHeaderCoreContract_hcoreStatus1_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
