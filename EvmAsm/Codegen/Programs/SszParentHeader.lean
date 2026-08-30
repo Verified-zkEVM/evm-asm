@@ -100,7 +100,7 @@ def extractParentHeaderAndStateRoot_prog : Program :=
     .AUIPC .x14 (laHi GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 112)),
     .ADDI .x14 .x14 (laLo GuestAddrs.eph_len (GuestAddrs.extract_parent_header_and_state_root + 112)),
     .JAL .x1 (jalOff GuestAddrs.witness_lookup_by_hash (GuestAddrs.extract_parent_header_and_state_root + 120)),
-    .BNE .x10 .x0 (68 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.extract_parent_header_and_state_root + 192) (GuestAddrs.extract_parent_header_and_state_root + 124)),
     .AUIPC .x5 (laHi GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 128)),
     .ADDI .x5 .x5 (laLo GuestAddrs.eph_off (GuestAddrs.extract_parent_header_and_state_root + 128)),
     .LD .x6 .x5 (0 : BitVec 12),

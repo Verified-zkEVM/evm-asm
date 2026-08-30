@@ -202,7 +202,7 @@ def secfBeToLe_prog : Program :=
     .SD .x7 .x28 (0 : BitVec 12),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (4 : Word),
-    .BNE .x5 .x6 (-68 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.secf_be_to_le + 4) (GuestAddrs.secf_be_to_le + 72)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def secp256k1FieldBeToLeFunction : String :=
@@ -238,7 +238,7 @@ def secfLeToBe_prog : Program :=
     .BNE .x29 .x0 (-20 : BitVec 13),
     .ADDI .x5 .x5 (1 : BitVec 12),
     .LI .x6 (4 : Word),
-    .BNE .x5 .x6 (-64 : BitVec 13),
+    .BNE .x5 .x6 (brOff (GuestAddrs.secf_le_to_be + 4) (GuestAddrs.secf_le_to_be + 68)),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
 def secp256k1FieldLeToBeFunction : String :=
@@ -806,11 +806,11 @@ def secfSqrtModP_prog : Program :=
     .MV .x12 .x20,
     .JAL .x1 (jalOff GuestAddrs.secf_square_mod_p (GuestAddrs.secf_sqrt_mod_p + 92)),
     .LI .x5 (255 : Word),
-    .BEQ .x19 .x5 (84 : BitVec 13),
+    .BEQ .x19 .x5 (brOff (GuestAddrs.secf_sqrt_mod_p + 184) (GuestAddrs.secf_sqrt_mod_p + 100)),
     .LI .x5 (254 : Word),
-    .BEQ .x19 .x5 (76 : BitVec 13),
+    .BEQ .x19 .x5 (brOff (GuestAddrs.secf_sqrt_mod_p + 184) (GuestAddrs.secf_sqrt_mod_p + 108)),
     .LI .x5 (30 : Word),
-    .BEQ .x19 .x5 (68 : BitVec 13),
+    .BEQ .x19 .x5 (brOff (GuestAddrs.secf_sqrt_mod_p + 184) (GuestAddrs.secf_sqrt_mod_p + 116)),
     .LI .x5 (7 : Word),
     .BEQ .x19 .x5 (60 : BitVec 13),
     .LI .x5 (6 : Word),
@@ -829,7 +829,7 @@ def secfSqrtModP_prog : Program :=
     .BEQ .x19 .x0 (16 : BitVec 13),
     .BEQ .x19 .x0 (12 : BitVec 13),
     .ADDI .x19 .x19 (-1 : BitVec 12),
-    .JAL .x0 (-108 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.secf_sqrt_mod_p + 84) (GuestAddrs.secf_sqrt_mod_p + 192)),
     .MV .x10 .x20,
     .MV .x11 .x9,
     .JAL .x1 (jalOff GuestAddrs.secf_copy32 (GuestAddrs.secf_sqrt_mod_p + 204)),

@@ -12,6 +12,10 @@ public import EvmAsm.Rv64.Program
 meta import EvmAsm.Codegen.Layout
 meta import EvmAsm.Codegen.Emit
 meta import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.GuestAddrs
 
 @[expose] public section
 
@@ -39,7 +43,7 @@ open EvmAsm.Rv64
       a0 output : 0 success, 1 invalid gas_left > tx_gas_limit
 -/
 def txRefundCap_prog : Program :=
-  [ .BLTU .x10 .x11 (64 : BitVec 13),
+  [ .BLTU .x10 .x11 (brOff 2147483712 2147483648),
     .SUB .x5 .x10 .x11,
     .SD .x13 .x5 (0 : BitVec 12),
     .LI .x6 (5 : Word),

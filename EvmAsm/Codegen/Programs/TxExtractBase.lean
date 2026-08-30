@@ -76,19 +76,19 @@ private def txExtractWalkFieldAsm (failLabel : String) (n : Nat) : String :=
 
     Leaf-callable, no scratch. -/
 def txTypeDispatch_prog : Program :=
-  [ .BEQ .x11 .x0 (164 : BitVec 13),
+  [ .BEQ .x11 .x0 (brOff (GuestAddrs.tx_type_dispatch + 164) (GuestAddrs.tx_type_dispatch + 0)),
     .LBU .x5 .x10 (0 : BitVec 12),
     .LI .x6 (192 : Word),
     .BGEU .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 180) (GuestAddrs.tx_type_dispatch + 12)),
     .LI .x6 (1 : Word),
     .BEQ .x5 .x6 (48 : BitVec 13),
     .LI .x6 (2 : Word),
-    .BEQ .x5 .x6 (64 : BitVec 13),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 92) (GuestAddrs.tx_type_dispatch + 28)),
     .LI .x6 (3 : Word),
-    .BEQ .x5 .x6 (80 : BitVec 13),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 116) (GuestAddrs.tx_type_dispatch + 36)),
     .LI .x6 (4 : Word),
-    .BEQ .x5 .x6 (96 : BitVec 13),
-    .JAL .x0 (116 : BitVec 21),
+    .BEQ .x5 .x6 (brOff (GuestAddrs.tx_type_dispatch + 140) (GuestAddrs.tx_type_dispatch + 44)),
+    .JAL .x0 (jalOff (GuestAddrs.tx_type_dispatch + 164) (GuestAddrs.tx_type_dispatch + 48)),
     .SD .x12 .x0 (0 : BitVec 12),
     .SD .x13 .x0 (0 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -123,7 +123,7 @@ def txTypeDispatch_prog : Program :=
     .JALR .x0 .x1 (0 : BitVec 12),
     .LI .x6 (255 : Word),
     .BEQ .x5 .x6 (-20 : BitVec 13),
-    .JAL .x0 (-136 : BitVec 21) ]
+    .JAL .x0 (jalOff (GuestAddrs.tx_type_dispatch + 52) (GuestAddrs.tx_type_dispatch + 188)) ]
 
 def txTypeDispatchFunction : String :=
   "tx_type_dispatch:\n" ++ emitProgram txTypeDispatch_prog
@@ -137,7 +137,6 @@ theorem txTypeDispatchFunction_eq_prog :
 
 #guard txTypeDispatchFunction.startsWith "tx_type_dispatch:\n"
 #guard txTypeDispatch_prog.length = 48
-
 /-! ## tx_extract_nonce_and_gas -- PR-K102
 
     Extract the (`nonce`, `gas_limit`) pair from any encoded tx
