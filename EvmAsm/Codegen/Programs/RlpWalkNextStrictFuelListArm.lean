@@ -24,7 +24,7 @@ payload work is supplied by the continuation contracts below. -/
 theorem shared_list_prefix_to_length_branch
     (pfx depth sp old11 endPtr : Word)
     (hlist : ¬ BitVec.ult pfx (192 : Word))
-    (hdepth : BitVec.ult depth (1024 : Word)) :
+    (hdepth : BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)) :
     cpsTripleWithin 6 (RlpWalkNextStrictTie.S + 60)
       (RlpWalkNextStrictTie.S + 84) RlpWalkNextStrictTie.sharedCode
       ((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (192 : Word)) **
@@ -52,13 +52,14 @@ theorem shared_list_prefix_to_length_branch
     exact ((sepConj_pure_right _).mp hpure).2 hdepth)
   have hdepth'' := cpsTripleWithin_weaken (fun _ hp => hp)
     sepConj_strip_pure_end2 hdepth'
-  have hli := li_spec_gen_within .x7 (192 : Word) (1024 : Word)
+  have hli := li_spec_gen_within .x7 (192 : Word)
+    (rlpRecursiveDecodeDepthCap : Word)
     (RlpWalkNextStrictTie.S + 64) (by decide)
   rw [show RlpWalkNextStrictTie.S + 64 + 4 =
       RlpWalkNextStrictTie.S + 68 by bv_omega] at hli
   have hliMono : ∀ a i,
       CodeReq.singleton (RlpWalkNextStrictTie.S + 64)
-        (.LI .x7 (1024 : Word)) a = some i →
+        (.LI .x7 (rlpRecursiveDecodeDepthCap : Word)) a = some i →
       RlpWalkNextStrictTie.sharedCode a = some i :=
     CodeReq.singleton_mono (CodeReq.ofProg_lookup_addr
       RlpWalkNextStrictTie.S rlpWalkNextShared_prog 16
@@ -98,7 +99,7 @@ theorem shared_list_prefix_to_length_branch
       (by rw [RlpWalkNextStrictTie.shared_length]; norm_num) (by bv_omega))
   have hldE := cpsTripleWithin_extend_code hldMono hld
   have hldF := cpsTripleWithin_frameR
-    ((regIs .x6 pfx) ** (regIs .x7 (1024 : Word)) **
+    ((regIs .x6 pfx) ** (regIs .x7 (rlpRecursiveDecodeDepthCap : Word)) **
       (regIs .x9 (depth + 1)))
     (by pcf_validate_cps) hldE
   have hload := shared_list_length_limit endPtr
@@ -132,7 +133,7 @@ theorem shared_list_arm_from_prefix
     (pfx depth sp old11 endPtr exit_ : Word)
     (hP : P.pcFree)
     (hlist : ¬ BitVec.ult pfx (192 : Word))
-    (hdepth : BitVec.ult depth (1024 : Word))
+    (hdepth : BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word))
     (hArm : cpsTripleWithin nArm (RlpWalkNextStrictTie.S + 84) exit_
       RlpWalkNextStrictTie.sharedCode
       (((regIs .x2 sp) ** (regIs .x6 pfx) ** (regIs .x7 (248 : Word)) **
@@ -161,7 +162,7 @@ def shared_list_recursive_continuation
     (hP : P.pcFree)
     (hdecrease : childFuel < parentFuel)
     (hlist : ¬ BitVec.ult pfx (192 : Word))
-    (hdepth : BitVec.ult depth (1024 : Word))
+    (hdepth : BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word))
     (hArm : IndexedCpsContract childFuel
       (RlpWalkNextStrictTie.S + 84) exit_
       RlpWalkNextStrictTie.sharedCode

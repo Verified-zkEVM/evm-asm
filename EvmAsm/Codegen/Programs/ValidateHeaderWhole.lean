@@ -357,12 +357,12 @@ abbrev validateHeaderCoreContract
     (spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
     (rawBytes parentRawBytes : List (BitVec 8))
     (headerStruct parentStruct : List (BitVec 8))
-    (o1 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Prop :=
+    (o1 o5 o8 o9 o18 o19 o20 o21 : Word) (G : Assertion) : Prop :=
   cpsNBranchWithin nCore (H + 56) cr
     (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
       rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
       headerStruct parentStruct
-      o8 o9 o18 o19 o20 o21 G)
+      o8 o9 o18 o19 o20 o21 G ** (.x5 ↦ᵣ o5))
     (validateHeaderCoreExits parentSpec headerSpec spC raIn header headerLen thisStruct
       parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes headerStruct parentStruct
       o1 o8 o9 o18 o19 o20 o21 G)
@@ -425,7 +425,7 @@ false-reject claim about the reference, whose result type has no status 12.
 theorem validate_header_cps_compose
     {cr : CodeReq} {nCore : Nat}
     (sp0 spC raIn header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen : Word)
-    (o1 o8 o9 o18 o19 o20 o21 : Word)
+    (o1 o5 o8 o9 o18 o19 o20 o21 : Word)
     (parentSpec headerSpec : EvmAsm.Stateless.SpecRef.Header)
     (rawBytes parentRawBytes : List (BitVec 8))
     (headerStruct parentStruct : List (BitVec 8))
@@ -438,7 +438,7 @@ theorem validate_header_cps_compose
       (validateHeaderCorePre parentSpec headerSpec spC raIn header headerLen
         rawBytes parentRawBytes thisStruct parentStructPtr parentRlpPtr parentRlpLen
         headerStruct parentStruct
-        o8 o9 o18 o19 o20 o21 G)
+        o8 o9 o18 o19 o20 o21 G ** (.x5 ↦ᵣ o5))
       (validateHeaderCoreExits parentSpec headerSpec spC raIn header headerLen thisStruct
         parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes headerStruct parentStruct
         o1 o8 o9 o18 o19 o20 o21 G)) :
@@ -453,7 +453,8 @@ theorem validate_header_cps_compose
         memOwn (spC + 24) ** memOwn (spC + 32) ** memOwn (spC + 40) **
         memOwn (spC + 48) **
         validateHeaderCoreFrame parentSpec headerSpec header parentRlpPtr headerLen parentRlpLen
-          rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct ** G)
+          rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct **
+        G ** (regIs .x5 o5))
       (validateHeaderFinalPost parentSpec headerSpec sp0 spC raIn header headerLen
         thisStruct parentStructPtr parentRlpPtr parentRlpLen rawBytes parentRawBytes headerStruct parentStruct
         o8 o9 o18 o19 o20 o21 G) := by
@@ -465,12 +466,15 @@ theorem validate_header_cps_compose
       exact pcFree_pure
   have hGFrame :
       (validateHeaderCoreFrame parentSpec headerSpec header parentRlpPtr headerLen parentRlpLen
-        rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct ** G).pcFree :=
-    pcFree_sepConj hcoreFrame_pcFree hG
+        rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct ** G **
+        (regIs .x5 o5)).pcFree := by
+    repeat' first | apply pcFree_sepConj | exact pcFree_regIs | exact pcFree_pure |
+      exact bytesRegion_pcFree _ _ | exact hG
   have hpro := validateHeader_prologue_spec sp0 spC raIn
     header headerLen thisStruct parentStructPtr parentRlpPtr parentRlpLen o8 o9 o18 o19 o20 o21
     (validateHeaderCoreFrame parentSpec headerSpec header parentRlpPtr headerLen parentRlpLen
-      rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct ** G) hGFrame hspC
+      rawBytes parentRawBytes thisStruct parentStructPtr headerStruct parentStruct ** G **
+      (regIs .x5 o5)) hGFrame hspC
   have hproC := cpsTripleWithin_extend_code hcaller hpro
   have hcore' := cpsNBranchWithin_merge hcore (by
     intro exit hmem
