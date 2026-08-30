@@ -6,7 +6,8 @@
   generated match expression remains below backend nesting limits.
 -/
 
-import EvmAsm.Codegen.Programs.Imports
+import EvmAsm.Codegen.Layout
+import EvmAsm.Codegen.Programs.RegistryReceipts
 import EvmAsm.Codegen.Programs.EvmLogHandlers
 import EvmAsm.Codegen.Programs.EvmMessageCallGas
 import EvmAsm.Codegen.Programs.TxRefund
