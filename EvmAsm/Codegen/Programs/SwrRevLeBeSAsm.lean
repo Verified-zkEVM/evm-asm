@@ -30,7 +30,6 @@
 import EvmAsm.Rv64.SAsm.MultiDword
 import EvmAsm.Rv64.SAsm.Tactic
 import EvmAsm.Codegen.Programs.SszWithdrawal
-import EvmAsm.Codegen.GuestAddrs
 import EvmAsm.Rv64.SAsm.FnFlat
 
 namespace EvmAsm.Codegen
