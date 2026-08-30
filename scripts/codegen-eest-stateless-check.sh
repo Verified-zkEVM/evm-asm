@@ -897,7 +897,14 @@ run_guest_elf() {
   if [[ "$BACKEND" == "ziskemu" ]]; then
     "$ZISKEMU" -e "$elf" -i "$input" -o "$out" -n "$steps" >"$log" 2>&1 </dev/null
   else
-    "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
+    if [[ "$APPEND_CYCLES" -eq 1 ]]; then
+      # Spike checks HALT_FLAG only after each batch by default.  Cycle records
+      # need an exact consumed-step count, so opt into one-instruction stepping
+      # for the recording run; ordinary conformance runs keep the fast batch.
+      SPIKE_COUNT_STEPS=1 "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
+    else
+      "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
+    fi
   fi
 }
 
