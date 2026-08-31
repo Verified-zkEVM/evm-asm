@@ -170,11 +170,11 @@ def setOneVals (ret arb8 : Word) : Reg → Word :=
 def setOneVals' (dst : Word) : Reg → Word :=
   fun r => match r with | .x1 => ((GuestAddrs.bnq_zero + 44) : Word) | .x8 => dst | _ => 0
 
-/-- **The whole-routine ABI contract for `bnq_set_one`.**  On return `sp`,
+/- **The whole-routine ABI contract for `bnq_set_one`.**  On return `sp`,
     `ra`, and `s0` are restored to ENTRY values (`ra` was clobbered by the
     real cross-call; `s0` by the body), and the FQ12 at the entry `a0` holds
     ONE: dword 0 = 1, dwords 1–47 = 0 — the genuine, unweakened semantics.
-    `a0` ends at `dst + 384` exactly as `bnq_zero` leaves it.
+    `a0` ends at `dst + 384` exactly as `bnq_zero` leaves it. -/
 /-- #12797. `bnqSetOneFrame_spec` below states its entry PC as
     `GuestAddrs.bnq_zero + 24` rather than as `GuestAddrs.bnq_set_one`. That is the
     RIGHT address today — but it is the right address by *arithmetic over a sibling
@@ -200,9 +200,7 @@ theorem bnqSetOne_entry_addr_pin_tight :
 theorem bnqSetOne_entry_addr_pin_word :
     ((GuestAddrs.bnq_zero + 24 : Nat) : Word) = ((GuestAddrs.bnq_set_one : Nat) : Word) := by
   rw [bnqSetOne_entry_addr_pin]
-
-
-    The callee contract is the adapter-derived `bnqZeroFlat_spec`, so the
+/-- The callee contract is the adapter-derived `bnqZeroFlat_spec`, so the
     caller owns the callee's full exposed-register footprint across the
     call: the untracked registers ride as `regOwns bnqRiders`. -/
 theorem bnqSetOneFrame_spec (sp0 ret dst arb8 v5 v7 : Word) (vs : List Word)
