@@ -20,23 +20,23 @@
 #     "source":   "<which script emitted this>"
 #   }
 #
-# `steps`/`cycles` are nullable: ziskemu is NOT yet wired here (no working
-# emulator in this environment), so the LIVE PARSE is DEFERRED. Two ways to
-# populate them:
+# `steps`/`cycles` are nullable because a caller may record a backend that does
+# not expose both values. The Spike EEST producer supplies an exact non-null
+# `steps` value; callers that do not have a number may still use the schema for
+# local diagnostics. Two ways to populate them:
 #   (a) explicitly:  --steps N [--cycles M]   (a caller that already knows)
 #   (b) from a log:  --from-log <file>        (greps ZISKEMU_STEP_COUNT_RE /
 #                                              ZISKEMU_CYCLE_COUNT_RE — phrasing
 #                                              configurable per ziskemu build)
-# If neither yields a number, the record is still appended with null, so the
-# schema + history file exist and codegen scripts can start emitting now;
-# back-fill the parse once a ziskemu build is available.
+# If neither yields a number, the record is still appended with null for local
+# diagnostics. `scripts/cycles-history-persist.sh` deliberately refuses such a
+# record, so a durable baseline cannot silently contain a missing measurement.
 #
-# DEFERRED WIRING (honest scope — landed: schema + this appender; NOT yet
-# landed): (1) no codegen-*.sh calls this yet (no working ziskemu); (2)
-# cycles-history.jsonl is written to the WORKING TREE and is .gitignored — there
-# is no persistence to an orphan branch yet, so export-metrics.yml currently
-# finds it empty. When ziskemu lands, mirror the benchmark-history orphan-branch
-# pattern (.github/workflows/benchmark.yml) to persist + a caller to populate.
+# Persistence is a separate serialized hand-off: after a producer has finished
+# appending records, call `scripts/cycles-history-persist.sh`. Keeping the
+# working-tree append separate is important because the EEST runner can execute
+# guest workers concurrently while the persistence helper performs one ordered
+# orphan-branch update.
 #
 # Usage:
 #   scripts/cycles-append.sh --program evm_add --steps 1234 [--cycles N] \

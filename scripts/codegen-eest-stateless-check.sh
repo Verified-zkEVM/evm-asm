@@ -254,6 +254,7 @@ REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
 PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
 SPIKE_RUN="${SPIKE_RUN:-$REPO_ROOT/scripts/spike/spike_run}"
 APPEND_CYCLES="${EEST_APPEND_CYCLES:-0}"
+PERSIST_CYCLES="${EEST_PERSIST_CYCLES:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -303,6 +304,9 @@ Options:
                            recorded in the run's run-provenance.tsv.
   --append-cycles           append successful Spike consumed-step records to
                            cycles-history.jsonl (opt-in; requires --backend spike)
+  --persist-cycles          after a successful --append-cycles run, push the
+                           records to the cycles-history orphan branch (requires
+                           GITHUB_TOKEN/GITHUB_REPOSITORY or HISTORY_ORIGIN_URL)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 after --filter, sample individual stateless blocks
                            uniformly WITHOUT replacement BEFORE --limit
@@ -359,6 +363,7 @@ while [[ $# -gt 0 ]]; do
     --no-build) NO_BUILD=1; shift ;;
     --guest-elf) require_arg "$1" "${2:-}"; GUEST_ELF_OVERRIDE="$2"; shift 2 ;;
     --append-cycles) APPEND_CYCLES=1; shift ;;
+    --persist-cycles) PERSIST_CYCLES=1; shift ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
@@ -432,8 +437,16 @@ if [[ "$APPEND_CYCLES" != "0" && "$APPEND_CYCLES" != "1" ]]; then
   echo "--append-cycles/EEST_APPEND_CYCLES must be 0 or 1 (got: $APPEND_CYCLES)" >&2
   exit 1
 fi
+if [[ "$PERSIST_CYCLES" != "0" && "$PERSIST_CYCLES" != "1" ]]; then
+  echo "--persist-cycles/EEST_PERSIST_CYCLES must be 0 or 1 (got $PERSIST_CYCLES)" >&2
+  exit 1
+fi
 if [[ "$APPEND_CYCLES" -eq 1 && "$BACKEND" != "spike" ]]; then
   echo "--append-cycles currently requires --backend spike (the ziskemu log has no consumed-step marker)" >&2
+  exit 1
+fi
+if [[ "$PERSIST_CYCLES" -eq 1 && "$APPEND_CYCLES" -ne 1 ]]; then
+  echo "--persist-cycles requires --append-cycles" >&2
   exit 1
 fi
 
@@ -1851,6 +1864,9 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
   fi
   if [[ "$APPEND_CYCLES" -eq 1 ]]; then
     echo "  cycles records: $cycles_append_records (errors=$cycles_append_errors)"
+    if [[ "$PERSIST_CYCLES" -eq 1 ]]; then
+      echo "  cycles persistence: requested (cycles-history orphan branch)"
+    fi
   fi
 } | tee "$BASELINE"
 
@@ -1896,5 +1912,15 @@ if [[ "$APPEND_CYCLES" -eq 1 ]]; then
     echo "==> CYCLES RECORDING FAILED: no non-null consumed-step datapoint was appended" >&2
     rc=1
   fi
+fi
+if [[ "$PERSIST_CYCLES" -eq 1 && "$rc" -eq 0 ]]; then
+  if scripts/cycles-history-persist.sh; then
+    echo "==> CYCLES PERSISTENCE: pushed $cycles_append_records record(s) to cycles-history"
+  else
+    echo "==> CYCLES PERSISTENCE FAILED: records were appended locally but not durable" >&2
+    rc=1
+  fi
+elif [[ "$PERSIST_CYCLES" -eq 1 ]]; then
+  echo "==> CYCLES PERSISTENCE SKIPPED: run did not complete cleanly" >&2
 fi
 exit $rc
