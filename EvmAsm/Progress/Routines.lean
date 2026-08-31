@@ -5239,6 +5239,10 @@ private noncomputable abbrev _amsterdam_blob_gas_price_prog_eq_abiframe_witness 
 -- #12346: the excess=0 non-vacuity witness for the K70 `priceContract` seam.
 private noncomputable abbrev _priceContract_ex0_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.priceContract_ex0_inhabited
+-- #12851: the excess=0 non-vacuity witness for the `taylorPriceContract`
+-- discharge (same 8271-step machine proof, model-tied output bytes).
+private noncomputable abbrev _taylor_price_contract_excess0_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.taylor_price_contract_excess0_inhabited
 -- #12851 body: the first four body-window contracts for
 -- `amsterdam_blob_gas_price_u256`.
 private noncomputable abbrev _amsterdam_blob_gas_price_setup_witness :=

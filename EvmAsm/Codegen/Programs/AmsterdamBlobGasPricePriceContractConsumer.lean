@@ -801,7 +801,26 @@ theorem priceContract_ex0_inhabited :
   refine cpsNBranchWithin_of_triple ?_ priceAbi_lift
   simp [priceScratch, priceScratchPost, priceCalleePost]
 
+/-- `taylorPriceContract` at `excess = 0` is inhabited: the whole routine reaches
+    the model-determined status-0 exit (`x10 = 0`, output `natToBeBytes 32 1`) in
+    8271 steps.  This covers only the `excess = 0` input; `excess ≠ 0` inputs (the
+    general 495-round fold) are NOT covered here.  A non-vacuity witness for one
+    input value, NOT a discharge of the contract. -/
+theorem taylor_price_contract_excess0_inhabited :
+    taylorPriceContract 8271 sampleSp0 sampleRet sampleSaved (0 : Word) sampleOutPtr
+      priceScratch := by
+  unfold taylorPriceContract
+  rw [show priceOutcome (0 : Word).toNat = (0, natToBeBytes 32 1) from by
+    change priceOutcome 0 = (0, natToBeBytes 32 1)
+    simp [priceOutcome, taylor_price_outcome_zero]]
+  change cpsTripleWithin 8271 PriceK sampleRet priceCode
+    (priceEntryRest sampleSp0 sampleRet sampleSaved (0 : Word) sampleOutPtr priceScratch)
+    (priceCalleePost sampleSp0 sampleRet sampleSaved (0 : Word) sampleOutPtr
+      (natToBeBytes 32 1) priceScratchPost)
+  exact priceAbi_lift
+
 #print axioms priceContract_ex0_inhabited
+#print axioms taylor_price_contract_excess0_inhabited
 
 #print axioms taylor_round_excess0_qback_owned
 #print axioms price_setup_spec_owned
