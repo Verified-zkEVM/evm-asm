@@ -3149,17 +3149,17 @@ def routineRegistry : List RoutineEntry := [
   -- CodeReq is the main body's own program at the guest entry.
   routine "extract_deposit_data" .conditional
       (some "extractDepositData_spec")
-      (gate := "ONE unified contract (#13070 step 2): the post cases on "
-        ++ "the decidable `eddAccept` (canonical 576 length ∧ all ten ABI "
-        ++ "header checks) — accept: `a0 = 0` with the five raw fields "
-        ++ "copied to the output arena; otherwise `a0 = 1` and NOTHING "
-        ++ "written; in both arms `sp`/`ra`/`s0`/`s1` and the frame are "
-        ++ "restored. Total over the payload (no eddOk hypotheses — the "
-        ++ "split is internal; the twelve arm triples remain as the "
-        ++ "dispatch targets). Remaining: the statement is pinned to the "
-        ++ "deployed probe arenas (payload `0x40000010`, out "
-        ++ "`0xa0010008`) — the arena-parametric generalization is "
-        ++ "#13070's step 1")
+      (gate := "ONE unified, ARENA-PARAMETRIC contract (#13070 complete): "
+        ++ "for ANY payload/output arenas satisfying "
+        ++ "`eddDataArenaOk`/`eddOutArenaOk`/`eddArenasDisjoint` "
+        ++ "(8-aligned, wrap-free, byte-valid, non-overlapping), the post "
+        ++ "cases on the decidable `eddAccept` (canonical 576 length ∧ all "
+        ++ "ten ABI header checks) — accept: `a0 = 0` with the five raw "
+        ++ "fields copied to the output arena; otherwise `a0 = 1` and "
+        ++ "NOTHING written; in both arms `sp`/`ra`/`s0`/`s1` and the "
+        ++ "frame are restored. Total over the payload. The deployed-probe "
+        ++ "instance is `extractDepositData_probe_spec` (arena facts "
+        ++ "discharged from the concrete addresses)")
       (notes := "unified: `extractDepositData_spec` "
         ++ "(`Codegen/Proofs/ExtractDepositDataUnified.lean`), a single "
         ++ "`cpsTripleWithin 7749` whose post is "
@@ -6191,6 +6191,8 @@ private noncomputable abbrev _sg_memcpy_routine_witness :=
 -- the twelve arm triples stay swept via the earlier abbrevs.
 private noncomputable abbrev _extract_deposit_data_unified_witness :=
   @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_spec
+private noncomputable abbrev _extract_deposit_data_probe_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_probe_spec
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
