@@ -315,6 +315,11 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
 -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple
 -- (preimage ≤135, single-rate-block via `zkvm_keccak256_segments`).
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
+-- #12427: K146's linked-buffer disjointness consequences.  The whole K146
+-- entry remains unrowed while its input-layout bridge is supplied by the
+-- production caller; these two named lemmas are still axiom-gate witnessed
+-- because they carry the static-source separation argument.
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailLayout
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -6370,6 +6375,13 @@ private noncomputable abbrev _requests_hash_verify_rhv_hash_gate_witness :=
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
+-- #12427: K146's prefix/suffix static-view consequences.  They remain
+-- conditional on the caller-owned input-zone bound `hinput_hi`; this is not a
+-- whole-routine K146 witness and no routine registry row is added here.
+private noncomputable abbrev _tx_signing_hash_legacy_prefix_layout_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
+private noncomputable abbrev _tx_signing_hash_legacy_suffix_layout_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
