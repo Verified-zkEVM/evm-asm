@@ -322,6 +322,7 @@ jobs:
       # soak cannot silently rot.
       - name: Axiom sweep (whole-library, report-only)
         run: |
+          lake exe axiomsweep --self-test
           status=0
           lake exe axiomsweep --check || status=$?
           if [ "$status" -eq 1 ]; then
