@@ -93,7 +93,7 @@ theorem legacyCopy_callWithin
     hlen hsalign hdalign hNsrc hsover hdover hsvalid hdvalid hNbound
   exact cpsTripleWithin_extend_code legacyCopy_mono hcopy
 
-private theorem legacy_mem_at (pc : Word) (idx : Nat) (ins : Instr)
+theorem legacy_mem_at (pc : Word) (idx : Nat) (ins : Instr)
     (hk : idx < 120)
     (hpc : pc = legacyH + BitVec.ofNat 64 (4 * idx))
     (hins : ∀ h : idx < txSigningHashLegacyEip155_prog.length,

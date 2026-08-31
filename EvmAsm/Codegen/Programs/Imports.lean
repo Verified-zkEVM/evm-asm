@@ -604,6 +604,7 @@ import EvmAsm.Codegen.Programs.TxSigningHashLegacySpec
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyLoopSpec
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyCopySpec
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyCompose
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyBodyCompose
 import EvmAsm.Codegen.Programs.Withdrawal
 import EvmAsm.Codegen.Programs.WithdrawalPath
 import EvmAsm.Codegen.Programs.SszWithdrawal
