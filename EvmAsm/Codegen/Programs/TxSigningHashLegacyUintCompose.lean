@@ -205,4 +205,112 @@ theorem legacyChainArgSetup_spec
     (fun _ hp => by xperm_hyp hp) h01 h12W
   exact cpsTripleWithin_mono_nSteps (nSteps' := 8) (by omega) hfinal
 
+/-! ## The linked `rlp_encode_uint_be` call at H+224 -/
+
+def legacyChainEncOld : List (BitVec 8) := List.replicate 9 (0 : BitVec 8)
+
+def legacyChainUintPre
+    (v1 v29 v30 v31 chainId : Word) (F : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ v1) **
+  ((.x5 : Reg) ↦ᵣ (legacyLinkedChainPtr + BitVec.ofNat 64 8)) **
+  ((.x6 : Reg) ↦ᵣ (-1 : Word)) ** regOwn .x7 **
+  ((.x10 : Reg) ↦ᵣ legacyLinkedChainPtr) **
+  ((.x11 : Reg) ↦ᵣ (BitVec.ofNat 64 8)) **
+  ((.x12 : Reg) ↦ᵣ legacyLinkedChainEncPtr) **
+  ((.x18 : Reg) ↦ᵣ chainId) ** regOwn .x28 **
+  ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+  ((.x31 : Reg) ↦ᵣ v31) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion legacyLinkedChainPtr (chainBytes chainId) **
+  bytesRegion legacyLinkedChainEncPtr legacyChainEncOld ** F
+
+def legacyChainUintPost
+    (chainId : Word) (F : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ (legacyUintJalPC + 4)) **
+  ((.x10 : Reg) ↦ᵣ BitVec.ofNat 64
+    (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length) **
+  ((.x11 : Reg) ↦ᵣ (BitVec.ofNat 64 8)) ** regOwn .x5 ** regOwn .x6 **
+  regOwn .x7 ** regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+  ((.x18 : Reg) ↦ᵣ chainId) ** ((.x12 : Reg) ↦ᵣ legacyLinkedChainEncPtr) **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion legacyLinkedChainPtr (chainBytes chainId) **
+  bytesRegion legacyLinkedChainEncPtr
+    (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId) ++
+      legacyChainEncOld.drop
+        (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length) ** F
+
+/-- The K146 chain-buffer state reaches the deployed Uint call with `x28`
+    owned.  The ownership conversion is explicit: the proof below first
+    proves the call for every concrete `x28` value and then peels that value
+    into `regOwn .x28`; no caller-side value is assumed for an owned register. -/
+theorem legacyChainUintCall_spec
+    (v1 v29 v30 v31 chainId : Word) (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin
+      (1 + (8 * 6 + 7 *
+        (8 - RlpEncodeUintBeSAsm.reubZeros (chainBytes chainId) 0 8) + 17))
+      legacyUintJalPC (legacyUintJalPC + 4) legacyFullCode
+      (legacyChainUintPre v1 v29 v30 v31 chainId F)
+      (legacyChainUintPost chainId F) := by
+  let Pbase : Assertion :=
+    ((.x1 : Reg) ↦ᵣ v1) **
+    ((.x5 : Reg) ↦ᵣ (legacyLinkedChainPtr + BitVec.ofNat 64 8)) **
+    ((.x6 : Reg) ↦ᵣ (-1 : Word)) ** regOwn .x7 **
+    ((.x10 : Reg) ↦ᵣ legacyLinkedChainPtr) **
+    ((.x11 : Reg) ↦ᵣ (BitVec.ofNat 64 8)) **
+    ((.x12 : Reg) ↦ᵣ legacyLinkedChainEncPtr) **
+    ((.x18 : Reg) ↦ᵣ chainId) **
+    ((.x29 : Reg) ↦ᵣ v29) ** ((.x30 : Reg) ↦ᵣ v30) **
+    ((.x31 : Reg) ↦ᵣ v31) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    bytesRegion legacyLinkedChainPtr (chainBytes chainId) **
+    bytesRegion legacyLinkedChainEncPtr legacyChainEncOld ** F
+  have hfor : ∀ v28, cpsTripleWithin
+      (1 + (8 * 6 + 7 *
+        (8 - RlpEncodeUintBeSAsm.reubZeros (chainBytes chainId) 0 8) + 17))
+      legacyUintJalPC (legacyUintJalPC + 4) legacyFullCode
+      (Pbase ** ((.x28 : Reg) ↦ᵣ v28))
+      (legacyChainUintPost chainId F) := by
+    intro v28
+    let Fcall : Assertion :=
+      regOwn .x7 ** ((.x18 : Reg) ↦ᵣ chainId) ** F
+    have hFcall : Fcall.pcFree := by
+      dsimp [Fcall]
+      pcf
+      exact hF
+    have hcall := legacyUint_callWithin
+      v1 legacyLinkedChainPtr legacyLinkedChainEncPtr
+      (chainBytes chainId) legacyChainEncOld
+      (legacyLinkedChainPtr + BitVec.ofNat 64 8) (-1 : Word) v28
+      v29 v30 v31 Fcall hFcall
+      (by rw [chainBytes_length]) (by simp [legacyChainEncOld])
+      (by decide) (by decide) (by decide) (by decide)
+      (by intro k hk; interval_cases k <;> decide)
+      (by intro k hk; interval_cases k <;> decide)
+    exact cpsTripleWithin_weaken
+      (P := ((.x1 : Reg) ↦ᵣ v1) **
+        (legacyUintPre legacyLinkedChainPtr legacyLinkedChainEncPtr
+          (chainBytes chainId) legacyChainEncOld
+          (legacyLinkedChainPtr + BitVec.ofNat 64 8) (-1 : Word)
+          v28 v29 v30 v31 ** Fcall))
+      (P' := Pbase ** ((.x28 : Reg) ↦ᵣ v28))
+      (Q := ((.x1 : Reg) ↦ᵣ (legacyUintJalPC + 4)) **
+        (legacyUintPost legacyLinkedChainPtr legacyLinkedChainEncPtr
+          (chainBytes chainId) legacyChainEncOld ** Fcall))
+      (Q' := legacyChainUintPost chainId F)
+      (fun _ hp => by
+        dsimp [Pbase, Fcall, legacyUintPre] at hp ⊢
+        xperm_hyp hp)
+      (fun _ hq => by
+        dsimp [Fcall, legacyUintPost, legacyChainUintPost] at hq ⊢
+        xperm_hyp hq) hcall
+  have hown := cpsTripleWithin_of_forall_regIs_to_regOwn
+    (r := .x28) hfor
+  exact cpsTripleWithin_weaken
+    (P := Pbase ** regOwn .x28)
+    (P' := legacyChainUintPre v1 v29 v30 v31 chainId F)
+    (Q := legacyChainUintPost chainId F)
+    (Q' := legacyChainUintPost chainId F)
+    (fun _ hp => by
+      dsimp [Pbase, legacyChainUintPre] at hp ⊢
+      xperm_hyp hp)
+    (fun _ hq => hq) hown
+
 end EvmAsm.Codegen.TxSigningHashLegacyUintCompose
