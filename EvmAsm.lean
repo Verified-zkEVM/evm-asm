@@ -66,6 +66,7 @@ import EvmAsm.Codegen.Programs.RlpRecursiveDecodeProductionBridge
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyPrefixCompose
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyPrefixCopyCompose
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
