@@ -729,6 +729,14 @@ def anchor_red_reason(sym: str, theorem: object, others: object) -> str:
             "`*_entry_addr_pin` relates it to this row")
 
 
+def anchor_red_kind(sym: str, theorem: object) -> str:
+    """Classify the remedy for an unpinned ``other`` row."""
+    if (sym == "rlp_validate_payload"
+            and theorem == "rlp_validate_payload_cps_under_shared"):
+        return "OFFLINE-RETIRED-PROGRAM"
+    return "MISLABELLED-ADDRESS"
+
+
 # ---------------------------------------------------------------------------
 # MECHANISM 3 — the callee's REGISTER FRAME
 #
@@ -1798,7 +1806,10 @@ def self_test(tsv_path: str) -> int:
           all(not r["misanchored_callees"] for r in rows if r["startable"]))
     check("MECHANISM 2 gate: every live `other:` row has a kernel-visible pin",
           not unpinned_other,
-          "; ".join(f"{s}:{t} -> {o}" for s, t, o in unpinned_other[:8])
+          "; ".join(
+              f"{s}:{t} [{anchor_red_kind(s, t)}] -> {o}: "
+              f"{anchor_red_reason(s, t, o)}"
+              for s, t, o in unpinned_other[:8])
           or "all other-entry rows are pinned")
     check("every rendered proxy cell carries its PROXY label on the ROW",
           all("PROXY" in anchor_cell(r) or r["anchor_callees"] == [] for r in lane_rows)
@@ -1883,7 +1894,8 @@ def self_test(tsv_path: str) -> int:
         print("  ⛔ KNOWN-RED: unpinned `other:` anchor rows remain; the gate refuses "
               "to treat them as composable:\n"
               + "\n".join(
-                  f"      {s}:{t} -> {o}: {anchor_red_reason(s, t, o)}"
+                  f"      [{anchor_red_kind(s, t)}] {s}:{t} -> {o}: "
+                  f"{anchor_red_reason(s, t, o)}"
                   for s, t, o in unpinned_other))
     print(f"  mechanism 3: {len(frames)} of {len(code)} code entries resolve a "
           f"`*Scratch` frame; {c['lane_frames_known']} lane rows show at least one, "
