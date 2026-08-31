@@ -311,6 +311,19 @@ def parseArgs : List String → Config → Except String Config
       usage: lake exe axiomsweep [--out FILE] [--check] [--update-baseline] \
       [--baseline FILE] [--root MOD]*\n      (--check and --update-baseline are mutually exclusive)"
 
+/- Detect the Lake artifact-cache mode whose synthetic traces can leave a required
+   `.olean` absent from `.lake/build`.  This is deliberately kept next to the
+   import failure rather than in a pre-build wrapper: `axiomsweep` must explain
+   why its root import failed even when a caller invokes `lake exe` directly. -/
+def lakeArtifactCacheEnabled : IO Bool := do
+  match ← IO.getEnv "LAKE_ARTIFACT_CACHE" with
+  | some value => return value == "1" || value == "true" || value == "yes" || value == "on"
+  | none => return false
+
+def isMissingCachedOlean (message : String) : Bool :=
+  message.contains "object file" && message.contains ".olean" &&
+    message.contains "does not exist"
+
 end AxiomSweep
 
 open AxiomSweep in
@@ -328,9 +341,16 @@ unsafe def main (args : List String) : IO UInt32 := do
       importModules (roots.map ({ module := · })) {} (trustLevel := 1024)
         (loadExts := true)
     catch e =>
-      IO.eprintln s!"axiomsweep: cannot import root modules {roots}: {e.toString}\n\
-        (roots must be importable modules — glob-based libs without an umbrella \
-        module cannot be swept by library name)"
+      let message := e.toString
+      if (← lakeArtifactCacheEnabled) && isMissingCachedOlean message then
+        IO.eprintln s!"axiomsweep: cannot import root modules {roots}: a required \
+          `.olean` was not materialized while LAKE_ARTIFACT_CACHE is enabled. \
+          Re-run `LAKE_ARTIFACT_CACHE=false lake build EvmAsm` (or disable the \
+          artifact cache) before running axiomsweep.\n  import error: {message}"
+      else
+        IO.eprintln s!"axiomsweep: cannot import root modules {roots}: {message}\n\
+          (roots must be importable modules — glob-based libs without an umbrella \
+          module cannot be swept by library name)"
       return (2 : UInt32)
   let ((entries, moduleCount), _) ← (buildEntries roots).toIO
     { fileName := "<axiomsweep>", fileMap := default } { env }
