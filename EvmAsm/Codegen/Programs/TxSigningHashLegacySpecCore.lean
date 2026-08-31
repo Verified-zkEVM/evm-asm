@@ -135,8 +135,8 @@ theorem legacyUint_mono : ∀ a i, legacyUintCode a = some i → legacyFullCode 
     (CodeReq.union_skip hnth (CodeReq.union_hit hi))
 
 abbrev legacyNthJalPC : Word := legacyH + BitVec.ofNat 64 120
-abbrev legacyNthOffPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_buf + 64
-abbrev legacyNthLenPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_buf + 72
+abbrev legacyNthOffPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_offset_hi
+abbrev legacyNthLenPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_length_hi
 
 def legacyNthJalOff : BitVec 21 :=
   jalOff GuestAddrs.rlp_list_nth_item
