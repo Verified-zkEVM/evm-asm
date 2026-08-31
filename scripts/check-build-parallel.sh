@@ -27,7 +27,10 @@ declare -A expected_steps=(
   # 13 since check-misaligned-access.sh (#12560) — PARTIAL linked-guest
   # wide-access alignment: statically-resolvable bases only; UNKNOWN bases
   # (callee args, sp-relative and call-clobbered) are reported, not checked.
-  [codegen]=13
+  # 14 since check-no-seed-csr.sh (#10796) — the SailEquiv bridge excludes
+  # Sail's nondeterministic Zkr seed CSR; this scans the linked production ELF
+  # and fails if that excluded instruction ever appears.
+  [codegen]=14
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # The report count grew 5 → 6 → 7 → 8 → 9 → 10 when check-doc-links.sh
@@ -66,6 +69,11 @@ codegen_checks() {
   # guest handlers can reference an undefined symbol with every gate green.
   run_step scripts/check-build-units-link.sh
   run_step scripts/check-region-map.sh
+  # GH #10796: SailEquiv deliberately excludes generated CSR constructors,
+  # including nondeterministic Zkr seed CSR.  Scan the linked production image
+  # rather than a hand fixture; a missing ELF/toolchain is a hard failure, not
+  # a skip, because an unchecked scope assertion must never read as green.
+  run_step scripts/check-no-seed-csr.sh --guest-elf gen-out/regionmap/stateless_guest.elf
   # check-region-map compares the DECLARED map against the ELF, so a region that
   # is not declared is not checked. Three in-use anchors were dropped from
   # RegionMap by a merge resolution with every gate green; this asserts the
