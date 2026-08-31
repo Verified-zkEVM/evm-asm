@@ -416,15 +416,6 @@ def rlpValidatePayloadOffline_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
-def rlpValidatePayloadOffline_relocs : RelocTable :=
-  [ (9, .jal .x1 "rlp_walk_next_nested_offline") ]
-
-def rlpValidatePayloadOfflineFunction : String :=
-  "rlp_validate_payload_offline:\n" ++
-    emitProgramR rlpValidatePayloadOffline_prog rlpValidatePayloadOffline_relocs
-
-#guard rlpValidatePayloadOffline_prog.length = 23
-
 def rlpWalkNextCore_prog : Program :=
   [ .BGEU .x10 .x11 (brOff (GuestAddrs.rlp_walk_next_core + 352) (GuestAddrs.rlp_walk_next_core + 0)),
     .LBU .x5 .x10 (0 : BitVec 12),
