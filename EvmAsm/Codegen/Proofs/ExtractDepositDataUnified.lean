@@ -8,7 +8,7 @@
   restored, no memory written), so the post is a two-way `if` on the
   decidable acceptance predicate `eddAccept`, not a twelve-way match.
 
-  Still pinned to the deployed probe arenas (`eddDataPtr`/`eddOutPtr`);
+  Still pinned to the deployed probe arenas (`dp`/`op`);
   the arena-parametric generalization is #13070's recorded remainder
   (step 1).
 -/
@@ -21,7 +21,7 @@ namespace EvmAsm.Codegen.ExtractDepositDataUnified
 open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
-open EvmAsm.Codegen (eddDataPtr eddOutPtr extractDepositData_prog
+open EvmAsm.Codegen (extractDepositData_prog
   extractDepositDataBundle_prog)
 open EvmAsm.Codegen.ExtractDepositDataOkSpec
 
@@ -39,28 +39,28 @@ local macro "u_pcfree" : tactic => `(tactic| repeat (first
 
 /-- The acceptance predicate: canonical length and all ten ABI header
     checks pass.  Decidable, so the unified post can case on it. -/
-def eddAccept (lenW : Word)
+def eddAccept (dp lenW : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8)) : Prop :=
   lenW = (576 : Word) ∧
-  EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) b384 (96 : Word) ∧
-  EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) b512 (8 : Word)
+  EddBe32EqSAsm.eddOk dp b0 (160 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) b384 (96 : Word) ∧
+  EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) b512 (8 : Word)
 
-instance (lenW : Word) (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8)) :
-    Decidable (eddAccept lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512) := by
+instance (dp lenW : Word) (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8)) :
+    Decidable (eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512) := by
   unfold eddAccept
   infer_instance
 
 /-- The accept-arm post: `a0 = 0`, the five raw fields copied to the
     output arena, registers and frame restored. -/
-def eddOkPost (sp0 ret v8 v9 : Word)
+def eddOkPost (dp op sp0 ret v8 v9 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 : List (BitVec 8)) : Assertion :=
   ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
     ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -69,31 +69,31 @@ def eddOkPost (sp0 ret v8 v9 : Word)
     ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
     ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
     ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-    bytesRegion eddDataPtr b0 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-    bytesRegion eddOutPtr s192 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544
+    bytesRegion dp b0 **
+    bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+    bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+    bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+    bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+    bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+    bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+    bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+    bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+    bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+    bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+    bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+    bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+    bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+    bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+    bytesRegion op s192 **
+    bytesRegion (op + BitVec.ofNat 64 48) s288 **
+    bytesRegion (op + BitVec.ofNat 64 80) s352 **
+    bytesRegion (op + BitVec.ofNat 64 88) s416 **
+    bytesRegion (op + BitVec.ofNat 64 184) s544
 
 /-- The shared failure post (wrong length OR any check rejecting):
     `a0 = 1`, registers and frame restored, NOTHING written — every
     memory region intact. -/
-def eddRejPost (sp0 ret v8 v9 : Word)
+def eddRejPost (dp op sp0 ret v8 v9 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 w0 w48 w80 w88 w184 : List (BitVec 8)) : Assertion :=
   ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
     ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -102,26 +102,26 @@ def eddRejPost (sp0 ret v8 v9 : Word)
     ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
     ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
     ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-    bytesRegion eddDataPtr b0 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-    bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-    bytesRegion eddOutPtr w0 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-    bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184
+    bytesRegion dp b0 **
+    bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+    bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+    bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+    bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+    bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+    bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+    bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+    bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+    bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+    bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+    bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+    bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+    bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+    bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+    bytesRegion op w0 **
+    bytesRegion (op + BitVec.ofNat 64 48) w48 **
+    bytesRegion (op + BitVec.ofNat 64 80) w80 **
+    bytesRegion (op + BitVec.ofNat 64 88) w88 **
+    bytesRegion (op + BitVec.ofNat 64 184) w184
 
 private theorem cps_fuel_mono {n m : Nat} {entry exit_ : Word}
     {cr : CodeReq} {P Q : Assertion} (hnm : n ≤ m)
@@ -164,6 +164,9 @@ set_option maxRecDepth 400000 in
     triples (their per-arm statements remain the proof's dispatch
     targets). -/
 theorem extractDepositData_spec
+    (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op)
     (sp0 ret v5 v8 v9 m0 m1 m2 lenW : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8))
     (s192 s288 s352 s416 s544 : List (BitVec 8))
@@ -183,64 +186,64 @@ theorem extractDepositData_spec
     cpsTripleWithin 7749 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x11 : Reg) ↦ᵣ lenW) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x11 : Reg) ↦ᵣ lenW) **
+        ((.x12 : Reg) ↦ᵣ op) ** ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-        bytesRegion eddOutPtr w0 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+        bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+        bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+        bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+        bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+        bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+        bytesRegion op w0 **
+        bytesRegion (op + BitVec.ofNat 64 48) w48 **
+        bytesRegion (op + BitVec.ofNat 64 80) w80 **
+        bytesRegion (op + BitVec.ofNat 64 88) w88 **
+        bytesRegion (op + BitVec.ofNat 64 184) w184)
       (fun h =>
-        if eddAccept lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512
-        then eddOkPost sp0 ret v8 v9 b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 h
-        else eddRejPost sp0 ret v8 v9 b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 w0 w48 w80 w88 w184 h) := by
+        if eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512
+        then eddOkPost dp op sp0 ret v8 v9 b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 h
+        else eddRejPost dp op sp0 ret v8 v9 b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 w0 w48 w80 w88 w184 h) := by
   by_cases hlen : lenW = (576 : Word)
   case neg =>
     -- wrong length: the guard takes the fail tail
     have hf := EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
-      sp0 ret eddDataPtr lenW eddOutPtr v5 v8 v9 m0 m1 m2 hlen halign
+      sp0 ret dp lenW op v5 v8 v9 m0 m1 m2 hlen halign
     have hfB := cpsTripleWithin_extend_code main_sub hf
     have hfF := cpsTripleWithin_frameR
       (regOwns eddScrPre **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-        bytesRegion eddOutPtr w0 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+        bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+        bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+        bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+        bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+        bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+        bytesRegion op w0 **
+        bytesRegion (op + BitVec.ofNat 64 48) w48 **
+        bytesRegion (op + BitVec.ofNat 64 80) w80 **
+        bytesRegion (op + BitVec.ofNat 64 88) w88 **
+        bytesRegion (op + BitVec.ofNat 64 184) w184)
       (by u_pcfree) hfB
     refine cps_fuel_mono (by norm_num)
       (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -248,7 +251,7 @@ theorem extractDepositData_spec
     rw [if_neg (fun hacc => hlen hacc.1)]
     dsimp only [eddRejPost]
     have hq1 : (((((.x5 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x11 : Reg) ↦ᵣ lenW) ** ((.x12 : Reg) ↦ᵣ eddOutPtr)) **
+        ((.x11 : Reg) ↦ᵣ lenW) ** ((.x12 : Reg) ↦ᵣ op)) **
         regOwns eddScrPre) **
         (((.x2 : Reg) ↦ᵣ sp0) **
           ((.x1 : Reg) ↦ᵣ ret) **
@@ -259,59 +262,59 @@ theorem extractDepositData_spec
           ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
           ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
           ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-          bytesRegion eddDataPtr b0 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-          bytesRegion eddOutPtr w0 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)) h := by xperm_hyp hq
+          bytesRegion dp b0 **
+          bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+          bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+          bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+          bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+          bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+          bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+          bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+          bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+          bytesRegion op w0 **
+          bytesRegion (op + BitVec.ofNat 64 48) w48 **
+          bytesRegion (op + BitVec.ofNat 64 80) w80 **
+          bytesRegion (op + BitVec.ofNat 64 88) w88 **
+          bytesRegion (op + BitVec.ofNat 64 184) w184)) h := by xperm_hyp hq
     have hq2 := sepConj_mono_left (fun h' hx =>
       edd_owns_fail_recombine h'
         (sepConj_mono_left (fun h'' hy =>
           sepConj_mono (regIs_to_regOwn .x5 (576 : Word))
             (sepConj_mono (regIs_to_regOwn .x11 lenW)
-              (regIs_to_regOwn .x12 eddOutPtr)) h'' hy) h' hx)) h hq1
+              (regIs_to_regOwn .x12 op)) h'' hy) h' hx)) h hq1
     xperm_hyp hq2
   case pos =>
     subst hlen
-    by_cases h0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word)
+    by_cases h0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word)
     case neg =>
-      have hr := extractDepositData_reject1_spec sp0 ret v5 v8 v9
+      have hr := extractDepositData_reject1_spec dp hdp op sp0 ret v5 v8 v9
         m0 m1 m2 b0 hb0  h0
       have hrF := cpsTripleWithin_frameR
-        (bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-              bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-              bytesRegion eddOutPtr w0 **
-              bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-              bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-              bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-              bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+        (bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+              bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+              bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+              bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+              bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+              bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+              bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+              bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+              bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+              bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+              bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+              bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+              bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+              bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+              bytesRegion op w0 **
+              bytesRegion (op + BitVec.ofNat 64 48) w48 **
+              bytesRegion (op + BitVec.ofNat 64 80) w80 **
+              bytesRegion (op + BitVec.ofNat 64 88) w88 **
+              bytesRegion (op + BitVec.ofNat 64 184) w184)
         (by u_pcfree) hr
       refine cps_fuel_mono (by norm_num)
         (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -320,29 +323,29 @@ theorem extractDepositData_spec
       dsimp only [eddRejPost]
       xperm_hyp hq
     case pos =>
-      by_cases h32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word)
+      by_cases h32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word)
       case neg =>
-        have hr := extractDepositData_reject2_spec sp0 ret v5 v8 v9
+        have hr := extractDepositData_reject2_spec dp hdp op sp0 ret v5 v8 v9
           m0 m1 m2 b0 b32 hb0 hb32 h0 h32
         have hrF := cpsTripleWithin_frameR
-          (bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                  bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                  bytesRegion eddOutPtr w0 **
-                  bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                  bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                  bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                  bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+          (bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+                  bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+                  bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+                  bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+                  bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+                  bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                  bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                  bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                  bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                  bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                  bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                  bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                  bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                  bytesRegion op w0 **
+                  bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                  bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                  bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                  bytesRegion (op + BitVec.ofNat 64 184) w184)
           (by u_pcfree) hr
         refine cps_fuel_mono (by norm_num)
           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -351,28 +354,28 @@ theorem extractDepositData_spec
         dsimp only [eddRejPost]
         xperm_hyp hq
       case pos =>
-        by_cases h64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word)
+        by_cases h64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word)
         case neg =>
-          have hr := extractDepositData_reject3_spec sp0 ret v5 v8 v9
+          have hr := extractDepositData_reject3_spec dp hdp op sp0 ret v5 v8 v9
             m0 m1 m2 b0 b32 b64 hb0 hb32 hb64 h0 h32 h64
           have hrF := cpsTripleWithin_frameR
-            (bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                      bytesRegion eddOutPtr w0 **
-                      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+            (bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+                      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+                      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+                      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+                      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                      bytesRegion op w0 **
+                      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                      bytesRegion (op + BitVec.ofNat 64 184) w184)
             (by u_pcfree) hr
           refine cps_fuel_mono (by norm_num)
             (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -381,27 +384,27 @@ theorem extractDepositData_spec
           dsimp only [eddRejPost]
           xperm_hyp hq
         case pos =>
-          by_cases h96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word)
+          by_cases h96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word)
           case neg =>
-            have hr := extractDepositData_reject4_spec sp0 ret v5 v8 v9
+            have hr := extractDepositData_reject4_spec dp hdp op sp0 ret v5 v8 v9
               m0 m1 m2 b0 b32 b64 b96 hb0 hb32 hb64 hb96 h0 h32 h64 h96
             have hrF := cpsTripleWithin_frameR
-              (bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                          bytesRegion eddOutPtr w0 **
-                          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+              (bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+                          bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+                          bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+                          bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                          bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                          bytesRegion op w0 **
+                          bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                          bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                          bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                          bytesRegion (op + BitVec.ofNat 64 184) w184)
               (by u_pcfree) hr
             refine cps_fuel_mono (by norm_num)
               (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -410,26 +413,26 @@ theorem extractDepositData_spec
             dsimp only [eddRejPost]
             xperm_hyp hq
           case pos =>
-            by_cases h128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word)
+            by_cases h128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word)
             case neg =>
-              have hr := extractDepositData_reject5_spec sp0 ret v5 v8 v9
+              have hr := extractDepositData_reject5_spec dp hdp op sp0 ret v5 v8 v9
                 m0 m1 m2 b0 b32 b64 b96 b128 hb0 hb32 hb64 hb96 hb128 h0 h32 h64 h96 h128
               have hrF := cpsTripleWithin_frameR
-                (bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                              bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                              bytesRegion eddOutPtr w0 **
-                              bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                              bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                              bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                              bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                (bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+                              bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+                              bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                              bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                              bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                              bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                              bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                              bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                              bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                              bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                              bytesRegion op w0 **
+                              bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                              bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                              bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                              bytesRegion (op + BitVec.ofNat 64 184) w184)
                 (by u_pcfree) hr
               refine cps_fuel_mono (by norm_num)
                 (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -438,25 +441,25 @@ theorem extractDepositData_spec
               dsimp only [eddRejPost]
               xperm_hyp hq
             case pos =>
-              by_cases h160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word)
+              by_cases h160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word)
               case neg =>
-                have hr := extractDepositData_reject6_spec sp0 ret v5 v8 v9
+                have hr := extractDepositData_reject6_spec dp hdp op sp0 ret v5 v8 v9
                   m0 m1 m2 b0 b32 b64 b96 b128 b160 hb0 hb32 hb64 hb96 hb128 hb160 h0 h32 h64 h96 h128 h160
                 have hrF := cpsTripleWithin_frameR
-                  (bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                                  bytesRegion eddOutPtr w0 **
-                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                  (bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+                                  bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                                  bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                                  bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                                  bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                                  bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                                  bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                                  bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                                  bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                                  bytesRegion op w0 **
+                                  bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                                  bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                                  bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                                  bytesRegion (op + BitVec.ofNat 64 184) w184)
                   (by u_pcfree) hr
                 refine cps_fuel_mono (by norm_num)
                   (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -465,24 +468,24 @@ theorem extractDepositData_spec
                 dsimp only [eddRejPost]
                 xperm_hyp hq
               case pos =>
-                by_cases h256 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word)
+                by_cases h256 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word)
                 case neg =>
-                  have hr := extractDepositData_reject7_spec sp0 ret v5 v8 v9
+                  have hr := extractDepositData_reject7_spec dp hdp op sp0 ret v5 v8 v9
                     m0 m1 m2 b0 b32 b64 b96 b128 b160 b256 hb0 hb32 hb64 hb96 hb128 hb160 hb256 h0 h32 h64 h96 h128 h160 h256
                   have hrF := cpsTripleWithin_frameR
-                    (bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                                      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                                      bytesRegion eddOutPtr w0 **
-                                      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                                      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                                      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                                      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                    (bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+                                      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                                      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                                      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                                      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                                      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                                      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                                      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                                      bytesRegion op w0 **
+                                      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                                      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                                      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                                      bytesRegion (op + BitVec.ofNat 64 184) w184)
                     (by u_pcfree) hr
                   refine cps_fuel_mono (by norm_num)
                     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -491,23 +494,23 @@ theorem extractDepositData_spec
                   dsimp only [eddRejPost]
                   xperm_hyp hq
                 case pos =>
-                  by_cases h320 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word)
+                  by_cases h320 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word)
                   case neg =>
-                    have hr := extractDepositData_reject8_spec sp0 ret v5 v8 v9
+                    have hr := extractDepositData_reject8_spec dp hdp op sp0 ret v5 v8 v9
                       m0 m1 m2 b0 b32 b64 b96 b128 b160 b256 b320 hb0 hb32 hb64 hb96 hb128 hb160 hb256 hb320 h0 h32 h64 h96 h128 h160 h256 h320
                     have hrF := cpsTripleWithin_frameR
-                      (bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                                          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                                          bytesRegion eddOutPtr w0 **
-                                          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                                          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                                          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                                          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                      (bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+                                          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                                          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                                          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                                          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                                          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                                          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                                          bytesRegion op w0 **
+                                          bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                                          bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                                          bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                                          bytesRegion (op + BitVec.ofNat 64 184) w184)
                       (by u_pcfree) hr
                     refine cps_fuel_mono (by norm_num)
                       (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -516,22 +519,22 @@ theorem extractDepositData_spec
                     dsimp only [eddRejPost]
                     xperm_hyp hq
                   case pos =>
-                    by_cases h384 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) b384 (96 : Word)
+                    by_cases h384 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) b384 (96 : Word)
                     case neg =>
-                      have hr := extractDepositData_reject9_spec sp0 ret v5 v8 v9
+                      have hr := extractDepositData_reject9_spec dp hdp op sp0 ret v5 v8 v9
                         m0 m1 m2 b0 b32 b64 b96 b128 b160 b256 b320 b384 hb0 hb32 hb64 hb96 hb128 hb160 hb256 hb320 hb384 h0 h32 h64 h96 h128 h160 h256 h320 h384
                       have hrF := cpsTripleWithin_frameR
-                        (bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-                                              bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                                              bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                                              bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                                              bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                                              bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                                              bytesRegion eddOutPtr w0 **
-                                              bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                                              bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                                              bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                                              bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                        (bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+                                              bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                                              bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                                              bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                                              bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                                              bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                                              bytesRegion op w0 **
+                                              bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                                              bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                                              bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                                              bytesRegion (op + BitVec.ofNat 64 184) w184)
                         (by u_pcfree) hr
                       refine cps_fuel_mono (by norm_num)
                         (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -540,21 +543,21 @@ theorem extractDepositData_spec
                       dsimp only [eddRejPost]
                       xperm_hyp hq
                     case pos =>
-                      by_cases h512 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) b512 (8 : Word)
+                      by_cases h512 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) b512 (8 : Word)
                       case neg =>
-                        have hr := extractDepositData_reject10_spec sp0 ret v5 v8 v9
+                        have hr := extractDepositData_reject10_spec dp hdp op sp0 ret v5 v8 v9
                           m0 m1 m2 b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 hb0 hb32 hb64 hb96 hb128 hb160 hb256 hb320 hb384 hb512 h0 h32 h64 h96 h128 h160 h256 h320 h384 h512
                         have hrF := cpsTripleWithin_frameR
-                          (bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-                                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-                                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-                                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-                                                  bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-                                                  bytesRegion eddOutPtr w0 **
-                                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-                                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-                                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-                                                  bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+                          (bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+                                                  bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+                                                  bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+                                                  bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+                                                  bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+                                                  bytesRegion op w0 **
+                                                  bytesRegion (op + BitVec.ofNat 64 48) w48 **
+                                                  bytesRegion (op + BitVec.ofNat 64 80) w80 **
+                                                  bytesRegion (op + BitVec.ofNat 64 88) w88 **
+                                                  bytesRegion (op + BitVec.ofNat 64 184) w184)
                           (by u_pcfree) hr
                         refine cps_fuel_mono (by norm_num)
                           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
@@ -564,17 +567,67 @@ theorem extractDepositData_spec
                         xperm_hyp hq
                       case pos =>
                         -- all ten checks pass: the ok path
-                        have ho := extractDepositData_ok_spec sp0 ret v5 v8 v9 m0 m1 m2
+                        have ho := extractDepositData_ok_spec dp op hdp hop hdj sp0 ret v5 v8 v9 m0 m1 m2
                           b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 s192 s288 s352 s416 s544 w0 w48 w80 w88 w184
                           hb0 hb32 hb64 hb96 hb128 hb160 hb256 hb320 hb384 hb512 hs192 hs288 hs352 hs416 hs544
                           hw0 hw48 hw80 hw88 hw184
                           h0 h32 h64 h96 h128 h160 h256 h320 h384 h512 halign
                         refine cps_fuel_mono (by norm_num)
                           (cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) ho)
-                        rw [if_pos (show eddAccept (576 : Word) b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 from
+                        rw [if_pos (show eddAccept dp (576 : Word) b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 from
                           ⟨rfl, h0, h32, h64, h96, h128, h160, h256, h320, h384, h512⟩)]
                         dsimp only [eddOkPost]
                         xperm_hyp hq
+
+/-! ## The deployed-probe instance -/
+
+set_option maxRecDepth 8000 in
+/-- The payload arena the deployed probe passes satisfies the arena
+    facts. -/
+theorem eddDataArenaOk_probe :
+    eddDataArenaOk EvmAsm.Codegen.eddDataPtr := by
+  have hbase : EvmAsm.Codegen.eddDataPtr.toNat = 0x40000010 := by decide
+  refine ⟨by decide, by decide, fun k hk => ?_⟩
+  have haddr : (EvmAsm.Codegen.eddDataPtr + BitVec.ofNat 64 k).toNat
+      = 0x40000010 + k := by
+    rw [EvmAsm.Codegen.edd_toNat_add2 _ _ (by rw [hbase]; omega), hbase]
+  show isValidMemAddr (EvmAsm.Codegen.eddDataPtr + BitVec.ofNat 64 k) = true
+  simp only [isValidMemAddr, haddr, EvmAsm.Rv64.MEM_START,
+    EvmAsm.Rv64.MEM_END, EvmAsm.Rv64.INPUT_MEM_START,
+    EvmAsm.Rv64.INPUT_MEM_END, EvmAsm.Rv64.RAM_MEM_START,
+    EvmAsm.Rv64.RAM_MEM_END, decide_eq_true_eq, Bool.and_eq_true,
+    Bool.or_eq_true]
+  omega
+
+set_option maxRecDepth 8000 in
+/-- The output arena the deployed probe passes satisfies the arena
+    facts. -/
+theorem eddOutArenaOk_probe :
+    eddOutArenaOk EvmAsm.Codegen.eddOutPtr := by
+  have hbase : EvmAsm.Codegen.eddOutPtr.toNat = 0xa0010008 := by decide
+  refine ⟨by decide, by decide, fun k hk => ?_⟩
+  have haddr : (EvmAsm.Codegen.eddOutPtr + BitVec.ofNat 64 k).toNat
+      = 0xa0010008 + k := by
+    rw [EvmAsm.Codegen.edd_toNat_add2 _ _ (by rw [hbase]; omega), hbase]
+  show isValidMemAddr (EvmAsm.Codegen.eddOutPtr + BitVec.ofNat 64 k) = true
+  simp only [isValidMemAddr, haddr, EvmAsm.Rv64.MEM_START,
+    EvmAsm.Rv64.MEM_END, EvmAsm.Rv64.INPUT_MEM_START,
+    EvmAsm.Rv64.INPUT_MEM_END, EvmAsm.Rv64.RAM_MEM_START,
+    EvmAsm.Rv64.RAM_MEM_END, decide_eq_true_eq, Bool.and_eq_true,
+    Bool.or_eq_true]
+  omega
+
+theorem eddArenasDisjoint_probe :
+    eddArenasDisjoint EvmAsm.Codegen.eddDataPtr EvmAsm.Codegen.eddOutPtr := by
+  exact Or.inl (by decide)
+
+/-- The unified contract at the deployed probe arenas — the instance
+    the linked caller consumes. -/
+noncomputable abbrev extractDepositData_probe_spec
+    (sp0 ret v5 v8 v9 m0 m1 m2 lenW : Word) :=
+  extractDepositData_spec EvmAsm.Codegen.eddDataPtr
+    EvmAsm.Codegen.eddOutPtr eddDataArenaOk_probe eddOutArenaOk_probe
+    eddArenasDisjoint_probe sp0 ret v5 v8 v9 m0 m1 m2 lenW
 
 #print axioms extractDepositData_spec
 
