@@ -1058,7 +1058,13 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
 
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_boundary_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_overflow_spec_within
+
 #print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_under_target_spec_within
 
 #print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
 
