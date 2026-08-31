@@ -1097,6 +1097,107 @@ theorem legacySetupThenNthCall_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hseq
 
+/-! ## K146 post-Nth status branch
+
+    The linked body branches immediately after `rlp_list_nth_item` returns:
+    nonzero status goes to the common `li a0, 1` tail, while zero falls
+    through to the payload-length path.  These are kept as separate linked
+    branch lemmas so the later `Result` peel cannot hide the actual status
+    test. -/
+
+abbrev legacyNthFailBeqOff : BitVec 13 :=
+  brOff (GuestAddrs.tx_signing_hash_legacy_eip155 + 436)
+    (GuestAddrs.tx_signing_hash_legacy_eip155 + 124)
+
+theorem legacyNthFailBeq_taken_pc :
+    (legacyH + 124) + signExtend13 legacyNthFailBeqOff = legacyFailLiPC := by
+  unfold legacyNthFailBeqOff legacyFailLiPC legacyH
+  decide
+
+theorem legacyNthFail_taken (st : Word) (hnz : st ≠ 0) :
+    cpsTripleWithin 1 (legacyH + 124) legacyFailLiPC legacyFullCode
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 legacyNthFailBeqOff st 0
+    (legacyH + 124)
+  rw [legacyNthFailBeq_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (legacy_mem_at (legacyH + 124) 31
+        (.BNE .x10 .x0 legacyNthFailBeqOff) (by decide) (by decide)
+        (by intro h; rfl)) hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hnz ((sepConj_pure_right _).1 hBP).2)
+
+theorem legacyNthFail_ntaken (st : Word) (hz : st = 0) :
+    cpsTripleWithin 1 (legacyH + 124) (legacyH + 128) legacyFullCode
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 legacyNthFailBeqOff st 0
+    (legacyH + 124)
+  rw [show (legacyH + 124 : Word) + 4 = legacyH + 128 from by decide] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (legacy_mem_at (legacyH + 124) 31
+        (.BNE .x10 .x0 legacyNthFailBeqOff) (by decide) (by decide)
+        (by intro h; rfl)) hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 hz)
+
+theorem legacyNthFailThroughBodyExit_spec
+    (st : Word) (F : Assertion) (hF : F.pcFree) (hnz : st ≠ 0) :
+    cpsTripleWithin 2 (legacyH + 124) (legacyH + 440) legacyFullCode
+      (((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) ** F)
+      (((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) ** F) := by
+  have hbranch := legacyNthFail_taken st hnz
+  have hbranchF := cpsTripleWithin_frameR F hF hbranch
+  have hfail := legacyFailLi_spec st
+  have hfailF := cpsTripleWithin_frameR ((.x0 ↦ᵣ (0 : Word)) ** F)
+    (by pcf; exact hF) hfail
+  have hfailW : cpsTripleWithin 1 legacyFailLiPC (legacyH + 440)
+      legacyFullCode
+      (((.x10 ↦ᵣ st) ** (.x0 ↦ᵣ (0 : Word))) ** F)
+      (((.x10 ↦ᵣ (1 : Word)) ** (.x0 ↦ᵣ (0 : Word))) ** F) := by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+      (fun _ hq => by xperm_hyp hq) hfailF
+  exact cpsTripleWithin_seq_same_cr hbranchF hfailW
+
+/-- Peel the existential `callReturnResult` into the concrete `Result` case
+    needed by the post-Nth branch. -/
+theorem legacy_cpsTripleWithin_callReturn_pre
+    {N : Nat} {ret X : Word} {F Q : Assertion}
+    (sp0 listBase indexW offsetPtr lenPtr oldOffset oldLen : Word)
+    (csaved : EvmAsm.Codegen.RlpListNthItemSAsm.Saved)
+    (bytes : List (BitVec 8)) (listLen index : Nat)
+    (h : ∀ status offset len v11 v12,
+        EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes listBase listLen index
+          oldOffset oldLen status offset len →
+        cpsTripleWithin N (legacyH + 124) ret legacyFullCode
+          (((.x1 ↦ᵣ X) **
+            (((.x2 ↦ᵣ sp0) ** stackFree sp0 8 **
+              EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail csaved) **
+             ((.x10 ↦ᵣ status) ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+              (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+              regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+              (.x0 ↦ᵣ (0 : Word)) ** bytesRegion listBase bytes **
+              (offsetPtr ↦ₘ offset) ** (lenPtr ↦ₘ len)))) ** F) Q) :
+    cpsTripleWithin N (legacyH + 124) ret legacyFullCode
+      (((.x1 ↦ᵣ X) **
+        EvmAsm.Codegen.RlpListNthItemSAsm.callReturnResult sp0 listBase indexW
+          offsetPtr lenPtr oldOffset oldLen csaved bytes listLen index) ** F) Q := by
+  intro R hR s hcr hPR hpc
+  obtain ⟨hp, hcompat, s1, s2, hd12, hu12, hP, hRs⟩ := hPR
+  obtain ⟨t1, t2, hdt, hut, hXcRR, hFt⟩ := hP
+  obtain ⟨u1, u2, hdu, huu, hX, hcRR⟩ := hXcRR
+  unfold EvmAsm.Codegen.RlpListNthItemSAsm.callReturnResult at hcRR
+  obtain ⟨status, offset, len, v11, v12, hBig⟩ := hcRR
+  have hspl := (sepConj_pure_right u2).1 hBig
+  exact h status offset len v11 v12 hspl.2 R hR s hcr
+    ⟨hp, hcompat, s1, s2, hd12, hu12,
+      ⟨t1, t2, hdt, hut, ⟨u1, u2, hdu, huu, hX, hspl.1⟩, hFt⟩, hRs⟩ hpc
+
 private structure LoopMemAtom where
   a : Word
   v : Word
