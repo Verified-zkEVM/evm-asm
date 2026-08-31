@@ -44,9 +44,11 @@
 #
 # Usage:
 #   scripts/codegen-eest-stateless-check.sh [options]
-#     --all              run every stateless block (slow); default: smoke subset
+#     --all              run every stateless block (slow); mutually exclusive
+#                        with --limit (one explicit scope is required)
 #     --skip N           skip first N selected stateless blocks after filtering
-#     --limit N          cap to N guest invocations (default 50)
+#     --limit N          cap to N guest invocations (mutually exclusive with
+#                        --all; one explicit scope is required)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
 #     --budget-retry-steps N
@@ -172,10 +174,10 @@ export MALLOC_ARENA_MAX
 
 ALL=0
 SKIP=0
-LIMIT=50
-# No default scope: --limit N or --all must be chosen explicitly (see the
-# hard error below).  LIMIT keeps a value so the smoke path is unchanged
-# once the flag IS passed; LIMIT_SET records whether it was.
+LIMIT=0
+# No default scope or cap: --limit N or --all must be chosen explicitly (see
+# the hard error below).  LIMIT_SET distinguishes an explicit --limit from
+# the zero value used while parsing --all.
 LIMIT_SET=0
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
@@ -262,12 +264,12 @@ Usage:
   scripts/codegen-eest-stateless-check.sh [options]
 
 Options:
-  --all                    run every stateless block (slow); default: smoke subset
+  --all                    run every stateless block (slow); mutually exclusive with --limit
   --exit-zero-on-failures  exit 0 even when rows FAIL or ERROR (GH #11737). Default is
                            to exit non-zero, so a failing run cannot read as green.
                            Use only when the summary is wanted regardless of outcome.
   --skip N                 skip first N selected stateless blocks after filtering
-  --limit N                cap to N guest invocations (default 50)
+  --limit N                cap to N guest invocations (mutually exclusive with --all)
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --backend ziskemu|spike  guest emulator backend (required, no default since GH #10533;
                            EEST_BACKEND works as the opt-in equivalent)
@@ -374,6 +376,11 @@ while [[ $# -gt 0 ]]; do
 done
 
 MISSING_CHOICE=0
+
+if [[ "$ALL" -eq 1 && "$LIMIT_SET" -eq 1 ]]; then
+  MISSING_CHOICE=1
+  echo "error: --all and --limit are mutually exclusive; choose one run scope" >&2
+fi
 
 if [[ "$ALL" -eq 0 && "$LIMIT_SET" -eq 0 ]]; then
   MISSING_CHOICE=1
@@ -1275,6 +1282,8 @@ verdict_debug_for_case() {
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
+SELECTION_STATS="$RUN_DIR/selection-stats.json"
+conv_args+=(--selection-stats "$SELECTION_STATS")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
 # GH #10596: the SHUFFLE must happen before the cap, so it belongs in the
@@ -1305,9 +1314,68 @@ fi
 
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
+[[ -s "$SELECTION_STATS" ]] || {
+  echo "selection stats missing after fixture conversion: $SELECTION_STATS" >&2
+  exit 1
+}
 mapfile -t manifestLines < "$MANIFEST"
 
 selectedCount="${#manifestLines[@]}"
+selection_stats="$(python3 - "$SELECTION_STATS" "$selectedCount" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+run_from_manifest = int(sys.argv[2])
+try:
+    with open(path, encoding="utf-8") as stream:
+        stats = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"cannot read selection stats {path}: {exc}")
+
+if not isinstance(stats, dict) or stats.get("schema") != "selection-stats-v1":
+    raise SystemExit(f"invalid selection stats schema in {path}")
+for key in ("matched", "skipped", "run", "limit"):
+    value = stats.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise SystemExit(f"selection stats field {key!r} is not a nonnegative integer")
+matched = stats["matched"]
+skipped = stats["skipped"]
+run = stats["run"]
+limit = stats["limit"]
+truncated = stats.get("truncated")
+if not isinstance(truncated, bool):
+    raise SystemExit("selection stats field 'truncated' is not boolean")
+if skipped > matched:
+    raise SystemExit("selection stats skipped count exceeds matched count")
+if run != run_from_manifest:
+    raise SystemExit(
+        f"selection stats run={run} disagrees with manifest rows={run_from_manifest}"
+    )
+expected_run = max(matched - skipped, 0)
+if limit > 0:
+    expected_run = min(expected_run, limit)
+if run != expected_run:
+    raise SystemExit(
+        f"selection stats run={run} disagrees with matched={matched}, "
+        f"skipped={skipped}, limit={limit}"
+    )
+expected_truncated = limit > 0 and matched > skipped + limit
+if truncated != expected_truncated:
+    raise SystemExit(
+        f"selection stats truncated={truncated} disagrees with "
+        f"matched={matched}, skipped={skipped}, limit={limit}"
+    )
+print(f"{matched}\t{skipped}\t{run}\t{limit}\t{1 if truncated else 0}")
+PY
+)" || {
+  echo "invalid fixture selection stats" >&2
+  exit 1
+}
+IFS=$'\t' read -r matchedCount skippedCount selectionRunCount selectionLimit selectionTruncated <<< "$selection_stats"
+selectionTruncatedLabel=false
+[[ "$selectionTruncated" == 1 ]] && selectionTruncatedLabel=true
+echo "==> selection: matched=$matchedCount skipped=$skippedCount run=$selectedCount limit=$selectionLimit truncated=$selectionTruncatedLabel"
 declare -A manifestRowByLabel=()
 for i in "${!manifestLines[@]}"; do
   IFS=$'\t' read -r label _ <<< "${manifestLines[$i]}"
@@ -1844,7 +1912,10 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
     echo "  spike_run:   $SPIKE_RUN"
   fi
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
+  echo "  matched:     $matchedCount (filter population before skip/limit)"
+  echo "  skipped:     $skippedCount (filter rows skipped before execution)"
   echo "  selected:    $selectedCount"
+  echo "  truncated:   $selectionTruncatedLabel (limit=$selectionLimit)"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
