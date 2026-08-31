@@ -130,11 +130,12 @@ rather than as caveats in a docstring, because "26 startable" otherwise reads as
   MECHANISM 1 — the row's theorem is not a whole-routine contract. Rules 1 and 2
       above; rendered in the `note` column. DEMOTES.
   MECHANISM 2 — the row's `symbol` does not pin the ADDRESS its `CodeReq` is over
-      (#12797). `anchor_grades` reads the cited theorem's SIGNATURE and grades each
-      rowed callee `own` / `other:X` / `free-base`; rendered in the `anchor` column.
-      ONLY `other:` DEMOTES — `free-base` is an annotation, because a ∀-base theorem
-      with its tie proved in a neighbouring lemma is perfectly composable and
-      demoting on it would empty the bucket for no finding.
+      (#12797). `anchor_grades` reads each cited theorem's CPS ENTRY expression and
+      grades each row/theorem `own` / `other:X` / `other-pinned` / `free-base`.
+      A symbol with mixed row grades is rendered `mixed` instead of being promoted
+      by one `own` theorem. ONLY an unpinned `other:` DEMOTES — `free-base` and
+      `other-pinned` are annotations, because a ∀-base theorem or an explicitly
+      pinned sibling can be composable without its row spelling the final address.
   MECHANISM 3 — the callee's REGISTER FRAME blocks the caller. `sws_u32le` is
       `.proven`, total and ungated, yet `swsU32leScratch` surrenders `x29`, which its
       caller `extract_witness_state_section` holds `state_off` in across the call.
@@ -395,9 +396,11 @@ def lean_sources() -> dict[str, str]:
 #
 # A row's `symbol` cell is a string, and nothing checks it against the address the
 # cited theorem is actually stated at (#12797, and the mirror image of #12568). The
-# three grades below are read off the theorem's STATEMENT text — still a proxy, but
-# a different one from a name suffix: it asks which `GuestAddrs.…` the statement
-# mentions, not what the theorem is called.
+# grades below are read from the theorem's CPS ENTRY expression — still a proxy, but
+# a different one from a name suffix: it asks which `GuestAddrs.…` is used as the
+# routine entry, not which code address happens to occur in a hypothesis or return
+# post.  Every registry row is retained separately, so one `own` theorem cannot
+# over-promote a sibling `free-base` row.
 # ---------------------------------------------------------------------------
 GA_REF = re.compile(r"GuestAddrs\.([a-z][a-z0-9_]*)\s*(?:\+\s*(\d+))?")
 
@@ -454,6 +457,70 @@ def _resolve_addr_refs(txt: str, addr_of: dict[str, int],
     return out
 
 
+def _resolve_entry_expr(expr: str, rel: str, addr_of: dict[str, int],
+                        a2s: dict[int, str], code: set[str],
+                        per_file: dict[str, dict[str, str]],
+                        glob_map: dict[str, str]) -> tuple[set[str], set[str]]:
+    """Resolve a CPS entry expression and retain its raw code symbols.
+
+    Anchor evidence belongs to the *entry* argument of a CPS triple/branch, not to
+    every address mentioned in a theorem's hypotheses.  A callee address appearing
+    in a ``CallShape`` premise is a dependency, not the routine whose contract the
+    row names.  The old whole-signature scan therefore reported ordinary composed
+    contracts (and even their return PCs) as ``other`` anchors.
+
+    File-local aliases are expanded here, including a numeric offset.  CodeReq
+    arguments are deliberately not expanded: a CodeReq is a union of the caller,
+    callees, and continuation code, so treating every member as an alternate entry
+    would recreate the same false demotions this entry-only reader avoids.
+    """
+    raw = {raw for raw, _off in GA_REF.findall(expr) if raw in code}
+    targets = _resolve_addr_refs(expr, addr_of, a2s, code)
+    cands = dict(glob_map)
+    cands.update(per_file.get(rel, {}))
+    if cands:
+        names = sorted(cands, key=len, reverse=True)
+        aliases = re.compile(
+            r"(?<![A-Za-z0-9_.'])((?:" + "|".join(re.escape(n) for n in names)
+            + r"))(?![A-Za-z0-9_'])\s*(?:\+\s*(\d+))?")
+        for m in aliases.finditer(expr):
+            base_sym = cands[m.group(1)]
+            base_addr = addr_of.get(base_sym)
+            if base_addr is None:
+                continue
+            off = int(m.group(2) or 0)
+            target = a2s.get(base_addr + off)
+            if target in code:
+                targets.add(target)
+    return targets, raw
+
+
+def cps_entry_targets(statement: str, rel: str, addr_of: dict[str, int],
+                      a2s: dict[int, str], code: set[str],
+                      per_file: dict[str, dict[str, str]],
+                      glob_map: dict[str, str]) -> tuple[set[str], set[str]]:
+    """Return ``(resolved entries, raw GuestAddrs code names)`` from CPS calls.
+
+    ``cpsTripleWithin n entry exit code ...`` and ``cpsBranchWithin n entry ...``
+    share the same entry position relative to their application.  Looking only at
+    those positions makes the anchor column answer the question it claims to
+    answer, while still seeing nested CPS premises such as the strict RLP shared
+    contract.  A theorem with no CPS application is conservatively ``free-base``.
+    """
+    targets: set[str] = set()
+    raw: set[str] = set()
+    for m in re.finditer(r"\b(cpsTripleWithin|cpsBranchWithin)\b", statement):
+        args = PF.split_app_args(statement[m.start():])
+        entry_i = 2 if m.group(1) == "cpsTripleWithin" else 1
+        if len(args) <= entry_i:
+            continue
+        got, got_raw = _resolve_entry_expr(
+            args[entry_i], rel, addr_of, a2s, code, per_file, glob_map)
+        targets |= got
+        raw |= got_raw
+    return targets, raw
+
+
 def address_aliases(addr_of, a2s, code) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
     """(per-file alias -> symbol, cross-file alias -> symbol).
 
@@ -501,61 +568,165 @@ def theorem_statements() -> dict[str, list[tuple[str, str]]]:
     return out
 
 
-def anchor_grades(refs: dict[str, list[str]]) -> dict[str, tuple[str, list[str]]]:
-    """symbol -> (grade, other symbols the statement names), one of three grades:
+def entry_addr_pins(addr_of, a2s, code) -> dict[str, list[str]]:
+    """Live `*_entry_addr_pin` declarations, keyed by the code they pin.
 
-      `own`       — a cited theorem's statement names this symbol's own address.
-      `other:X`   — no cited statement names its own address, and one names X.
-      `free-base` — no cited statement names ANY code address. The theorem is a
-                    ∀-base statement and the tie to the image lives somewhere else;
-                    `rlp_walk_next` now resolves `own`: #12797's entry-tie puts the
-                    cited contract at the linked routine rather than leaving it
-                    free-base.
+    The declaration itself is the evidence, not a comment or a theorem whose name
+    merely contains ``pin``.  In particular, `_tight` and `_word` controls are not
+    accepted as the primary pin.  A pin must be a kernel-visible equality theorem
+    whose statement names the row's address and its sibling address.
+    """
+    out: dict[str, list[str]] = defaultdict(list)
+    per_file, glob_map = address_aliases(addr_of, a2s, code)
+    for name, defs in theorem_statements().items():
+        if not re.search(r"(?:^|_)entry_addr_pin$", name):
+            continue
+        targets: set[str] = set()
+        raw_code_names: set[str] = set()
+        for rel, st in defs:
+            raw_code_names |= {raw for raw, _off in GA_REF.findall(st) if raw in code}
+            targets |= _resolve_addr_refs(st, addr_of, a2s, code)
+            cands = dict(glob_map)
+            cands.update(per_file.get(rel, {}))
+            for alias, target in cands.items():
+                if re.search(r"(?<![A-Za-z0-9_.'])" + re.escape(alias)
+                             + r"(?![A-Za-z0-9_'])", st):
+                    targets.add(target)
+        # A useful pin relates at least two code entries.  This excludes a theorem
+        # that happens to mention one address while proving an unrelated fact.
+        if len(targets) < 1 or len(raw_code_names) < 2:
+            continue
+        for target in sorted(raw_code_names | targets):
+            out[target].append(name)
+    return out
 
-    ⛔ A PROXY, not a statement read: it sees which constants a signature MENTIONS,
-    not which one its conclusion is `cpsTripleWithin`-at. A `GuestAddrs.X` sitting in
-    a HYPOTHESIS about a callee reads the same as one in the conclusion.
 
-    ⚠️ Asymmetry, deliberately: alias evidence can only produce `own`, never `other:`.
-    An alias is matched by a word-boundary regex, so a false alias hit adds an address
-    — which can suppress a demotion but must never cause one. `other:` therefore fires
-    only on a DIRECT `GuestAddrs.…` mention, offsets resolved.
+def anchor_grades(refs: dict[str, list[str]]) -> dict[str, list[dict[str, object]]]:
+    """Return one anchor record per registry row/theorem.
 
-    Grades only annotate; only `other:` demotes, and it is the sole demoting output of
-    this function.
+    The former implementation collapsed a symbol's rows to one grade, so an
+    `own` theorem silently over-promoted sibling rows whose theorem was free-base.
+    Records keep the theorem, grade, covered siblings, and any live entry pin
+    separate.  The entry expression and its local address aliases are read
+    statement-by-statement (including offset arithmetic); the explicit shared
+    `GuestAddrs` premise in `rlp_validate_payload` therefore remains visible.
+
+    `other` is the only demoting grade, and only when no live entry-address pin
+    names the covered sibling.  `other-pinned` is reported but is not a demotion.
+    Free/unresolved rows remain visible so the queue never turns an unexamined base
+    into a clean `own` result.
     """
     a2s = addr_to_symbol()
     addr_of = {v: k for k, v in a2s.items()}
     code = code_entry_symbols()
     per_file, glob_map = address_aliases(addr_of, a2s, code)
+    pins = entry_addr_pins(addr_of, a2s, code)
     stmts = theorem_statements()
-    out: dict[str, tuple[str, list[str]]] = {}
+    out: dict[str, list[dict[str, object]]] = defaultdict(list)
+
     for sym, thms in refs.items():
-        cited = [t for t in thms if t]
-        if not cited:
-            continue
-        direct: set[str] = set()
-        aliased: set[str] = set()
-        seen = False
-        for thm in cited:
-            for rel, st in stmts.get(thm.split(".")[-1], []):
-                seen = True
-                direct |= _resolve_addr_refs(st, addr_of, a2s, code)
-                cands = dict(glob_map)
-                cands.update(per_file.get(rel, {}))
-                for name, target in cands.items():
-                    if re.search(r"(?<![A-Za-z0-9_.'])" + re.escape(name)
-                                 + r"(?![A-Za-z0-9_'])", st):
-                        aliased.add(target)
-        if not seen:
-            continue
-        if sym in direct or sym in aliased:
-            out[sym] = ("own", [])
-        elif direct:
-            out[sym] = ("other", sorted(direct))
-        else:
-            out[sym] = ("free-base", [])
-    return out
+        for thm in thms:
+            if not thm:
+                continue
+            definitions = stmts.get(thm.split(".")[-1], [])
+            if not definitions:
+                out[sym].append({"theorem": thm, "grade": "?", "others": [],
+                                 "pins": [], "files": []})
+                continue
+            entry_targets: set[str] = set()
+            raw_entry_targets: set[str] = set()
+            files: list[str] = []
+            for rel, st in definitions:
+                files.append(rel)
+                # Keep the un-offset symbol as evidence too.  A statement such as
+                # `GuestAddrs.blq_zero + 24` resolves to the callee's own entry,
+                # but the CodeReq is still expressed through the sibling base and
+                # therefore needs the explicit pin.  The resolved target remains
+                # in `entry_targets` so ownership is not lost.  Crucially, scan
+                # only CPS entry arguments: return PCs, data addresses, and callee
+                # addresses in hypotheses are not this row's anchor.
+                got, got_raw = cps_entry_targets(
+                    st, rel, addr_of, a2s, code, per_file, glob_map)
+                entry_targets |= got
+                raw_entry_targets |= got_raw
+            # The statement-level address expression is intentionally the source
+            # of truth here.  A CodeReq union contains callees as well as the
+            # routine's own entry; treating every program in that union as an
+            # alternate *entry* would demote all ordinary composed contracts.
+            # Direct/Word aliases still resolve offsets (the blq/bnq case), and
+            # the rlp validator's shared CodeReq is visible through its explicit
+            # `GuestAddrs.rlp_walk_next_shared` premise.
+            others = sorted((entry_targets | raw_entry_targets) - {sym})
+            covered_own = sym in entry_targets
+            pin_names = pins.get(sym, [])
+            if others:
+                grade = "other-pinned" if pin_names else "other"
+            elif covered_own:
+                grade = "own"
+            elif entry_targets:
+                grade = "other-pinned" if pin_names else "other"
+            else:
+                grade = "free-base"
+            out[sym].append({"theorem": thm, "grade": grade,
+                             "others": others, "pins": pin_names,
+                             "files": sorted(set(files))})
+    return dict(out)
+
+
+def anchor_summary(records: list[dict[str, object]]) -> tuple[str, list[str]]:
+    """Collapse row records only for bucket demotion, never for reporting.
+
+    A symbol with one `own` row and one `free-base` row is summarized as `mixed` and
+    rendered with both theorem records.  The summary exists solely because the image
+    call graph has a symbol-level callee edge; an unpinned `other` row is sufficient
+    to demote that edge, while `other-pinned` is a checked shared-code exception.
+    """
+    if not records:
+        return ("?", [])
+    bad = [r for r in records if r.get("grade") == "other"]
+    if bad:
+        others = sorted({o for r in bad for o in r.get("others", [])})
+        return ("other", others)
+    has_own = any(r.get("grade") == "own" for r in records)
+    has_free = any(r.get("grade") == "free-base" for r in records)
+    if has_own and has_free:
+        # A symbol-wide `own` used to hide exactly this population: one row was
+        # tied to the image while another theorem for the same symbol was free-base.
+        # Keep the mixed fact visible rather than promoting every row to `own`.
+        return ("mixed", [])
+    if has_own:
+        return ("own", [])
+    if any(r.get("grade") == "other-pinned" for r in records):
+        others = sorted({o for r in records for o in r.get("others", [])})
+        return ("other-pinned", others)
+    if any(r.get("grade") == "free-base" for r in records):
+        return ("free-base", [])
+    return ("?", [])
+
+
+def anchor_grade_counts(anchors: dict[str, list[dict[str, object]]]) -> dict[str, int]:
+    """Count every per-row/theorem anchor grade for the run-level report.
+
+    The lane is only the 93 unrowed loop-free callers; the mechanism-2 census is
+    over all registry rows.  Keep that distinction explicit so the 64 free-base
+    rows cannot disappear merely because their symbols are not in the lane.
+    """
+    counts: dict[str, int] = defaultdict(int)
+    for records in anchors.values():
+        for rec in records:
+            counts[str(rec.get("grade", "?"))] += 1
+    return dict(counts)
+
+
+def anchor_red_reason(sym: str, theorem: object, others: object) -> str:
+    """Explain a live unpinned ``other`` row instead of hiding it in a count."""
+    if (sym == "rlp_validate_payload"
+            and theorem == "rlp_validate_payload_cps_under_shared"):
+        return ("offline strict-fuel theorem: `validateCR` uses the retired 23-instruction "
+                "`rlpValidatePayloadOffline_prog`; its nested shared premise names "
+                "`rlp_walk_next_shared` and no production entry-address pin exists")
+    return ("the cited CPS entry names a different code entry and no live "
+            "`*_entry_addr_pin` relates it to this row")
 
 
 # ---------------------------------------------------------------------------
@@ -823,11 +994,24 @@ def classify(rows, rowed, specs, tiers=None, weak=None, anchors=None, frames=Non
         r["gated_callees"] = [(c, best_tier(tiers[c])) for c in r["uniq_callees"]
                               if c in tiers and best_tier(tiers[c]) != ".proven"]
         r["weak_callees"] = [(c, weak[c]) for c in r["uniq_callees"] if c in weak]
-        # Mechanism 2: the anchor grade of every ROWED callee. Unrowed callees cite no
-        # theorem, so they carry no grade and are reported `?` rather than assumed.
-        r["anchor_callees"] = [(c, anchors.get(c, ("?", []))[0], anchors.get(c, ("?", []))[1])
-                               for c in r["uniq_callees"] if c in rowed]
-        r["misanchored_callees"] = [(c, o) for c, g, o in r["anchor_callees"] if g == "other"]
+        # Mechanism 2: retain every ROWED callee's per-theorem anchor record.  The
+        # symbol-level summary is used only for bucket demotion; rendering consumes
+        # `anchor_rows` so one `own` theorem cannot hide a sibling free-base row.
+        r["anchor_rows"] = [(c, rec) for c in r["uniq_callees"] if c in rowed
+                            for rec in anchors.get(c, [])]
+        r["anchor_callees"] = []
+        for c in r["uniq_callees"]:
+            if c not in rowed:
+                continue
+            grade, others = anchor_summary(anchors.get(c, []))
+            r["anchor_callees"].append((c, grade, others))
+        r["misanchored_callees"] = [
+            (c, sorted({o for _cc, rec in r["anchor_rows"] if _cc == c
+                        for o in rec.get("others", [])
+                        if rec.get("grade") == "other"}))
+            for c, _g, _o in r["anchor_callees"]
+            if any(_cc == c and rec.get("grade") == "other"
+                   for _cc, rec in r["anchor_rows"])]
         # Mechanism 3: the callee's surrendered register set, where one is findable.
         r["frame_callees"] = [(c, frames[c]) for c in r["uniq_callees"] if c in frames]
         r["frame_unknown"] = [c for c in r["uniq_callees"] if c not in frames]
@@ -910,13 +1094,34 @@ def anchor_cell(r):
     if not r["anchor_callees"]:
         return f"`?` ×{len(r['uniq_callees'])} — no rowed callee to grade"
     bits = []
+    records_by_cal: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for cal, rec in r.get("anchor_rows", []):
+        records_by_cal[cal].append(rec)
     for cal, grade, others in r["anchor_callees"]:
-        if grade == "own":
+        recs = records_by_cal.get(cal, [])
+        if recs:
+            # Include the theorem names so a symbol-wide `own` cannot conceal a
+            # free-base or unpinned-other sibling row.  The summary remains first
+            # for compatibility with the existing worklist prose.
+            details = []
+            for rec in recs:
+                rg = str(rec.get("grade", "?"))
+                pin = " [entry_addr_pin]" if rec.get("pins") and rg == "other-pinned" else ""
+                rothers = rec.get("others", [])
+                tail = (": " + ", ".join(f"`{o}`" for o in rothers)) if rothers else ""
+                details.append(f"`{rec.get('theorem', '?')}` {rg}{tail}{pin}")
+            bits.append(f"`{cal}` {grade} — " + "; ".join(details))
+        elif grade == "own":
             bits.append(f"`{cal}` own")
         elif grade == "other":
             bits.append(f"`{cal}` ⛔ other: " + ", ".join(f"`{o}`" for o in others))
+        elif grade == "other-pinned":
+            bits.append(f"`{cal}` other-pinned: " + ", ".join(f"`{o}`" for o in others)
+                        + " [entry_addr_pin]")
         elif grade == "free-base":
             bits.append(f"`{cal}` free-base")
+        elif grade == "mixed":
+            bits.append(f"`{cal}` mixed (per-theorem grades above)")
         else:
             bits.append(f"`{cal}` `?` (rowed, but no cited theorem located)")
     return "; ".join(bits) + tail + " — ⛔ PROXY, not a statement read"
@@ -961,11 +1166,14 @@ def census(rows, rowed):
                          if r["bucket"] == "needs-read" and r["weak_callees"]),
         "lane_misanchored": sum(1 for r in lane_rows
                                 if r["bucket"] == "needs-read" and r["misanchored_callees"]),
-        "lane_freebase": sum(1 for r in lane_rows
-                             if any(g == "free-base" for _c, g, _o in r["anchor_callees"])),
+        "lane_freebase": sum(
+            1 for r in lane_rows
+            if any(rec.get("grade") == "free-base"
+                   for _c, rec in r["anchor_rows"])),
         "lane_startable_freebase": sum(
             1 for r in lane_rows if r["bucket"] == "startable"
-            and any(g == "free-base" for _c, g, _o in r["anchor_callees"])),
+            and any(rec.get("grade") == "free-base"
+                    for _c, rec in r["anchor_rows"])),
         "lane_frames_known": sum(1 for r in lane_rows if r["frame_callees"]),
         "lane_frames_all_unknown": sum(1 for r in lane_rows if not r["frame_callees"]),
         "lane_accel": sum(1 for r in lane_rows if r["accel"]),
@@ -974,7 +1182,7 @@ def census(rows, rowed):
     }
 
 
-def print_worklist(rows, rowed, obl, iss):
+def print_worklist(rows, rowed, obl, iss, anchors=None):
     c = census(rows, rowed)
     lane_rows = sorted(lane(rows), key=sort_key)
     blockers: dict[str, int] = defaultdict(int)
@@ -1034,7 +1242,7 @@ def print_worklist(rows, rowed, obl, iss):
           "(segment lemmas; `header_extended_decode` ×5).")
     print("> 2. **The row's `symbol` does not pin the address its `CodeReq` is over** "
           "(the anchor grade is checked against the linked entry; `rlp_walk_next` "
-          "is now `own` after #12797's entry-tie).")
+          "is now rendered `mixed`, with its own and free-base rows retained separately).")
     print("> 3. **The row's register frame blocks the caller** (`x29` in "
           "`swsU32leScratch`) — invisible to both the tier constructor and the "
           "`gate` string.")
@@ -1042,11 +1250,12 @@ def print_worklist(rows, rowed, obl, iss):
     print("Mechanism 1 is the `note` column's weak-contract text above. Mechanisms 2 "
           "and 3 are the **anchor** and **callee frame** columns of the table below.")
     print()
-    print("⚠️ The #12797 anchor result is now current: `rlp_walk_next` resolves "
-          "`own` because its cited contract is tied to the linked entry. The live "
-          "self-test below pins this grade so a future regression to a free-base or "
-          "other-entry contract is visible. `free-base` remains a valid annotation "
-          "for other rows whose universally quantified contract is tied elsewhere.")
+    print("⚠️ The #12797 anchor result is reported per registry row/theorem: "
+          "`rlp_walk_next` is `mixed` (three free-base rows and one own row), while "
+          "the self-test keeps both grades visible so one theorem cannot over-promote "
+          "its siblings. `free-base` remains a valid annotation for a universally "
+          "quantified contract whose image tie lives elsewhere; it is not a clean "
+          "production-coverage claim.")
     print()
     print(f"**Anchor (mechanism 2, #12797).** Per rowed callee, read off the cited "
           f"theorem's SIGNATURE: `own` (it names `GuestAddrs.<that symbol>`, offsets "
@@ -1058,10 +1267,18 @@ def print_worklist(rows, rowed, obl, iss):
           f"**not** demote: most such theorems are legitimate and separately tied. "
           f"Only `other:` demotes, and today it fires on **{c['lane_misanchored']} "
           f"rows** — see the null-result note below.")
+    if anchors is not None:
+        counts = anchor_grade_counts(anchors)
+        print()
+        print("**Run-wide anchor records (all registry rows, not only the lane):** "
+              + ", ".join(f"`{g}` {counts.get(g, 0)}"
+                           for g in ("own", "free-base", "other-pinned", "other", "?"))
+              + ". The `free-base` count is an annotation boundary: it is outside "
+                "the address-pinned coverage this gate can establish.")
     print()
     print("⛔ Two filters are load-bearing here and a scan without them is wrong in "
-          "both directions. (a) `GuestAddrs` mentions are kept only for the 442 "
-          "symbols with a `guestImageEntries` pairing; without that, data addresses "
+          f"both directions. (a) `GuestAddrs` mentions are kept only for the {c['entries']} "
+          "symbols with a `guestImageEntries` pairing in this dump; without that, data addresses "
           "in alignment hypotheses (`zk3_state = 0xa3a4c0e0`) read as anchors. "
           "(b) offsets are resolved: `blqSetOneFrame_spec` is stated at "
           "`GuestAddrs.blq_zero + 24`, which **is** `blq_set_one`, so a bare-constant "
@@ -1139,7 +1356,7 @@ def print_worklist(rows, rowed, obl, iss):
                   f"{shape} |")
 
 
-def print_text(rows, rowed, obl, iss, limit):
+def print_text(rows, rowed, obl, iss, limit, anchors=None):
     c = census(rows, rowed)
     lane_rows = sorted(lane(rows), key=sort_key)
     callfree = [r for r in rows if r["loopfree"] and not r["rowed"] and not r["uniq_callees"]]
@@ -1155,6 +1372,12 @@ def print_text(rows, rowed, obl, iss, limit):
     print(f"        of needs-read, demoted by an `other:` ANCHOR    : {c['lane_misanchored']}")
     print(f"      rows with a `free-base`-anchored callee (annot.) : {c['lane_freebase']}"
           f" ({c['lane_startable_freebase']} of them startable)")
+    if anchors is not None:
+        counts = anchor_grade_counts(anchors)
+        print("      all registry anchor records (own/free-base/pinned/other/?) : "
+              + "/".join(str(counts.get(g, 0))
+                          for g in ("own", "free-base", "other-pinned", "other", "?"))
+              + "  (free-base rows are outside address-pinned coverage)")
     print(f"      rows with any callee frame resolved / none       : "
           f"{c['lane_frames_known']} / {c['lane_frames_all_unknown']}  (`?` = not found, "
           f"NOT 'surrenders nothing')")
@@ -1483,32 +1706,59 @@ def self_test(tsv_path: str) -> int:
           "nothing (this is what `free-base` is)",
           _resolve_addr_refs("cpsTripleWithin 19 base ra (rlp_walk_next_code base)",
                              addr_of, a2s_probe, code) == set())
+    all_anchor_records = [rec for records in anchors.values() for rec in records]
+    live_grades = {str(rec.get("grade")) for rec in all_anchor_records}
+    unpinned_other = [
+        (sym, rec.get("theorem", "?"), rec.get("others", []))
+        for sym, records in anchors.items()
+        for rec in records
+        if rec.get("grade") == "other" and not rec.get("pins")
+    ]
     check("MECHANISM 2 non-vacuity: `own` and `free-base` both occur on the live "
-          "registry and neither is universal (`other:` occurs on none — see the null "
-          "result printed below)",
-          {g for g, _o in anchors.values()} >= {"own", "free-base"}
-          and 0 < len(anchors) <= len(refs),
-          "grades " + str(sorted({g for g, _o in anchors.values()}))
-          + f" over {len(anchors)} of {len(refs)} rowed symbols")
-    check("MECHANISM 2: `rlp_walk_next` is now graded `own` after the #12797 "
+          "registry and neither is universal (the per-row `other` case is live)",
+          live_grades >= {"own", "free-base", "other"}
+          and 0 < len(all_anchor_records) <= sum(len(v) for v in refs.values()),
+          "grades " + str(sorted(live_grades))
+          + f" over {len(all_anchor_records)} row/theorem records")
+    rlp_records = anchors.get("rlp_walk_next", [])
+    check("MECHANISM 2: `rlp_walk_next` retains an `own` row after the #12797 "
           "entry-tie landed",
-          anchors.get("rlp_walk_next", ("?", []))[0] == "own",
-          str(anchors.get("rlp_walk_next")))
-    check("MECHANISM 2: `blq_set_one` and `bnq_set_one` are graded `own` — the "
-          "`+ 24` spelling must not read as a different routine",
-          anchors.get("blq_set_one", ("?", []))[0] == "own"
-          and anchors.get("bnq_set_one", ("?", []))[0] == "own",
-          f"{anchors.get('blq_set_one')} / {anchors.get('bnq_set_one')}")
+          any(rec.get("grade") == "own" for rec in rlp_records),
+          str(rlp_records))
+    mixed_symbols = {sym for sym, records in anchors.items()
+                     if anchor_summary(records)[0] == "mixed"}
+    check("MECHANISM 2: mixed symbols retain per-theorem grades instead of being "
+          "symbol-wide overpromoted",
+          "rlp_walk_next" in mixed_symbols and len(mixed_symbols) > 1,
+          f"{len(mixed_symbols)} mixed symbols: {sorted(mixed_symbols)}")
+    blq_records = anchors.get("blq_set_one", [])
+    bnq_records = anchors.get("bnq_set_one", [])
+    check("MECHANISM 2: `blq_set_one` and `bnq_set_one` report shared code as "
+          "`other-pinned` — the `+ 24` spelling is backed by a live pin",
+          any(rec.get("grade") == "other-pinned" for rec in blq_records)
+          and any(rec.get("grade") == "other-pinned" for rec in bnq_records),
+          f"{blq_records} / {bnq_records}")
     ma = classify([dict(victim, callees=["planted_misanchored"])] if victim else [],
                   rowed | {"planted_misanchored"}, specs, tiers, {},
-                  dict(anchors, planted_misanchored=("other", ["some_other_routine"])),
+                  dict(anchors, planted_misanchored=[{
+                      "theorem": "planted_other_spec", "grade": "other",
+                      "others": ["some_other_routine"], "pins": [], "files": []
+                  }]),
                   frames)
     check("MECHANISM 2: an `other:`-anchored callee demotes startable -> needs-read",
           bool(ma) and ma[0]["bucket"] == "needs-read" and ma[0]["misanchored_callees"],
           "" if not ma else ma[0]["bucket"])
+    check("MECHANISM 2 gate: a synthetic unpinned `other:` anchor is rejected",
+          anchor_summary([{"grade": "other", "others": ["wrong_entry"],
+                           "pins": [], "theorem": "synthetic_wrong_anchor",
+                           "files": []}]) == ("other", ["wrong_entry"]),
+          "a future pin must be a live entry_addr_pin, not a name or comment")
     fb = classify([dict(victim, callees=["planted_freebase"])] if victim else [],
                   rowed | {"planted_freebase"}, specs, tiers, {},
-                  dict(anchors, planted_freebase=("free-base", [])), frames)
+                  dict(anchors, planted_freebase=[{
+                      "theorem": "planted_free_spec", "grade": "free-base",
+                      "others": [], "pins": [], "files": []
+                  }]), frames)
     check("MECHANISM 2 control: a `free-base` callee ANNOTATES and does NOT demote",
           bool(fb) and fb[0]["bucket"] == "startable"
           and not fb[0]["misanchored_callees"]
@@ -1546,6 +1796,10 @@ def self_test(tsv_path: str) -> int:
           all(not r["weak_callees"] for r in rows if r["startable"]))
     check("startable implies no callee is `other:`-anchored",
           all(not r["misanchored_callees"] for r in rows if r["startable"]))
+    check("MECHANISM 2 gate: every live `other:` row has a kernel-visible pin",
+          not unpinned_other,
+          "; ".join(f"{s}:{t} -> {o}" for s, t, o in unpinned_other[:8])
+          or "all other-entry rows are pinned")
     check("every rendered proxy cell carries its PROXY label on the ROW",
           all("PROXY" in anchor_cell(r) or r["anchor_callees"] == [] for r in lane_rows)
           and all("⛔" in frame_cell(r) or "`?` ×" in frame_cell(r) for r in lane_rows))
@@ -1618,21 +1872,26 @@ def self_test(tsv_path: str) -> int:
           f"{c['lane_weak']} demoted by a weak-contract proxy and "
           f"{c['lane_misanchored']} by an `other:` anchor)")
     grades = defaultdict(int)
-    for g, _o in anchors.values():
-        grades[g] += 1
-    print(f"  mechanism 2: {dict(sorted(grades.items()))} over {len(anchors)} rowed "
-          f"symbols with a cited theorem; {c['lane_freebase']} lane rows carry a "
-          f"`free-base` callee ({c['lane_startable_freebase']} of them startable)")
+    for records in anchors.values():
+        for rec in records:
+            grades[str(rec.get("grade", "?"))] += 1
+    print(f"  mechanism 2: {dict(sorted(grades.items()))} over "
+          f"{sum(grades.values())} row/theorem records ({len(anchors)} symbols); "
+          f"{c['lane_freebase']} lane rows carry a `free-base` callee "
+          f"({c['lane_startable_freebase']} of them startable)")
+    if unpinned_other:
+        print("  ⛔ KNOWN-RED: unpinned `other:` anchor rows remain; the gate refuses "
+              "to treat them as composable:\n"
+              + "\n".join(
+                  f"      {s}:{t} -> {o}: {anchor_red_reason(s, t, o)}"
+                  for s, t, o in unpinned_other))
     print(f"  mechanism 3: {len(frames)} of {len(code)} code entries resolve a "
           f"`*Scratch` frame; {c['lane_frames_known']} lane rows show at least one, "
           f"{c['lane_frames_all_unknown']} show only `?`")
-    if c["lane_misanchored"] == 0:
+    if c["lane_misanchored"] == 0 and not unpinned_other:
         print("  ⚠️ NULL RESULT, reported rather than hidden: the `other:` anchor grade "
-              "moved NO lane row today. Every candidate a bare-constant scan flags "
-              "(`blq_set_one`, `bnq_set_one` via `blq_zero + 24`; `rlp_validate_payload` "
-              "via a hypothesis naming its callee) resolves to `own` once offsets and "
-              "same-file address aliases are applied — i.e. the naive form of this "
-              "column would have produced three FALSE demotions and no true one.")
+              "moved NO lane row today; every non-own row is either free-base or has "
+              "an explicit entry_addr_pin.")
     return 0 if ok else 1
 
 
@@ -1675,7 +1934,7 @@ def main() -> int:
     iss = issue_residuals(args.issues_json, symbols)
 
     if args.worklist:
-        print_worklist(rows, rowed, obl, iss)
+        print_worklist(rows, rowed, obl, iss, anchors)
         return 0
 
     if args.markdown:
@@ -1692,7 +1951,7 @@ def main() -> int:
             print(f"| `{r['symbol']}` | {r['ninstr']} | {r['bucket']} |")
         return 0
 
-    print_text(rows, rowed, obl, iss, args.limit)
+    print_text(rows, rowed, obl, iss, args.limit, anchors)
     return 0
 
 
