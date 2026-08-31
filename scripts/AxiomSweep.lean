@@ -43,6 +43,7 @@ lake exe axiomsweep                     # summary only
 lake exe axiomsweep --out report.json   # also write the full per-declaration report
 lake exe axiomsweep --check             # gate against scripts/axiom_baseline.json
 lake exe axiomsweep --update-baseline   # rewrite the baseline from the current build
+lake exe axiomsweep --self-test          # verify import-failure diagnostics
 ```
 
 The committed baseline (`scripts/axiom_baseline.json`) records the currently-known
@@ -303,6 +304,7 @@ def parseArgs : List String → Config → Except String Config
   | [], cfg => .ok cfg
   | "--check" :: rest, cfg => parseArgs rest { cfg with check := true }
   | "--update-baseline" :: rest, cfg => parseArgs rest { cfg with update := true }
+  | "--self-test" :: rest, cfg => parseArgs rest cfg
   | "--out" :: path :: rest, cfg => parseArgs rest { cfg with out? := some path }
   | "--baseline" :: path :: rest, cfg => parseArgs rest { cfg with baseline := path }
   | "--root" :: mod :: rest, cfg =>
@@ -310,6 +312,70 @@ def parseArgs : List String → Config → Except String Config
   | arg :: _, _ => .error s!"axiomsweep: unknown or incomplete argument: {arg}\n\
       usage: lake exe axiomsweep [--out FILE] [--check] [--update-baseline] \
       [--baseline FILE] [--root MOD]*\n      (--check and --update-baseline are mutually exclusive)"
+
+/- Detect the Lake artifact-cache mode whose synthetic traces can leave a required
+   `.olean` absent from `.lake/build`.  This is deliberately kept next to the
+   import failure rather than in a pre-build wrapper: `axiomsweep` must explain
+   why its root import failed even when a caller invokes `lake exe` directly. -/
+def lakeArtifactCacheEnabled : IO Bool := do
+  match ← IO.getEnv "LAKE_ARTIFACT_CACHE" with
+  | some value => return value == "1" || value == "true" || value == "yes" || value == "on"
+  | none => return false
+
+def isMissingCachedOlean (message : String) : Bool :=
+  message.contains "object file" && message.contains ".olean" &&
+    message.contains "does not exist"
+
+def importFailureMessage (roots : Array Name) (message : String) (cacheEnabled : Bool) : String :=
+  if cacheEnabled && isMissingCachedOlean message then
+    s!"axiomsweep: cannot import root modules {roots}: a required `.olean` was not \
+      materialized while LAKE_ARTIFACT_CACHE is enabled. Re-run \
+      `LAKE_ARTIFACT_CACHE=false lake build EvmAsm` (or disable the artifact cache) \
+      before running axiomsweep.\n  import error: {message}"
+  else
+    s!"axiomsweep: cannot import root modules {roots}: {message}\n\
+      (roots must be importable modules — glob-based libs without an umbrella \
+      module cannot be swept by library name)"
+
+unsafe def probeMissingImport : IO (Option String) := do
+  -- Remove only the root module's named output for the duration of this probe.
+  -- The cache inode is left untouched (a rename only changes the checkout
+  -- directory entry), and the output is restored before returning.
+  let target : System.FilePath := ".lake/build/lib/lean/EvmAsm.olean"
+  let backup : System.FilePath := ".lake/build/lib/lean/EvmAsm.olean.axiomsweep-self-test"
+  if !(← System.FilePath.pathExists target) && (← System.FilePath.pathExists backup) then
+    -- Recover from a process interrupted after the rename, before refusing the
+    -- next self-test for lack of the named output.
+    IO.FS.rename backup target
+  if !(← System.FilePath.pathExists target) then
+    IO.eprintln "axiomsweep: self-test requires a built EvmAsm.olean; run lake build EvmAsm first"
+    return none
+  if ← System.FilePath.pathExists backup then
+    IO.FS.removeFile backup
+  IO.FS.rename target backup
+  let result ← try
+    initSearchPath (← findSysroot)
+    enableInitializersExecution
+    let _ ← importModules #[{ module := `EvmAsm }] {} (trustLevel := 1024) (loadExts := true)
+    pure (some "self-test import unexpectedly succeeded after removing EvmAsm.olean")
+  catch e =>
+    pure (some e.toString)
+  IO.FS.rename backup target
+  return result
+
+unsafe def selfTest : IO UInt32 := do
+  let some actual := (← probeMissingImport) | return 1
+  let rendered := importFailureMessage #[`EvmAsm] actual true
+  if !isMissingCachedOlean actual || !rendered.contains "not materialized" ||
+      !rendered.contains "LAKE_ARTIFACT_CACHE=false lake build EvmAsm" then
+    IO.eprintln s!"axiomsweep: self-test failed: current import error was not classified as cache-unmaterialized:\n{actual}"
+    return 1
+  let generic := importFailureMessage #[`EvmAsm] "unknown declaration 'Example.missing'" false
+  if generic.contains "not materialized" || !generic.contains "unknown declaration" then
+    IO.eprintln "axiomsweep: self-test failed: generic import diagnostic was misclassified"
+    return 1
+  IO.println "axiomsweep: self-test passed (cache-unmaterialized and generic import diagnostics)"
+  return 0
 
 end AxiomSweep
 
@@ -321,6 +387,8 @@ unsafe def main (args : List String) : IO UInt32 := do
   if cfg.check && cfg.update then
     IO.eprintln "axiomsweep: --check and --update-baseline are mutually exclusive"
     return 2
+  if args.contains "--self-test" then
+    return (← selfTest)
   let roots := if cfg.roots.isEmpty then defaultRoots else cfg.roots
   initSearchPath (← findSysroot)
   enableInitializersExecution
@@ -328,9 +396,8 @@ unsafe def main (args : List String) : IO UInt32 := do
       importModules (roots.map ({ module := · })) {} (trustLevel := 1024)
         (loadExts := true)
     catch e =>
-      IO.eprintln s!"axiomsweep: cannot import root modules {roots}: {e.toString}\n\
-        (roots must be importable modules — glob-based libs without an umbrella \
-        module cannot be swept by library name)"
+      let message := e.toString
+      IO.eprintln (importFailureMessage roots message (← lakeArtifactCacheEnabled))
       return (2 : UInt32)
   let ((entries, moduleCount), _) ← (buildEntries roots).toIO
     { fileName := "<axiomsweep>", fileMap := default } { env }
