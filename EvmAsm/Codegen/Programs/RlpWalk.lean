@@ -416,6 +416,8 @@ def rlpValidatePayloadOffline_prog : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+#guard rlpValidatePayloadOffline_prog.length = 23
+
 def rlpWalkNextCore_prog : Program :=
   [ .BGEU .x10 .x11 (brOff (GuestAddrs.rlp_walk_next_core + 352) (GuestAddrs.rlp_walk_next_core + 0)),
     .LBU .x5 .x10 (0 : BitVec 12),
