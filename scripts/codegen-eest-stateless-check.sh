@@ -44,11 +44,11 @@
 #
 # Usage:
 #   scripts/codegen-eest-stateless-check.sh [options]
-#     --all              run every stateless block (slow); mutually exclusive
-#                        with --limit (one explicit scope is required)
+#     --all              run every stateless block (slow); one explicit scope
+#                        is required unless --limit is supplied
 #     --skip N           skip first N selected stateless blocks after filtering
-#     --limit N          cap to N guest invocations (mutually exclusive with
-#                        --all; one explicit scope is required)
+#     --limit N          cap to N guest invocations (one explicit scope is
+#                        required unless --all is supplied)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
 #     --budget-retry-steps N
@@ -264,12 +264,12 @@ Usage:
   scripts/codegen-eest-stateless-check.sh [options]
 
 Options:
-  --all                    run every stateless block (slow); mutually exclusive with --limit
+  --all                    run every stateless block (slow)
   --exit-zero-on-failures  exit 0 even when rows FAIL or ERROR (GH #11737). Default is
                            to exit non-zero, so a failing run cannot read as green.
                            Use only when the summary is wanted regardless of outcome.
   --skip N                 skip first N selected stateless blocks after filtering
-  --limit N                cap to N guest invocations (mutually exclusive with --all)
+  --limit N                cap to N guest invocations
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --backend ziskemu|spike  guest emulator backend (required, no default since GH #10533;
                            EEST_BACKEND works as the opt-in equivalent)
@@ -376,11 +376,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 MISSING_CHOICE=0
-
-if [[ "$ALL" -eq 1 && "$LIMIT_SET" -eq 1 ]]; then
-  MISSING_CHOICE=1
-  echo "error: --all and --limit are mutually exclusive; choose one run scope" >&2
-fi
 
 if [[ "$ALL" -eq 0 && "$LIMIT_SET" -eq 0 ]]; then
   MISSING_CHOICE=1
