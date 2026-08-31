@@ -1030,6 +1030,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
