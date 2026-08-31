@@ -191,6 +191,7 @@ import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
 import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
 import EvmAsm.Codegen.Proofs.ExtractDepositDataUnified
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -1054,16 +1055,27 @@ def routineRegistry : List RoutineEntry := [
   -- arms remain an explicit open dependency until the Amsterdam price callee
   -- has its own machine contract.
   routine "header_validate_excess_blob_gas" .conditional
-      (some "header_validate_excess_blob_gas_status0_arm_spec_within")
-      (gate := "status-0 under-target arm: the machine's parentTotal (x20) is "
-        ++ "below the Amsterdam target and thisExcess (x8) is zero. The "
-        ++ "registered inhabitant is the all-zero parent/header point; the "
-        ++ "registered negative control refutes the same gate at thisExcess = 1.")
-      (notes := "closed 29-step ABI-frame witness for the status-0 arm, "
-        ++ "independent of the still-open Amsterdam price loop. This is an "
-        ++ "honest conditional row, not a whole-routine K70 claim: the "
-        ++ "overflow, price, and mismatch arms remain to be composed once "
-        ++ "`priceContract` is discharged."),
+      (some "header_validate_excess_blob_gas_under_target_spec_within")
+      (gate := "the PRICE-FREE arm families are claimed, at the caller's "
+        ++ "argument shape (#13135: fully parametric registers, ANY `a3` — "
+        ++ "these paths never dereference the base-fee pointer). Overflow "
+        ++ "(`…_overflow_spec_within`): parent total wraps → status 1. "
+        ++ "Under-target (`…_under_target_spec_within`): total below the "
+        ++ "Amsterdam target → status `if thisExcess = 0 then 0 else 2` "
+        ++ "(the mismatch sub-arm included). Boundary-guard "
+        ++ "(`…_boundary_spec_within`): total at/above target and "
+        ++ "parent.excess ≥ 2,073,394,371 → expected `total − target`, "
+        ++ "status 0/2 by match. UNCLAIMED: the price arms (the "
+        ++ "`amsterdam_blob_gas_price_u256` route — high-fee schedule "
+        ++ "branch and exact non-high compare), gated on `priceContract` "
+        ++ "(#12851). The original all-zero status-0 witness "
+        ++ "(`…_status0_arm_spec_within`) remains as the closed inhabitant")
+      (notes := "three whole-routine ABI-frame triples (25/29/34 steps) in "
+        ++ "`Codegen/Programs/HeaderValidateExcessBlobGasArms.lean`, each "
+        ++ "with pure branch-fact hypotheses instead of pinned arguments; "
+        ++ "per-arm inhabitant/negative-control examples pin the gates' "
+        ++ "boundaries (the measured price bound admits at 2,073,394,371 "
+        ++ "and refutes at its predecessor)."),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -6197,6 +6209,16 @@ private noncomputable abbrev _extract_deposit_data_unified_witness :=
   @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_spec
 private noncomputable abbrev _extract_deposit_data_probe_witness :=
   @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_probe_spec
+-- #13135: K70's price-free arms at the caller's argument shape; the
+-- original status-0 point witness stays swept alongside.
+private noncomputable abbrev _hvebg_under_target_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_under_target_spec_within
+private noncomputable abbrev _hvebg_overflow_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_overflow_spec_within
+private noncomputable abbrev _hvebg_status0_point_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+private noncomputable abbrev _hvebg_boundary_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_boundary_spec_within
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=

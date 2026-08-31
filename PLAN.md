@@ -137,6 +137,26 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13135 — K70's price-free arms at the caller's shape, 2026-08-31)
+
+- ✅ **Three whole-routine ABI-frame triples** for
+  `header_validate_excess_blob_gas` in the new
+  `Codegen/Programs/HeaderValidateExcessBlobGasArms.lean`, fully
+  parametric in every argument register (including arbitrary `a3` —
+  these paths never dereference the base-fee pointer) and with pure
+  branch-fact hypotheses instead of pinned values:
+  `…_overflow_spec_within` (wrap ⇒ status 1, 25 steps),
+  `…_under_target_spec_within` (total < 1,835,008 ⇒ status
+  `if a0 = 0 then 0 else 2`, 29 steps — subsumes the old all-zero
+  status-0 witness and adds the mismatch sub-arm),
+  `…_boundary_spec_within` (total ≥ target ∧ parent.excess ≥
+  2,073,394,371 ⇒ expected `total − target`, status by match, 34
+  steps).  Constant-folding idiom: `k70Target`/`k70Bound` defs pinned
+  by `decide`, folded into the LUI/ADDIW posts via `rw [show … from
+  rfl]`.  Per-arm non-vacuity examples pin the gates' boundaries.
+  Registry row regated; witness = the under-target triple.
+  Remaining: the price arms, gated on `priceContract` (#12851).
+
 ### Recent (#13070 COMPLETE — arena-parametric edd contract, 2026-08-31)
 
 - ✅ **Step 1 landed**: the whole edd proof layer (5 combinators, 25

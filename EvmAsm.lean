@@ -124,6 +124,7 @@ import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
 import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
 import EvmAsm.Codegen.Proofs.ExtractDepositDataUnified
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
