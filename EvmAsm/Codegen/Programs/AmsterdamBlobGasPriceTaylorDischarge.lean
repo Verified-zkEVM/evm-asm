@@ -170,7 +170,7 @@ which is what the finite outer fold needs. -/
     (.x0 ↦ᵣ (0 : Word))
 
 /- The QBACK backedge post in the loop-index form: `taylorLoopIndex (j + 1)`. -/
-@[reducible] private def taylorRoundBackedge
+@[reducible] def taylorRoundBackedge
     (j : Nat) (newSp excess outPtr evenBase oddBase : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 s0 s1 s2 s3 s4 s5 : Word)
     (FR0 : Assertion) : Assertion :=
@@ -234,7 +234,7 @@ which is what the finite outer fold needs. -/
 
 /- The ten status-1 posts with the retained scratch values hidden
    existentially, followed by the loop-index backedge. -/
-@[reducible] private def taylorRoundAnyStatus
+@[reducible] def taylorRoundAnyStatus
     (j : Nat) (newSp excess outPtr iVal evenBase oddBase : Word) (vals : Reg → Word)
     (a0 a1 a2 a3 a4 a5 p0 p1 p2 p3 p4 p5 s0 s1 s2 s3 s4 s5 : Word)
     (FR0 : Assertion) : List (Word × Assertion) :=
@@ -759,5 +759,6 @@ theorem taylor_round_invariant_to_parity
 
 #check taylor_round_invariant_to_parity
 #print axioms taylor_round_invariant_to_parity
+
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorDischarge
