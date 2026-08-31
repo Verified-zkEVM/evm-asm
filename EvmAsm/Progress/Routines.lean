@@ -407,6 +407,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractConsumer
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 -- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
 -- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
@@ -5223,6 +5224,9 @@ private noncomputable abbrev _amsterdam_blob_gas_price_abi_shell_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_abi_from_body
 private noncomputable abbrev _amsterdam_blob_gas_price_prog_eq_abiframe_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
+-- #12346: the excess=0 non-vacuity witness for the K70 `priceContract` seam.
+private noncomputable abbrev _priceContract_ex0_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.priceContract_ex0_inhabited
 -- #12851 body: the first four body-window contracts for
 -- `amsterdam_blob_gas_price_u256`.
 private noncomputable abbrev _amsterdam_blob_gas_price_setup_witness :=

@@ -21,6 +21,7 @@ import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkSite
 import EvmAsm.Codegen.Programs.HeaderExtendedDecodeWalkChain
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceU256Sat
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractWitness
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractConsumer
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14RoundQBackComposition
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceOuterModelSpec
 import EvmAsm.Codegen.Programs.MptWalkBranchNibble
@@ -64,6 +65,7 @@ import EvmAsm.Codegen.Programs.RlpRecursiveDecodeDirect
 import EvmAsm.Codegen.Programs.RlpRecursiveDecodeProductionBridge
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyPrefixCompose
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
