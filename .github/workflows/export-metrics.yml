@@ -38,7 +38,7 @@ jobs:
       - name: Checkout (main, for cycles-history + scripts)
         uses: actions/checkout@v4
 
-      - name: Gather benchmark-history + cycles-history into an export bundle
+      - name: Gather benchmark-history + cycles-history status into an export bundle
         id: gather
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -61,10 +61,19 @@ jobs:
 
           # 2. cycles-history.jsonl (ziskemu cycle datapoints; may be sparse
           #    until the ziskemu live-parse is wired — R-F1/D8).
+          #
+          # Do not manufacture an empty cycles-history file: an empty file is
+          # indistinguishable from a successful run with no datapoints.  Keep
+          # the absence explicit in the manifest until the producer and
+          # persistence path are wired.
+          cycles_history_status="missing"
+          cycles_history_reason="cycles-history.jsonl is unavailable in this checkout"
+          cycles_history_contents='["benchmark-history.jsonl"]'
           if [ -f cycles-history.jsonl ]; then
             cp cycles-history.jsonl export-bundle/cycles-history.jsonl
-          else
-            : > export-bundle/cycles-history.jsonl
+            cycles_history_status="present"
+            cycles_history_reason="cycles-history.jsonl copied from this checkout"
+            cycles_history_contents='["benchmark-history.jsonl", "cycles-history.jsonl"]'
           fi
 
           # 3. a manifest describing the bundle + the performance!=conformance caveat
@@ -73,7 +82,8 @@ jobs:
             echo "  \"generated\": \"${ts}\","
             echo "  \"source_repo\": \"${GITHUB_REPOSITORY}\","
             echo "  \"source_commit\": \"${GITHUB_SHA}\","
-            echo "  \"contents\": [\"benchmark-history.jsonl\", \"cycles-history.jsonl\"],"
+            echo "  \"contents\": ${cycles_history_contents},"
+            echo "  \"cycles_history\": {\"status\": \"${cycles_history_status}\", \"reason\": \"${cycles_history_reason}\"},"
             echo "  \"note\": \"Performance/cost trend only. NOT a conformance or verification signal (R-F3).\""
             echo "}"
           } > export-bundle/manifest.json

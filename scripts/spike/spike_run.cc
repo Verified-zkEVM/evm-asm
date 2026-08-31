@@ -8,6 +8,9 @@
 //   - registers the zisk_accel crypto-CSR extension;
 //   - runs to HTIF exit, then writes SPIKE_OUTPUT_LEN bytes (default 256) from
 //     0xa0010000 to <output-file>.
+// A clean halt also emits `spike_run: halted cleanly steps=N` on stderr so
+// callers can persist the consumed instruction count without guessing from a
+// step budget or a missing output file.
 //
 // Debug env (optional; unset = previous byte-identical behavior):
 //   SPIKE_COMMITLOG=<file>   per-instruction commit log (existing)
@@ -527,6 +530,11 @@ int main(int argc, char** argv) {
     wr(&sim, write.addr, value, sizeof(value));
   }
 
+  // Spike maintains minstret independently of the host-side step batch.  Read
+  // it around the complete guest run so the clean-halt marker is exact while
+  // retaining the normal fast batching in the driver.
+  const uint64_t minstret_start = p->get_state()->minstret->read();
+
   if (getenv("SPIKE_RUN_DEBUG")) {
     uint8_t insn[4]; rd(&sim, entry, insn, 4);
     fprintf(stderr, "[dbg] entry=0x%llx insn@entry=%02x%02x%02x%02x pc=0x%llx\n",
@@ -623,6 +631,10 @@ int main(int argc, char** argv) {
             (unsigned long long)mcause, (unsigned long long)mtval, (unsigned long long)mepc);
   } else if (flagv == 0) {
     fprintf(stderr, "spike_run: step cap reached without halt (or watch-stop)\n");
+  } else if (flagv == 1) {
+    const uint64_t steps_used = p->get_state()->minstret->read() - minstret_start;
+    fprintf(stderr, "spike_run: halted cleanly steps=%llu\n",
+            (unsigned long long)steps_used);
   }
   bool halted = (flagv == 1);
 

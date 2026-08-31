@@ -108,6 +108,8 @@
 #     --guest-elf PATH   run PATH instead of building a guest. This is the ONLY
 #                        supported way to override the guest, and it implies
 #                        --no-build. See "Guest identity" below.
+#     --append-cycles     append successful Spike consumed-step records to
+#                        cycles-history.jsonl (opt-in; requires --backend spike)
 #
 # Guest identity (GH #10617):
 #   The resolved guest path and its sha256 are echoed at the start of every run
@@ -251,6 +253,7 @@ RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
 PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
 SPIKE_RUN="${SPIKE_RUN:-$REPO_ROOT/scripts/spike/spike_run}"
+APPEND_CYCLES="${EEST_APPEND_CYCLES:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -298,6 +301,8 @@ Options:
                            environment variable is removed and is now an error.
                            The resolved path and its sha256 are echoed and
                            recorded in the run's run-provenance.tsv.
+  --append-cycles           append successful Spike consumed-step records to
+                           cycles-history.jsonl (opt-in; requires --backend spike)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 after --filter, sample individual stateless blocks
                            uniformly WITHOUT replacement BEFORE --limit
@@ -353,6 +358,7 @@ while [[ $# -gt 0 ]]; do
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     --guest-elf) require_arg "$1" "${2:-}"; GUEST_ELF_OVERRIDE="$2"; shift 2 ;;
+    --append-cycles) APPEND_CYCLES=1; shift ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
@@ -421,6 +427,15 @@ case "$BACKEND" in
   ziskemu|spike) ;;
   *) echo "--backend/EEST_BACKEND must be ziskemu or spike (got: $BACKEND)" >&2; exit 1 ;;
 esac
+
+if [[ "$APPEND_CYCLES" != "0" && "$APPEND_CYCLES" != "1" ]]; then
+  echo "--append-cycles/EEST_APPEND_CYCLES must be 0 or 1 (got: $APPEND_CYCLES)" >&2
+  exit 1
+fi
+if [[ "$APPEND_CYCLES" -eq 1 && "$BACKEND" != "spike" ]]; then
+  echo "--append-cycles currently requires --backend spike (the ziskemu log has no consumed-step marker)" >&2
+  exit 1
+fi
 
 if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
   # Resolve against the CALLER's cwd and fail if it is not a readable file.  An
@@ -882,6 +897,8 @@ run_guest_elf() {
   if [[ "$BACKEND" == "ziskemu" ]]; then
     "$ZISKEMU" -e "$elf" -i "$input" -o "$out" -n "$steps" >"$log" 2>&1 </dev/null
   else
+    # spike_run reads Spike's minstret CSR around the guest run, so its clean
+    # halt marker is exact without disabling the normal fast step batching.
     "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
   fi
 }
@@ -1447,6 +1464,54 @@ wait_for_one_worker() {
   return "$rc"
 }
 
+# Append a consumed-step record only from the parent result-consumption path.
+# run_case may execute in background workers, and cycles-append.sh appends one
+# shared JSONL file; invoking it in a worker would race with other workers.
+cycles_append_records=0
+cycles_append_errors=0
+append_cycles_for_case() {
+  [[ "$APPEND_CYCLES" -eq 1 ]] || return 0
+  local label="$1" relpath="$2" status="$3"
+  local log="$RUN_DIR/$label.emu.log"
+  local record
+
+  # Only a completed emulator invocation has a meaningful consumed-step count.
+  [[ "$status" == "OK" ]] || return 0
+  if [[ ! -f "$log" ]]; then
+    echo "  CYCLES ERROR: missing emulator log for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! grep -qE '^spike_run: halted cleanly steps=[0-9]+$' "$log"; then
+    echo "  CYCLES ERROR: no successful consumed-step marker for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+
+  # Ask the appender to render first so a nullable/malformed parse cannot be
+  # mistaken for a datapoint; append the same validated record afterwards.
+  if ! record="$(scripts/cycles-append.sh \
+      --program "eest:$label" --from-log "$log" --elf "$RESOLVED_GUEST_ELF" \
+      --halted true --source codegen-eest-stateless-check.sh --print)"; then
+    echo "  CYCLES ERROR: could not render record for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! jq -e '(.steps | type == "number") and .halted == true' <<< "$record" >/dev/null; then
+    echo "  CYCLES ERROR: consumed-step record is not a non-null clean halt for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! scripts/cycles-append.sh \
+      --program "eest:$label" --from-log "$log" --elf "$RESOLVED_GUEST_ELF" \
+      --halted true --source codegen-eest-stateless-check.sh >/dev/null; then
+    echo "  CYCLES ERROR: failed to append record for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  cycles_append_records=$((cycles_append_records + 1))
+}
+
 # --- classify ---------------------------------------------------------------
 # Most successful Amsterdam SszStatelessValidationResult values are 69 bytes on
 # the current v0.6.x pin (ChainConfig dropped fork/blob-schedule; pre-v0.6 was
@@ -1607,6 +1672,7 @@ classify_case_result() {
     fi
     echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath" "$case_id") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
+  append_cycles_for_case "$label" "$relpath" "$status"
   return 0
 }
 
@@ -1783,6 +1849,9 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
     echo "    guest false-accept: $guestFalseAccept"
     echo "    guest false-reject: $guestFalseReject"
   fi
+  if [[ "$APPEND_CYCLES" -eq 1 ]]; then
+    echo "  cycles records: $cycles_append_records (errors=$cycles_append_errors)"
+  fi
 } | tee "$BASELINE"
 
 echo "==> wrote baseline: $BASELINE"
@@ -1816,6 +1885,15 @@ if [[ "$fail" -gt 0 || "$err" -gt 0 ]]; then
   else
     echo "==> FAILURES: fail=$fail errored=$err of selected=$selectedCount (ran=$ran, full match=$full)" >&2
     echo "    read the summary block above for the verdict; pass --exit-zero-on-failures only if you need the summary regardless of outcome" >&2
+    rc=1
+  fi
+fi
+if [[ "$APPEND_CYCLES" -eq 1 ]]; then
+  if [[ "$cycles_append_errors" -gt 0 ]]; then
+    echo "==> CYCLES RECORDING FAILED: $cycles_append_errors case(s) lacked a validated consumed-step record" >&2
+    rc=1
+  elif [[ "$cycles_append_records" -eq 0 ]]; then
+    echo "==> CYCLES RECORDING FAILED: no non-null consumed-step datapoint was appended" >&2
     rc=1
   fi
 fi
