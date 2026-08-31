@@ -66,6 +66,7 @@ import EvmAsm.Codegen.Programs.RlpRecursiveDecodeProductionBridge
 import EvmAsm.Codegen.Programs.SystemCallRequestBridge
 import EvmAsm.Codegen.Programs.TxSigningHashResidual
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyPrefixCompose
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyPrefixCopyCompose
 import EvmAsm.Codegen.Proofs.BlobHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.BlockHashGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CallReturn
@@ -124,6 +125,7 @@ import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
 import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
 import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
 import EvmAsm.Codegen.Proofs.ExtractDepositDataUnified
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
 import EvmAsm.Codegen.Programs.EddBe32EqSAsm
 import EvmAsm.Codegen.Programs.EddMemcpySAsm
 import EvmAsm.Codegen.Proofs.FlatBlockPilotSpec
