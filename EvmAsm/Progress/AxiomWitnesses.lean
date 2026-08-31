@@ -136,6 +136,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.priceContract_ex0_inhabited
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
