@@ -745,26 +745,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
         ++ "rlp_validate_payload → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
-  -- #12300: the validator entry is tied to the strict LIST-cycle model, but
-  -- the machine CPS continuation remains an explicit caller premise.
-  routine "rlp_validate_payload" .conditional
-      (some "rlp_validate_payload_cps_under_shared")
-      (gate := "caller supplies the CPS contract `hshared` for the recursive "
-        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
-        ++ "structural fuel family, but the instruction-level continuation "
-        ++ "is not yet derived from it. The surviving witness is explicitly "
-        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
-        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
-        ++ "Program is not byte-identical to the linked 21-instruction "
-        ++ "`rlpValidatePayload_prog`; this row does not claim production-image "
-        ++ "correspondence. This is a DOWNGRADE relative to main forced by the "
-        ++ "legacy strict-fuel contract's V+36→V+40 nested-JAL shape: the shipped "
-        ++ "21-instruction RecDecode adapter has no such edge, so retaining the "
-        ++ "production anchor would not state the existing CPS theorem. Re-proving "
-        ++ "that production-image contract is tracked by #12661")
-      (notes := "entry contract covers empty, precheck-failure, nested-failure "
-        ++ "and continuation tails under the explicit shared-arm contract; the "
-        ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
   -- #12749: the recursive ITEMS entry, tied to the LINKED image. The synthetic
   -- knot (`itemsSound_all` over `decCr`) and the emitted direct-JAL programs
   -- share pins and programs: decEntry/itemsEntry/rdbeEntry are the GuestAddrs
@@ -4759,6 +4739,43 @@ def routineRegistry : List RoutineEntry := [
         ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
 ]
 
+/-! ## Offline routine contracts
+
+    These witnessed contracts describe retired or synthetic Programs used by
+    proof development, not the production guest image.  Keep them out of
+    `routineRegistry`: a production row must identify a theorem about the
+    linked symbol at its deployed entry.  Offline witnesses remain explicit
+    and axiom-audited here, so separating their scope does not hide them from
+    the trusted-base check.
+-/
+
+def offlineRoutine (symbol : String) (tier : ProofTier) (proofRef : Option String)
+    (gate : String := "") (notes : String := "") : RoutineEntry :=
+  routine symbol tier proofRef gate notes
+
+def offlineRoutineRegistry : List RoutineEntry := [
+  -- #12300: strict LIST-cycle theorem over the retired 23-instruction model.
+  offlineRoutine "rlp_validate_payload" .conditional
+      (some "rlp_validate_payload_cps_under_shared")
+      (gate := "caller supplies the CPS contract `hshared` for the recursive "
+        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
+        ++ "structural fuel family, but the instruction-level continuation "
+        ++ "is not yet derived from it. The surviving witness is explicitly "
+        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
+        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
+        ++ "Program is not byte-identical to the linked 21-instruction "
+        ++ "`rlpValidatePayload_prog`; this offline contract does not claim "
+        ++ "production-image correspondence. Re-proving that production-image "
+        ++ "contract is tracked by #12661")
+      (notes := "offline entry contract covers empty, precheck-failure, "
+        ++ "nested-failure and continuation tails under the explicit shared-arm "
+        ++ "contract; the terminal `NestedFuel.done` case models the exact "
+        ++ "cursor=end check"),
+]
+
+theorem offlineRoutineRegistry_all_witnessed :
+    offlineRoutineRegistry.all (fun e => e.proofRef.isSome) = true := by decide
+
 /-! ## Counts (kernel-checked) -/
 
 /-- Rows in the guest-routine registry. -/
@@ -4773,12 +4790,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 227 := by decide
+theorem routineCount_eq : routineCount = 226 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 51 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 50 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -4796,7 +4813,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 187 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 

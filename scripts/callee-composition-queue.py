@@ -1723,8 +1723,10 @@ def self_test(tsv_path: str) -> int:
         if rec.get("grade") == "other" and not rec.get("pins")
     ]
     check("MECHANISM 2 non-vacuity: `own` and `free-base` both occur on the live "
-          "registry and neither is universal (the per-row `other` case is live)",
-          live_grades >= {"own", "free-base", "other"}
+          "production registry, while the offline row is excluded and no live "
+          "unpinned `other` remains",
+          live_grades >= {"own", "free-base"}
+          and not unpinned_other
           and 0 < len(all_anchor_records) <= sum(len(v) for v in refs.values()),
           "grades " + str(sorted(live_grades))
           + f" over {len(all_anchor_records)} row/theorem records")
