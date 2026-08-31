@@ -62,6 +62,136 @@ private theorem eddb_mem (k : Nat) (ins : Instr) (A : Word)
       (by rw [eddbProg_len]; omega) hins
       (by rw [eddbProg_len]; norm_num) a i h
 
+/-! ## Arena hypotheses (#13070 step 1)
+
+    The parametric replacements for the deployed-probe constants: any
+    pair of arenas satisfying these three facts supports the whole
+    contract.  The concrete `eddDataPtr`/`eddOutPtr` instances are
+    discharged by `decide`-grade arithmetic where the probe corollaries
+    are stated. -/
+
+/-- A well-formed 576-byte payload arena: 8-aligned, wrap-free, every
+    byte a valid memory address. -/
+def eddDataArenaOk (dp : Word) : Prop :=
+  dp.toNat % 8 = 0 ∧ dp.toNat + 576 < 2 ^ 64 ∧
+  ∀ k, k < 576 → isValidMemAddr (dp + BitVec.ofNat 64 k) = true
+
+/-- A well-formed 192-byte output arena. -/
+def eddOutArenaOk (op : Word) : Prop :=
+  op.toNat % 8 = 0 ∧ op.toNat + 192 < 2 ^ 64 ∧
+  ∀ k, k < 192 → isValidMemAddr (op + BitVec.ofNat 64 k) = true
+
+/-- The two arenas do not overlap. -/
+def eddArenasDisjoint (dp op : Word) : Prop :=
+  dp.toNat + 576 ≤ op.toNat ∨ op.toNat + 192 ≤ dp.toNat
+
+private theorem eddP_addr3 (x : Word) (a k : Nat)
+    (hx : x.toNat + a + k < 2 ^ 64) :
+    x + BitVec.ofNat 64 a + BitVec.ofNat 64 k
+      = x + BitVec.ofNat 64 (a + k) := by
+  apply BitVec.eq_of_toNat_eq
+  rw [EvmAsm.Codegen.edd_toNat_add3 x a k hx,
+    EvmAsm.Codegen.edd_toNat_add2 x (a + k) (by omega)]
+  omega
+
+/-- Parametric analogue of `edd_src_region_wf`. -/
+theorem eddP_src_wf (dp : Word) (hdp : eddDataArenaOk dp)
+    (offS n : Nat) (bs : List (BitVec 8))
+    (hbs : bs.length = n) (h8 : offS % 8 = 0) (hS : offS + n ≤ 576) :
+    Region.wf ⟨dp + BitVec.ofNat 64 offS, bs⟩ := by
+  obtain ⟨hal, hov, hval⟩ := hdp
+  have h2 : (dp + BitVec.ofNat 64 offS).toNat = dp.toNat + offS :=
+    EvmAsm.Codegen.edd_toNat_add2 dp offS (by omega)
+  refine ⟨?_, ?_, fun k hk => ?_⟩
+  · show (dp + BitVec.ofNat 64 offS).toNat % 8 = 0
+    rw [h2]; omega
+  · show (dp + BitVec.ofNat 64 offS).toNat + bs.length < 2 ^ 64
+    rw [h2, hbs]; omega
+  · have hk' : k < n := by rw [hbs] at hk; exact hk
+    show isValidMemAddr (dp + BitVec.ofNat 64 offS + BitVec.ofNat 64 k)
+      = true
+    rw [eddP_addr3 dp offS k (by omega)]
+    exact hval (offS + k) (by omega)
+
+/-- Parametric analogue of `edd_out_region_wf`. -/
+theorem eddP_out_wf (op : Word) (hop : eddOutArenaOk op)
+    (offD n : Nat) (h8 : offD % 8 = 0) (hD : offD + n ≤ 192) :
+    RwRegion.wf ⟨op + BitVec.ofNat 64 offD, n⟩ := by
+  obtain ⟨hal, hov, hval⟩ := hop
+  have h2 : (op + BitVec.ofNat 64 offD).toNat = op.toNat + offD :=
+    EvmAsm.Codegen.edd_toNat_add2 op offD (by omega)
+  refine ⟨?_, ?_, fun k hk => ?_⟩
+  · show (op + BitVec.ofNat 64 offD).toNat % 8 = 0
+    rw [h2]; omega
+  · show (op + BitVec.ofNat 64 offD).toNat + n < 2 ^ 64
+    rw [h2]; omega
+  · have hkn : k < n := hk
+    show isValidMemAddr (op + BitVec.ofNat 64 offD + BitVec.ofNat 64 k)
+      = true
+    rw [eddP_addr3 op offD k (by omega)]
+    exact hval (offD + k) (by omega)
+
+/-- Parametric analogue of `edd_arena_mcStatic`. -/
+theorem eddP_mcStatic (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op)
+    (offS offD n : Nat) (bs ws0 : List (BitVec 8))
+    (hbs : n ≤ bs.length) (hw : ws0.length = n)
+    (hS : offS + n ≤ 576) (hD : offD + n ≤ 192) :
+    EddMemcpySAsm.mcStatic (dp + BitVec.ofNat 64 offS)
+      (op + BitVec.ofNat 64 offD) bs ws0 n := by
+  obtain ⟨-, hovD, -⟩ := hdp
+  obtain ⟨-, hovO, -⟩ := hop
+  have h2S : (dp + BitVec.ofNat 64 offS).toNat = dp.toNat + offS :=
+    EvmAsm.Codegen.edd_toNat_add2 dp offS (by omega)
+  have h2D : (op + BitVec.ofNat 64 offD).toNat = op.toNat + offD :=
+    EvmAsm.Codegen.edd_toNat_add2 op offD (by omega)
+  refine ⟨hbs, hw, by omega, ?_, ?_, ?_⟩
+  · rw [h2S]; omega
+  · rw [h2D]; omega
+  · rcases hdj with hd | hd
+    · exact Or.inl (by rw [h2S, h2D]; omega)
+    · exact Or.inr (by rw [h2S, h2D]; omega)
+
+/-- Parametric analogue of `eddMemcpy_callsite_spec`: the copy triple
+    with `mcStatic` discharged from the arena facts. -/
+theorem eddP_memcpy_callsite (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op)
+    (offS offD n : Nat)
+    (h8S : offS % 8 = 0) (h8D : offD % 8 = 0)
+    (hS : offS + n ≤ 576) (hD : offD + n ≤ 192)
+    (bs ws0 : List (BitVec 8)) (base ret : Word)
+    (hbs : bs.length = n) (hw : ws0.length = n)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      (EddMemcpySAsm.mcDeriv (dp + BitVec.ofNat 64 offS)
+        (op + BitVec.ofNat 64 offD) bs ws0 n).stmt.steps base ret
+      (CodeReq.ofProg base
+        ((EddMemcpySAsm.mcDeriv (dp + BitVec.ofNat 64 offS)
+          (op + BitVec.ofNat 64 offD) bs ws0 n).stmt.flatten base))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM ⟨dp + BitVec.ofNat 64 offS, bs⟩
+            ⟨op + BitVec.ofNat 64 offD, n⟩
+          (fun rf ws A =>
+            rf.get .x10 = dp + BitVec.ofNat 64 offS ∧
+            rf.get .x11 = op + BitVec.ofNat 64 offD ∧
+            rf.get .x12 = BitVec.ofNat 64 n ∧ ws = ws0 ∧
+            A = empAssertion))
+      (((.x1 : Reg) ↦ᵣ ret)
+        ** asrtM ⟨dp + BitVec.ofNat 64 offS, bs⟩
+            ⟨op + BitVec.ofNat 64 offD, n⟩
+          (fun _ ws A => ws = bs.take n ∧ A = empAssertion)) := by
+  have hst := eddP_mcStatic dp op hdp hop hdj offS offD n bs ws0
+    (by omega) hw hS hD
+  exact cpsTripleWithin_weaken
+    (sepConj_mono_right (asrtM_mono (fun rf ws A h =>
+      ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, hst, h.2.2.2.2⟩)))
+    (sepConj_mono_right (asrtM_mono (fun rf ws A h => ⟨h.1, h.2.2⟩)))
+    (EddMemcpySAsm.eddMemcpy_retSpec _ _ bs ws0 n base ret
+      (eddP_src_wf dp hdp offS n bs hbs h8S hS)
+      (eddP_out_wf op hop offD n h8D hD) halign)
+
 /-! ## The leaves inside the bundle
 
     `edd_be32_eq` occupies instruction indices 76..98 (entry
@@ -382,11 +512,11 @@ set_option maxRecDepth 8000 in
     (hypothesis-supplied: `mv a0, s0` or `addi a0, s0, ofs`),
     `li a1, K`, `jal ra, edd_be32_eq`, and the not-taken `beq a0, x0`
     (the check accepted under `hok`, so the callee returned `a0 = 1`). -/
-private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
+private theorem edd_check_group (dp G ptr K : Word) (joff : BitVec 21)
     (bofs : BitVec 13) (bsC : List (BitVec 8))
     (harg : ∀ v10 : Word, cpsTripleWithin 1 G (G + 4) eddbCode
-        (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-        (((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)))
+        (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+        (((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ dp)))
     (hli : ∀ v11 : Word, cpsTripleWithin 1 (G + 4) (G + 8) eddbCode
         ((.x11 : Reg) ↦ᵣ v11) ((.x11 : Reg) ↦ᵣ K))
     (hjmem : ∀ a i, CodeReq.singleton (G + 8) (.JAL .x1 joff) a = some i →
@@ -400,23 +530,23 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
     (hlen : 32 ≤ bsC.length)
     (hok : EddBe32EqSAsm.eddOk ptr bsC K) :
     cpsTripleWithin 636 G (G + 16) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
         bytesRegion ptr bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
         bytesRegion ptr bsC) := by
   -- Peel `ra` and the fifteen exposed registers to concrete valuations.
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_of_forall_regIs_to_regOwn
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns exposedRegs ** bytesRegion ptr bsC)
       (fun v1 => ?_))
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns exposedRegs (by decide)
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         bytesRegion ptr bsC ** ((.x1 : Reg) ↦ᵣ v1))
       (fun vf => ?_))
   -- The callee triple over the bundle image, at return address `G + 12`.
@@ -438,12 +568,12 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
       bytesRegion ptr bsC)
     (by edd_pcfree) (harg (vf .x10))
   have hliF := cpsTripleWithin_frameR
-    ((((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) **
+    ((((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ dp)) **
       regAtomsOf vf eddScr13 ** ((.x1 : Reg) ↦ᵣ v1) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion ptr bsC)
     (by edd_pcfree) (hli (vf .x11))
   have hcallF := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
     (by edd_pcfree) hcall
   have hbeq := beq_spec_gen_within .x10 .x0 bofs (1 : Word) (0 : Word)
     (G + 12)
@@ -457,7 +587,7 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
     rw [BitVec.add_assoc]; rfl] at hBeq
   have hBeqF := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ (G + 12)) ** regOwns eddScr14 **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) ** bytesRegion ptr bsC)
+      ((.x8 : Reg) ↦ᵣ dp) ** bytesRegion ptr bsC)
     (by edd_pcfree) hBeq
   -- Compose.
   have s1 := by
@@ -468,7 +598,7 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
     intro h hp
     have hp1 : (((((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ K) **
         regAtomsOf vf eddScr13) ** bytesRegion ptr bsC) **
-        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ dp) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)))) h := by xperm_hyp hp
     have hp2 := sepConj_mono_left
       (edd_pack_be32 ptr K bsC vf hlen) h hp1
@@ -486,7 +616,7 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
   · have hq1 := sepConj_mono_left (sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
     have hq2 : ((regOwn .x10 ** regOwns eddScr14) **
-        (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion ptr bsC)) h := by
       have hq1a := sepConj_mono_left (sepConj_mono_left
         (regIs_to_regOwn .x10 (1 : Word))) h hq1
@@ -504,14 +634,14 @@ private theorem edd_check_group (G ptr K : Word) (joff : BitVec 21)
     (hypothesis-supplied over the bundle image, `mcStatic` already
     discharged).  The destination window's `ws0` becomes the source
     bytes. -/
-private theorem edd_copy_group (G src dst : Word) (joff : BitVec 21)
+private theorem edd_copy_group (dp op G src dst : Word) (joff : BitVec 21)
     (n ns : Nat) (bsS ws0 : List (BitVec 8))
     (harg10 : ∀ v : Word, cpsTripleWithin 1 G (G + 4) eddbCode
-        (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-        (((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)))
+        (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+        (((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ dp)))
     (harg11 : ∀ v : Word, cpsTripleWithin 1 (G + 4) (G + 8) eddbCode
-        (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-        (((.x11 : Reg) ↦ᵣ dst) ** ((.x9 : Reg) ↦ᵣ eddOutPtr)))
+        (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+        (((.x11 : Reg) ↦ᵣ dst) ** ((.x9 : Reg) ↦ᵣ op)))
     (harg12 : ∀ v : Word, cpsTripleWithin 1 (G + 8) (G + 12) eddbCode
         ((.x12 : Reg) ↦ᵣ v) ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n))
     (hjmem : ∀ a i,
@@ -529,22 +659,22 @@ private theorem edd_copy_group (G src dst : Word) (joff : BitVec 21)
             (fun _ ws A => ws = bsS.take n ∧ A = empAssertion)))
     (hw : ws0.length = n) (hlenS : bsS.length = n) :
     cpsTripleWithin (4 + ns) G (G + 16) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
         bytesRegion src bsS ** bytesRegion dst ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
         bytesRegion src bsS ** bytesRegion dst bsS) := by
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_of_forall_regIs_to_regOwn
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         regOwns exposedRegs ** bytesRegion src bsS ** bytesRegion dst ws0)
       (fun v1 => ?_))
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns exposedRegs (by decide)
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         bytesRegion src bsS ** bytesRegion dst ws0 **
         ((.x1 : Reg) ↦ᵣ v1))
       (fun vf => ?_))
@@ -558,22 +688,22 @@ private theorem edd_copy_group (G src dst : Word) (joff : BitVec 21)
   -- The four framed pieces.
   have harg10F := cpsTripleWithin_frameR
     (((.x11 : Reg) ↦ᵣ vf .x11) ** ((.x12 : Reg) ↦ᵣ vf .x12) **
-      regAtomsOf vf eddScr12 ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      regAtomsOf vf eddScr12 ** ((.x9 : Reg) ↦ᵣ op) **
       ((.x1 : Reg) ↦ᵣ v1) ** bytesRegion src bsS ** bytesRegion dst ws0)
     (by edd_pcfree) (harg10 (vf .x10))
   have harg11F := cpsTripleWithin_frameR
-    ((((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) **
+    ((((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ dp)) **
       ((.x12 : Reg) ↦ᵣ vf .x12) ** regAtomsOf vf eddScr12 **
       ((.x1 : Reg) ↦ᵣ v1) ** bytesRegion src bsS ** bytesRegion dst ws0)
     (by edd_pcfree) (harg11 (vf .x11))
   have harg12F := cpsTripleWithin_frameR
-    ((((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) **
-      (((.x11 : Reg) ↦ᵣ dst) ** ((.x9 : Reg) ↦ᵣ eddOutPtr)) **
+    ((((.x10 : Reg) ↦ᵣ src) ** ((.x8 : Reg) ↦ᵣ dp)) **
+      (((.x11 : Reg) ↦ᵣ dst) ** ((.x9 : Reg) ↦ᵣ op)) **
       regAtomsOf vf eddScr12 ** ((.x1 : Reg) ↦ᵣ v1) **
       bytesRegion src bsS ** bytesRegion dst ws0)
     (by edd_pcfree) (harg12 (vf .x12))
   have hcallF := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
+    (((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op))
     (by edd_pcfree) hcall
   -- Compose.
   have s1 := by
@@ -588,8 +718,8 @@ private theorem edd_copy_group (G src dst : Word) (joff : BitVec 21)
     have hp1 : ((((((.x10 : Reg) ↦ᵣ src) ** ((.x11 : Reg) ↦ᵣ dst) **
         ((.x12 : Reg) ↦ᵣ BitVec.ofNat 64 n) ** regAtomsOf vf eddScr12) **
         bytesRegion dst ws0) ** bytesRegion src bsS) **
-        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-          ((.x9 : Reg) ↦ᵣ eddOutPtr))) h := by xperm_hyp hp
+        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ dp) **
+          ((.x9 : Reg) ↦ᵣ op))) h := by xperm_hyp hp
     have hp2 := sepConj_mono_left
       (edd_pack_mc src dst n bsS ws0 vf hw) h hp1
     xperm_hyp hp2
@@ -635,23 +765,23 @@ private theorem edd_owns_split :
 /-! ## The fifteen call groups at their bundle addresses -/
 set_option maxRecDepth 100000 in
 /-- Check group 1: `edd_be32_eq(data+0, 160)` at `EddB + 32`. -/
-private theorem edd_check_g1 (bsC : List (BitVec 8))
+private theorem edd_check_g1 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨eddDataPtr, bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk eddDataPtr bsC (160 : Word)) :
+    (hwf : Region.wf ⟨dp, bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk dp bsC (160 : Word)) :
     cpsTripleWithin 636 (EddB + 32) (EddB + 48) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion eddDataPtr bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion dp bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion eddDataPtr bsC) := by
+        bytesRegion dp bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 32)
       ((EddB + 32) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ dp) ** ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := mv_spec_gen_within .x10 .x8 eddDataPtr v10 (EddB + 32)
+    have h := mv_spec_gen_within .x10 .x8 dp v10 (EddB + 32)
       (by decide)
     exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hq => by xperm_hyp hq)
@@ -670,7 +800,7 @@ private theorem edd_check_g1 (bsC : List (BitVec 8))
       (by rw [show (4 * 9 : Nat) = 36 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 32) eddDataPtr (160 : Word)
+  have hg := edd_check_group dp (EddB + 32) dp (160 : Word)
     (264 : BitVec 21) (236 : BitVec 13) bsC harg hli
     (eddb_mem 10 (.JAL .x1 (264 : BitVec 21)) ((EddB + 32) + 8)
       (by rw [show (4 * 10 : Nat) = 40 from rfl, BitVec.add_assoc]
@@ -689,24 +819,24 @@ private theorem edd_check_g1 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 2: `edd_be32_eq(data+32, 256)` at `EddB + 48`. -/
-private theorem edd_check_g2 (bsC : List (BitVec 8))
+private theorem edd_check_g2 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 32), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) bsC (256 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 32), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) bsC (256 : Word)) :
     cpsTripleWithin 636 (EddB + 48) (EddB + 64) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 32) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 32) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 48)
       ((EddB + 48) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 32)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 32)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (32 : BitVec 12) (EddB + 48) (by decide)
     rw [show signExtend12 (32 : BitVec 12) = BitVec.ofNat 64 32
       from by decide] at h
@@ -727,7 +857,7 @@ private theorem edd_check_g2 (bsC : List (BitVec 8))
       (by rw [show (4 * 13 : Nat) = 52 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 48) (eddDataPtr + BitVec.ofNat 64 32) (256 : Word)
+  have hg := edd_check_group dp (EddB + 48) (dp + BitVec.ofNat 64 32) (256 : Word)
     (248 : BitVec 21) (220 : BitVec 13) bsC harg hli
     (eddb_mem 14 (.JAL .x1 (248 : BitVec 21)) ((EddB + 48) + 8)
       (by rw [show (4 * 14 : Nat) = 56 from rfl, BitVec.add_assoc]
@@ -746,24 +876,24 @@ private theorem edd_check_g2 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 3: `edd_be32_eq(data+64, 320)` at `EddB + 64`. -/
-private theorem edd_check_g3 (bsC : List (BitVec 8))
+private theorem edd_check_g3 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 64), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) bsC (320 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 64), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) bsC (320 : Word)) :
     cpsTripleWithin 636 (EddB + 64) (EddB + 80) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 64) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 64) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 64)
       ((EddB + 64) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 64)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 64)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (64 : BitVec 12) (EddB + 64) (by decide)
     rw [show signExtend12 (64 : BitVec 12) = BitVec.ofNat 64 64
       from by decide] at h
@@ -784,7 +914,7 @@ private theorem edd_check_g3 (bsC : List (BitVec 8))
       (by rw [show (4 * 17 : Nat) = 68 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 64) (eddDataPtr + BitVec.ofNat 64 64) (320 : Word)
+  have hg := edd_check_group dp (EddB + 64) (dp + BitVec.ofNat 64 64) (320 : Word)
     (232 : BitVec 21) (204 : BitVec 13) bsC harg hli
     (eddb_mem 18 (.JAL .x1 (232 : BitVec 21)) ((EddB + 64) + 8)
       (by rw [show (4 * 18 : Nat) = 72 from rfl, BitVec.add_assoc]
@@ -803,24 +933,24 @@ private theorem edd_check_g3 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 4: `edd_be32_eq(data+96, 384)` at `EddB + 80`. -/
-private theorem edd_check_g4 (bsC : List (BitVec 8))
+private theorem edd_check_g4 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 96), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) bsC (384 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 96), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) bsC (384 : Word)) :
     cpsTripleWithin 636 (EddB + 80) (EddB + 96) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 96) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 96) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 80)
       ((EddB + 80) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 96)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 96)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (96 : BitVec 12) (EddB + 80) (by decide)
     rw [show signExtend12 (96 : BitVec 12) = BitVec.ofNat 64 96
       from by decide] at h
@@ -841,7 +971,7 @@ private theorem edd_check_g4 (bsC : List (BitVec 8))
       (by rw [show (4 * 21 : Nat) = 84 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 80) (eddDataPtr + BitVec.ofNat 64 96) (384 : Word)
+  have hg := edd_check_group dp (EddB + 80) (dp + BitVec.ofNat 64 96) (384 : Word)
     (216 : BitVec 21) (188 : BitVec 13) bsC harg hli
     (eddb_mem 22 (.JAL .x1 (216 : BitVec 21)) ((EddB + 80) + 8)
       (by rw [show (4 * 22 : Nat) = 88 from rfl, BitVec.add_assoc]
@@ -860,24 +990,24 @@ private theorem edd_check_g4 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 5: `edd_be32_eq(data+128, 512)` at `EddB + 96`. -/
-private theorem edd_check_g5 (bsC : List (BitVec 8))
+private theorem edd_check_g5 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 128), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) bsC (512 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 128), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) bsC (512 : Word)) :
     cpsTripleWithin 636 (EddB + 96) (EddB + 112) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 128) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 128) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 96)
       ((EddB + 96) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 128)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 128)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (128 : BitVec 12) (EddB + 96) (by decide)
     rw [show signExtend12 (128 : BitVec 12) = BitVec.ofNat 64 128
       from by decide] at h
@@ -898,7 +1028,7 @@ private theorem edd_check_g5 (bsC : List (BitVec 8))
       (by rw [show (4 * 25 : Nat) = 100 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 96) (eddDataPtr + BitVec.ofNat 64 128) (512 : Word)
+  have hg := edd_check_group dp (EddB + 96) (dp + BitVec.ofNat 64 128) (512 : Word)
     (200 : BitVec 21) (172 : BitVec 13) bsC harg hli
     (eddb_mem 26 (.JAL .x1 (200 : BitVec 21)) ((EddB + 96) + 8)
       (by rw [show (4 * 26 : Nat) = 104 from rfl, BitVec.add_assoc]
@@ -917,24 +1047,24 @@ private theorem edd_check_g5 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 6: `edd_be32_eq(data+160, 48)` at `EddB + 112`. -/
-private theorem edd_check_g6 (bsC : List (BitVec 8))
+private theorem edd_check_g6 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 160), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) bsC (48 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 160), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) bsC (48 : Word)) :
     cpsTripleWithin 636 (EddB + 112) (EddB + 128) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 160) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 160) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 112)
       ((EddB + 112) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 160)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 160)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (160 : BitVec 12) (EddB + 112) (by decide)
     rw [show signExtend12 (160 : BitVec 12) = BitVec.ofNat 64 160
       from by decide] at h
@@ -955,7 +1085,7 @@ private theorem edd_check_g6 (bsC : List (BitVec 8))
       (by rw [show (4 * 29 : Nat) = 116 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 112) (eddDataPtr + BitVec.ofNat 64 160) (48 : Word)
+  have hg := edd_check_group dp (EddB + 112) (dp + BitVec.ofNat 64 160) (48 : Word)
     (184 : BitVec 21) (156 : BitVec 13) bsC harg hli
     (eddb_mem 30 (.JAL .x1 (184 : BitVec 21)) ((EddB + 112) + 8)
       (by rw [show (4 * 30 : Nat) = 120 from rfl, BitVec.add_assoc]
@@ -974,24 +1104,24 @@ private theorem edd_check_g6 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 7: `edd_be32_eq(data+256, 32)` at `EddB + 128`. -/
-private theorem edd_check_g7 (bsC : List (BitVec 8))
+private theorem edd_check_g7 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 256), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) bsC (32 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 256), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) bsC (32 : Word)) :
     cpsTripleWithin 636 (EddB + 128) (EddB + 144) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 256) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 256) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 128)
       ((EddB + 128) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 256)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 256)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (256 : BitVec 12) (EddB + 128) (by decide)
     rw [show signExtend12 (256 : BitVec 12) = BitVec.ofNat 64 256
       from by decide] at h
@@ -1012,7 +1142,7 @@ private theorem edd_check_g7 (bsC : List (BitVec 8))
       (by rw [show (4 * 33 : Nat) = 132 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 128) (eddDataPtr + BitVec.ofNat 64 256) (32 : Word)
+  have hg := edd_check_group dp (EddB + 128) (dp + BitVec.ofNat 64 256) (32 : Word)
     (168 : BitVec 21) (140 : BitVec 13) bsC harg hli
     (eddb_mem 34 (.JAL .x1 (168 : BitVec 21)) ((EddB + 128) + 8)
       (by rw [show (4 * 34 : Nat) = 136 from rfl, BitVec.add_assoc]
@@ -1031,24 +1161,24 @@ private theorem edd_check_g7 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 8: `edd_be32_eq(data+320, 8)` at `EddB + 144`. -/
-private theorem edd_check_g8 (bsC : List (BitVec 8))
+private theorem edd_check_g8 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 320), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) bsC (8 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 320), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) bsC (8 : Word)) :
     cpsTripleWithin 636 (EddB + 144) (EddB + 160) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 320) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 320) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 144)
       ((EddB + 144) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 320)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 320)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (320 : BitVec 12) (EddB + 144) (by decide)
     rw [show signExtend12 (320 : BitVec 12) = BitVec.ofNat 64 320
       from by decide] at h
@@ -1069,7 +1199,7 @@ private theorem edd_check_g8 (bsC : List (BitVec 8))
       (by rw [show (4 * 37 : Nat) = 148 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 144) (eddDataPtr + BitVec.ofNat 64 320) (8 : Word)
+  have hg := edd_check_group dp (EddB + 144) (dp + BitVec.ofNat 64 320) (8 : Word)
     (152 : BitVec 21) (124 : BitVec 13) bsC harg hli
     (eddb_mem 38 (.JAL .x1 (152 : BitVec 21)) ((EddB + 144) + 8)
       (by rw [show (4 * 38 : Nat) = 152 from rfl, BitVec.add_assoc]
@@ -1088,24 +1218,24 @@ private theorem edd_check_g8 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 9: `edd_be32_eq(data+384, 96)` at `EddB + 160`. -/
-private theorem edd_check_g9 (bsC : List (BitVec 8))
+private theorem edd_check_g9 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 384), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) bsC (96 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 384), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) bsC (96 : Word)) :
     cpsTripleWithin 636 (EddB + 160) (EddB + 176) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 384) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 384) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 160)
       ((EddB + 160) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 384)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 384)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (384 : BitVec 12) (EddB + 160) (by decide)
     rw [show signExtend12 (384 : BitVec 12) = BitVec.ofNat 64 384
       from by decide] at h
@@ -1126,7 +1256,7 @@ private theorem edd_check_g9 (bsC : List (BitVec 8))
       (by rw [show (4 * 41 : Nat) = 164 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 160) (eddDataPtr + BitVec.ofNat 64 384) (96 : Word)
+  have hg := edd_check_group dp (EddB + 160) (dp + BitVec.ofNat 64 384) (96 : Word)
     (136 : BitVec 21) (108 : BitVec 13) bsC harg hli
     (eddb_mem 42 (.JAL .x1 (136 : BitVec 21)) ((EddB + 160) + 8)
       (by rw [show (4 * 42 : Nat) = 168 from rfl, BitVec.add_assoc]
@@ -1145,24 +1275,24 @@ private theorem edd_check_g9 (bsC : List (BitVec 8))
     rw [BitVec.add_assoc]; rfl] at hg
 set_option maxRecDepth 100000 in
 /-- Check group 10: `edd_be32_eq(data+512, 8)` at `EddB + 176`. -/
-private theorem edd_check_g10 (bsC : List (BitVec 8))
+private theorem edd_check_g10 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 512), bsC⟩)
-    (hok : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) bsC (8 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 512), bsC⟩)
+    (hok : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) bsC (8 : Word)) :
     cpsTripleWithin 636 (EddB + 176) (EddB + 192) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 512) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 512) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 176)
       ((EddB + 176) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 512)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 512)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (512 : BitVec 12) (EddB + 176) (by decide)
     rw [show signExtend12 (512 : BitVec 12) = BitVec.ofNat 64 512
       from by decide] at h
@@ -1183,7 +1313,7 @@ private theorem edd_check_g10 (bsC : List (BitVec 8))
       (by rw [show (4 * 45 : Nat) = 180 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_check_group (EddB + 176) (eddDataPtr + BitVec.ofNat 64 512) (8 : Word)
+  have hg := edd_check_group dp (EddB + 176) (dp + BitVec.ofNat 64 512) (8 : Word)
     (120 : BitVec 21) (92 : BitVec 13) bsC harg hli
     (eddb_mem 46 (.JAL .x1 (120 : BitVec 21)) ((EddB + 176) + 8)
       (by rw [show (4 * 46 : Nat) = 184 from rfl, BitVec.add_assoc]
@@ -1203,28 +1333,31 @@ private theorem edd_check_g10 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Copy group 1: `edd_memcpy(data+192 → out+0, 48)` at
     `EddB + 192` (the #12805 `pubkey` call site). -/
-private theorem edd_copy_c1 (bsS ws0 : List (BitVec 8))
+private theorem edd_copy_c1 (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op) (bsS ws0 : List (BitVec 8))
     (hlenS : bsS.length = 48) (hw : ws0.length = 48) :
     cpsTripleWithin 342 (EddB + 192) (EddB + 208) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) bsS ** bytesRegion eddOutPtr ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) bsS ** bytesRegion eddOutPtr bsS) := by
-  have hcs := EvmAsm.Codegen.eddMemcpy_pubkey_callsite bsS ws0 (EddB + 396)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 192) bsS ** bytesRegion op ws0)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 192) bsS ** bytesRegion op bsS) := by
+  have hcs := eddP_memcpy_callsite dp op hdp hop hdj 192 0 48
+    (by omega) (by omega) (by omega) (by omega) bsS ws0 (EddB + 396)
     ((EddB + 192) + 16) hlenS hw (by decide)
   rw [EddMemcpySAsm.mcDeriv_flatten_ghost_free, mc_flatten_at,
     mc_steps_ghost_free, mc_steps_48] at hcs
-  rw [show eddOutPtr + BitVec.ofNat 64 0 = eddOutPtr from by decide] at hcs
+  rw [show op + BitVec.ofNat 64 0 = op from by simp] at hcs
   have hcsB := cpsTripleWithin_extend_code mc_sub hcs
   have harg10 : ∀ v : Word, cpsTripleWithin 1 (EddB + 192)
       ((EddB + 192) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 192)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 192)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v
-    have h := addi_spec_gen_within .x10 .x8 v eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v dp
       (192 : BitVec 12) (EddB + 192) (by decide)
     rw [show signExtend12 (192 : BitVec 12) = BitVec.ofNat 64 192
       from by decide] at h
@@ -1235,10 +1368,10 @@ private theorem edd_copy_c1 (bsS ws0 : List (BitVec 8))
         (by omega) rfl) h)
   have harg11 : ∀ v : Word, cpsTripleWithin 1 ((EddB + 192) + 4)
       ((EddB + 192) + 8) eddbCode
-      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-      (((.x11 : Reg) ↦ᵣ eddOutPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr)) := by
+      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+      (((.x11 : Reg) ↦ᵣ op) ** ((.x9 : Reg) ↦ᵣ op)) := by
     intro v
-    have h := mv_spec_gen_within .x11 .x9 eddOutPtr v ((EddB + 192) + 4)
+    have h := mv_spec_gen_within .x11 .x9 op v ((EddB + 192) + 4)
       (by decide)
     rw [show ((EddB + 192) + 4) + 4 = (EddB + 192) + 8 from by
       rw [BitVec.add_assoc]; rfl] at h
@@ -1260,7 +1393,7 @@ private theorem edd_copy_c1 (bsS ws0 : List (BitVec 8))
       (by rw [show (4 * 50 : Nat) = 200 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_copy_group (EddB + 192) (eddDataPtr + BitVec.ofNat 64 192) eddOutPtr
+  have hg := edd_copy_group dp op (EddB + 192) (dp + BitVec.ofNat 64 192) op
     (192 : BitVec 21) 48 338 bsS ws0 harg10 harg11 harg12
     (eddb_mem 51 (.JAL .x1 (192 : BitVec 21)) ((EddB + 192) + 12)
       (by rw [show (4 * 51 : Nat) = 204 from rfl, BitVec.add_assoc]
@@ -1276,16 +1409,19 @@ private theorem edd_copy_c1 (bsS ws0 : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Copy group 2: `edd_memcpy(data+288 → out+48, 32)` at
     `EddB + 208` (the #12805 `wc` call site). -/
-private theorem edd_copy_c2 (bsS ws0 : List (BitVec 8))
+private theorem edd_copy_c2 (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op) (bsS ws0 : List (BitVec 8))
     (hlenS : bsS.length = 32) (hw : ws0.length = 32) :
     cpsTripleWithin 230 (EddB + 208) (EddB + 224) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 48) ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 48) bsS) := by
-  have hcs := EvmAsm.Codegen.eddMemcpy_wc_callsite bsS ws0 (EddB + 396)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 288) bsS ** bytesRegion (op + BitVec.ofNat 64 48) ws0)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 288) bsS ** bytesRegion (op + BitVec.ofNat 64 48) bsS) := by
+  have hcs := eddP_memcpy_callsite dp op hdp hop hdj 288 48 32
+    (by omega) (by omega) (by omega) (by omega) bsS ws0 (EddB + 396)
     ((EddB + 208) + 16) hlenS hw (by decide)
   rw [EddMemcpySAsm.mcDeriv_flatten_ghost_free, mc_flatten_at,
     mc_steps_ghost_free, mc_steps_32] at hcs
@@ -1293,11 +1429,11 @@ private theorem edd_copy_c2 (bsS ws0 : List (BitVec 8))
   have hcsB := cpsTripleWithin_extend_code mc_sub hcs
   have harg10 : ∀ v : Word, cpsTripleWithin 1 (EddB + 208)
       ((EddB + 208) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 288)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 288)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v
-    have h := addi_spec_gen_within .x10 .x8 v eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v dp
       (288 : BitVec 12) (EddB + 208) (by decide)
     rw [show signExtend12 (288 : BitVec 12) = BitVec.ofNat 64 288
       from by decide] at h
@@ -1308,11 +1444,11 @@ private theorem edd_copy_c2 (bsS ws0 : List (BitVec 8))
         (by omega) rfl) h)
   have harg11 : ∀ v : Word, cpsTripleWithin 1 ((EddB + 208) + 4)
       ((EddB + 208) + 8) eddbCode
-      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-      (((.x11 : Reg) ↦ᵣ (eddOutPtr + BitVec.ofNat 64 48)) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr)) := by
+      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+      (((.x11 : Reg) ↦ᵣ (op + BitVec.ofNat 64 48)) **
+        ((.x9 : Reg) ↦ᵣ op)) := by
     intro v
-    have h := addi_spec_gen_within .x11 .x9 v eddOutPtr
+    have h := addi_spec_gen_within .x11 .x9 v op
       (48 : BitVec 12) ((EddB + 208) + 4) (by decide)
     rw [show signExtend12 (48 : BitVec 12) = BitVec.ofNat 64 48
         from by decide,
@@ -1336,7 +1472,7 @@ private theorem edd_copy_c2 (bsS ws0 : List (BitVec 8))
       (by rw [show (4 * 54 : Nat) = 216 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_copy_group (EddB + 208) (eddDataPtr + BitVec.ofNat 64 288) (eddOutPtr + BitVec.ofNat 64 48)
+  have hg := edd_copy_group dp op (EddB + 208) (dp + BitVec.ofNat 64 288) (op + BitVec.ofNat 64 48)
     (176 : BitVec 21) 32 226 bsS ws0 harg10 harg11 harg12
     (eddb_mem 55 (.JAL .x1 (176 : BitVec 21)) ((EddB + 208) + 12)
       (by rw [show (4 * 55 : Nat) = 220 from rfl, BitVec.add_assoc]
@@ -1352,16 +1488,19 @@ private theorem edd_copy_c2 (bsS ws0 : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Copy group 3: `edd_memcpy(data+352 → out+80, 8)` at
     `EddB + 224` (the #12805 `amount` call site). -/
-private theorem edd_copy_c3 (bsS ws0 : List (BitVec 8))
+private theorem edd_copy_c3 (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op) (bsS ws0 : List (BitVec 8))
     (hlenS : bsS.length = 8) (hw : ws0.length = 8) :
     cpsTripleWithin 62 (EddB + 224) (EddB + 240) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 80) ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 80) bsS) := by
-  have hcs := EvmAsm.Codegen.eddMemcpy_amount_callsite bsS ws0 (EddB + 396)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 352) bsS ** bytesRegion (op + BitVec.ofNat 64 80) ws0)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 352) bsS ** bytesRegion (op + BitVec.ofNat 64 80) bsS) := by
+  have hcs := eddP_memcpy_callsite dp op hdp hop hdj 352 80 8
+    (by omega) (by omega) (by omega) (by omega) bsS ws0 (EddB + 396)
     ((EddB + 224) + 16) hlenS hw (by decide)
   rw [EddMemcpySAsm.mcDeriv_flatten_ghost_free, mc_flatten_at,
     mc_steps_ghost_free, mc_steps_8] at hcs
@@ -1369,11 +1508,11 @@ private theorem edd_copy_c3 (bsS ws0 : List (BitVec 8))
   have hcsB := cpsTripleWithin_extend_code mc_sub hcs
   have harg10 : ∀ v : Word, cpsTripleWithin 1 (EddB + 224)
       ((EddB + 224) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 352)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 352)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v
-    have h := addi_spec_gen_within .x10 .x8 v eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v dp
       (352 : BitVec 12) (EddB + 224) (by decide)
     rw [show signExtend12 (352 : BitVec 12) = BitVec.ofNat 64 352
       from by decide] at h
@@ -1384,11 +1523,11 @@ private theorem edd_copy_c3 (bsS ws0 : List (BitVec 8))
         (by omega) rfl) h)
   have harg11 : ∀ v : Word, cpsTripleWithin 1 ((EddB + 224) + 4)
       ((EddB + 224) + 8) eddbCode
-      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-      (((.x11 : Reg) ↦ᵣ (eddOutPtr + BitVec.ofNat 64 80)) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr)) := by
+      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+      (((.x11 : Reg) ↦ᵣ (op + BitVec.ofNat 64 80)) **
+        ((.x9 : Reg) ↦ᵣ op)) := by
     intro v
-    have h := addi_spec_gen_within .x11 .x9 v eddOutPtr
+    have h := addi_spec_gen_within .x11 .x9 v op
       (80 : BitVec 12) ((EddB + 224) + 4) (by decide)
     rw [show signExtend12 (80 : BitVec 12) = BitVec.ofNat 64 80
         from by decide,
@@ -1412,7 +1551,7 @@ private theorem edd_copy_c3 (bsS ws0 : List (BitVec 8))
       (by rw [show (4 * 58 : Nat) = 232 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_copy_group (EddB + 224) (eddDataPtr + BitVec.ofNat 64 352) (eddOutPtr + BitVec.ofNat 64 80)
+  have hg := edd_copy_group dp op (EddB + 224) (dp + BitVec.ofNat 64 352) (op + BitVec.ofNat 64 80)
     (160 : BitVec 21) 8 58 bsS ws0 harg10 harg11 harg12
     (eddb_mem 59 (.JAL .x1 (160 : BitVec 21)) ((EddB + 224) + 12)
       (by rw [show (4 * 59 : Nat) = 236 from rfl, BitVec.add_assoc]
@@ -1428,16 +1567,19 @@ private theorem edd_copy_c3 (bsS ws0 : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Copy group 4: `edd_memcpy(data+416 → out+88, 96)` at
     `EddB + 240` (the #12805 `sig` call site). -/
-private theorem edd_copy_c4 (bsS ws0 : List (BitVec 8))
+private theorem edd_copy_c4 (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op) (bsS ws0 : List (BitVec 8))
     (hlenS : bsS.length = 96) (hw : ws0.length = 96) :
     cpsTripleWithin 678 (EddB + 240) (EddB + 256) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 88) ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 88) bsS) := by
-  have hcs := EvmAsm.Codegen.eddMemcpy_sig_callsite bsS ws0 (EddB + 396)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 416) bsS ** bytesRegion (op + BitVec.ofNat 64 88) ws0)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 416) bsS ** bytesRegion (op + BitVec.ofNat 64 88) bsS) := by
+  have hcs := eddP_memcpy_callsite dp op hdp hop hdj 416 88 96
+    (by omega) (by omega) (by omega) (by omega) bsS ws0 (EddB + 396)
     ((EddB + 240) + 16) hlenS hw (by decide)
   rw [EddMemcpySAsm.mcDeriv_flatten_ghost_free, mc_flatten_at,
     mc_steps_ghost_free, mc_steps_96] at hcs
@@ -1445,11 +1587,11 @@ private theorem edd_copy_c4 (bsS ws0 : List (BitVec 8))
   have hcsB := cpsTripleWithin_extend_code mc_sub hcs
   have harg10 : ∀ v : Word, cpsTripleWithin 1 (EddB + 240)
       ((EddB + 240) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 416)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 416)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v
-    have h := addi_spec_gen_within .x10 .x8 v eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v dp
       (416 : BitVec 12) (EddB + 240) (by decide)
     rw [show signExtend12 (416 : BitVec 12) = BitVec.ofNat 64 416
       from by decide] at h
@@ -1460,11 +1602,11 @@ private theorem edd_copy_c4 (bsS ws0 : List (BitVec 8))
         (by omega) rfl) h)
   have harg11 : ∀ v : Word, cpsTripleWithin 1 ((EddB + 240) + 4)
       ((EddB + 240) + 8) eddbCode
-      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-      (((.x11 : Reg) ↦ᵣ (eddOutPtr + BitVec.ofNat 64 88)) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr)) := by
+      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+      (((.x11 : Reg) ↦ᵣ (op + BitVec.ofNat 64 88)) **
+        ((.x9 : Reg) ↦ᵣ op)) := by
     intro v
-    have h := addi_spec_gen_within .x11 .x9 v eddOutPtr
+    have h := addi_spec_gen_within .x11 .x9 v op
       (88 : BitVec 12) ((EddB + 240) + 4) (by decide)
     rw [show signExtend12 (88 : BitVec 12) = BitVec.ofNat 64 88
         from by decide,
@@ -1488,7 +1630,7 @@ private theorem edd_copy_c4 (bsS ws0 : List (BitVec 8))
       (by rw [show (4 * 62 : Nat) = 248 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_copy_group (EddB + 240) (eddDataPtr + BitVec.ofNat 64 416) (eddOutPtr + BitVec.ofNat 64 88)
+  have hg := edd_copy_group dp op (EddB + 240) (dp + BitVec.ofNat 64 416) (op + BitVec.ofNat 64 88)
     (144 : BitVec 21) 96 674 bsS ws0 harg10 harg11 harg12
     (eddb_mem 63 (.JAL .x1 (144 : BitVec 21)) ((EddB + 240) + 12)
       (by rw [show (4 * 63 : Nat) = 252 from rfl, BitVec.add_assoc]
@@ -1504,16 +1646,19 @@ private theorem edd_copy_c4 (bsS ws0 : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Copy group 5: `edd_memcpy(data+544 → out+184, 8)` at
     `EddB + 256` (the #12805 `index` call site). -/
-private theorem edd_copy_c5 (bsS ws0 : List (BitVec 8))
+private theorem edd_copy_c5 (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op) (bsS ws0 : List (BitVec 8))
     (hlenS : bsS.length = 8) (hw : ws0.length = 8) :
     cpsTripleWithin 62 (EddB + 256) (EddB + 272) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 184) ws0)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) bsS ** bytesRegion (eddOutPtr + BitVec.ofNat 64 184) bsS) := by
-  have hcs := EvmAsm.Codegen.eddMemcpy_index_callsite bsS ws0 (EddB + 396)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 544) bsS ** bytesRegion (op + BitVec.ofNat 64 184) ws0)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) ** regOwns exposedRegs **
+        bytesRegion (dp + BitVec.ofNat 64 544) bsS ** bytesRegion (op + BitVec.ofNat 64 184) bsS) := by
+  have hcs := eddP_memcpy_callsite dp op hdp hop hdj 544 184 8
+    (by omega) (by omega) (by omega) (by omega) bsS ws0 (EddB + 396)
     ((EddB + 256) + 16) hlenS hw (by decide)
   rw [EddMemcpySAsm.mcDeriv_flatten_ghost_free, mc_flatten_at,
     mc_steps_ghost_free, mc_steps_8] at hcs
@@ -1521,11 +1666,11 @@ private theorem edd_copy_c5 (bsS ws0 : List (BitVec 8))
   have hcsB := cpsTripleWithin_extend_code mc_sub hcs
   have harg10 : ∀ v : Word, cpsTripleWithin 1 (EddB + 256)
       ((EddB + 256) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 544)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 544)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v
-    have h := addi_spec_gen_within .x10 .x8 v eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v dp
       (544 : BitVec 12) (EddB + 256) (by decide)
     rw [show signExtend12 (544 : BitVec 12) = BitVec.ofNat 64 544
       from by decide] at h
@@ -1536,11 +1681,11 @@ private theorem edd_copy_c5 (bsS ws0 : List (BitVec 8))
         (by omega) rfl) h)
   have harg11 : ∀ v : Word, cpsTripleWithin 1 ((EddB + 256) + 4)
       ((EddB + 256) + 8) eddbCode
-      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ eddOutPtr))
-      (((.x11 : Reg) ↦ᵣ (eddOutPtr + BitVec.ofNat 64 184)) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr)) := by
+      (((.x11 : Reg) ↦ᵣ v) ** ((.x9 : Reg) ↦ᵣ op))
+      (((.x11 : Reg) ↦ᵣ (op + BitVec.ofNat 64 184)) **
+        ((.x9 : Reg) ↦ᵣ op)) := by
     intro v
-    have h := addi_spec_gen_within .x11 .x9 v eddOutPtr
+    have h := addi_spec_gen_within .x11 .x9 v op
       (184 : BitVec 12) ((EddB + 256) + 4) (by decide)
     rw [show signExtend12 (184 : BitVec 12) = BitVec.ofNat 64 184
         from by decide,
@@ -1564,7 +1709,7 @@ private theorem edd_copy_c5 (bsS ws0 : List (BitVec 8))
       (by rw [show (4 * 66 : Nat) = 264 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  have hg := edd_copy_group (EddB + 256) (eddDataPtr + BitVec.ofNat 64 544) (eddOutPtr + BitVec.ofNat 64 184)
+  have hg := edd_copy_group dp op (EddB + 256) (dp + BitVec.ofNat 64 544) (op + BitVec.ofNat 64 184)
     (128 : BitVec 21) 8 58 bsS ws0 harg10 harg11 harg12
     (eddb_mem 67 (.JAL .x1 (128 : BitVec 21)) ((EddB + 256) + 12)
       (by rw [show (4 * 67 : Nat) = 268 from rfl, BitVec.add_assoc]
@@ -1580,14 +1725,17 @@ private theorem edd_copy_c5 (bsS ws0 : List (BitVec 8))
 set_option maxRecDepth 400000 in
 /-- ⭐ **The ok path of `extract_deposit_data` at its linked guest
     address** (#12989): entered with `a0` = the 576-byte DepositEvent
-    payload arena (`eddDataPtr`), `a1 = 576`, `a2` = the 192-byte output
-    arena (`eddOutPtr`), three owned frame dwords below `sp`, and a
+    payload arena (`dp`), `a1 = 576`, `a2` = the 192-byte output
+    arena (`op`), three owned frame dwords below `sp`, and a
     payload whose ten ABI header fields all satisfy `eddOk`, it copies
     the five raw fields into the output arena and returns `a0 = 0` with
     `sp`/`ra`/`s0`/`s1` restored.  Composed over the shared three-entry
     bundle image; the ten checks and five copies are the verified DCode
     leaves, linked by `callWithin_spec`. -/
 theorem extractDepositData_ok_spec
+    (dp op : Word)
+    (hdp : eddDataArenaOk dp) (hop : eddOutArenaOk op)
+    (hdj : eddArenasDisjoint dp op)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8))
     (s192 s288 s352 s416 s544 : List (BitVec 8))
@@ -1603,51 +1751,51 @@ theorem extractDepositData_ok_spec
     (hw0 : w0.length = 48) (hw48 : w48.length = 32)
     (hw80 : w80.length = 8) (hw88 : w88.length = 96)
     (hw184 : w184.length = 8)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hok160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word))
-    (hok256 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word))
-    (hok320 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word))
-    (hok384 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) b384 (96 : Word))
-    (hok512 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) b512 (8 : Word))
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hok160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word))
+    (hok256 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word))
+    (hok320 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word))
+    (hok384 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) b384 (96 : Word))
+    (hok512 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) b512 (8 : Word))
     (halign : (ret &&& ~~~(1 : Word)) = ret) :
     cpsTripleWithin 7749 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-        bytesRegion eddOutPtr w0 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+        bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+        bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+        bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+        bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+        bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+        bytesRegion op w0 **
+        bytesRegion (op + BitVec.ofNat 64 48) w48 **
+        bytesRegion (op + BitVec.ofNat 64 80) w80 **
+        bytesRegion (op + BitVec.ofNat 64 88) w88 **
+        bytesRegion (op + BitVec.ofNat 64 184) w184)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -1658,26 +1806,26 @@ theorem extractDepositData_ok_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-        bytesRegion eddOutPtr s192 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-        bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+        bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+        bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+        bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+        bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+        bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+        bytesRegion op s192 **
+        bytesRegion (op + BitVec.ofNat 64 48) s288 **
+        bytesRegion (op + BitVec.ofNat 64 80) s352 **
+        bytesRegion (op + BitVec.ofNat 64 88) s416 **
+        bytesRegion (op + BitVec.ofNat 64 184) s544) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
   -- ---- idx 0-6: frame prologue ----
   have haddisp := addi_spec_gen_same_within .x2 sp0 (-32 : BitVec 12)
@@ -1690,18 +1838,18 @@ theorem extractDepositData_ok_spec
   rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at hsd2
   have hsd3 := sd_spec_gen_within .x2 .x9 nsp v9 m2 (16 : BitVec 12) (EddB + 12)
   rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at hsd3
-  have hmv8 := mv_spec_gen_within .x8 .x10 eddDataPtr v8 (EddB + 16) (by decide)
-  have hmv9 := mv_spec_gen_within .x9 .x12 eddOutPtr v9 (EddB + 20) (by decide)
+  have hmv8 := mv_spec_gen_within .x8 .x10 dp v8 (EddB + 16) (by decide)
+  have hmv9 := mv_spec_gen_within .x9 .x12 op v9 (EddB + 20) (by decide)
   have hli5 := li_spec_gen_within .x5 v5 (576 : Word) (EddB + 24) (by decide)
   have hProl : cpsTripleWithin 7 EddB (EddB + 28) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         (nsp ↦ₘ m0) ** ((nsp + 8) ↦ₘ m1) ** ((nsp + 16) ↦ₘ m2))
       (((.x2 : Reg) ↦ᵣ nsp) ** ((.x1 : Reg) ↦ᵣ ret) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ (576 : Word)) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9)) := by
     runBlock haddisp hsd1 hsd2 hsd3 hmv8 hmv9 hli5
@@ -1719,407 +1867,407 @@ theorem extractDepositData_ok_spec
     rw [BitVec.add_assoc]; rfl] at hBne
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hg6F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hok160)
+    (edd_check_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hok160)
   have hg7F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g7 b256 (by omega) (EvmAsm.Codegen.edd_src_region_wf 256 32 b256 hb256 rfl (by omega)) hok256)
+    (edd_check_g7 dp b256 (by omega) (eddP_src_wf dp hdp 256 32 b256 hb256 rfl (by omega)) hok256)
   have hg8F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g8 b320 (by omega) (EvmAsm.Codegen.edd_src_region_wf 320 32 b320 hb320 rfl (by omega)) hok320)
+    (edd_check_g8 dp b320 (by omega) (eddP_src_wf dp hdp 320 32 b320 hb320 rfl (by omega)) hok320)
   have hg9F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g9 b384 (by omega) (EvmAsm.Codegen.edd_src_region_wf 384 32 b384 hb384 rfl (by omega)) hok384)
+    (edd_check_g9 dp b384 (by omega) (eddP_src_wf dp hdp 384 32 b384 hb384 rfl (by omega)) hok384)
   have hg10F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_check_g10 b512 (by omega) (EvmAsm.Codegen.edd_src_region_wf 512 32 b512 hb512 rfl (by omega)) hok512)
+    (edd_check_g10 dp b512 (by omega) (eddP_src_wf dp hdp 512 32 b512 hb512 rfl (by omega)) hok512)
   have hc1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_copy_c1 s192 w0 hs192 hw0)
+    (edd_copy_c1 dp op hdp hop hdj s192 w0 hs192 hw0)
   have hc2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_copy_c2 s288 w48 hs288 hw48)
+    (edd_copy_c2 dp op hdp hop hdj s288 w48 hs288 hw48)
   have hc3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_copy_c3 s352 w80 hs352 hw80)
+    (edd_copy_c3 dp op hdp hop hdj s352 w80 hs352 hw80)
   have hc4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 80) s352 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree)
-    (edd_copy_c4 s416 w88 hs416 hw88)
+    (edd_copy_c4 dp op hdp hop hdj s416 w88 hs416 hw88)
   have hc5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 80) s352 **
+      bytesRegion (op + BitVec.ofNat 64 88) s416)
     (by edd_pcfree)
-    (edd_copy_c5 s544 w184 hs544 hw184)
+    (edd_copy_c5 dp op hdp hop hdj s544 w184 hs544 hw184)
   -- ---- idx 68: li a0, 0 ----
   have hli0 := li_spec_gen_own_within .x10 (0 : Word) (EddB + 272) (by decide)
   have hLi0 := cpsTripleWithin_extend_code
@@ -2130,33 +2278,33 @@ theorem extractDepositData_ok_spec
   have hLi0F := cpsTripleWithin_frameR
     (regOwn .x1 **
       ((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x8 : Reg) ↦ᵣ dp) **
+      ((.x9 : Reg) ↦ᵣ op) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 80) s352 **
+      bytesRegion (op + BitVec.ofNat 64 88) s416 **
+      bytesRegion (op + BitVec.ofNat 64 184) s544)
     (by edd_pcfree) hLi0
   -- ---- idx 69: jal x0, +8 (skip the fail tail) ----
   have hjal := jal_x0_spec_gen_within (8 : BitVec 21) (EddB + 276)
@@ -2171,39 +2319,39 @@ theorem extractDepositData_ok_spec
   have hJalF := cpsTripleWithin_frameR
     (regOwn .x1 **
       ((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x8 : Reg) ↦ᵣ dp) **
+      ((.x9 : Reg) ↦ᵣ op) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       ((.x10 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 80) s352 **
+      bytesRegion (op + BitVec.ofNat 64 88) s416 **
+      bytesRegion (op + BitVec.ofNat 64 184) s544)
     (by edd_pcfree) hJal
   -- ---- idx 71-75: epilogue ----
   have hEpi : cpsTripleWithin 5 (EddB + 284) (ret &&& ~~~1) eddbCode
       (regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -2212,17 +2360,17 @@ theorem extractDepositData_ok_spec
       (fun _ hq => hq)
       (cpsTripleWithin_of_forall_regIs_to_regOwn
         (P := ((.x2 : Reg) ↦ᵣ nsp) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
           (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
         (fun v1 => ?_))
     have hld1 := ld_spec_gen_within .x1 .x2 nsp v1 ret (0 : BitVec 12)
       (EddB + 284) (by decide)
     rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
         show nsp + (0 : Word) = nsp from by bv_omega] at hld1
-    have hld8 := ld_spec_gen_within .x8 .x2 nsp eddDataPtr v8 (8 : BitVec 12)
+    have hld8 := ld_spec_gen_within .x8 .x2 nsp dp v8 (8 : BitVec 12)
       (EddB + 288) (by decide)
     rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at hld8
-    have hld9 := ld_spec_gen_within .x9 .x2 nsp eddOutPtr v9 (16 : BitVec 12)
+    have hld9 := ld_spec_gen_within .x9 .x2 nsp op v9 (16 : BitVec 12)
       (EddB + 292) (by decide)
     rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
       at hld9
@@ -2240,7 +2388,7 @@ theorem extractDepositData_ok_spec
       (fun _ hq => hq)
       (?_ : cpsTripleWithin 5 (EddB + 284) (ret &&& ~~~1) eddbCode
         (((.x2 : Reg) ↦ᵣ nsp) ** ((.x1 : Reg) ↦ᵣ v1) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
           (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
         (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
           ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -2250,84 +2398,84 @@ theorem extractDepositData_ok_spec
     (((.x10 : Reg) ↦ᵣ (0 : Word)) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr s192 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op s192 **
+      bytesRegion (op + BitVec.ofNat 64 48) s288 **
+      bytesRegion (op + BitVec.ofNat 64 80) s352 **
+      bytesRegion (op + BitVec.ofNat 64 88) s416 **
+      bytesRegion (op + BitVec.ofNat 64 184) s544)
     (by edd_pcfree) hEpi
   have hProlF := cpsTripleWithin_frameR
     (((.x11 : Reg) ↦ᵣ (576 : Word)) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScrPre **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree) hProl
   have hBneF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
       ((.x1 : Reg) ↦ᵣ ret) **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
-      ((.x10 : Reg) ↦ᵣ eddDataPtr) **
-      ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x8 : Reg) ↦ᵣ dp) **
+      ((.x9 : Reg) ↦ᵣ op) **
+      ((.x10 : Reg) ↦ᵣ dp) **
+      ((.x12 : Reg) ↦ᵣ op) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScrPre **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-      bytesRegion eddOutPtr w0 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-      bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+      bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+      bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+      bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+      bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+      bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+      bytesRegion op w0 **
+      bytesRegion (op + BitVec.ofNat 64 48) w48 **
+      bytesRegion (op + BitVec.ofNat 64 80) w80 **
+      bytesRegion (op + BitVec.ofNat 64 88) w88 **
+      bytesRegion (op + BitVec.ofNat 64 184) w184)
     (by edd_pcfree) hBne
   -- ---- chain ----
   have t0 := by
@@ -2337,35 +2485,35 @@ theorem extractDepositData_ok_spec
     refine cpsTripleWithin_seq_perm_same_cr ?_ t0 hg1F
     intro h hp
     have hp1 : (((((.x5 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr)) ** regOwns eddScrPre) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
+        ((.x12 : Reg) ↦ᵣ op)) ** regOwns eddScrPre) **
         (((.x1 : Reg) ↦ᵣ ret) ** ((.x2 : Reg) ↦ᵣ nsp) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-          ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) **
+          ((.x9 : Reg) ↦ᵣ op) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
           (nsp ↦ₘ ret) **
           ((nsp + 8) ↦ₘ v8) **
           ((nsp + 16) ↦ₘ v9) **
-          bytesRegion eddDataPtr b0 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-          bytesRegion eddOutPtr w0 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) w48 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) w80 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) w88 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) w184)) h := by
+          bytesRegion dp b0 **
+          bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+          bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+          bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+          bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+          bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+          bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+          bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+          bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+          bytesRegion op w0 **
+          bytesRegion (op + BitVec.ofNat 64 48) w48 **
+          bytesRegion (op + BitVec.ofNat 64 80) w80 **
+          bytesRegion (op + BitVec.ofNat 64 88) w88 **
+          bytesRegion (op + BitVec.ofNat 64 184) w184)) h := by
       have hp0 := sepConj_mono_left (sepConj_mono_right
         (fun h' hx => ((sepConj_pure_right h').1 hx).1)) h hp
       xperm_hyp hp0
@@ -2374,9 +2522,9 @@ theorem extractDepositData_ok_spec
         (sepConj_mono_left
           (fun h'' hy =>
             sepConj_mono (regIs_to_regOwn .x5 (576 : Word))
-              (sepConj_mono (regIs_to_regOwn .x10 eddDataPtr)
+              (sepConj_mono (regIs_to_regOwn .x10 dp)
                 (sepConj_mono (regIs_to_regOwn .x11 (576 : Word))
-                  (regIs_to_regOwn .x12 eddOutPtr))) h'' hy)
+                  (regIs_to_regOwn .x12 op))) h'' hy)
           h' hx))
       h hp1
     have hp3 := sepConj_mono_right (sepConj_mono_left
@@ -2430,65 +2578,65 @@ theorem extractDepositData_ok_spec
     have hp1 := sepConj_mono_left edd_owns_split h
       (by xperm_hyp hp :
         (regOwns exposedRegs ** (regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-          ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) **
+          ((.x9 : Reg) ↦ᵣ op) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
           (nsp ↦ₘ ret) **
           ((nsp + 8) ↦ₘ v8) **
           ((nsp + 16) ↦ₘ v9) **
-          bytesRegion eddDataPtr b0 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-          bytesRegion eddOutPtr s192 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544)) h)
+          bytesRegion dp b0 **
+          bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+          bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+          bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+          bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+          bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+          bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+          bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+          bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+          bytesRegion op s192 **
+          bytesRegion (op + BitVec.ofNat 64 48) s288 **
+          bytesRegion (op + BitVec.ofNat 64 80) s352 **
+          bytesRegion (op + BitVec.ofNat 64 88) s416 **
+          bytesRegion (op + BitVec.ofNat 64 184) s544)) h)
     xperm_hyp hp1
   have tJal := by
     refine cpsTripleWithin_seq_perm_same_cr ?_ tLi hJalF
     intro h hp
     have hp1 : (empAssertion ** (regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-          ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) **
+          ((.x9 : Reg) ↦ᵣ op) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) **
           ((.x10 : Reg) ↦ᵣ (0 : Word)) **
           regOwns eddScr14 **
           (nsp ↦ₘ ret) **
           ((nsp + 8) ↦ₘ v8) **
           ((nsp + 16) ↦ₘ v9) **
-          bytesRegion eddDataPtr b0 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 192) s192 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 288) s288 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 352) s352 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 416) s416 **
-          bytesRegion (eddDataPtr + BitVec.ofNat 64 544) s544 **
-          bytesRegion eddOutPtr s192 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 48) s288 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 80) s352 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 88) s416 **
-          bytesRegion (eddOutPtr + BitVec.ofNat 64 184) s544)) h := by
+          bytesRegion dp b0 **
+          bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+          bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+          bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+          bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+          bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+          bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+          bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+          bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+          bytesRegion (dp + BitVec.ofNat 64 512) b512 **
+          bytesRegion (dp + BitVec.ofNat 64 192) s192 **
+          bytesRegion (dp + BitVec.ofNat 64 288) s288 **
+          bytesRegion (dp + BitVec.ofNat 64 352) s352 **
+          bytesRegion (dp + BitVec.ofNat 64 416) s416 **
+          bytesRegion (dp + BitVec.ofNat 64 544) s544 **
+          bytesRegion op s192 **
+          bytesRegion (op + BitVec.ofNat 64 48) s288 **
+          bytesRegion (op + BitVec.ofNat 64 80) s352 **
+          bytesRegion (op + BitVec.ofNat 64 88) s416 **
+          bytesRegion (op + BitVec.ofNat 64 184) s544)) h := by
       rw [sepConj_emp_left']
       xperm_hyp hp
     exact hp1
@@ -2536,11 +2684,11 @@ set_option maxRecDepth 8000 in
 /-- **One rejecting check group**: as `edd_check_group`, but the check
     fails (`hnok`), the callee returns `a0 = 0`, and the `beq a0, x0`
     is TAKEN to the shared fail tail. -/
-private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
+private theorem edd_check_group_fail (dp G ptr K : Word) (joff : BitVec 21)
     (bofs : BitVec 13) (bsC : List (BitVec 8))
     (harg : ∀ v10 : Word, cpsTripleWithin 1 G (G + 4) eddbCode
-        (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-        (((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)))
+        (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+        (((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ dp)))
     (hli : ∀ v11 : Word, cpsTripleWithin 1 (G + 4) (G + 8) eddbCode
         ((.x11 : Reg) ↦ᵣ v11) ((.x11 : Reg) ↦ᵣ K))
     (hjmem : ∀ a i, CodeReq.singleton (G + 8) (.JAL .x1 joff) a = some i →
@@ -2555,22 +2703,22 @@ private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
     (hlen : 32 ≤ bsC.length)
     (hnok : ¬ EddBe32EqSAsm.eddOk ptr bsC K) :
     cpsTripleWithin 636 G (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
         bytesRegion ptr bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
         bytesRegion ptr bsC) := by
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_of_forall_regIs_to_regOwn
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns exposedRegs ** bytesRegion ptr bsC)
       (fun v1 => ?_))
   refine cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
     (fun _ hq => hq)
     (cpsTripleWithin_peel_regOwns exposedRegs (by decide)
-      (P := ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      (P := ((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         bytesRegion ptr bsC ** ((.x1 : Reg) ↦ᵣ v1))
       (fun vf => ?_))
   have hret := EddBe32EqSAsm.eddBe32Eq_retSpec ptr bsC K (EddB + 304)
@@ -2589,12 +2737,12 @@ private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
       bytesRegion ptr bsC)
     (by edd_pcfree) (harg (vf .x10))
   have hliF := cpsTripleWithin_frameR
-    ((((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) **
+    ((((.x10 : Reg) ↦ᵣ ptr) ** ((.x8 : Reg) ↦ᵣ dp)) **
       regAtomsOf vf eddScr13 ** ((.x1 : Reg) ↦ᵣ v1) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion ptr bsC)
     (by edd_pcfree) (hli (vf .x11))
   have hcallF := cpsTripleWithin_frameR
-    (((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+    (((.x8 : Reg) ↦ᵣ dp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
     (by edd_pcfree) hcall
   have hbeq := beq_spec_gen_within .x10 .x0 bofs (0 : Word) (0 : Word)
     (G + 12)
@@ -2606,7 +2754,7 @@ private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
   rw [htaken] at hBeq
   have hBeqF := cpsTripleWithin_frameR
     (((.x1 : Reg) ↦ᵣ (G + 12)) ** regOwns eddScr14 **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) ** bytesRegion ptr bsC)
+      ((.x8 : Reg) ↦ᵣ dp) ** bytesRegion ptr bsC)
     (by edd_pcfree) hBeq
   have s1 := by
     refine cpsTripleWithin_seq_perm_same_cr ?_ hargF hliF
@@ -2616,7 +2764,7 @@ private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
     intro h hp
     have hp1 : (((((.x10 : Reg) ↦ᵣ ptr) ** ((.x11 : Reg) ↦ᵣ K) **
         regAtomsOf vf eddScr13) ** bytesRegion ptr bsC) **
-        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        (((.x1 : Reg) ↦ᵣ v1) ** ((.x8 : Reg) ↦ᵣ dp) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)))) h := by xperm_hyp hp
     have hp2 := sepConj_mono_left
       (edd_pack_be32 ptr K bsC vf hlen) h hp1
@@ -2634,7 +2782,7 @@ private theorem edd_check_group_fail (G ptr K : Word) (joff : BitVec 21)
   · have hq1 := sepConj_mono_left (sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1)) h hq
     have hq2 : ((regOwn .x10 ** regOwns eddScr14) **
-        (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
           ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion ptr bsC)) h := by
       have hq1a := sepConj_mono_left (sepConj_mono_left
         (regIs_to_regOwn .x10 (0 : Word))) h hq1
@@ -2648,11 +2796,11 @@ set_option maxRecDepth 100000 in
 /-- **The shared fail tail** (`li a0, 1` at `EddB + 280` and the common
     epilogue): restores `sp`/`ra`/`s0`/`s1` from the frame and returns
     `a0 = 1`. -/
-private theorem edd_failTail_spec (nsp sp0 ret v8 v9 : Word)
+private theorem edd_failTail_spec (dp op nsp sp0 ret v8 v9 : Word)
     (hnsp32 : nsp + (32 : Word) = sp0) :
     cpsTripleWithin 6 (EddB + 280) (ret &&& ~~~1) eddbCode
       (regOwn .x10 ** regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
       (((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) ** ((.x8 : Reg) ↦ᵣ v8) **
@@ -2667,12 +2815,12 @@ private theorem edd_failTail_spec (nsp sp0 ret v8 v9 : Word)
     rw [BitVec.add_assoc]; rfl] at hLi1
   have hLi1F := cpsTripleWithin_frameR
     (regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
     (by edd_pcfree) hLi1
   have hEpi : cpsTripleWithin 5 (EddB + 284) (ret &&& ~~~1) eddbCode
       (regOwn .x1 ** ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -2681,17 +2829,17 @@ private theorem edd_failTail_spec (nsp sp0 ret v8 v9 : Word)
       (fun _ hq => hq)
       (cpsTripleWithin_of_forall_regIs_to_regOwn
         (P := ((.x2 : Reg) ↦ᵣ nsp) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
           (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
         (fun v1 => ?_))
     have hld1 := ld_spec_gen_within .x1 .x2 nsp v1 ret (0 : BitVec 12)
       (EddB + 284) (by decide)
     rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
         show nsp + (0 : Word) = nsp from by bv_omega] at hld1
-    have hld8 := ld_spec_gen_within .x8 .x2 nsp eddDataPtr v8 (8 : BitVec 12)
+    have hld8 := ld_spec_gen_within .x8 .x2 nsp dp v8 (8 : BitVec 12)
       (EddB + 288) (by decide)
     rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at hld8
-    have hld9 := ld_spec_gen_within .x9 .x2 nsp eddOutPtr v9 (16 : BitVec 12)
+    have hld9 := ld_spec_gen_within .x9 .x2 nsp op v9 (16 : BitVec 12)
       (EddB + 292) (by decide)
     rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]
       at hld9
@@ -2706,7 +2854,7 @@ private theorem edd_failTail_spec (nsp sp0 ret v8 v9 : Word)
       (fun _ hq => hq)
       (?_ : cpsTripleWithin 5 (EddB + 284) (ret &&& ~~~1) eddbCode
         (((.x2 : Reg) ↦ᵣ nsp) ** ((.x1 : Reg) ↦ᵣ v1) **
-          ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+          ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
           (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
         (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
           ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
@@ -2724,19 +2872,19 @@ private theorem edd_failTail_spec (nsp sp0 ret v8 v9 : Word)
 /-- **The common entry** (prologue + the not-taken length guard): from
     the routine's entry state to the first check group's invariant at
     `EddB + 32`. -/
-private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
+private theorem edd_entry_spec (dp op sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
     cpsTripleWithin 8 EddB (EddB + 32) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) ** ((.x5 : Reg) ↦ᵣ v5) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
+        ((.x12 : Reg) ↦ᵣ op) ** ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2))
       (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-32 : BitVec 12))) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
@@ -2752,18 +2900,18 @@ private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
   rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at hsd2
   have hsd3 := sd_spec_gen_within .x2 .x9 nsp v9 m2 (16 : BitVec 12) (EddB + 12)
   rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at hsd3
-  have hmv8 := mv_spec_gen_within .x8 .x10 eddDataPtr v8 (EddB + 16) (by decide)
-  have hmv9 := mv_spec_gen_within .x9 .x12 eddOutPtr v9 (EddB + 20) (by decide)
+  have hmv8 := mv_spec_gen_within .x8 .x10 dp v8 (EddB + 16) (by decide)
+  have hmv9 := mv_spec_gen_within .x9 .x12 op v9 (EddB + 20) (by decide)
   have hli5 := li_spec_gen_within .x5 v5 (576 : Word) (EddB + 24) (by decide)
   have hProl : cpsTripleWithin 7 EddB (EddB + 28) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         (nsp ↦ₘ m0) ** ((nsp + 8) ↦ₘ m1) ** ((nsp + 16) ↦ₘ m2))
       (((.x2 : Reg) ↦ᵣ nsp) ** ((.x1 : Reg) ↦ᵣ ret) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
+        ((.x10 : Reg) ↦ᵣ dp) ** ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ (576 : Word)) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9)) := by
     runBlock haddisp hsd1 hsd2 hsd3 hmv8 hmv9 hli5
@@ -2784,8 +2932,8 @@ private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
     (by edd_pcfree) hProl
   have hBneF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) ** ((.x1 : Reg) ↦ᵣ ret) **
-      ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
-      ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
+      ((.x10 : Reg) ↦ᵣ dp) ** ((.x12 : Reg) ↦ᵣ op) **
       ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns eddScrPre **
       (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))
     (by edd_pcfree) hBne
@@ -2798,10 +2946,10 @@ private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
   have hq0 := sepConj_mono_left (sepConj_mono_right
     (fun h' hx => ((sepConj_pure_right h').1 hx).1)) h hq
   have hq1 : (((((.x5 : Reg) ↦ᵣ (576 : Word)) **
-      ((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-      ((.x12 : Reg) ↦ᵣ eddOutPtr)) ** regOwns eddScrPre) **
+      ((.x10 : Reg) ↦ᵣ dp) ** ((.x11 : Reg) ↦ᵣ (576 : Word)) **
+      ((.x12 : Reg) ↦ᵣ op)) ** regOwns eddScrPre) **
       (((.x1 : Reg) ↦ᵣ ret) ** ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) ** ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) ** ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) ** ((nsp + 8) ↦ₘ v8) ** ((nsp + 16) ↦ₘ v9))) h := by
     xperm_hyp hq0
@@ -2810,9 +2958,9 @@ private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
       (sepConj_mono_left
         (fun h'' hy =>
           sepConj_mono (regIs_to_regOwn .x5 (576 : Word))
-            (sepConj_mono (regIs_to_regOwn .x10 eddDataPtr)
+            (sepConj_mono (regIs_to_regOwn .x10 dp)
               (sepConj_mono (regIs_to_regOwn .x11 (576 : Word))
-                (regIs_to_regOwn .x12 eddOutPtr))) h'' hy)
+                (regIs_to_regOwn .x12 op))) h'' hy)
         h' hx))
     h hq1
   have hq3 := sepConj_mono_right (sepConj_mono_left
@@ -2822,23 +2970,23 @@ private theorem edd_entry_spec (sp0 ret v5 v8 v9 m0 m1 m2 : Word) :
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 1: `edd_be32_eq(data+0, 160)` at
     `EddB + 32`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g1 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g1 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨eddDataPtr, bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk eddDataPtr bsC (160 : Word)) :
+    (hwf : Region.wf ⟨dp, bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk dp bsC (160 : Word)) :
     cpsTripleWithin 636 (EddB + 32) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion eddDataPtr bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion dp bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion eddDataPtr bsC) := by
+        bytesRegion dp bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 32)
       ((EddB + 32) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ eddDataPtr) ** ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ dp) ** ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := mv_spec_gen_within .x10 .x8 eddDataPtr v10 (EddB + 32)
+    have h := mv_spec_gen_within .x10 .x8 dp v10 (EddB + 32)
       (by decide)
     exact cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
       (fun h hq => by xperm_hyp hq)
@@ -2857,7 +3005,7 @@ private theorem edd_checkfail_g1 (bsC : List (BitVec 8))
       (by rw [show (4 * 9 : Nat) = 36 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 32) eddDataPtr (160 : Word)
+  exact edd_check_group_fail dp (EddB + 32) dp (160 : Word)
     (264 : BitVec 21) (236 : BitVec 13) bsC harg hli
     (eddb_mem 10 (.JAL .x1 (264 : BitVec 21)) ((EddB + 32) + 8)
       (by rw [show (4 * 10 : Nat) = 40 from rfl, BitVec.add_assoc]
@@ -2880,24 +3028,24 @@ private theorem edd_checkfail_g1 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 2: `edd_be32_eq(data+32, 256)` at
     `EddB + 48`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g2 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g2 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 32), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) bsC (256 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 32), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) bsC (256 : Word)) :
     cpsTripleWithin 636 (EddB + 48) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 32) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 32) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 48)
       ((EddB + 48) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 32)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 32)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (32 : BitVec 12) (EddB + 48) (by decide)
     rw [show signExtend12 (32 : BitVec 12) = BitVec.ofNat 64 32
       from by decide] at h
@@ -2918,7 +3066,7 @@ private theorem edd_checkfail_g2 (bsC : List (BitVec 8))
       (by rw [show (4 * 13 : Nat) = 52 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 48) (eddDataPtr + BitVec.ofNat 64 32) (256 : Word)
+  exact edd_check_group_fail dp (EddB + 48) (dp + BitVec.ofNat 64 32) (256 : Word)
     (248 : BitVec 21) (220 : BitVec 13) bsC harg hli
     (eddb_mem 14 (.JAL .x1 (248 : BitVec 21)) ((EddB + 48) + 8)
       (by rw [show (4 * 14 : Nat) = 56 from rfl, BitVec.add_assoc]
@@ -2941,24 +3089,24 @@ private theorem edd_checkfail_g2 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 3: `edd_be32_eq(data+64, 320)` at
     `EddB + 64`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g3 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g3 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 64), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) bsC (320 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 64), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) bsC (320 : Word)) :
     cpsTripleWithin 636 (EddB + 64) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 64) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 64) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 64)
       ((EddB + 64) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 64)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 64)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (64 : BitVec 12) (EddB + 64) (by decide)
     rw [show signExtend12 (64 : BitVec 12) = BitVec.ofNat 64 64
       from by decide] at h
@@ -2979,7 +3127,7 @@ private theorem edd_checkfail_g3 (bsC : List (BitVec 8))
       (by rw [show (4 * 17 : Nat) = 68 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 64) (eddDataPtr + BitVec.ofNat 64 64) (320 : Word)
+  exact edd_check_group_fail dp (EddB + 64) (dp + BitVec.ofNat 64 64) (320 : Word)
     (232 : BitVec 21) (204 : BitVec 13) bsC harg hli
     (eddb_mem 18 (.JAL .x1 (232 : BitVec 21)) ((EddB + 64) + 8)
       (by rw [show (4 * 18 : Nat) = 72 from rfl, BitVec.add_assoc]
@@ -3002,24 +3150,24 @@ private theorem edd_checkfail_g3 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 4: `edd_be32_eq(data+96, 384)` at
     `EddB + 80`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g4 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g4 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 96), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) bsC (384 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 96), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) bsC (384 : Word)) :
     cpsTripleWithin 636 (EddB + 80) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 96) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 96) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 80)
       ((EddB + 80) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 96)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 96)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (96 : BitVec 12) (EddB + 80) (by decide)
     rw [show signExtend12 (96 : BitVec 12) = BitVec.ofNat 64 96
       from by decide] at h
@@ -3040,7 +3188,7 @@ private theorem edd_checkfail_g4 (bsC : List (BitVec 8))
       (by rw [show (4 * 21 : Nat) = 84 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 80) (eddDataPtr + BitVec.ofNat 64 96) (384 : Word)
+  exact edd_check_group_fail dp (EddB + 80) (dp + BitVec.ofNat 64 96) (384 : Word)
     (216 : BitVec 21) (188 : BitVec 13) bsC harg hli
     (eddb_mem 22 (.JAL .x1 (216 : BitVec 21)) ((EddB + 80) + 8)
       (by rw [show (4 * 22 : Nat) = 88 from rfl, BitVec.add_assoc]
@@ -3063,24 +3211,24 @@ private theorem edd_checkfail_g4 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 5: `edd_be32_eq(data+128, 512)` at
     `EddB + 96`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g5 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g5 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 128), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) bsC (512 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 128), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) bsC (512 : Word)) :
     cpsTripleWithin 636 (EddB + 96) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 128) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 128) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 96)
       ((EddB + 96) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 128)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 128)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (128 : BitVec 12) (EddB + 96) (by decide)
     rw [show signExtend12 (128 : BitVec 12) = BitVec.ofNat 64 128
       from by decide] at h
@@ -3101,7 +3249,7 @@ private theorem edd_checkfail_g5 (bsC : List (BitVec 8))
       (by rw [show (4 * 25 : Nat) = 100 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 96) (eddDataPtr + BitVec.ofNat 64 128) (512 : Word)
+  exact edd_check_group_fail dp (EddB + 96) (dp + BitVec.ofNat 64 128) (512 : Word)
     (200 : BitVec 21) (172 : BitVec 13) bsC harg hli
     (eddb_mem 26 (.JAL .x1 (200 : BitVec 21)) ((EddB + 96) + 8)
       (by rw [show (4 * 26 : Nat) = 104 from rfl, BitVec.add_assoc]
@@ -3124,24 +3272,24 @@ private theorem edd_checkfail_g5 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 6: `edd_be32_eq(data+160, 48)` at
     `EddB + 112`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g6 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g6 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 160), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) bsC (48 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 160), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) bsC (48 : Word)) :
     cpsTripleWithin 636 (EddB + 112) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 160) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 160) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 112)
       ((EddB + 112) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 160)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 160)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (160 : BitVec 12) (EddB + 112) (by decide)
     rw [show signExtend12 (160 : BitVec 12) = BitVec.ofNat 64 160
       from by decide] at h
@@ -3162,7 +3310,7 @@ private theorem edd_checkfail_g6 (bsC : List (BitVec 8))
       (by rw [show (4 * 29 : Nat) = 116 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 112) (eddDataPtr + BitVec.ofNat 64 160) (48 : Word)
+  exact edd_check_group_fail dp (EddB + 112) (dp + BitVec.ofNat 64 160) (48 : Word)
     (184 : BitVec 21) (156 : BitVec 13) bsC harg hli
     (eddb_mem 30 (.JAL .x1 (184 : BitVec 21)) ((EddB + 112) + 8)
       (by rw [show (4 * 30 : Nat) = 120 from rfl, BitVec.add_assoc]
@@ -3185,24 +3333,24 @@ private theorem edd_checkfail_g6 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 7: `edd_be32_eq(data+256, 32)` at
     `EddB + 128`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g7 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g7 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 256), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) bsC (32 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 256), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) bsC (32 : Word)) :
     cpsTripleWithin 636 (EddB + 128) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 256) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 256) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 128)
       ((EddB + 128) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 256)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 256)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (256 : BitVec 12) (EddB + 128) (by decide)
     rw [show signExtend12 (256 : BitVec 12) = BitVec.ofNat 64 256
       from by decide] at h
@@ -3223,7 +3371,7 @@ private theorem edd_checkfail_g7 (bsC : List (BitVec 8))
       (by rw [show (4 * 33 : Nat) = 132 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 128) (eddDataPtr + BitVec.ofNat 64 256) (32 : Word)
+  exact edd_check_group_fail dp (EddB + 128) (dp + BitVec.ofNat 64 256) (32 : Word)
     (168 : BitVec 21) (140 : BitVec 13) bsC harg hli
     (eddb_mem 34 (.JAL .x1 (168 : BitVec 21)) ((EddB + 128) + 8)
       (by rw [show (4 * 34 : Nat) = 136 from rfl, BitVec.add_assoc]
@@ -3246,24 +3394,24 @@ private theorem edd_checkfail_g7 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 8: `edd_be32_eq(data+320, 8)` at
     `EddB + 144`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g8 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g8 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 320), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) bsC (8 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 320), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) bsC (8 : Word)) :
     cpsTripleWithin 636 (EddB + 144) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 320) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 320) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 144)
       ((EddB + 144) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 320)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 320)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (320 : BitVec 12) (EddB + 144) (by decide)
     rw [show signExtend12 (320 : BitVec 12) = BitVec.ofNat 64 320
       from by decide] at h
@@ -3284,7 +3432,7 @@ private theorem edd_checkfail_g8 (bsC : List (BitVec 8))
       (by rw [show (4 * 37 : Nat) = 148 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 144) (eddDataPtr + BitVec.ofNat 64 320) (8 : Word)
+  exact edd_check_group_fail dp (EddB + 144) (dp + BitVec.ofNat 64 320) (8 : Word)
     (152 : BitVec 21) (124 : BitVec 13) bsC harg hli
     (eddb_mem 38 (.JAL .x1 (152 : BitVec 21)) ((EddB + 144) + 8)
       (by rw [show (4 * 38 : Nat) = 152 from rfl, BitVec.add_assoc]
@@ -3307,24 +3455,24 @@ private theorem edd_checkfail_g8 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 9: `edd_be32_eq(data+384, 96)` at
     `EddB + 160`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g9 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g9 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 384), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) bsC (96 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 384), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) bsC (96 : Word)) :
     cpsTripleWithin 636 (EddB + 160) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 384) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 384) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 160)
       ((EddB + 160) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 384)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 384)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (384 : BitVec 12) (EddB + 160) (by decide)
     rw [show signExtend12 (384 : BitVec 12) = BitVec.ofNat 64 384
       from by decide] at h
@@ -3345,7 +3493,7 @@ private theorem edd_checkfail_g9 (bsC : List (BitVec 8))
       (by rw [show (4 * 41 : Nat) = 164 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 160) (eddDataPtr + BitVec.ofNat 64 384) (96 : Word)
+  exact edd_check_group_fail dp (EddB + 160) (dp + BitVec.ofNat 64 384) (96 : Word)
     (136 : BitVec 21) (108 : BitVec 13) bsC harg hli
     (eddb_mem 42 (.JAL .x1 (136 : BitVec 21)) ((EddB + 160) + 8)
       (by rw [show (4 * 42 : Nat) = 168 from rfl, BitVec.add_assoc]
@@ -3368,24 +3516,24 @@ private theorem edd_checkfail_g9 (bsC : List (BitVec 8))
 set_option maxRecDepth 100000 in
 /-- Rejecting check group 10: `edd_be32_eq(data+512, 8)` at
     `EddB + 176`, `beq` taken to the fail tail. -/
-private theorem edd_checkfail_g10 (bsC : List (BitVec 8))
+private theorem edd_checkfail_g10 (dp : Word) (bsC : List (BitVec 8))
     (hlen : 32 ≤ bsC.length)
-    (hwf : Region.wf ⟨(eddDataPtr + BitVec.ofNat 64 512), bsC⟩)
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) bsC (8 : Word)) :
+    (hwf : Region.wf ⟨(dp + BitVec.ofNat 64 512), bsC⟩)
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) bsC (8 : Word)) :
     cpsTripleWithin 636 (EddB + 176) (EddB + 280) eddbCode
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) bsC)
-      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ eddDataPtr) **
+        bytesRegion (dp + BitVec.ofNat 64 512) bsC)
+      (regOwn .x1 ** ((.x8 : Reg) ↦ᵣ dp) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) ** regOwns exposedRegs **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) bsC) := by
+        bytesRegion (dp + BitVec.ofNat 64 512) bsC) := by
   have harg : ∀ v10 : Word, cpsTripleWithin 1 (EddB + 176)
       ((EddB + 176) + 4) eddbCode
-      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ eddDataPtr))
-      (((.x10 : Reg) ↦ᵣ (eddDataPtr + BitVec.ofNat 64 512)) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr)) := by
+      (((.x10 : Reg) ↦ᵣ v10) ** ((.x8 : Reg) ↦ᵣ dp))
+      (((.x10 : Reg) ↦ᵣ (dp + BitVec.ofNat 64 512)) **
+        ((.x8 : Reg) ↦ᵣ dp)) := by
     intro v10
-    have h := addi_spec_gen_within .x10 .x8 v10 eddDataPtr
+    have h := addi_spec_gen_within .x10 .x8 v10 dp
       (512 : BitVec 12) (EddB + 176) (by decide)
     rw [show signExtend12 (512 : BitVec 12) = BitVec.ofNat 64 512
       from by decide] at h
@@ -3406,7 +3554,7 @@ private theorem edd_checkfail_g10 (bsC : List (BitVec 8))
       (by rw [show (4 * 45 : Nat) = 180 from rfl, BitVec.add_assoc]
           rfl)
       (by omega) rfl) h
-  exact edd_check_group_fail (EddB + 176) (eddDataPtr + BitVec.ofNat 64 512) (8 : Word)
+  exact edd_check_group_fail dp (EddB + 176) (dp + BitVec.ofNat 64 512) (8 : Word)
     (120 : BitVec 21) (92 : BitVec 13) bsC harg hli
     (eddb_mem 46 (.JAL .x1 (120 : BitVec 21)) ((EddB + 176) + 8)
       (by rw [show (4 * 46 : Nat) = 184 from rfl, BitVec.add_assoc]
@@ -3433,25 +3581,26 @@ set_option maxRecDepth 400000 in
     1..0 pass, check 1 (`data+0` vs `160`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject1_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 : List (BitVec 8))
     (hb0 : b0.length = 32)
-    (hnok : ¬ EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word)) :
+    (hnok : ¬ EddBe32EqSAsm.eddOk dp b0 (160 : Word)) :
     cpsTripleWithin 650 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0)
+        bytesRegion dp b0)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -3462,32 +3611,32 @@ theorem extractDepositData_reject1_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0) := by
+        bytesRegion dp b0) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0)
+    (bytesRegion dp b0)
     (by edd_pcfree) hEntry
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9))
     (by edd_pcfree)
-    (edd_checkfail_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_checkfail_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0)
+      bytesRegion dp b0)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have tK := by
@@ -3498,13 +3647,13 @@ theorem extractDepositData_reject1_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0)) h := by
+        bytesRegion dp b0)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -3517,27 +3666,28 @@ set_option maxRecDepth 400000 in
     1..1 pass, check 2 (`data+32` vs `256`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject2_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word)) :
     cpsTripleWithin 1286 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -3548,45 +3698,45 @@ theorem extractDepositData_reject2_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0)
+      bytesRegion dp b0)
     (by edd_pcfree)
-    (edd_checkfail_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -3600,14 +3750,14 @@ theorem extractDepositData_reject2_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -3620,29 +3770,30 @@ set_option maxRecDepth 400000 in
     1..2 pass, check 3 (`data+64` vs `320`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject3_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word)) :
     cpsTripleWithin 1922 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -3653,60 +3804,60 @@ theorem extractDepositData_reject3_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32)
     (by edd_pcfree)
-    (edd_checkfail_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -3723,15 +3874,15 @@ theorem extractDepositData_reject3_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -3744,31 +3895,32 @@ set_option maxRecDepth 400000 in
     1..3 pass, check 4 (`data+96` vs `384`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject4_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word)) :
     cpsTripleWithin 2558 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -3779,77 +3931,77 @@ theorem extractDepositData_reject4_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64)
     (by edd_pcfree)
-    (edd_checkfail_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -3869,16 +4021,16 @@ theorem extractDepositData_reject4_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -3891,33 +4043,34 @@ set_option maxRecDepth 400000 in
     1..4 pass, check 5 (`data+128` vs `512`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject5_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word)) :
     cpsTripleWithin 3194 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -3928,96 +4081,96 @@ theorem extractDepositData_reject5_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96)
     (by edd_pcfree)
-    (edd_checkfail_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -4040,17 +4193,17 @@ theorem extractDepositData_reject5_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -4063,35 +4216,36 @@ set_option maxRecDepth 400000 in
     1..5 pass, check 6 (`data+160` vs `48`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject6_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32) (hb160 : b160.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word)) :
     cpsTripleWithin 3830 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -4102,117 +4256,117 @@ theorem extractDepositData_reject6_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128)
     (by edd_pcfree)
-    (edd_checkfail_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -4238,18 +4392,18 @@ theorem extractDepositData_reject6_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -4262,37 +4416,38 @@ set_option maxRecDepth 400000 in
     1..6 pass, check 7 (`data+256` vs `32`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject7_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 b256 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32) (hb160 : b160.length = 32) (hb256 : b256.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hok160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hok160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word)) :
     cpsTripleWithin 4466 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -4303,140 +4458,140 @@ theorem extractDepositData_reject7_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hg6F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_check_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hok160)
+    (edd_check_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hok160)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160)
     (by edd_pcfree)
-    (edd_checkfail_g7 b256 (by omega) (EvmAsm.Codegen.edd_src_region_wf 256 32 b256 hb256 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g7 dp b256 (by omega) (eddP_src_wf dp hdp 256 32 b256 hb256 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -4465,19 +4620,19 @@ theorem extractDepositData_reject7_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -4490,39 +4645,40 @@ set_option maxRecDepth 400000 in
     1..7 pass, check 8 (`data+320` vs `8`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject8_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32) (hb160 : b160.length = 32) (hb256 : b256.length = 32) (hb320 : b320.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hok160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word))
-    (hok256 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hok160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word))
+    (hok256 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word)) :
     cpsTripleWithin 5102 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -4533,165 +4689,165 @@ theorem extractDepositData_reject8_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hg6F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hok160)
+    (edd_check_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hok160)
   have hg7F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_check_g7 b256 (by omega) (EvmAsm.Codegen.edd_src_region_wf 256 32 b256 hb256 rfl (by omega)) hok256)
+    (edd_check_g7 dp b256 (by omega) (eddP_src_wf dp hdp 256 32 b256 hb256 rfl (by omega)) hok256)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256)
     (by edd_pcfree)
-    (edd_checkfail_g8 b320 (by omega) (EvmAsm.Codegen.edd_src_region_wf 320 32 b320 hb320 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g8 dp b320 (by omega) (eddP_src_wf dp hdp 320 32 b320 hb320 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -4723,20 +4879,20 @@ theorem extractDepositData_reject8_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -4749,41 +4905,42 @@ set_option maxRecDepth 400000 in
     1..8 pass, check 9 (`data+384` vs `96`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject9_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32) (hb160 : b160.length = 32) (hb256 : b256.length = 32) (hb320 : b320.length = 32) (hb384 : b384.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hok160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word))
-    (hok256 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word))
-    (hok320 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) b384 (96 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hok160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word))
+    (hok256 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word))
+    (hok320 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) b384 (96 : Word)) :
     cpsTripleWithin 5738 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -4794,192 +4951,192 @@ theorem extractDepositData_reject9_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hg6F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hok160)
+    (edd_check_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hok160)
   have hg7F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g7 b256 (by omega) (EvmAsm.Codegen.edd_src_region_wf 256 32 b256 hb256 rfl (by omega)) hok256)
+    (edd_check_g7 dp b256 (by omega) (eddP_src_wf dp hdp 256 32 b256 hb256 rfl (by omega)) hok256)
   have hg8F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_check_g8 b320 (by omega) (EvmAsm.Codegen.edd_src_region_wf 320 32 b320 hb320 rfl (by omega)) hok320)
+    (edd_check_g8 dp b320 (by omega) (eddP_src_wf dp hdp 320 32 b320 hb320 rfl (by omega)) hok320)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320)
     (by edd_pcfree)
-    (edd_checkfail_g9 b384 (by omega) (EvmAsm.Codegen.edd_src_region_wf 384 32 b384 hb384 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g9 dp b384 (by omega) (eddP_src_wf dp hdp 384 32 b384 hb384 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -5014,21 +5171,21 @@ theorem extractDepositData_reject9_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1
@@ -5041,43 +5198,44 @@ set_option maxRecDepth 400000 in
     1..9 pass, check 10 (`data+512` vs `8`) fails — the routine
     returns `a0 = 1` with `sp`/`ra`/`s0`/`s1` restored. -/
 theorem extractDepositData_reject10_spec
+    (dp : Word) (hdp : eddDataArenaOk dp) (op : Word)
     (sp0 ret v5 v8 v9 m0 m1 m2 : Word)
     (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8))
     (hb0 : b0.length = 32) (hb32 : b32.length = 32) (hb64 : b64.length = 32) (hb96 : b96.length = 32) (hb128 : b128.length = 32) (hb160 : b160.length = 32) (hb256 : b256.length = 32) (hb320 : b320.length = 32) (hb384 : b384.length = 32) (hb512 : b512.length = 32)
-    (hok0 : EddBe32EqSAsm.eddOk eddDataPtr b0 (160 : Word))
-    (hok32 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 32) b32 (256 : Word))
-    (hok64 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 64) b64 (320 : Word))
-    (hok96 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 96) b96 (384 : Word))
-    (hok128 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 128) b128 (512 : Word))
-    (hok160 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 160) b160 (48 : Word))
-    (hok256 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 256) b256 (32 : Word))
-    (hok320 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 320) b320 (8 : Word))
-    (hok384 : EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 384) b384 (96 : Word))
-    (hnok : ¬ EddBe32EqSAsm.eddOk (eddDataPtr + BitVec.ofNat 64 512) b512 (8 : Word)) :
+    (hok0 : EddBe32EqSAsm.eddOk dp b0 (160 : Word))
+    (hok32 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 32) b32 (256 : Word))
+    (hok64 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 64) b64 (320 : Word))
+    (hok96 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 96) b96 (384 : Word))
+    (hok128 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 128) b128 (512 : Word))
+    (hok160 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 160) b160 (48 : Word))
+    (hok256 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 256) b256 (32 : Word))
+    (hok320 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 320) b320 (8 : Word))
+    (hok384 : EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 384) b384 (96 : Word))
+    (hnok : ¬ EddBe32EqSAsm.eddOk (dp + BitVec.ofNat 64 512) b512 (8 : Word)) :
     cpsTripleWithin 6374 EddB (ret &&& ~~~1) eddbCode
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
         ((.x9 : Reg) ↦ᵣ v9) **
-        ((.x10 : Reg) ↦ᵣ eddDataPtr) **
+        ((.x10 : Reg) ↦ᵣ dp) **
         ((.x11 : Reg) ↦ᵣ (576 : Word)) **
-        ((.x12 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x12 : Reg) ↦ᵣ op) **
         ((.x5 : Reg) ↦ᵣ v5) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         regOwns eddScrPre **
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ m0) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ m1) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ m2) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512)
       (((.x2 : Reg) ↦ᵣ sp0) **
         ((.x1 : Reg) ↦ᵣ ret) **
         ((.x8 : Reg) ↦ᵣ v8) **
@@ -5088,221 +5246,221 @@ theorem extractDepositData_reject10_spec
         ((sp0 + signExtend12 (-32 : BitVec 12)) ↦ₘ ret) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 8) ↦ₘ v8) **
         ((sp0 + signExtend12 (-32 : BitVec 12) + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512) := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512) := by
   set nsp := sp0 + signExtend12 (-32 : BitVec 12) with hnsp
-  have hEntry := edd_entry_spec sp0 ret v5 v8 v9 m0 m1 m2
+  have hEntry := edd_entry_spec dp op sp0 ret v5 v8 v9 m0 m1 m2
   rw [← hnsp] at hEntry
   have hEntryF := cpsTripleWithin_frameR
-    (bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+    (bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree) hEntry
   have hg1F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g1 b0 (by omega) (by
-      have h := EvmAsm.Codegen.edd_src_region_wf 0 32 b0 hb0 rfl (by omega)
-      rwa [show eddDataPtr + BitVec.ofNat 64 0 = eddDataPtr from by decide]
+    (edd_check_g1 dp b0 (by omega) (by
+      have h := eddP_src_wf dp hdp 0 32 b0 hb0 rfl (by omega)
+      rwa [show dp + BitVec.ofNat 64 0 = dp from by simp]
         at h) hok0)
   have hg2F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g2 b32 (by omega) (EvmAsm.Codegen.edd_src_region_wf 32 32 b32 hb32 rfl (by omega)) hok32)
+    (edd_check_g2 dp b32 (by omega) (eddP_src_wf dp hdp 32 32 b32 hb32 rfl (by omega)) hok32)
   have hg3F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g3 b64 (by omega) (EvmAsm.Codegen.edd_src_region_wf 64 32 b64 hb64 rfl (by omega)) hok64)
+    (edd_check_g3 dp b64 (by omega) (eddP_src_wf dp hdp 64 32 b64 hb64 rfl (by omega)) hok64)
   have hg4F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g4 b96 (by omega) (EvmAsm.Codegen.edd_src_region_wf 96 32 b96 hb96 rfl (by omega)) hok96)
+    (edd_check_g4 dp b96 (by omega) (eddP_src_wf dp hdp 96 32 b96 hb96 rfl (by omega)) hok96)
   have hg5F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g5 b128 (by omega) (EvmAsm.Codegen.edd_src_region_wf 128 32 b128 hb128 rfl (by omega)) hok128)
+    (edd_check_g5 dp b128 (by omega) (eddP_src_wf dp hdp 128 32 b128 hb128 rfl (by omega)) hok128)
   have hg6F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g6 b160 (by omega) (EvmAsm.Codegen.edd_src_region_wf 160 32 b160 hb160 rfl (by omega)) hok160)
+    (edd_check_g6 dp b160 (by omega) (eddP_src_wf dp hdp 160 32 b160 hb160 rfl (by omega)) hok160)
   have hg7F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g7 b256 (by omega) (EvmAsm.Codegen.edd_src_region_wf 256 32 b256 hb256 rfl (by omega)) hok256)
+    (edd_check_g7 dp b256 (by omega) (eddP_src_wf dp hdp 256 32 b256 hb256 rfl (by omega)) hok256)
   have hg8F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g8 b320 (by omega) (EvmAsm.Codegen.edd_src_region_wf 320 32 b320 hb320 rfl (by omega)) hok320)
+    (edd_check_g8 dp b320 (by omega) (eddP_src_wf dp hdp 320 32 b320 hb320 rfl (by omega)) hok320)
   have hg9F := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree)
-    (edd_check_g9 b384 (by omega) (EvmAsm.Codegen.edd_src_region_wf 384 32 b384 hb384 rfl (by omega)) hok384)
+    (edd_check_g9 dp b384 (by omega) (eddP_src_wf dp hdp 384 32 b384 hb384 rfl (by omega)) hok384)
   have hgKF := cpsTripleWithin_frameR
     (((.x2 : Reg) ↦ᵣ nsp) **
-      ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+      ((.x9 : Reg) ↦ᵣ op) **
       (nsp ↦ₘ ret) **
       ((nsp + 8) ↦ₘ v8) **
       ((nsp + 16) ↦ₘ v9) **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384)
     (by edd_pcfree)
-    (edd_checkfail_g10 b512 (by omega) (EvmAsm.Codegen.edd_src_region_wf 512 32 b512 hb512 rfl (by omega)) hnok)
-  have hTail := edd_failTail_spec nsp sp0 ret v8 v9
+    (edd_checkfail_g10 dp b512 (by omega) (eddP_src_wf dp hdp 512 32 b512 hb512 rfl (by omega)) hnok)
+  have hTail := edd_failTail_spec dp op nsp sp0 ret v8 v9
     (by rw [hnsp, show signExtend12 (-32 : BitVec 12)
       = (0xFFFFFFFFFFFFFFE0 : Word) from by decide]
         bv_omega)
   have hTailF := cpsTripleWithin_frameR
     (((.x0 : Reg) ↦ᵣ (0 : Word)) **
       regOwns eddScr14 **
-      bytesRegion eddDataPtr b0 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-      bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)
+      bytesRegion dp b0 **
+      bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+      bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+      bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+      bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+      bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+      bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+      bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+      bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+      bytesRegion (dp + BitVec.ofNat 64 512) b512)
     (by edd_pcfree) hTail
   have t0 := hEntryF
   have t1 := by
@@ -5340,22 +5498,22 @@ theorem extractDepositData_reject10_spec
     intro h hp
     have hp0 : (regOwns exposedRegs ** (regOwn .x1 **
         ((.x2 : Reg) ↦ᵣ nsp) **
-        ((.x8 : Reg) ↦ᵣ eddDataPtr) **
-        ((.x9 : Reg) ↦ᵣ eddOutPtr) **
+        ((.x8 : Reg) ↦ᵣ dp) **
+        ((.x9 : Reg) ↦ᵣ op) **
         ((.x0 : Reg) ↦ᵣ (0 : Word)) **
         (nsp ↦ₘ ret) **
         ((nsp + 8) ↦ₘ v8) **
         ((nsp + 16) ↦ₘ v9) **
-        bytesRegion eddDataPtr b0 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 32) b32 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 64) b64 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 96) b96 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 128) b128 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 160) b160 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 256) b256 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 320) b320 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 384) b384 **
-        bytesRegion (eddDataPtr + BitVec.ofNat 64 512) b512)) h := by
+        bytesRegion dp b0 **
+        bytesRegion (dp + BitVec.ofNat 64 32) b32 **
+        bytesRegion (dp + BitVec.ofNat 64 64) b64 **
+        bytesRegion (dp + BitVec.ofNat 64 96) b96 **
+        bytesRegion (dp + BitVec.ofNat 64 128) b128 **
+        bytesRegion (dp + BitVec.ofNat 64 160) b160 **
+        bytesRegion (dp + BitVec.ofNat 64 256) b256 **
+        bytesRegion (dp + BitVec.ofNat 64 320) b320 **
+        bytesRegion (dp + BitVec.ofNat 64 384) b384 **
+        bytesRegion (dp + BitVec.ofNat 64 512) b512)) h := by
       xperm_hyp hp
     have hp1 := sepConj_mono_left edd_owns_split h hp0
     xperm_hyp hp1

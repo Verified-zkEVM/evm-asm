@@ -137,6 +137,20 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13070 COMPLETE — arena-parametric edd contract, 2026-08-31)
+
+- ✅ **Step 1 landed**: the whole edd proof layer (5 combinators, 25
+  instantiation lemmas, 11 arm theorems, the unified contract) is now
+  parametric over the arenas — `eddDataArenaOk dp` / `eddOutArenaOk op`
+  / `eddArenasDisjoint dp op` replace the probe constants; parametric
+  `eddP_src_wf`/`eddP_out_wf`/`eddP_mcStatic`/`eddP_memcpy_callsite`
+  replace the #12805 concrete discharges.  The deployed instance is
+  `extractDepositData_probe_spec` (arena facts by `decide`+omega at
+  the concrete addresses).  Remarkable: the blanket
+  constants→parameters sweep (357 substitutions) compiled with ZERO
+  errors — none of the proofs exploited concreteness outside the
+  discharge lemmas.  Row gate updated; #13070 closed.
+
 ### Recent (#13070 step 2 — the unified edd contract, 2026-08-30)
 
 - ✅ **`extractDepositData_spec`**
