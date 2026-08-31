@@ -21,6 +21,7 @@
 import EvmAsm.Codegen.Emit
 import EvmAsm.Codegen.Layout
 import EvmAsm.Codegen.Programs.Registry
+import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Driver
 import EvmAsm.Codegen.Tests.Cases
 
