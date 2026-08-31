@@ -223,9 +223,9 @@ theorem legacyKssInputSource_prefix_region_of_input_layout
       calc
         legacyPrefixOutPtr.toNat = (base + hdrLen).toNat := by rw [heq]
         _ = base.toNat + hdrLen.toNat := hbase_word
-    have hout : legacyPrefixOutPtr.toNat = 0xa3a2bf00 := by
+    have hout : legacyPrefixOutPtr.toNat = GuestAddrs.t155_buf := by
       simp [legacyPrefixOutPtr, GuestAddrs.t155_buf]
-    rw [hout] at hp
+    simp only [hout, GuestAddrs.t155_buf] at hp
     simp only [EvmAsm.Codegen.INPUT_MEM_END] at hbase_sum_hi
     omega
   · simp [legacyPrefixOutPtr, GuestAddrs.t155_buf, byteOffset]
