@@ -95,6 +95,20 @@ theorem legacyNthUint_disjoint : legacyNthCode.Disjoint legacyUintCode := by
   · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length,
       EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
 
+theorem legacyNthPrefix_disjoint : legacyNthCode.Disjoint legacyPrefixCode := by
+  unfold legacyNthCode legacyPrefixCode EvmAsm.Codegen.RlpListNthItemSAsm.code
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+  · decide
+  · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+
+theorem legacyUintPrefix_disjoint : legacyUintCode.Disjoint legacyPrefixCode := by
+  unfold legacyUintCode legacyPrefixCode EvmAsm.Codegen.RlpEncodeUintBeSAsm.reubCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
+  · decide
+  · rw [EvmAsm.Codegen.RlpEncodeUintBeSAsm.reub_prog_length]; decide
+
 theorem legacyPrefix_disjoint : legacyCode.Disjoint legacyPrefixCode := by
   unfold legacyCode legacyPrefixCode
   apply CodeReq.Disjoint.ofProg_ranges
@@ -133,6 +147,26 @@ theorem legacyUint_mono : ∀ a i, legacyUintCode a = some i → legacyFullCode 
     (legacyUintCode.union (legacyPrefixCode.union legacyKssCode)))) a = some i
   exact CodeReq.union_skip hlegacy
     (CodeReq.union_skip hnth (CodeReq.union_hit hi))
+
+theorem legacyPrefix_mono : ∀ a i, legacyPrefixCode a = some i → legacyFullCode a = some i := by
+  intro a i hi
+  have hlegacy : legacyCode a = none := by
+    cases legacyPrefix_disjoint a with
+    | inl h => exact h
+    | inr h => rw [h] at hi; cases hi
+  have hnth : legacyNthCode a = none := by
+    cases legacyNthPrefix_disjoint a with
+    | inl h => exact h
+    | inr h => rw [h] at hi; cases hi
+  have huint : legacyUintCode a = none := by
+    cases legacyUintPrefix_disjoint a with
+    | inl h => exact h
+    | inr h => rw [h] at hi; cases hi
+  change (legacyCode.union (legacyNthCode.union
+    (legacyUintCode.union (legacyPrefixCode.union legacyKssCode)))) a = some i
+  exact CodeReq.union_skip hlegacy
+    (CodeReq.union_skip hnth
+      (CodeReq.union_skip huint (CodeReq.union_hit hi)))
 
 abbrev legacyNthJalPC : Word := legacyH + BitVec.ofNat 64 120
 abbrev legacyNthOffPtr : Word := BitVec.ofNat 64 GuestAddrs.t155_offset_hi
