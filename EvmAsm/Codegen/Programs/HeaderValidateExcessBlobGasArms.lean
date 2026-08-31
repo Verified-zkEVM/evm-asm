@@ -154,7 +154,6 @@ set_option maxRecDepth 8000 in
     routine returns status 1 — for ANY `a3`. -/
 theorem header_validate_excess_blob_gas_overflow_spec_within
     (sp0 ret a0 a1 a2 a3 : Word) (vals : Reg → Word)
-    (hret : vals .x1 = ret)
     (halign : (ret &&& ~~~(1 : Word)) = ret)
     (hwrap : BitVec.ult (a2 + a1) a2 = true) :
     cpsTripleWithin 25 ExcessK ret k70Cr
@@ -198,7 +197,7 @@ theorem header_validate_excess_blob_gas_overflow_spec_within
     (by intro a i h; exact h)
     (by
       refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hmidF
-      · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hp ⊢
+      · simp [excessFrame, regsAt, excessFrameVals] at hp ⊢
         simp only [sepConj_emp_right'] at hp ⊢
         xperm_hyp hp
       · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hq ⊢
@@ -398,7 +397,6 @@ set_option maxRecDepth 8000 in
     shape** — for ANY `a3`. -/
 theorem header_validate_excess_blob_gas_under_target_spec_within
     (sp0 ret a0 a1 a2 a3 : Word) (vals : Reg → Word)
-    (hret : vals .x1 = ret)
     (halign : (ret &&& ~~~(1 : Word)) = ret)
     (hnowrap : ¬ BitVec.ult (a2 + a1) a2 = true)
     (hunder : BitVec.ult (a2 + a1) k70Target = true) :
@@ -454,7 +452,7 @@ theorem header_validate_excess_blob_gas_under_target_spec_within
       (by intro a i h; exact h)
       (by
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hmidF
-        · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hp ⊢
+        · simp [excessFrame, regsAt, excessFrameVals] at hp ⊢
           simp only [sepConj_emp_right'] at hp ⊢
           xperm_hyp hp
         · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hq ⊢
@@ -733,7 +731,6 @@ set_option maxRecDepth 8000 in
     shape** — for ANY `a3`. -/
 theorem header_validate_excess_blob_gas_boundary_spec_within
     (sp0 ret a0 a1 a2 a3 : Word) (vals : Reg → Word)
-    (hret : vals .x1 = ret)
     (halign : (ret &&& ~~~(1 : Word)) = ret)
     (hnowrap : ¬ BitVec.ult (a2 + a1) a2 = true)
     (hnotunder : ¬ BitVec.ult (a2 + a1) k70Target = true)
@@ -790,7 +787,7 @@ theorem header_validate_excess_blob_gas_boundary_spec_within
       (by intro a i h; exact h)
       (by
         refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hmidF
-        · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hp ⊢
+        · simp [excessFrame, regsAt, excessFrameVals] at hp ⊢
           simp only [sepConj_emp_right'] at hp ⊢
           xperm_hyp hp
         · simp [excessFrame, regsAt, excessFrameVals, k70ArmVals] at hq ⊢
