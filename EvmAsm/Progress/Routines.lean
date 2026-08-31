@@ -319,7 +319,7 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpec
 -- entry remains unrowed while its input-layout bridge is supplied by the
 -- production caller; these two named lemmas are still axiom-gate witnessed
 -- because they carry the static-source separation argument.
-import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailCompose
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailLayout
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
