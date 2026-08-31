@@ -271,7 +271,10 @@ theorem legacyChainThenPrefixTerminator_split_spec
     regions and ABI/frame resources in one explicit frame while converting
     the three concrete descriptor registers to the ownership required by
     `kssCallerPre`.  This is only a representation bridge: it introduces no
-    additional machine precondition. -/
+    additional machine precondition.  These are internal decomposition
+    adapters, not a caller-facing source contract: their payload equation is
+    the whole-input relation supplied by the top-level `KssInputSourceSpec`
+    path below. -/
 
 abbrev legacyKssSegs (prefixBytes payloadBytes suffixBytes : List (BitVec 8))
     (inPtr hdrLen : Word) : List KssSeg :=
@@ -339,7 +342,7 @@ theorem legacyKss_open_regs_28_31
 theorem legacyKssDescriptorPost_to_callPre
     (prefixLen inPtr hdrLen payloadLen outputBase suffixLen : Word)
     (sp0 newSp vOld v5 v6 v9 v18 v22 : Word)
-    (prefixBytes payloadBytes suffixBytes os : List (BitVec 8))
+    (prefixBytes payloadBytes suffixBytes input os : List (BitVec 8))
     (A R : Assertion)
     (source : KssSource := kssDefaultSource)
     (hprefixLen : BitVec.ofNat 64 prefixBytes.length = prefixLen)
@@ -348,7 +351,7 @@ theorem legacyKssDescriptorPost_to_callPre
     (hsourcePrefix : source.region legacyPrefixOutPtr prefixBytes =
       bytesRegion legacyPrefixOutPtr prefixBytes)
     (hsourcePayload : source.region (inPtr + hdrLen) payloadBytes =
-      bytesRegion (inPtr + hdrLen) payloadBytes)
+      bytesRegion inPtr input)
     (hsourceSuffix : source.region legacySuffixOutPtr suffixBytes =
       bytesRegion legacySuffixOutPtr suffixBytes) :
     ∀ h,
@@ -403,7 +406,7 @@ theorem legacyKssDescriptorPost_to_callPre
       regOwn .x17 ** bytesRegion KssZk3 os **
       bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
       bytesRegion legacyPrefixOutPtr prefixBytes **
-      bytesRegion (inPtr + hdrLen) payloadBytes **
+      bytesRegion inPtr input **
       bytesRegion legacySuffixOutPtr suffixBytes ** R
   have hpre :
       (((.x28 : Reg) ↦ᵣ BitVec.ofNat 64 0) **
@@ -432,7 +435,7 @@ theorem legacyKssDescriptorPost_to_callPre
         bytesRegion KssZk3 os **
         bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
         bytesRegion legacyPrefixOutPtr prefixBytes **
-        bytesRegion (inPtr + hdrLen) payloadBytes **
+        bytesRegion inPtr input **
         bytesRegion legacySuffixOutPtr suffixBytes ** R) h := by
       xcancel_struct hp0
   have hpre' :
@@ -561,7 +564,7 @@ theorem legacyDescriptorThenKssSuccess_spec
     (prefixLen inPtr hdrLen payloadLen outputBase suffixLen : Word)
     (vOld sp0 v5 v6 v9 v18 v22 : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (prefixBytes payloadBytes suffixBytes os : List (BitVec 8))
+    (prefixBytes payloadBytes suffixBytes input os : List (BitVec 8))
     (A R : Assertion) (hA : A.pcFree) (hR : R.pcFree)
     (hprefixLen : BitVec.ofNat 64 prefixBytes.length = prefixLen)
     (hpayloadLen : BitVec.ofNat 64 payloadBytes.length = payloadLen)
@@ -577,7 +580,7 @@ theorem legacyDescriptorThenKssSuccess_spec
     (hsourcePrefix : source.region legacyPrefixOutPtr prefixBytes =
       bytesRegion legacyPrefixOutPtr prefixBytes)
     (hsourcePayload : source.region (inPtr + hdrLen) payloadBytes =
-      bytesRegion (inPtr + hdrLen) payloadBytes)
+      bytesRegion inPtr input)
     (hsourceSuffix : source.region legacySuffixOutPtr suffixBytes =
       bytesRegion legacySuffixOutPtr suffixBytes) :
     let segs := legacyKssSegs prefixBytes payloadBytes suffixBytes inPtr hdrLen
@@ -628,7 +631,7 @@ theorem legacyDescriptorThenKssSuccess_spec
     exact cpsTripleWithin_weaken (fun _ hp => hp)
       (fun h hq => by
         exact legacyKssDescriptorPost_to_callPre prefixLen inPtr hdrLen payloadLen outputBase
-          suffixLen sp0 newSp vOld v5 v6 v9 v18 v22 prefixBytes payloadBytes suffixBytes os
+          suffixLen sp0 newSp vOld v5 v6 v9 v18 v22 prefixBytes payloadBytes suffixBytes input os
           A R source hprefixLen hpayloadLen hsuffixLen hsourcePrefix hsourcePayload hsourceSuffix
           h hq)
       hdesc
@@ -786,9 +789,9 @@ theorem legacyBodyArithmeticThenChain_spec
 /-! ## The K146 chain boundary and the linked KSS tail
 
     These small data definitions keep the descriptor composition at the same
-    names as the emitted chain state.  The source transaction payload remains
-    a separate caller-owned region; only the generated prefix/suffix regions
-    are fed to the segment source. -/
+    names as the emitted chain state.  KSS's payload segment is backed by the
+    whole caller-owned input through `KssInputSourceSpec`; the generated
+    prefix/suffix regions remain separate source views. -/
 
 def legacyKssBodyChainLen (chainId : Word) : Word :=
   BitVec.ofNat 64 (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length
@@ -826,9 +829,9 @@ def legacyKssBodyProducedResidual
     (legacyLinkedNthLenPtr ↦ₘ lenVal)
 
 def legacyKssBodyExtra
-    (inPtr hdrLen outputBase sp0 v9 : Word)
+    (inPtr outputBase sp0 v9 : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (payloadBytes os : List (BitVec 8))
+    (input os : List (BitVec 8))
     (A R : Assertion) : Assertion :=
   ((.x8 : Reg) ↦ᵣ inPtr) ** ((.x19 : Reg) ↦ᵣ outputBase) **
     (legacyKssSegsBase ↦ₘ old0) **
@@ -842,17 +845,19 @@ def legacyKssBodyExtra
     regOwn .x13 ** regOwn .x14 ** regOwn .x15 ** regOwn .x16 **
     regOwn .x17 ** bytesRegion KssZk3 os **
     bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) **
-    bytesRegion (inPtr + hdrLen) payloadBytes ** A ** R
+    bytesRegion inPtr input ** A ** R
 
 /-! The descriptor setup and KSS call are now consumed by the actual H+340
     chain state.  No fresh callee premise is introduced: the only KSS facts
     are the existing segment geometry/source facts, and the produced chain
-    buffers/table cells are retained in the residual. -/
+    buffers/table cells are retained in the residual.  This lower-level
+    adapter remains source-parametric for internal decomposition; no external
+    custom caller is present in the current tree. -/
 
 theorem legacyChainDescriptorThenKssSuccess_spec
     (chainId payloadBase inPtr hdrLen outputBase sp0 v9 : Word)
     (offVal lenVal old0 old1 old2 old3 old4 old5 : Word)
-    (payloadBytes os : List (BitVec 8))
+    (payloadBytes input os : List (BitVec 8))
     (A R : Assertion) (hA : A.pcFree) (hR : R.pcFree)
     (hpayloadLen : BitVec.ofNat 64 payloadBytes.length = payloadBase)
     (hos : os.length = 200)
@@ -868,7 +873,7 @@ theorem legacyChainDescriptorThenKssSuccess_spec
         (legacyKssBodyPrefixBytes chainId payloadBase) =
       bytesRegion legacyPrefixOutPtr (legacyKssBodyPrefixBytes chainId payloadBase))
     (hsourcePayload : source.region (inPtr + hdrLen) payloadBytes =
-      bytesRegion (inPtr + hdrLen) payloadBytes)
+      bytesRegion inPtr input)
     (hsourceSuffix : source.region legacySuffixOutPtr
         (legacyKssBodySuffixBytes chainId) =
       bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes chainId)) :
@@ -896,8 +901,8 @@ theorem legacyChainDescriptorThenKssSuccess_spec
         bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes chainId) **
         ((.x20 : Reg) ↦ᵣ hdrLen) **
         legacyKssBodyProducedResidual chainId payloadBase offVal lenVal **
-        legacyKssBodyExtra inPtr hdrLen outputBase sp0 v9
-          old0 old1 old2 old3 old4 old5 payloadBytes os A R)
+        legacyKssBodyExtra inPtr outputBase sp0 v9
+          old0 old1 old2 old3 old4 old5 input os A R)
       (((.x1 : Reg) ↦ᵣ (legacyKssJalPC + 4)) **
         legacyKssCallPost
           sp0 (sp0 + signExtend12 ((-64 : BitVec 12)))
@@ -950,7 +955,7 @@ theorem legacyChainDescriptorThenKssSuccess_spec
     v9 chainId (legacyKssBodyPayloadEnd chainId payloadBase)
     old0 old1 old2 old3 old4 old5
     (legacyKssBodyPrefixBytes chainId payloadBase) payloadBytes
-    (legacyKssBodySuffixBytes chainId) os A Rdesc hA hRdesc
+    (legacyKssBodySuffixBytes chainId) input os A Rdesc hA hRdesc
     hprefixLen hpayloadLen hsuffixLen hos hcount' hsegs'
     source hsourcePrefix hsourcePayload hsourceSuffix
   exact cpsTripleWithin_weaken
@@ -975,7 +980,7 @@ def legacyKssBodyInitial
     (v1 v5 v6 v7 v10 v11 v12 chainId v28 v29 v30 v31 v21 : Word)
     (offVal lenVal hdrLen cellOld inPtr outputBase sp0 v9 : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (payloadBytes os : List (BitVec 8)) (A R : Assertion) : Assertion :=
+    (input os : List (BitVec 8)) (A R : Assertion) : Assertion :=
   ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
     ((.x20 : Reg) ↦ᵣ hdrLen) ** ((.x21 : Reg) ↦ᵣ v21) **
     (legacyLinkedNthOffPtr ↦ₘ offVal) ** (legacyLinkedNthLenPtr ↦ₘ lenVal) **
@@ -992,8 +997,8 @@ def legacyKssBodyInitial
       (List.replicate (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length 0) **
     regOwn .x22 **
     legacyTailExtension (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length **
-    legacyKssBodyExtra inPtr hdrLen outputBase sp0 v9
-      old0 old1 old2 old3 old4 old5 payloadBytes os A R
+    legacyKssBodyExtra inPtr outputBase sp0 v9
+      old0 old1 old2 old3 old4 old5 input os A R
 
 def legacyKssBodyFinal
     (chainId payloadBase inPtr hdrLen outputBase sp0 v9 offVal lenVal : Word)
@@ -1011,13 +1016,16 @@ def legacyKssBodyFinal
 
 /-! Full-body composition from the linked arithmetic entry through KSS and the
     success reconvergence.  This is a composition of the already deployed
-    segment adapters; it introduces no fresh callee contract premise. -/
+    segment adapters; it introduces no fresh callee contract premise.  The
+    source is bundled with the caller-owned input-region proof, so the
+    payload owner is supplied by the caller rather than assumed as a second
+    subregion. -/
 
 theorem legacyBodyThenKssSuccess_spec
     (v1 v5 v6 v7 v10 v11 v12 chainId v28 v29 v30 v31 v21 : Word)
     (offVal lenVal hdrLen cellOld inPtr outputBase sp0 v9 : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
-    (payloadBytes os : List (BitVec 8)) (A R : Assertion)
+    (input payloadBytes os : List (BitVec 8)) (A R : Assertion)
     (hA : A.pcFree) (hR : R.pcFree)
     (halign : legacyLinkedChainPtr.toNat % 8 = 0)
     (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
@@ -1040,14 +1048,12 @@ theorem legacyBodyThenKssSuccess_spec
           (∀ i, i < s.2.length →
             s.1.toNat + i < 2 ^ 64 ∧
             isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
-    (source : KssSource := kssDefaultSource)
-    (hsourcePrefix : source.region legacyPrefixOutPtr
+    (sourceSpec : KssInputSourceSpec inPtr hdrLen input payloadBytes)
+    (hsourcePrefix : sourceSpec.source.region legacyPrefixOutPtr
         (legacyKssBodyPrefixBytes chainId ((offVal + lenVal) - hdrLen)) =
       bytesRegion legacyPrefixOutPtr
         (legacyKssBodyPrefixBytes chainId ((offVal + lenVal) - hdrLen)))
-    (hsourcePayload : source.region (inPtr + hdrLen) payloadBytes =
-      bytesRegion (inPtr + hdrLen) payloadBytes)
-    (hsourceSuffix : source.region legacySuffixOutPtr
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
         (legacyKssBodySuffixBytes chainId) =
       bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes chainId)) :
     let n :=
@@ -1065,14 +1071,14 @@ theorem legacyBodyThenKssSuccess_spec
       (legacyH + 128) legacyBodyExit legacyFullCode
       (legacyKssBodyInitial v1 v5 v6 v7 v10 v11 v12 chainId v28 v29 v30 v31 v21
         offVal lenVal hdrLen cellOld inPtr outputBase sp0 v9
-        old0 old1 old2 old3 old4 old5 payloadBytes os A R)
+        old0 old1 old2 old3 old4 old5 input os A R)
       (legacyKssBodyFinal chainId ((offVal + lenVal) - hdrLen)
-        inPtr hdrLen outputBase sp0 v9 offVal lenVal payloadBytes A R source) := by
+        inPtr hdrLen outputBase sp0 v9 offVal lenVal payloadBytes A R sourceSpec.source) := by
   intro n uintFuel prefixFuel
   let payloadBase : Word := (offVal + lenVal) - hdrLen
   let Fbody : Assertion :=
-    legacyKssBodyExtra inPtr hdrLen outputBase sp0 v9
-      old0 old1 old2 old3 old4 old5 payloadBytes os A R
+    legacyKssBodyExtra inPtr outputBase sp0 v9
+      old0 old1 old2 old3 old4 old5 input os A R
   have hFbody : Fbody.pcFree := by
     unfold Fbody legacyKssBodyExtra
     pcf
@@ -1095,8 +1101,9 @@ theorem legacyBodyThenKssSuccess_spec
     offVal lenVal hdrLen cellOld Fbody hFbody halign hover hvalid hbound h_out_valid
   have htail := legacyChainDescriptorThenKssSuccess_spec
     chainId payloadBase inPtr hdrLen outputBase sp0 v9 offVal lenVal
-    old0 old1 old2 old3 old4 old5 payloadBytes os A R hA hR
-    hpayloadLen' hos hcount' hsegs' source hsourcePrefix hsourcePayload hsourceSuffix
+    old0 old1 old2 old3 old4 old5 payloadBytes input os A R hA hR
+    hpayloadLen' hos hcount' hsegs' sourceSpec.source hsourcePrefix
+    sourceSpec.input_region hsourceSuffix
   have hseq := cpsTripleWithin_seq_perm_same_cr
     (fun _ hp => by
       simp only [legacyKssBodySuffixLen, legacyKssBodyChainLen,
@@ -1241,6 +1248,7 @@ private def bodySatOutputBase : Word := BitVec.ofNat 64 0x50000000
 private def bodySatSp0 : Word := BitVec.ofNat 64 0x60000100
 private def bodySatV9 : Word := BitVec.ofNat 64 0
 private def bodySatPayload : List (BitVec 8) := [0]
+private def bodySatInput : List (BitVec 8) := List.replicate 8 0 ++ bodySatPayload
 private def bodySatOs : List (BitVec 8) := List.replicate 200 0
 private def bodySatFrameBase : Word :=
   bodySatSp0 + signExtend12 ((-64 : BitVec 12))
@@ -1331,7 +1339,8 @@ private def bodySatAtoms : List BodySatAtom :=
   , .mem (bodySatOutputAddr 1) (0 : Word) (by decide)
   , .mem (bodySatOutputAddr 2) (0 : Word) (by decide)
   , .mem (bodySatOutputAddr 3) (0 : Word) (by decide)
-  , .mem (bodySatInPtr + bodySatHdrLen) (0 : Word) (by decide)
+  , .mem bodySatInPtr (0 : Word) (by decide)
+  , .mem (bodySatInPtr + 8) (0 : Word) (by decide)
   ]
 
 private theorem bodySatAtoms_resource_pairwise :
@@ -1373,13 +1382,13 @@ theorem legacyKssBodyInitial_pre_inhabited :
         bodySatOff bodySatLen bodySatHdrLen (0 : Word)
         bodySatInPtr bodySatOutputBase bodySatSp0 bodySatV9
         (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
-        bodySatPayload bodySatOs empAssertion empAssertion h := by
+        bodySatInput bodySatOs empAssertion empAssertion h := by
   refine ⟨bodySatHeapFold, ?_⟩
   have hsat := bodySat_hsat
   simp [legacyKssBodyInitial, legacyKssBodyExtra, bodySatAtoms,
     bodySatAtomAssertion, bodySatAtomHeap, bodySatHeapFold,
     bodySatChainId, bodySatOff, bodySatLen, bodySatHdrLen, bodySatInPtr,
-    bodySatOutputBase, bodySatSp0, bodySatV9, bodySatPayload, bodySatOs,
+    bodySatOutputBase, bodySatSp0, bodySatV9, bodySatInput, bodySatPayload, bodySatOs,
     bodySatKssAddr, bodySatOutputAddr,
     bodySatFrameBase, legacyChainEncOld, bytesRegion, bytesRegionAux,
     packBytes, getByteAt, packDword, chainBytes,
