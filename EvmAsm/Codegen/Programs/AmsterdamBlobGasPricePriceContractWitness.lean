@@ -15,6 +15,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceDivisionBridge
 import EvmAsm.Rv64.MemSat
 
 set_option maxRecDepth 8000
+set_option linter.unusedSimpArgs false
 
 /-!
   Constructive satisfiability witness for `priceContract` (#12346, K70 seam):
@@ -1068,9 +1069,190 @@ private theorem tailStatus1_excess0_absurd (FR : Assertion) :
   obtain ⟨h3, h4, hd1, hu1, hx5x0, hpure⟩ := hlead
   exact (hpure.2 (by decide : q4q5 = (0 : Word))).elim
 
-#print axioms taylor_round_excess0_qback_owned
-#print axioms price_setup_spec_owned
-#print axioms roundQBACKPost_to_parity1
-#print axioms taylor_round_quotient_excess0
+/-- `or_chainP2` instantiated at parity 1 (acc = `[0×6]`, so `x5 = 0` after the
+    chain) with the seven scratch registers owned.  The post first weakens the
+    untouched scratch registers `x7, x28..x31` to ownership (a constant post),
+    then the seven `regIs` are lifted to `regOwn` one at a time, matching the
+    round-lift pattern. -/
+private theorem or_chainP2_owned (FR0 : Assertion) (hFR0 : FR0.pcFree) :
+    cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode (orPre FR0) (orPost FR0) := by
+  have hor6 : (0 : Word) ||| (0 : Word) ||| (0 : Word) ||| (0 : Word) ||| (0 : Word) ||| (0 : Word) ||| (0 : Word) = (0 : Word) := by decide
+  have hpostweak : ∀ (v7 v28 v29 v30 v31 : Word) h,
+      (loopFrame ** ((.x0 ↦ᵣ (0 : Word)) ** ((.x5 ↦ᵣ (0 : Word)) ** ((.x6 ↦ᵣ (0 : Word)) **
+        ((.x7 ↦ᵣ v7) ** ((.x28 ↦ᵣ v28) ** ((.x29 ↦ᵣ v29) ** ((.x30 ↦ᵣ v30) ** ((.x31 ↦ᵣ v31) ** orMem FR0))))))))) h →
+      orPost FR0 h := by
+    intro v7 v28 v29 v30 v31 h hp
+    have w1 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+      (sepConj_mono (regIs_to_regOwn .x7 v7) (sepConj_mono (regIs_to_regOwn .x28 v28) (sepConj_mono (regIs_to_regOwn .x29 v29) (sepConj_mono (regIs_to_regOwn .x30 v30) (sepConj_mono_left (regIs_to_regOwn .x31 v31))))))))) h hp
+    xperm_hyp w1
+  have h0 : cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+      (loopFrame ** ((.x0 ↦ᵣ (0 : Word)) ** ((.x5 ↦ᵣ (0 : Word)) **
+          ((.x6 ↦ᵣ (0 : Word)) ** ((.x7 ↦ᵣ (0 : Word)) ** ((.x28 ↦ᵣ (0 : Word)) **
+            ((.x29 ↦ᵣ (0 : Word)) ** ((.x30 ↦ᵣ (0 : Word)) ** ((.x31 ↦ᵣ (0 : Word)) ** orMem FR0)))))))))
+      (orPost FR0) := by
+    refine cpsTripleWithin_weaken ?_ ?_ (or_chainP2
+      sampleNewSp (0 : Word) sampleOutPtr (2 : Word) sampleStackB sampleStackA sampleSaved
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      taylorDW (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      taylorDW (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      FR0 hFR0)
+    · intro h hx
+      unfold loopFrame orMem loopCells at hx
+      simp only [cellsOf_six, signExtend12_0, signExtend12_8, signExtend12_16,
+        signExtend12_24, signExtend12_32, signExtend12_40,
+        EvmAsm.Rv64.AddrNorm.word_add_zero] at hx ⊢
+      xperm_hyp hx
+    · intro h hq
+      rw [hor6] at hq
+      have hq' : (loopFrame ** ((.x0 ↦ᵣ (0 : Word)) ** ((.x5 ↦ᵣ (0 : Word)) ** ((.x6 ↦ᵣ (0 : Word)) **
+          ((.x7 ↦ᵣ (0 : Word)) ** ((.x28 ↦ᵣ (0 : Word)) ** ((.x29 ↦ᵣ (0 : Word)) ** ((.x30 ↦ᵣ (0 : Word)) ** ((.x31 ↦ᵣ (0 : Word)) ** orMem FR0))))))))) h := by
+        simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
+          signExtend12_32, signExtend12_40, EvmAsm.Rv64.AddrNorm.word_add_zero,
+          loopFrame, orMem, loopCells, cellsOf_six] at hq ⊢
+        xperm_hyp hq
+      exact hpostweak (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) h hq'
+  have hW : ∀ (v5 v6 v7 v28 v29 v30 v31 : Word),
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** ((.x0 ↦ᵣ (0 : Word)) ** ((.x5 ↦ᵣ v5) **
+            ((.x6 ↦ᵣ v6) ** ((.x7 ↦ᵣ v7) ** ((.x28 ↦ᵣ v28) **
+              ((.x29 ↦ᵣ v29) ** ((.x30 ↦ᵣ v30) ** ((.x31 ↦ᵣ v31) ** orMem FR0)))))))))
+        (orPost FR0) := by
+    intro v5 v6 v7 v28 v29 v30 v31
+    refine cpsTripleWithin_weaken ?_ ?_ (or_chainP2
+      sampleNewSp (0 : Word) sampleOutPtr (2 : Word) sampleStackB sampleStackA sampleSaved
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      taylorDW (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      taylorDW (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      v5 v6 v7 v28 v29 v30 v31
+      FR0 hFR0)
+    · intro h hx
+      unfold loopFrame orMem loopCells at hx
+      simp only [cellsOf_six, signExtend12_0, signExtend12_8, signExtend12_16,
+        signExtend12_24, signExtend12_32, signExtend12_40,
+        EvmAsm.Rv64.AddrNorm.word_add_zero] at hx ⊢
+      xperm_hyp hx
+    · intro h hq
+      rw [hor6] at hq
+      have hq' : (loopFrame ** ((.x0 ↦ᵣ (0 : Word)) ** ((.x5 ↦ᵣ (0 : Word)) ** ((.x6 ↦ᵣ (0 : Word)) **
+          ((.x7 ↦ᵣ v7) ** ((.x28 ↦ᵣ v28) ** ((.x29 ↦ᵣ v29) ** ((.x30 ↦ᵣ v30) ** ((.x31 ↦ᵣ v31) ** orMem FR0))))))))) h := by
+        simp only [signExtend12_0, signExtend12_8, signExtend12_16, signExtend12_24,
+          signExtend12_32, signExtend12_40, EvmAsm.Rv64.AddrNorm.word_add_zero,
+          loopFrame, orMem, loopCells, cellsOf_six] at hq ⊢
+        xperm_hyp hq
+      exact hpostweak v7 v28 v29 v30 v31 h hq'
+  have hL5 : ∀ v6 v7 v28 v29 v30 v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps1 v6 v7 v28 v29 v30 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v6 v7 v28 v29 v30 v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo5 v6 v7 v28 v29 v30 v31 ** orMem FR0))
+      (r := .x5)
+      (h := ?_))
+    · intro h hx
+      simp only [temps1, tempsNo5] at hx ⊢
+      xperm_hyp hx
+    · intro v5
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hW v5 v6 v7 v28 v29 v30 v31)
+      intro h hx
+      simp only [loopFrame, tempsNo5, orMem] at hx ⊢
+      xperm_hyp hx
+  have hL6 : ∀ v7 v28 v29 v30 v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps2 v7 v28 v29 v30 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v7 v28 v29 v30 v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo6 v7 v28 v29 v30 v31 ** orMem FR0))
+      (r := .x6)
+      (h := ?_))
+    · intro h hx
+      simp only [temps2, tempsNo6] at hx ⊢
+      xperm_hyp hx
+    · intro v6
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL5 v6 v7 v28 v29 v30 v31)
+      intro h hx
+      simp only [temps1, tempsNo6] at hx ⊢
+      xperm_hyp hx
+  have hL7 : ∀ v28 v29 v30 v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps3 v28 v29 v30 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v28 v29 v30 v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo7 v28 v29 v30 v31 ** orMem FR0))
+      (r := .x7)
+      (h := ?_))
+    · intro h hx
+      simp only [temps3, tempsNo7] at hx ⊢
+      xperm_hyp hx
+    · intro v7
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL6 v7 v28 v29 v30 v31)
+      intro h hx
+      simp only [temps2, tempsNo7] at hx ⊢
+      xperm_hyp hx
+  have hL28 : ∀ v29 v30 v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps4 v29 v30 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v29 v30 v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo28 v29 v30 v31 ** orMem FR0))
+      (r := .x28)
+      (h := ?_))
+    · intro h hx
+      simp only [temps4, tempsNo28] at hx ⊢
+      xperm_hyp hx
+    · intro v28
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL7 v28 v29 v30 v31)
+      intro h hx
+      simp only [temps3, tempsNo28] at hx ⊢
+      xperm_hyp hx
+  have hL29 : ∀ v30 v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps5 v30 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v30 v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo29 v30 v31 ** orMem FR0))
+      (r := .x29)
+      (h := ?_))
+    · intro h hx
+      simp only [temps5, tempsNo29] at hx ⊢
+      xperm_hyp hx
+    · intro v29
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL28 v29 v30 v31)
+      intro h hx
+      simp only [temps4, tempsNo29] at hx ⊢
+      xperm_hyp hx
+  have hL30 : ∀ v31 : Word,
+      cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+        (loopFrame ** (temps6 v31 ** orMem FR0)) (orPost FR0) := by
+    intro v31
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo30 v31 ** orMem FR0))
+      (r := .x30)
+      (h := ?_))
+    · intro h hx
+      simp only [temps6, tempsNo30] at hx ⊢
+      xperm_hyp hx
+    · intro v30
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL29 v30 v31)
+      intro h hx
+      simp only [temps5, tempsNo30] at hx ⊢
+      xperm_hyp hx
+  have hL31 : cpsTripleWithin 13 (PriceK + 144) (PriceK + 196) priceCode
+      (loopFrame ** (temps7 ** orMem FR0)) (orPost FR0) := by
+    refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (cpsTripleWithin_of_forall_regIs_to_regOwn
+      (P := loopFrame ** (tempsNo31 ** orMem FR0))
+      (r := .x31)
+      (h := ?_))
+    · intro h hx
+      simp only [temps7, tempsNo31] at hx ⊢
+      xperm_hyp hx
+    · intro v31
+      refine cpsTripleWithin_weaken ?_ (fun _ hq => hq) (hL30 v31)
+      intro h hx
+      simp only [temps6, tempsNo31] at hx ⊢
+      xperm_hyp hx
+  exact cpsTripleWithin_weaken (fun h hx => by simp only [loopFrame, orMem]; xperm_hyp hx)
+    (fun h hx => by simp only [orPost, loopFrame, orMem]; xperm_hyp hx) hL31
+
 
 end EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness
