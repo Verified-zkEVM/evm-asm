@@ -215,7 +215,7 @@ def self_test() -> int:
         # 2. An evidence name that is not declared anywhere is a stale citation.
         if not expect_failure(
             "stale evidence reference",
-            original.replace("taylor_price_entry_inhabited", "deleted_entry_witness", 1),
+            original.replace("taylor_price_contract_excess0_inhabited", "deleted_entry_witness", 1),
         ):
             return 1
 
@@ -239,7 +239,7 @@ def self_test() -> int:
         if not expect_failure(
             "declared-but-unwitnessed evidence",
             original.replace(
-                "taylor_price_entry_inhabited",
+                "taylor_price_contract_excess0_inhabited",
                 "EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec.priceOutputPost_pcFree",
                 1,
             ),
