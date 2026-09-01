@@ -137,6 +137,21 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13161 — regionsweep census to ZERO duplicate pairs, 2026-09-01)
+
+- ✅ Triage of the remaining census: the K73 Route-B pairs had already
+  vanished on current main (upstream restructuring); the six surviving
+  pairs were all real x0 double-pins — `leaf_hp_call_spec_within`,
+  `ext_hp_call_spec_within` (call-site frames re-pinned `(.x0 ↦ᵣ 0)`
+  that `hdnCallEntry` already carries), and
+  `hash_one_sha_residual_discharge` (residual ambient re-pinned x0
+  next to `shaCallEntry`'s).  Since `regIs` is an exact singleton and
+  `**` demands register-disjointness, all three pre/posts were
+  unsatisfiable → vacuous (all three were unconsumed orphans; no rows
+  cited them).  Fix: drop the duplicate atom from the ambient side;
+  every proof closed unchanged.  regionsweep now reports **0 possible
+  duplicate occupancies** across all 57k declarations.
+
 ### Recent (#13158 — last vacuous Div/Mod callable wrapper resolved, 2026-09-01)
 
 - ✅ The regionsweep-flagged `evm_div_callable_v1_spec_from_branch_noNop`
