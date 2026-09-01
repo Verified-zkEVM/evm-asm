@@ -1288,4 +1288,118 @@ theorem tx_signing_hash_specRef_correspondence
         exact Or.inr ⟨v11, v12, hfail⟩
   exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) hq hpost
 
+/-! ### Non-vacuity of the SpecRef correspondence (#12038)
+
+    `tx_signing_hash_specRef_correspondence` carries one named residual,
+    `h_decoder_payload`, on top of the machine triple's own header gate. A
+    theorem with an unsatisfiable premise bundle proves nothing, so the
+    witness below is a **closed positive control**: one concrete EIP-2930
+    transaction that jointly satisfies the residual, the target selector and
+    the surviving `hge`/nonzero-argument gates. The three controls after it
+    show the selector is a real restriction rather than a formality. -/
+
+/-- A non-degenerate EIP-2930 transaction: distinct nonce/gas-price/gas, a
+    real 20-byte `to`, and a nonzero value, so no two encoded fields coincide
+    and no field is dropped by minimal-length scalar encoding. -/
+def tshSpecRefWitnessRec : AccessListTransaction :=
+  { chainId := 1, nonce := 1, gasPrice := 10, gas := 21000,
+    «to» := some (List.replicate 20 (0xDD : BitVec 8)),
+    value := 100, data := [], accessList := [], yParity := 0, r := 1, s := 2 }
+
+def tshSpecRefWitnessTx : Transaction := .accessList tshSpecRefWitnessRec
+
+/-- `encode (txToRlpItem tshSpecRefWitnessTx)` — the 34-byte RLP list the
+    caller hands K145 in `a0` (the type byte travels separately in `a3`, so
+    the first byte here is a LIST header, `0xe1`). -/
+def tshSpecRefWitnessInput : List (BitVec 8) :=
+  [0xe1, 0x01, 0x01, 0x0a, 0x82, 0x52, 0x08, 0x94] ++
+    List.replicate 20 (0xDD : BitVec 8) ++ [0x64, 0x80, 0xc0, 0x80, 0x01, 0x02]
+
+/-- The eight-field signing payload: the interior of `tshSpecRefWitnessInput`
+    truncated after the access list, i.e. `encode (.list (items.take 8))`
+    with its one-byte `0xde` list header removed. -/
+def tshSpecRefWitnessPayload : List (BitVec 8) :=
+  [0x01, 0x01, 0x0a, 0x82, 0x52, 0x08, 0x94] ++
+    List.replicate 20 (0xDD : BitVec 8) ++ [0x64, 0x80, 0xc0]
+
+theorem tshSpecRefWitness_item : txToRlpItem tshSpecRefWitnessTx =
+    .list [.bytes [0x01], .bytes [0x01], .bytes [0x0a], .bytes [0x52, 0x08],
+           .bytes (List.replicate 20 (0xDD : BitVec 8)), .bytes [0x64],
+           .bytes [], .list [], .bytes [], .bytes [0x01], .bytes [0x02]] := by
+  simp [tshSpecRefWitnessTx, tshSpecRefWitnessRec, txToRlpItem, scalarT, toItem,
+    EvmAsm.EL.RLP.Nat.toBytesBE]
+
+theorem tshSpecRefWitness_encode :
+    EvmAsm.EL.RLP.encode (txToRlpItem tshSpecRefWitnessTx) = tshSpecRefWitnessInput := by
+  rw [tshSpecRefWitness_item]; decide
+
+theorem tshSpecRefWitness_items : txSigningHashSpecRefItems tshSpecRefWitnessTx =
+    [.bytes [0x01], .bytes [0x01], .bytes [0x0a], .bytes [0x52, 0x08],
+     .bytes (List.replicate 20 (0xDD : BitVec 8)), .bytes [0x64],
+     .bytes [], .list [], .bytes [], .bytes [0x01], .bytes [0x02]] := by
+  rw [txSigningHashSpecRefItems, tshSpecRefWitness_item]
+
+theorem tshSpecRefWitness_hdrByte (h0 : 0 < tshSpecRefWitnessInput.length) :
+    tshHdrByte tshSpecRefWitnessInput h0 = (0xe1 : Word) := rfl
+
+/-- ⭐ **Positive control.** One closed instance jointly satisfies both
+    conjuncts of `h_decoder_payload`, the `h_target` selector, the machine
+    triple's surviving header gate `hge`, `hhdrLen`, the `hpayload` slice
+    equation, and the nonzero `a2`/`a3` gates — so
+    `tx_signing_hash_specRef_correspondence` is not vacuous, and the digest it
+    exposes really is `SpecRef.signing_hash_2930`. -/
+theorem tsh_specRef_domain_nonvacuous
+    (h0 : 0 < tshSpecRefWitnessInput.length) :
+    ∃ nFields typePrefix hdrLen : Word,
+      ¬BitVec.ult (tshHdrByte tshSpecRefWitnessInput h0) (192 : Word) ∧
+      hdrLen = tshHdrLen tshSpecRefWitnessInput h0 ∧
+      nFields ≠ 0 ∧ typePrefix ≠ 0 ∧
+      (tshSpecRefWitnessInput.drop hdrLen.toNat).take tshSpecRefWitnessPayload.length
+        = tshSpecRefWitnessPayload ∧
+      (EvmAsm.EL.RLP.decodeFully tshSpecRefWitnessInput
+          = some (txToRlpItem tshSpecRefWitnessTx) ∧
+        EvmAsm.EL.RLP.encode
+            (.list ((txSigningHashSpecRefItems tshSpecRefWitnessTx).take nFields.toNat))
+          = rlpListPrefix tshSpecRefWitnessPayload.length ++ tshSpecRefWitnessPayload) ∧
+      txSigningHashSpecRefTarget tshSpecRefWitnessTx nFields typePrefix
+        = some (signing_hash_2930 tshSpecRefWitnessRec) := by
+  have hb := tshSpecRefWitness_hdrByte h0
+  refine ⟨BitVec.ofNat 64 8, 1, 1, ?_, ?_, ?_, ?_, ?_, ⟨?_, ?_⟩, ?_⟩
+  · rw [hb]; decide
+  · show (1 : Word) = tshHdrLenOf (tshHdrByte tshSpecRefWitnessInput h0)
+    rw [hb]; decide
+  · decide
+  · decide
+  · decide
+  · rw [tshSpecRefWitness_item]; decide
+  · rw [tshSpecRefWitness_items]; decide
+  · rfl
+
+/-- **Negative control 1.** The type prefix is load-bearing: at the same
+    field count, prefix `2` (EIP-1559) selects nothing for a 2930 transaction,
+    so `h_target` is provably FALSE there. -/
+theorem tsh_specRef_target_false_on_wrong_prefix :
+    txSigningHashSpecRefTarget tshSpecRefWitnessTx (BitVec.ofNat 64 8) (2 : Word) = none := by
+  simp [txSigningHashSpecRefTarget, tshSpecRefWitnessTx]
+
+/-- **Negative control 2.** The field count is load-bearing in the same way:
+    truncating to nine fields selects nothing for a 2930 transaction. -/
+theorem tsh_specRef_target_false_on_wrong_arity :
+    txSigningHashSpecRefTarget tshSpecRefWitnessTx (BitVec.ofNat 64 9) (1 : Word) = none := by
+  simp [txSigningHashSpecRefTarget, tshSpecRefWitnessTx]
+
+/-- **Negative control 3 — the exclusion, stated rather than implied.**
+    `tx_signing_hash_specRef_correspondence` carries `hnzType : a3 ≠ 0` and
+    `h_typePrefix : typePrefix = a3`, so the `.legacy` arm of the selector is
+    unreachable under its own hypotheses. Hence the correspondence covers
+    exactly FOUR of the six `SpecRef.Transactions.signing_hash_*`
+    (`_2930`, `_1559`, `_4844`, `_7702`) and provably never `signing_hash_pre155`;
+    `signing_hash_155` belongs to K146 `tx_signing_hash_legacy_eip155`, which
+    has no whole-routine triple. -/
+theorem tsh_specRef_pre155_arm_unreachable
+    (t : LegacyTransaction) (nFields typePrefix : Word) (hnz : typePrefix ≠ 0) :
+    txSigningHashSpecRefTarget (.legacy t) nFields typePrefix = none := by
+  simp only [txSigningHashSpecRefTarget, ite_eq_right_iff, and_imp]
+  exact fun _ h => absurd h hnz
+
 end EvmAsm.Codegen.TxSigningHashSpec
