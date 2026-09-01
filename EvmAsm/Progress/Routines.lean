@@ -5163,7 +5163,7 @@ def routineRegistry : List RoutineEntry := [
   -- the comment/gate/notes so the credit stays at ONE alias hit rather than
   -- compounding; the remaining hit is left standing because it is TRUE — the
   -- handler's unconvertibility is exactly why this row exists and why the
-  -- SLOAD opcode row is still `.execSpec`. `docs/transcription-queue.md` is
+  -- SLOAD opcode row is still `.execSpec`. `docs/4ch8f-transcription-queue.md` is
   -- regenerated to match. This row's own gate is the capacity comparison, not
   -- the handler.
   routine "storage_writes_block_latest_value" .conditional
