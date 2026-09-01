@@ -82,7 +82,7 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 33)
+## 2. The queue (top 25 of 34)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -254,7 +254,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-196 unconverted routines have call sites but are named by no obligation,
+195 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -353,12 +353,12 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 58620 B of 211868 B unconverted
+Named-set cost: 58904 B of 211868 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (33 rows)
+## 8. Full named table (34 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
@@ -390,8 +390,9 @@ bytes.
 | 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 29 | `edd_memcpy` | 21 | gate 1; calls 3 | register | 32 |
-| 30 | `edd_be32_eq` | 21 | gate 1; calls 3 | register | 92 |
-| 31 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
-| 32 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 33 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
+| 29 | `call_frame_set_call_env` | 29 | gate 1; calls 7 | label-string | 284 |
+| 30 | `edd_memcpy` | 21 | gate 1; calls 3 | register | 32 |
+| 31 | `edd_be32_eq` | 21 | gate 1; calls 3 | register | 92 |
+| 32 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
+| 33 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 34 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
