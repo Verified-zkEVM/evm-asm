@@ -666,6 +666,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
 
+#print axioms EvmAsm.Codegen.Proofs.callFrameEnterDepth1Flat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
