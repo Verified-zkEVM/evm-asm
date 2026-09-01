@@ -647,13 +647,16 @@ theorem callFrameEnterDepth1Flat_spec
     `7`, the depth-1 epoch slot holding `0`, temps `5`/`6`/`7`, `s0 = 8`,
     `a1`/`a2` entering at `11`/`12`.
 
-    The post is fully concrete and nothing in it is its entry value: `a0` reads
-    back `0xb2386c00` (`evm_memory_pool`) rather than the depth `1` it went in
-    as; `a1` reads back `0xabf8ee00` and `a2` `0xabf9f000` — that is
-    `call_frame_arena + 0x19000 = 0xabf86c00` plus `0x8200` and `0x18400`,
-    the callee's arithmetic composed with this routine's two offsets — rather
-    than `11`/`12`; `t0` reads back `99328`; the next-epoch cell has advanced
-    `7 → 8`; and the depth-1 slot has taken the *old* `7`, not the new `8`. -/
+    The linked addresses stay SYMBOLIC (`check-layout-literals.sh` — a hex
+    literal equal to a layout symbol is exactly what that gate forbids), but
+    everything the routine computes is concrete, and nothing in the post is
+    its entry value: `a0` reads back the pool base rather than the depth `1`
+    it went in as; `a1` and `a2` read back the child frame base plus `0x8200`
+    and `0x18400` — the callee's arithmetic composed with this routine's two
+    offsets — rather than `11`/`12`; `t0` reads back `99328`; the next-epoch
+    cell has advanced `7 → 8`; and the depth-1 slot has taken the *old* `7`,
+    not the new `8`.  The `1 <<< 3` in the general statement has collapsed to
+    the concrete `+ 8` slot offset. -/
 example (ra : Word) :
     cpsTripleWithin 38 CFE (ra &&& ~~~(1 : Word)) cfeCR
       ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) ** (.x5 ↦ᵣ (5 : Word)) **
@@ -661,33 +664,25 @@ example (ra : Word) :
        (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (11 : Word)) ** (.x12 ↦ᵣ (12 : Word)) **
        regOwns cfeCalleeTemps **
        memOwn (0x2ffffff0 : Word) ** memOwn (0x2ffffff8 : Word) **
-       ((0xa0b038d0 : Word) ↦ₘ (7 : Word)) **
-       ((0xb9e5d5b0 : Word) ↦ₘ (0 : Word)) **
-       ((0xbb4054c8 : Word) ↦ₘ (1 : Word)))
+       ((GuestAddrs.evm_sparse_memory_next_epoch : Word) ↦ₘ (7 : Word)) **
+       (((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) + (8 : Word)) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.evm_call_depth : Word) ↦ₘ (1 : Word)))
       ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) ** (.x5 ↦ᵣ (99328 : Word)) **
        (.x6 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (1 : Word)) ** (.x8 ↦ᵣ (8 : Word)) **
-       (.x10 ↦ᵣ (0xb2386c00 : Word)) **
-       (.x11 ↦ᵣ (0xabf8ee00 : Word)) ** (.x12 ↦ᵣ (0xabf9f000 : Word)) **
+       (.x10 ↦ᵣ (GuestAddrs.evm_memory_pool : Word)) **
+       (.x11 ↦ᵣ (cfeChildFrameBase (1 : Word) + (33280 : Word))) **
+       (.x12 ↦ᵣ (cfeChildFrameBase (1 : Word) + (99328 : Word))) **
        regOwns cfeCalleeTemps **
        ((0x2ffffff0 : Word) ↦ₘ ra) ** ((0x2ffffff8 : Word) ↦ₘ (8 : Word)) **
-       ((0xa0b038d0 : Word) ↦ₘ (8 : Word)) **
-       ((0xb9e5d5b0 : Word) ↦ₘ (7 : Word)) **
-       ((0xbb4054c8 : Word) ↦ₘ (1 : Word))) := by
+       ((GuestAddrs.evm_sparse_memory_next_epoch : Word) ↦ₘ (8 : Word)) **
+       (((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) + (8 : Word)) ↦ₘ (7 : Word)) **
+       ((GuestAddrs.evm_call_depth : Word) ↦ₘ (1 : Word))) := by
   have h := callFrameEnterDepth1Flat_spec (0x30000000 : Word) ra (1 : Word)
     (5 : Word) (6 : Word) (7 : Word) (8 : Word) (11 : Word) (12 : Word)
     (7 : Word) (0 : Word)
   rw [show (0x30000000 : Word) - (16 : Word) = (0x2ffffff0 : Word) from by bv_omega,
       show (0x30000000 : Word) - (8 : Word) = (0x2ffffff8 : Word) from by bv_omega,
-      show ((GuestAddrs.evm_sparse_memory_next_epoch : Word)) = (0xa0b038d0 : Word) from by
-        decide,
-      show ((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word)
-          + ((1 : Word) <<< (3 : Nat))) = (0xb9e5d5b0 : Word) from by decide,
-      show ((GuestAddrs.evm_call_depth : Word)) = (0xbb4054c8 : Word) from by decide,
-      show ((GuestAddrs.evm_memory_pool : Word)) = (0xb2386c00 : Word) from by decide,
-      show (cfeChildFrameBase (1 : Word) + (33280 : Word)) = (0xabf8ee00 : Word) from by
-        decide,
-      show (cfeChildFrameBase (1 : Word) + (99328 : Word)) = (0xabf9f000 : Word) from by
-        decide,
+      show ((1 : Word) <<< (3 : Nat)) = (8 : Word) from by decide,
       show ((7 : Word) + (1 : Word)) = (8 : Word) from by decide] at h
   exact h
 
@@ -713,7 +708,7 @@ example : (2 : Word) ≠ (1 : Word) ∧ (0 : Word) ≠ (1 : Word) := by decide
     and the depth slot really takes the OLD epoch rather than the new one. -/
 example :
     (8 : Word) ≠ (7 : Word) ∧
-    (0xb2386c00 : Word) ≠ (1 : Word) ∧
+    (GuestAddrs.evm_memory_pool : Word) ≠ (1 : Word) ∧
     (7 : Word) ≠ (8 : Word) := by decide
 
 /-- **Satisfiability of the numeric instance's precondition.**  Both frame
@@ -723,25 +718,28 @@ example :
 example :
     isValidDwordAccess (0x2ffffff0 : Word) = true ∧
     isValidDwordAccess (0x2ffffff8 : Word) = true ∧
-    isValidDwordAccess (0xa0b038d0 : Word) = true ∧
-    isValidDwordAccess (0xb9e5d5b0 : Word) = true ∧
-    isValidDwordAccess (0xbb4054c8 : Word) = true := by
+    isValidDwordAccess (GuestAddrs.evm_sparse_memory_next_epoch : Word) = true ∧
+    isValidDwordAccess ((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word)
+      + (8 : Word)) = true ∧
+    isValidDwordAccess (GuestAddrs.evm_call_depth : Word) = true := by
   refine ⟨by decide, by decide, by decide, by decide, by decide⟩
 
 /-- ⛔ **Distinctness control.**  The pre separates five memory cells; if any
     two coincided the separating conjunction would be unsatisfiable and the
     instance would again prove nothing.  The two frame slots are eight bytes
-    apart, and the three data cells sit in three different sections
-    (`.data` for the next-epoch counter, `.bss` for the epoch table and the
-    call-depth counter). -/
+    apart, and the three data cells sit in two different sections (`.data` for
+    the next-epoch counter, `.bss` for the epoch table and the call-depth
+    counter). -/
 example :
     (0x2ffffff0 : Word) ≠ (0x2ffffff8 : Word) ∧
-    (0xa0b038d0 : Word) ≠ (0xb9e5d5b0 : Word) ∧
-    (0xa0b038d0 : Word) ≠ (0xbb4054c8 : Word) ∧
-    (0xb9e5d5b0 : Word) ≠ (0xbb4054c8 : Word) ∧
-    (0x2ffffff0 : Word) ≠ (0xa0b038d0 : Word) ∧
-    (0x2ffffff8 : Word) ≠ (0xbb4054c8 : Word) := by decide
-
+    (GuestAddrs.evm_sparse_memory_next_epoch : Word)
+      ≠ (GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) + (8 : Word) ∧
+    (GuestAddrs.evm_sparse_memory_next_epoch : Word)
+      ≠ (GuestAddrs.evm_call_depth : Word) ∧
+    (GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) + (8 : Word)
+      ≠ (GuestAddrs.evm_call_depth : Word) ∧
+    (0x2ffffff0 : Word) ≠ (GuestAddrs.evm_sparse_memory_next_epoch : Word) ∧
+    (0x2ffffff8 : Word) ≠ (GuestAddrs.evm_call_depth : Word) := by decide
 
 #print axioms callFrameEnterDepth1Flat_spec
 
