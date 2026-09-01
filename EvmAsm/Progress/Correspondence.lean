@@ -1207,7 +1207,17 @@ non-degenerate EIP-2930 transaction (chain 1, nonce 1, gasPrice 10, gas 21000, a
 20-byte `to`, value 100; 34-byte input, 30-byte payload, header 0xe1) jointly \
 satisfying both conjuncts of `h_decoder_payload`, the selector, `hge`, `hhdrLen`, the \
 `hpayload` slice equation and the nonzero `a2`/`a3` gates, and yielding \
-`signing_hash_2930`. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
+`signing_hash_2930`; and `tsh_specRef_domain_nonvacuous_4844`, the SAME bundle at the \
+other end of the range — 11 fields, prefix 3, a MANDATORY `to : Address` rather than an \
+`Option`, a nested blob-hash list, and a 68-byte payload so the outer header is LONG \
+(`f8 47`, `hdrLen = 2`) where the 2930 witness is short. Two controls rather than one \
+because four arms are proved and a single witness leaves open whether the other three \
+are vacuous instances of it. ⚠️ To be exact: TWO of the four arms are witnessed, not \
+four. `_1559` and `_7702` are not separately witnessed — they are the INTERMEDIATE \
+arms, at arity 9 and 10 between the witnessed 8 and 11, and each shares its `to` \
+representation with one of the two that are (`_1559` the `Option` with `_2930`, `_7702` \
+the mandatory `Address` with `_4844`). So the pair brackets them rather than covering \
+them, and a reader should not take four proved arms for four inhabited ones. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
 count, prefix 2 ⇒ `none`) and `tsh_specRef_target_false_on_wrong_arity` (same prefix, \
 9 fields ⇒ `none`) show the selector is load-bearing in both coordinates; \
 `tsh_specRef_pre155_arm_unreachable` is the third and is the exclusion in (i). \
