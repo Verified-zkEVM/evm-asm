@@ -1172,6 +1172,73 @@ tree — read, not machine-checked. See #11574" },
   -- exists to record spec correspondence had nothing to say about the routine whose
   -- spec correspondence was the subject of an issue. #11342 established that this
   -- shape passes the cross-registry gate VACUOUSLY.
+  { family := "tx", routine := "tx_signing_hash",
+    spec := some "tx_signing_hash_specRef_correspondence",
+    verdict := .domainRestricted, basis := .ported,
+    reference := "signing_hash_2930 / signing_hash_1559 / signing_hash_4844 / \
+signing_hash_7702 (SpecRef/Transactions.lean:625, 631, 638, 646), the ports of \
+amsterdam/transactions.py signing_hash_2930/_1559/_4844/_7702",
+    note := "⚠️ THIS ROW GRADES A DIFFERENT THEOREM FROM THE `.conditional` ROUTINE ROW. \
+`tx_signing_hash_spec_within` (Progress/Routines.lean) posts the OPERATIONAL digest \
+`keccak256 (kssMsg segs)` and deliberately claims nothing about SpecRef. \
+`tx_signing_hash_specRef_correspondence` (Codegen/Programs/TxSigningHashSpec.lean:1087) \
+is a whole-routine `cpsTripleWithin` at the same entry `H` over the same `fullCode`, \
+weakened from it, whose SUCCESS arm's output region is the selected \
+`SpecRef.Transactions.signing_hash_*` and whose FAILURE arm is carried through \
+verbatim. So the tie is a machine triple, not a model-to-model equation — but per \
+#12526 that does not discharge the machine-triple obligation, which the routine row \
+already carries. \
+DOMAIN, and it is a restriction of the PROOF plus a caller precondition, not of the \
+guest: (i) FOUR of the six SpecRef signing hashes are reached — `_2930` (n=8, \
+prefix 1), `_1559` (9, 2), `_4844` (11, 3), `_7702` (10, 4), selected by \
+`txSigningHashSpecRefTarget`. `signing_hash_pre155` is NOT reached, and this is \
+proved rather than asserted: the selector's `.legacy` arm needs `typePrefix = 0` while \
+the triple carries `hnzType : a3 ≠ 0`, so `tsh_specRef_pre155_arm_unreachable` shows \
+that arm is `none` under the theorem's own hypotheses. `signing_hash_155` belongs to a \
+DIFFERENT ROUTINE, K146 `tx_signing_hash_legacy_eip155`, which has no whole-routine \
+triple at all (#12038); (ii) the outer-RLP header gate `hge` (0xc0 ≤ input[0] ≤ 0xff) \
+inherited from the routine row — non-list first bytes take the guest's status-1 reject \
+path; (iii) ONE named residual, `h_decoder_payload`, an ABI precondition the caller \
+must meet: the input decodes to `txToRlpItem tx` and the gathered payload is the \
+`nFields`-truncation of that list. It is a precondition, so it CAN be violated — see \
+the doctrine note above on which of the two `domainRestricted` situations a row means. \
+NON-VACUITY: `tsh_specRef_domain_nonvacuous` — a closed positive control on a concrete \
+non-degenerate EIP-2930 transaction (chain 1, nonce 1, gasPrice 10, gas 21000, a real \
+20-byte `to`, value 100; 34-byte input, 30-byte payload, header 0xe1) jointly \
+satisfying both conjuncts of `h_decoder_payload`, the selector, `hge`, `hhdrLen`, the \
+`hpayload` slice equation and the nonzero `a2`/`a3` gates, and yielding \
+`signing_hash_2930`. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
+count, prefix 2 ⇒ `none`) and `tsh_specRef_target_false_on_wrong_arity` (same prefix, \
+9 fields ⇒ `none`) show the selector is load-bearing in both coordinates; \
+`tsh_specRef_pre155_arm_unreachable` is the third and is the exclusion in (i). \
+PORT-FIDELITY CLAUSE TABLE (required for the `ported` rung; port = \
+SpecRef/Transactions.lean, source = forks/amsterdam/transactions.py and \
+forks/amsterdam/fork_types.py): \
+(1) TYPE BYTE — Python prepends b'\\x01'/b'\\x02'/b'\\x03'/b'\\x04'; port's `signPrefix \
+(some 0x0N)` prepends the same single byte. Syntactic. \
+(2) FIELD LIST AND ORDER — compared name by name for all four variants; identical, \
+including 4844's `max_fee_per_blob_gas` before `blob_versioned_hashes` and 7702's \
+`authorizations` last. Syntactic. \
+(3) SCALAR ENCODING — the one NON-SYNTACTIC restatement, and it is NAMED AS AN \
+ASSUMPTION, not proved here: Python passes `Uint`/`U64`/`U256` straight to `rlp.encode`, \
+whose integer case is minimal big-endian with 0 ↦ b''; the port writes `scalarT n = \
+.bytes (EvmAsm.EL.RLP.Nat.toBytesBE n)`. The assumption is that `Nat.toBytesBE` IS that \
+encoding. It is the shared `EL.RLP` convention used by every other row in this file, so \
+a divergence would surface far more widely than here. \
+(4) `to` — legacy/2930/1559 have `Address | Bytes0` and the port's `toItem` maps \
+`none ↦ .bytes []`; 4844/7702 have a MANDATORY `to: Address` (fork_types/transactions \
+checked) and the port correspondingly writes `.bytes tx.to` with no `Option`. Matching \
+asymmetry, syntactic. \
+(5) `access_list` — Python `Tuple[Access, ...]` with `Access(account, slots)`; port \
+`accessItem a = .list [.bytes a.account, .list (a.slots.map .bytes)]`, i.e. the \
+dataclass's two fields in order. Syntactic. \
+(6) `authorizations` (7702 only) — Python `Authorization(chain_id, address, nonce, \
+y_parity, r, s)`; port `authItem` lists exactly those six in that order. Syntactic. \
+So the only rung-limiting clause is (3), and it is an assumption about the shared RLP \
+integer encoder rather than about transactions. No differential exists for this family \
+(`tx_type_dispatch`'s row says the same), which is why this is `ported` and not \
+`bridged`. NO PORT DEFECT FOUND." },
+
   { family := "tx", routine := "tx_type_dispatch",
     spec := some "txTypeDispatch_spec_within",
     verdict := .agrees, basis := .machineOnly,
@@ -1238,7 +1305,7 @@ def countFamily (f : String) : Nat := (registry.filter (·.family == f)).length
 
 def countKind (k : Layer) : Nat := (registry.filter (·.kind == k)).length
 
-theorem registry_size : registry.length = 41 := by decide
+theorem registry_size : registry.length = 42 := by decide
 theorem rlp_rows : countFamily "rlp" = 24 := by decide
 theorem bal_rows : countFamily "bal" = 2 := by decide
 /-- #11352 bgv_u32le + #11578 execution_requests_hash. No differential. -/
@@ -1259,8 +1326,10 @@ theorem crypto_rows : countFamily "crypto" = 2 := by decide
 /-- #11901. The family's first row, opened by `tx_type_dispatch`. Before it
     `countFamily "tx"` was **0** -- the routine was `.proven` and its spec
     correspondence was the subject of an issue, and neither fact was recorded here.
-    No differential for this family; see the row's note for why `.machineOnly`. -/
-theorem tx_rows : countFamily "tx" = 1 := by decide
+    No differential for this family; see the row's note for why `.machineOnly`.
+    #12038 added the second: `tx_signing_hash`'s SpecRef correspondence, on the
+    `ported` rung with the clause table its note records. -/
+theorem tx_rows : countFamily "tx" = 2 := by decide
 
 /-- ⚠️ `stricter` is still **0**, and #11513/#11620 is the worked example of why
     that is not automatically a sign the schema has stopped discriminating.
@@ -1280,7 +1349,7 @@ theorem tx_rows : countFamily "tx" = 1 := by decide
     leaving it implicit in the guest's behaviour is worse than recording an FR,
     because an FR at least appears in this census. -/
 theorem verdict_counts :
-    countVerdict .agrees = 23 ∧ countVerdict .domainRestricted = 14 ∧
+    countVerdict .agrees = 23 ∧ countVerdict .domainRestricted = 15 ∧
     countVerdict .stricter = 0 ∧ countVerdict .looser = 0 ∧
     countVerdict .noCounterpart = 2 ∧ countVerdict .unproven = 2 := by decide
 
@@ -1293,7 +1362,7 @@ theorem port_defect_count : countPortDefect = 0 := by decide
 
 theorem basis_counts :
     countBasis .diff = 1 ∧ countBasis .bridged = 12 ∧
-    countBasis .ported = 11 ∧
+    countBasis .ported = 12 ∧
     countBasis .machineOnly = 8 ∧ countBasis .inspection = 7 ∧
     countBasis .none = 2 := by decide
 
