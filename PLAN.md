@@ -1054,6 +1054,35 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `check-guest-image-program-bytes.py` against the linked ELF — which also keeps the
   `.s` fixture from going stale, since that ELF is emitted from `emitSubroutine`.
 
+- **A Program converted from a MIDDLE factor must carry its own label**
+  (GH #13173). `dispatchLoopBody_prog` (the dispatcher's sixteen-instruction loop
+  body) was converted by prefixing the *enclosing* entry label `.dispatch_loop`,
+  and was therefore based 348 bytes early: `emitRuntimeDispatcherLoop` puts the
+  `depthAwareStop` code-size stop guard between that label and the body, so the
+  bytes at `.dispatch_loop` are the guard, and the body's real address is
+  `.dispatch_resume − 4·16`. Three immediates were wrong and the Program matched
+  the linked image at **no** address. ⛔ Nothing in the usual kit could see it, and
+  the reasons generalise: (1) the base-dependent sites are exactly the reloc'd
+  sites, which `emitProgramR` renders SYMBOLICALLY, so a `_eq_prog` `rfl` is blind
+  to the PC base by construction; (2) the converter's `asm_cmp=IDENTICAL` compares
+  its own standalone assembly *placed at whatever label it was handed* — it
+  measures encoding, never placement. **The only gate that measures a Program's
+  base is `check-guest-image-program-bytes.py`, and it only sees Programs that
+  have a `GuestImageEntries` row.** So "converted but unregistered" is not a
+  half-done state, it is an unchecked one: a Program with no row has never had its
+  address tested against the ELF. Fix shape: give the slice a real (zero-byte)
+  label in the emitted asm — a label is byte-neutral, the relink reproduced the
+  `.text` sha1 exactly and added one TSV row with no address churn — then register
+  it like any other routine. Registering an interior slice needs no new image-map
+  concept: rows are keyed by ELF symbol, `CodeReq.ofProg` is instruction-indexed at
+  a 4-byte stride (so no sub-word tail and no #13011-class trailing-zero
+  assertion), and disjointness rides the existing whole-image
+  `guestImageEntries_extentsOk` `decide`. What it *did* need: `ga_name`/`lean_camel`
+  dot-mangling fixes in three places (`guest_image_coverage.py`,
+  `check-manifest-guestimage.py`, `check-guest-image-program-bytes.py`,
+  `asm_to_program.lean_camel`) — the identity on all ~1400 global symbols, so
+  broken since forever and invisible until an entry symbol was a local label.
+
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
   separate things, and getting any wrong yields assembly that LINKS CLEANLY while
