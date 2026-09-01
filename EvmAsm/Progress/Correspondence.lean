@@ -41,6 +41,40 @@
   by `lake exe correspondence-check <family>`. The registry records and drift-gates
   them; it cannot derive them.
 
+  WHAT DOES *NOT* BELONG HERE — routines whose only available verdict is
+  `noCounterpart`. A row is worth writing when it can go one of several ways;
+  a row that could only ever read "there is nothing to compare against" records
+  a fact about the *reference*, not about our proof, and it orients no spec
+  effort. `docs/leaf-routine-targets.md` states this for `b1_sender_table_find`
+  and `exec_log_latest_value`, which are deliberately left out on exactly this
+  ground. The two `noCounterpart` rows that *do* appear below
+  (`rlp_list_truncate_to_n_fields`, `rlp_prefix_to_buffer`) sit inside a family
+  that is otherwise genuinely audited, where they still carry drift-guard value;
+  an entire family of them would carry none, and would dilute the per-verdict
+  `by decide` totals that make a `looser` row impossible to land quietly.
+
+  Ruled once, so it is not re-litigated (#12225): the **u256 big-endian
+  arithmetic helpers** (`u256_add_be`, `u256_sub_be`, `u256_lt_be`, `u256_eq`,
+  `u256_is_zero`, `u256_mul_u64_be`) get **no** family here. Execution-specs
+  writes `a + b` on unbounded `Uint`; the 32-byte big-endian *window* is a guest
+  representation choice, so there is no reference function to grade against. The
+  agreement content these routines do have is already stated in the registry
+  that owns that claim: the `.proven` rows `u256AddBeFlat_spec`,
+  `u256SubBeFlat_spec` and `u256FromU64BeFlat_spec` are the artifacts witnessed
+  from `Progress/Routines.lean`, and the numeric bridges they rest on are stated
+  in `Codegen/Proofs/U256BeFlatTriples.lean` (`beBytesToNat_u256AddBeBytes`,
+  `beBytesToNat_u256SubBeBytes`, `beBytesToNat_u256FromU64Bytes`) and
+  `Codegen/Programs/U256MulU64Be/Arith.lean` (`beBytesToNat_mulOutput`), and
+  consumed at `HeaderValidateBaseFeeCompositionIncreaseRoute.lean:156,247`.
+  Per #12526 a
+  correspondence row is a *distinct* claim from a machine triple; restating those
+  bridges here would blur that line in the direction that makes this registry
+  mean less. One carve-out is left open rather than denied: `u256_from_u64_be`
+  does have a plausible counterpart in `SpecRef/InstructionsCore.lean`
+  (`toBeBytes32 = natToBytesBE 32`, the port of `U256.to_be_bytes32`), so a
+  single `.ported` row for it — restricted to `x < 2^64`, on the `blsg_lt_p`
+  pattern — would be well-formed if a consumer ever wants it.
+
   NOTE ON BUILD COST: this module is in the **heavy** tier — it must import the
   proof modules in order to witness their theorems. The correspondence *harness*
   (`EvmAsm/Tests/Correspondence/Harness.lean`) is deliberately Mathlib-free so it
