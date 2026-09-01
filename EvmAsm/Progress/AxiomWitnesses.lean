@@ -642,6 +642,18 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderExitRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderExitRequests_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderRequests_addr_control
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec

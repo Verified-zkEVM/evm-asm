@@ -3773,6 +3773,54 @@ def routineRegistry : List RoutineEntry := [
         ++ "`GuestAddrs.stage_system_call` — same shape and caveat as "
         ++ "`derive_withdrawal_requests`, different predeploy address. "
         ++ "In-degree 1: `derive_block_system_requests`"),
+  -- #12318 callee-composition lane. The two EIP-8282 builder adapters complete
+  -- the four-routine request-adapter family: byte-for-byte the same 7-insn
+  -- tail-transfer shape as the two rows above, different address constant.
+  -- Extents cross-checked against the linked layout rather than prose --
+  -- `scripts/asm-fixtures/symbol-addresses.tsv` puts the deposit adapter at
+  -- 0x8005369c, the exit adapter at 0x800536b8 and `stage_system_call` at
+  -- 0x800536d4, so each spans 28 bytes = the `#guard`ed `prog.length = 7` x 4.
+  routine "derive_builder_deposit_requests" .proven
+      (some "deriveBuilderDepositRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps: entry "
+        ++ "`GuestAddrs.derive_builder_deposit_requests`, EXIT "
+        ++ "`GuestAddrs.stage_system_call`; proves the four-argument shuffle "
+        ++ "(`a0 := &builder_deposit_contract_addr`, `a1..a4 := ` the incoming "
+        ++ "`a0..a3`) and the transfer, NOT the system call's effect. It "
+        ++ "composes NOTHING from `stage_system_call`, so it inherits none of "
+        ++ "that routine's `.conditional` gate. Non-vacuity: closed "
+        ++ "instantiation `deriveBuilderDepositRequests_sample_reachable` "
+        ++ "(`a0..a3 = 1,2,3,4`, fully numeric post) plus two negative "
+        ++ "controls — `deriveBuilderRequests_addr_control` (all four "
+        ++ "request-adapter address constants pairwise distinct, so no one of "
+        ++ "the four posts is satisfiable by another's) and "
+        ++ "`deriveBuilderDepositRequests_hla_false_off_base`, where the "
+        ++ "`hla` linking hypothesis is provably FALSE one instruction off "
+        ++ "the linked base. ⚠️ `scripts/callee-composition-queue.py` grades "
+        ++ "this at in-degree 0, which is NOT dead code: `block_state_root` "
+        ++ "jals it (the `.Lc1_bd_call` arm of `blockStateRootFunction` in "
+        ++ "`Codegen/Programs/BlockVerdictStateRoot.lean`). That caller is "
+        ++ "LINKED — 0x80013830 in `scripts/asm-fixtures/symbol-addresses.tsv` "
+        ++ "— but still emitted as assembly TEXT, with no `Program`, no "
+        ++ "`GuestAddrs` constant and no `.s` fixture, so BOTH of the queue's "
+        ++ "graphs miss the edge"),
+  routine "derive_builder_exit_requests" .proven
+      (some "deriveBuilderExitRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps, exit "
+        ++ "`GuestAddrs.stage_system_call` — same shape and caveat as "
+        ++ "`derive_builder_deposit_requests`, different contract address. "
+        ++ "Non-vacuity: `deriveBuilderExitRequests_sample_reachable` plus the "
+        ++ "shared negative control `deriveBuilderRequests_addr_control`. "
+        ++ "⚠️ TWO caveats specific to this row. (1) Same in-degree-0 artefact "
+        ++ "as the deposit adapter: the builder-exit arm of "
+        ++ "`block_state_root` calls it from assembly text. (2) This "
+        ++ "routine is laid out IMMEDIATELY BEFORE `stage_system_call`, so its "
+        ++ "tail-jump target equals its own fallthrough address "
+        ++ "(`GuestAddrs.stage_system_call = GuestAddrs."
+        ++ "derive_builder_exit_requests + 28`, recorded as an equality in "
+        ++ "`deriveBuilderRequests_addr_control`). The exit pc therefore "
+        ++ "distinguishes nothing for this row; it is the address-distinctness "
+        ++ "conjuncts, not the exit, that carry the control"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -4826,10 +4874,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 227 := by decide
+theorem routineCount_eq : routineCount = 229 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 174 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 176 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 50 := by decide
 set_option maxRecDepth 16000 in
@@ -4849,7 +4897,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 187 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 189 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6230,6 +6278,20 @@ private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
 private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
+-- #12318: the two EIP-8282 builder adapters, plus the non-vacuity evidence
+-- their rows cite (#12857 — a control named only in prose is outside the gate).
+private noncomputable abbrev _derive_builder_deposit_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
+private noncomputable abbrev _derive_builder_deposit_requests_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_sample_reachable
+private noncomputable abbrev _derive_builder_deposit_requests_control_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderRequests_addr_control
+private noncomputable abbrev _derive_builder_deposit_requests_hla_control_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
+private noncomputable abbrev _derive_builder_exit_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderExitRequestsFlat_spec
+private noncomputable abbrev _derive_builder_exit_requests_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderExitRequests_sample_reachable
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
