@@ -636,6 +636,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
 
 #print axioms EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
