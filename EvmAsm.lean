@@ -137,6 +137,7 @@ import EvmAsm.Codegen.Proofs.StorageWriteRecordSpec
 import EvmAsm.Codegen.Proofs.AccountWriteRecordSpec
 import EvmAsm.Codegen.Proofs.AccountWritesLookupCurrentSpec
 import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
+import EvmAsm.Codegen.Proofs.StorageWritesBlockLatestValueSpec
 import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedSpec
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedCallees
