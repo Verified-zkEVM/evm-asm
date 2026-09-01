@@ -1303,6 +1303,54 @@ theorem secfAddModP_spec (sp0 ret xPtr yPtr dst s0 s1 s2 s3 s4 : Word)
     (fun _ hq => by xperm_hyp hq) h1234
 
 
+/-! ### Non-vacuity controls
+
+`secfAddModP_spec` carries a dozen decidable side conditions.  A triple whose
+hypotheses no caller can ever discharge proves nothing, so the two theorems
+below are the positive and negative controls for that: the first exhibits a
+concrete call site at which *every* decidable hypothesis holds simultaneously,
+the second exhibits a call shape at which one of them is provably false, so
+the hypothesis set is not trivially true either. -/
+
+/-- Positive control: three distinct dword-aligned 32-byte buffers in guest
+    RAM, none overlapping `secf_tmp0`, `secp256k1_p_be` or `secp256k1_c_be`,
+    discharge every decidable side condition of `secfAddModP_spec` at once. -/
+theorem secfAddModP_sideConditions_satisfiable :
+    RwRegion.wf ⟨(GuestAddrs.secf_tmp0 : Word), 32⟩ ∧
+    Region.wf ⟨(0xa4000000 : Word), List.replicate 32 (0 : BitVec 8)⟩ ∧
+    Region.wf ⟨(0xa4000020 : Word), List.replicate 32 (0 : BitVec 8)⟩ ∧
+    Region.wf ⟨(GuestAddrs.secp256k1_c_be : Word),
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes⟩ ∧
+    RwRegion.wf ⟨(0xa4000040 : Word), 32⟩ ∧
+    (List.replicate 32 (0 : BitVec 8)).length = 32 ∧
+    (0xa4000000 : Word).toNat + 32 < 2 ^ 64 ∧
+    (0xa4000020 : Word).toNat + 32 < 2 ^ 64 ∧
+    (0xa4000040 : Word).toNat + 32 < 2 ^ 64 ∧
+    ((0xa4000000 : Word).toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ (0xa4000000 : Word).toNat) ∧
+    ((0xa4000020 : Word).toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ (0xa4000020 : Word).toNat) ∧
+    ((GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤ (0xa4000040 : Word).toNat ∨
+      (0xa4000040 : Word).toNat + 32 ≤ (GuestAddrs.secf_tmp0 : Word).toNat) ∧
+    ((GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ (0xa4000040 : Word).toNat ∨
+      (0xa4000040 : Word).toNat + 32 ≤
+        (GuestAddrs.secp256k1_p_be : Word).toNat) ∧
+    (((0x8001f848 : Word) + 112) &&& ~~~(1 : Word)) = ((0x8001f848 : Word) + 112) := by
+  decide
+
+/-- Negative control: the temporary/output disjointness hypothesis is *not*
+    vacuously true — a caller that points the output buffer at `secf_tmp0`
+    itself falsifies it, which is exactly the aliasing the routine cannot
+    tolerate (the `secf_reduce_once` tail reads the temporary while writing
+    the output). -/
+theorem secfAddModP_dstAliasesTmp0_excluded :
+    ¬ ((GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤
+        (GuestAddrs.secf_tmp0 : Word).toNat ∨
+      (GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤
+        (GuestAddrs.secf_tmp0 : Word).toNat) := by
+  decide
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
