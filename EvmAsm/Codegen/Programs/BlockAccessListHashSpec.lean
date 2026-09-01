@@ -1113,45 +1113,90 @@ theorem body_spec (sp0 ret b outPtr : Word) (hdr : List (BitVec 8))
   exact cpsTripleWithin_weaken (fun _ hp => by xcancel_struct hp)
     (fun _ hq => by xcancel_struct hq) c3
 
-/-! ## §14  What remains: the hand-off to the core
+/-! ## §14  The hand-off to the core, and the whole routine
 
     `body_spec` ▸ `tail_jump_spec` ▸ `block_access_list_hash_core_spec_within`
-    is the whole routine.  The first two are proved above and the third is
-    rowed `.proven`; what is NOT done here is the assertion plumbing that turns
-    `body_spec`'s post into the core's precondition.  Spelled out so the next
-    step is mechanical rather than exploratory, the obligations are:
+    is the whole routine.  The plumbing that turns `body_spec`'s post into the
+    core's precondition is four moves, and none of them is exploratory:
 
     * `x11`: the body leaves `bal_end - bal_start`; the core wants
-      `BitVec.ofNat 64 input.length`.  Bridged by a hypothesis
-      `h_len : (npr b + vh_off) - (execP b + bal_off) = BitVec.ofNat 64 input.length`
+      `BitVec.ofNat 64 input.length`.  Bridged by the hypothesis `h_len`,
       relating the witness's declared extent to the slab actually presented.
 
     * `regOwns keccakBodyFreeTemps` (`[x5, x6, x7, x13..x17, x30, x31]`): `x6`
       arrives already owned from the second call, `x5` (`= bah_bal_start`) and
       `x30` (`= bal_end`) arrive PINNED and need `regIs_implies_regOwn`, and
-      `x7`, `x13..x17`, `x31` ride through untouched from the caller.
+      `x7`, `x13..x17`, `x31` ride through untouched from the caller as
+      `coreFreeTemps`.
 
     * `memOwn (sp0 - 16) ** stackFree (sp0 - 16) 4`, i.e. cells at
       `sp0 - 48 … sp0 - 16`: three of them come back from the epilogue as
       `↦ₘ` (still holding `ra`, `s0`, `s1`) and need `memIs_implies_memOwn`;
       the other two are the extra pair in `stackFree sp0 6`
-      (`stackFree6_split`).  `sp0 - 8` is left over and belongs in the core's
-      ambient `A`.
+      (`stackFree6_split`).  `sp0 - 8` is left over and rides in the core's
+      ambient.
 
     * `regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20)`: exactly the four
       callee-saved values the epilogue restored, with `x20` never touched.
 
-    ⚠️ The scope note in this module's header applies to that step and not
-    before it: the slab region `bytesRegion bal_start input` is presented as its
-    own atom with `8 ∣ input.length` stated explicitly, so that no assumption
-    about the bytes after the slab can enter by the back door.  If a future
-    version of this proof finds it needs those bytes to be zero, that is #13014
-    proper and does not belong here.
+    ⚠️ The scope note in this module's header applies to this step and not
+    before it: the slab region `bytesRegion (balStart b hdr) input` is presented
+    as its own atom with `8 ∣ input.length` stated explicitly, so that no
+    assumption about the bytes after the slab can enter by the back door.  If a
+    future version of this proof finds it needs those bytes to be zero, that is
+    #13014 proper and does not belong here.
 -/
 
--- #13030 temporary module-floor audit.  This body contract is not yet a
--- whole-routine Progress row, so keep a local kernel axiom report until the
--- eventual row can move it into Progress/AxiomWitnesses.lean.
+open EvmAsm.Codegen.Proofs
+
+/-- The BAL slab's start: `exec_payload + bal_off`, the pointer the wrapper
+    hands the core in `a0`. -/
+abbrev balStart (b : Word) (hdr : List (BitVec 8)) : Word :=
+  execP b + SgLoadU32leSAsm.leU32 (hdr.drop 588) 0
+
+/-- The BAL slab's end: `NPR + vh_off`, the pointer the wrapper subtracts from
+    to get `a1`. -/
+abbrev balEnd (b : Word) (hdr : List (BitVec 8)) : Word :=
+  npr b + SgLoadU32leSAsm.leU32 (hdr.drop 20) 0
+
+/-- The members of `keccakBodyFreeTemps` this wrapper never touches, so they
+    ride from the caller straight into the core's precondition.  The remaining
+    three (`x5`, `x6`, `x30`) are produced by the body. -/
+abbrev coreFreeTemps : List Reg := [.x7, .x13, .x14, .x15, .x16, .x17, .x31]
+
+theorem coreFreeTemps_split :
+    regOwns keccakBodyFreeTemps =
+      (regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x13 ** regOwn .x14 **
+        regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** regOwn .x30 **
+        regOwn .x31 ** empAssertion) := rfl
+
+theorem keccakFrameRegs_flat (v8 v9 v18 v20 : Word) :
+    regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) =
+      (((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        ((.x20 : Reg) ↦ᵣ v20) ** empAssertion) := rfl
+
+theorem coreStack_flat (sp0 : Word) :
+    stackFree (sp0 + signExtend12 (-16 : BitVec 12)) 4 =
+      (memOwn (sp0 - BitVec.ofNat 64 48) ** memOwn (sp0 - BitVec.ofNat 64 40) **
+        memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
+        empAssertion) := by
+  show (memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 4)) **
+      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 3)) **
+      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 2)) **
+      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 1)) **
+      empAssertion) = _
+  rw [show signExtend12 (-16 : BitVec 12) = (-16 : Word) from by decide,
+    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 4) = sp0 - BitVec.ofNat 64 48 from by bv_omega,
+    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 3) = sp0 - BitVec.ofNat 64 40 from by bv_omega,
+    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 2) = sp0 - BitVec.ofNat 64 32 from by bv_omega,
+    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 1) = sp0 - BitVec.ofNat 64 24 from by bv_omega]
+
+theorem coreRa_addr (sp0 : Word) :
+    sp0 + signExtend12 (-16 : BitVec 12) = sp0 - BitVec.ofNat 64 16 := by
+  rw [show signExtend12 (-16 : BitVec 12) = (-16 : Word) from by decide]
+  bv_omega
+
+-- #13030 temporary module-floor audit.  Kept until the row lands.
 #print axioms body_spec
 
 end EvmAsm.Codegen.BlockAccessListHashSpec
