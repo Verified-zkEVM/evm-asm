@@ -639,7 +639,7 @@ pins `x5`/`x6` to `k`-dependent *values*; lifting those pins to ownership
 
 /-- The wrapper-world atoms the decrease machine route consumes at entry but
     the wrapper premise (`k73PreRest`) supplies beyond its fixed atoms. -/
-private def k73_decr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
+def k73_decr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
     (accWin : List (BitVec 8)) (F : Assertion) : Assertion :=
   regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 **
     EvmAsm.Codegen.U256MulU64Be.frameSlots
@@ -651,7 +651,7 @@ private def k73_decr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
 
 /-- The unified decrease-route junk: every exit leaves these atoms behind and
     nothing more; the caller's ambient `F` rides at the tail. -/
-private def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed
+def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed
     target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
   regOwns u256SubBeInPlaceScratch **
     EvmAsm.Codegen.U256MulU64Be.frameSlots
@@ -660,6 +660,32 @@ private def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUse
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 parentBytes (target - gasUsed)) **
     regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** F
+
+/-! The decrease route's four callee-saved registers are part of the
+    subtract scratch ownership, but the K74 wrapper exposes them as its flat
+    frame.  Keep the conversion explicit so the caller supplies one ownership
+    atom for that frame rather than duplicating x14--x17 in a second post. -/
+def k73_decr_outj_tail (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed
+    target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
+  regOwn .x5 ** regOwn .x6 ** regOwn .x7 ** regOwn .x28 ** regOwn .x29 **
+    regOwn .x30 ** regOwn .x31 ** regOwn .x13 **
+    EvmAsm.Codegen.U256MulU64Be.frameSlots
+      (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
+      parentPtr Expected target (target - gasUsed) (0 : Word) **
+    bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
+      (k73_decr_img1 parentBytes (target - gasUsed)) **
+    regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** F
+
+theorem k73_decr_outj_out_eq (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20
+    gasUsed target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) :
+    k73_decr_outj wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed target
+      parentBytes F =
+      k74FlatFrame (k73_decr_outj_tail wspK _headerPtr parentPtr _v9 _old18
+        _v19 _v20 gasUsed target parentBytes F) := by
+  dsimp only [k73_decr_outj, k73_decr_outj_tail, k74FlatFrame]
+  simp only [u256SubBeInPlaceScratch, regOwns_cons, regOwns_nil,
+    sepConj_emp_right']
+  xperm
 
 /-- A two-way branch whose taken and fall exits are the *same* point (both
     legs have already returned) is a triple with disjunctive post. -/
