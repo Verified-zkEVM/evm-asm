@@ -43,6 +43,14 @@
     `bytesRegion_window_focus_any` hands back from the caller's arena is
     exactly the seam's input resource, and the resulting keccak call site
     carries **no** hypothesis about the bytes following the address.
+  * `zkvm_keccak256_spec_within_arena_slice` (§3) — the seam stated the way a
+    caller holds its memory: the **whole buffer** `bytesRegion arenaBase ws` in
+    the precondition, the hashed bytes an interior slice, the buffer handed
+    back intact.  The caller carves nothing; the envelope does not appear in
+    the statement.  `balAccountPath_keccak_arena_call_available` is its
+    `N = 0, rem = 20` consumer instance, and `bacpArena_hyps_hold` /
+    `bacpArena_exact_region_unobtainable` are its non-vacuity pair on a
+    concrete buffer whose bytes after the slice are the nonzero `0xc0 …`.
 -/
 
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
@@ -189,24 +197,40 @@ private theorem wstart_of_aligned (off : Nat) (h8 : off % 8 = 0) :
     windowDwordStart off = off := by
   unfold windowDwordStart; omega
 
-private theorem wlen20_of_aligned (off : Nat) (h8 : off % 8 = 0) :
-    windowDwordLen off 20 = 24 := by
+private theorem wlen_of_aligned (off len : Nat) (h8 : off % 8 = 0) :
+    windowDwordLen off len = 8 * ((len + 7) / 8) := by
   unfold windowDwordLen; omega
+
+/-- **Generic slice focus.**  An aligned arena carves into (the dword envelope
+    of the logical slice `ws[off … off+len)`) ⋆ rest, with **no** hypothesis
+    about the bytes following the slice — only the alignment of the slice start
+    and the arena's length.  `8 ∤ len` is fine: the envelope rounds `len` up. -/
+theorem arenaSlice_envelope_focus (arenaBase : Word) (ws : List (BitVec 8))
+    (off len : Nat) (h8 : off % 8 = 0)
+    (hfit : off + 8 * ((len + 7) / 8) ≤ ws.length) :
+    bytesRegion arenaBase ws
+      = (bytesRegion (arenaBase + BitVec.ofNat 64 off)
+            ((ws.drop off).take (8 * ((len + 7) / 8)))
+          ** windowRestAny arenaBase ws off len) := by
+  have hend : windowDwordEnd off len ≤ ws.length := by
+    unfold windowDwordEnd windowDwordStart windowDwordLen; omega
+  have hfoc := bytesRegion_window_focus_any arenaBase ws off len hend
+  unfold bytesRegionWindow at hfoc
+  rw [wstart_of_aligned off h8, wlen_of_aligned off len h8] at hfoc
+  exact hfoc
 
 /-- The caller's arena carves into (dword envelope of the address slice) ⋆ rest
     with **no** hypothesis about the bytes following the address — only the
-    alignment of the slice start and the arena's length. -/
+    alignment of the slice start and the arena's length.  The `len = 20`
+    instance of `arenaSlice_envelope_focus`. -/
 theorem addrSlice_envelope_focus (arenaBase : Word) (ws : List (BitVec 8))
     (off : Nat) (h8 : off % 8 = 0) (hfit : off + 24 ≤ ws.length) :
     bytesRegion arenaBase ws
       = (bytesRegion (arenaBase + BitVec.ofNat 64 off) ((ws.drop off).take 24)
           ** windowRestAny arenaBase ws off 20) := by
-  have hend : windowDwordEnd off 20 ≤ ws.length := by
-    unfold windowDwordEnd windowDwordStart windowDwordLen; omega
-  have hfoc := bytesRegion_window_focus_any arenaBase ws off 20 hend
-  unfold bytesRegionWindow at hfoc
-  rw [wstart_of_aligned off h8, wlen20_of_aligned off h8] at hfoc
-  exact hfoc
+  have h := arenaSlice_envelope_focus arenaBase ws off 20 h8 (by omega)
+  norm_num at h
+  exact h
 
 /-- …and the digest of that envelope is the digest of the 20 address bytes. -/
 theorem addrSlice_digest_envelope (ws : List (BitVec 8)) (off : Nat) :
@@ -273,5 +297,282 @@ theorem balAccountPath_keccak_call_available
     addrEnv 0 20 out0 v8 v9 v18 v20 v28 v29 os A hA halign_ret hfit
     (by decide) hout0 hos halign_zk hover (by decide) (by decide) hb8i
     hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+
+/-! ## §3  The arena-slice seam
+
+    §2 shows the *envelope* obstruction is gone.  This section states the seam
+    the way a caller actually holds its memory: the precondition carries the
+    caller's **whole buffer** `bytesRegion arenaBase ws`, the hashed bytes are
+    the interior slice `ws[off … off + 136*N + rem)`, and the postcondition
+    hands the whole buffer back unchanged.  The envelope never appears in the
+    statement — the caller does not have to carve anything itself.
+
+    The only hypotheses about the buffer are `off % 8 = 0` (where the item sits)
+    and a length fact.  **Nothing constrains the bytes after the slice.** -/
+
+/-- **Arena-slice seam** for `zkvm_keccak256` (issue #13014).
+
+    Hash `ws[off … off + 136*N + rem)` in place inside a buffer the caller
+    already owns.  The caller's resource is `bytesRegion arenaBase ws`, returned
+    intact; the digest is that of the logical slice.
+
+    Contrast `zkvm_keccak256_spec_within`, whose input resource is an
+    exactly-sized `bytesRegion inputBase input`: when `8 ∤ input.length` that
+    assertion additionally pins the buffer bytes after `input` to `0x00` (see
+    `exactRegion_false_on_nonzero_tail`), which no real caller can discharge.
+    Here the trailing bytes are unconstrained — they are owned, carried and
+    never read. -/
+theorem zkvm_keccak256_spec_within_arena_slice
+    (sp0 ret arenaBase outputBase : Word)
+    (ws : List (BitVec 8)) (off N rem : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word) (os : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (h8off : off % 8 = 0)
+    (hslice : off + 8 * ((keccakAbsorbStep * N + rem + 7) / 8) ≤ ws.length)
+    (hrem_le : rem ≤ 135)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem → Zk3.toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) N).toNat
+        + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) N
+          + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (5 + keccakBodyFuel N rem + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12))) **
+        ((.x10 ↦ᵣ (arenaBase + BitVec.ofNat 64 off)) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 (keccakAbsorbStep * N + rem)) **
+          (.x12 ↦ᵣ outputBase) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwns keccakBodyFreeTemps **
+          bytesRegion Zk3 os **
+          bytesRegion arenaBase ws **
+          bytesRegion outputBase out0 ** A))
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsSaved keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12)))
+          (keccakEntryVals v8 v9 v18 v20) **
+        (regOwn .x5 ** (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion Zk3
+            (setBytes
+              (keccakGuestPad
+                (keccakBodyPrePad
+                  ((ws.drop off).take (keccakAbsorbStep * N + rem)) N rem) rem) 0
+              (keccakBytes
+                (keccakGuestPad
+                  (keccakBodyPrePad
+                    ((ws.drop off).take (keccakAbsorbStep * N + rem)) N rem) rem) 0)) **
+          bytesRegion outputBase
+            (keccakBodyDigest
+              ((ws.drop off).take (keccakAbsorbStep * N + rem)) N rem) **
+          ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+            bytesRegion arenaBase ws ** A))) := by
+  -- The dword envelope of the slice: what the focus lemma hands back.
+  have henvlen :
+      ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).length
+        = 8 * ((keccakAbsorbStep * N + rem + 7) / 8) := by
+    simp only [List.length_take, List.length_drop]; omega
+  have hfit : keccakAbsorbStep * N + rem
+      ≤ ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).length := by
+    rw [henvlen]; omega
+  have hA' : (windowRestAny arenaBase ws off (keccakAbsorbStep * N + rem) ** A).pcFree :=
+    pcFree_sepConj (pcFree_windowRestAny _ _ _ _) hA
+  -- Pure half: the envelope and the slice agree on the hashed prefix.
+  have htake_eq :
+      ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).take
+          (keccakAbsorbStep * N + rem)
+        = ((ws.drop off).take (keccakAbsorbStep * N + rem)).take
+            (keccakAbsorbStep * N + rem) := by
+    simp only [List.take_take]
+    congr 1
+    omega
+  have hprepad :
+      keccakBodyPrePad
+          ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))) N rem
+        = keccakBodyPrePad ((ws.drop off).take (keccakAbsorbStep * N + rem)) N rem :=
+    keccakBodyPrePad_congr _ _ N rem htake_eq
+  have hdigest :
+      keccakBodyDigest
+          ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))) N rem
+        = keccakBodyDigest ((ws.drop off).take (keccakAbsorbStep * N + rem)) N rem :=
+    keccakBodyDigest_congr _ _ N rem htake_eq
+  -- Resource half: the envelope splits at the absorb cursor, so the two pieces
+  -- the seam hands back reassemble into the caller's buffer.
+  have htakelen :
+      (((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).take
+        (keccakAbsorbStep * N)).length = keccakAbsorbStep * N := by
+    simp only [List.length_take, List.length_drop]; omega
+  have henvsplit :
+      bytesRegion (arenaBase + BitVec.ofNat 64 off)
+          ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8)))
+        = (bytesRegion (arenaBase + BitVec.ofNat 64 off)
+              (((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).take
+                (keccakAbsorbStep * N))
+            ** bytesRegion
+                (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) N)
+                (((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))).drop
+                  (keccakAbsorbStep * N))) := by
+    conv_lhs => rw [← List.take_append_drop (keccakAbsorbStep * N)
+      ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8)))]
+    rw [bytesRegion_append _ _ _
+      (by rw [htakelen]; simp only [keccakAbsorbStep]; omega), htakelen]
+    rfl
+  have hspec := zkvm_keccak256_spec_within_envelope sp0 ret
+    (arenaBase + BitVec.ofNat 64 off) outputBase
+    ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))) N rem out0
+    v8 v9 v18 v20 v28 v29 os
+    (windowRestAny arenaBase ws off (keccakAbsorbStep * N + rem) ** A) hA'
+    halign_ret hfit hrem_le hout0 hos halign_zk hover hNbound hrem64 hb8i
+    hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hspec
+  · rw [arenaSlice_envelope_focus arenaBase ws off (keccakAbsorbStep * N + rem)
+      h8off hslice] at hp
+    simp only [keccakCallerPre]
+    xperm_hyp hp
+  · simp only [keccakCallerPost, keccakCallerFreeA, keccakResidual] at hq
+    rw [hprepad, hdigest] at hq
+    rw [arenaSlice_envelope_focus arenaBase ws off (keccakAbsorbStep * N + rem)
+      h8off hslice, henvsplit]
+    xperm_hyp hq
+
+/-- **The consumer's obstruction is gone at the caller's own resource.**  A
+    `bal_account_path`-shaped keccak call site (`N = 0`, `rem = 20`: the 20-byte
+    address hashed in place at byte offset `off` of the caller's RLP buffer),
+    stated with the caller's **whole buffer** `bytesRegion arenaBase ws` in the
+    precondition and handed back in the postcondition.  The only hypotheses
+    about that buffer are `h8off` and `hslice`, both of which only say where the
+    item sits; nothing constrains `ws[off+20 … off+24)`, the four bytes that the
+    exactly-sized seam forced to `0x00`.
+
+    The `N = 0, rem = 20` instance of `zkvm_keccak256_spec_within_arena_slice`.
+
+    (A call-site availability witness, not `bal_account_path`'s own registry
+    triple: that additionally needs `rlp_walk_init`, `rlp_walk_next` and
+    `bytes_to_nibbles` composed, and belongs to the #12318 lane.) -/
+theorem balAccountPath_keccak_arena_call_available
+    (sp0 ret arenaBase outputBase : Word)
+    (ws : List (BitVec 8)) (off : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word) (os : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (h8off : off % 8 = 0)
+    (hslice : off + 24 ≤ ws.length)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0).toNat % 8 = 0)
+    (hovers : ∀ n, n < 20 → Zk3.toNat + (20 - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < 20 →
+      (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0).toNat
+        + (20 - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < 20 →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (20 - (n + 1))) = true)
+    (hvalidi : ∀ n, n < 20 →
+      isValidByteAccess
+        (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0
+          + BitVec.ofNat 64 (20 - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 20) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (5 + keccakBodyFuel 0 20 + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12))) **
+        ((.x10 ↦ᵣ (arenaBase + BitVec.ofNat 64 off)) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 (keccakAbsorbStep * 0 + 20)) **
+          (.x12 ↦ᵣ outputBase) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwns keccakBodyFreeTemps **
+          bytesRegion Zk3 os **
+          bytesRegion arenaBase ws **
+          bytesRegion outputBase out0 ** A))
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsSaved keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12)))
+          (keccakEntryVals v8 v9 v18 v20) **
+        (regOwn .x5 ** (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion Zk3
+            (setBytes
+              (keccakGuestPad
+                (keccakBodyPrePad
+                  ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) 20) 0
+              (keccakBytes
+                (keccakGuestPad
+                  (keccakBodyPrePad
+                    ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) 20) 0)) **
+          bytesRegion outputBase
+            (keccakBodyDigest ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) **
+          ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+            bytesRegion arenaBase ws ** A))) :=
+  zkvm_keccak256_spec_within_arena_slice sp0 ret arenaBase outputBase ws off 0 20
+    out0 v8 v9 v18 v20 v28 v29 os A hA halign_ret h8off (by omega) (by decide)
+    hout0 hos halign_zk hover (by decide) (by decide) hb8i hovers hoveri
+    hvalids hvalidi hvalidRem hvalid135 hvalidMem
+
+/-! ### §3.1  Non-vacuity of the arena seam, on nonzero trailing bytes
+
+    The seam is stated over an abstract `ws`; these witnesses pin a concrete one
+    whose bytes *after* the hashed slice are the RLP list header `0xc0 …`, and
+    check every buffer-shaped hypothesis of the seam by `decide`.  If the
+    zero-padding assumption were reintroduced anywhere, `bacpArenaWs` would stop
+    being an admissible caller buffer. -/
+
+/-- A caller buffer: 8 bytes of preceding RLP, then the 20-byte address at the
+    aligned offset 8, then the **nonzero** four-byte tail it shares its last
+    dword with, then more buffer. -/
+def bacpArenaWs : List (BitVec 8) :=
+  [0xf8, 0x4a, 0x94, 0x00, 0x00, 0x00, 0x00, 0x00] ++ bacpAddr20 ++ bacpTail4
+    ++ [0x04, 0x05, 0x06, 0x07]
+
+/-- Every buffer-shaped hypothesis of `zkvm_keccak256_spec_within_arena_slice`
+    holds at `off = 8, N = 0, rem = 20` on `bacpArenaWs`, the hashed slice is
+    exactly the address, and the four bytes the hash shares its last dword with
+    are the nonzero `bacpTail4`.  The seam constrains none of them. -/
+theorem bacpArena_hyps_hold :
+    (8 : Nat) % 8 = 0
+      ∧ 8 + 8 * ((keccakAbsorbStep * 0 + 20 + 7) / 8) ≤ bacpArenaWs.length
+      ∧ (bacpArenaWs.drop 8).take (keccakAbsorbStep * 0 + 20) = bacpAddr20
+      ∧ (bacpArenaWs.drop 28).take 4 = bacpTail4
+      ∧ bacpTail4 ≠ [0x00, 0x00, 0x00, 0x00] := by
+  decide
+
+/-- **Negative control, arena form.**  The four buffer bytes that the hashed
+    slice shares its final dword with are nonzero, so the *exactly-sized* input
+    resource `bytesRegion (arenaBase + 8) (slice)` that the old seam demanded is
+    unobtainable from this buffer — while the arena seam's own hypotheses (above)
+    all hold.  Kernel-checked on the real cell values via
+    `exactRegion_false_on_nonzero_tail`. -/
+theorem bacpArena_exact_region_unobtainable (h : PartialState)
+    (henv : bytesRegion envBase (bacpAddr20 ++ bacpTail4) h) :
+    ¬ bytesRegion envBase ((bacpArenaWs.drop 8).take (keccakAbsorbStep * 0 + 20)) h := by
+  rw [show (bacpArenaWs.drop 8).take (keccakAbsorbStep * 0 + 20) = bacpAddr20 from by decide]
+  exact exactRegion_false_on_nonzero_tail h henv
+
+/-- The digest the arena seam delivers at that call site is the keccak of the
+    20 address bytes — the nonzero tail does not reach it. -/
+theorem bacpArena_digest_is_address_digest :
+    keccakBodyDigest ((bacpArenaWs.drop 8).take (keccakAbsorbStep * 0 + 20)) 0 20
+      = keccakBodyDigest bacpAddr20 0 20 := by
+  rw [show (bacpArenaWs.drop 8).take (keccakAbsorbStep * 0 + 20) = bacpAddr20 from by decide]
 
 end EvmAsm.Codegen.Proofs
