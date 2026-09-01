@@ -206,6 +206,7 @@ _BUNDLE_SOURCE_CHECK_ONLY = {
     "check-specref-citations.py",
     "check-unimported.sh",
     "import-graph-metrics.py",
+    "proof-frontier.py",
 }
 _BUNDLE_BUILD_PHASE_ONLY = {
     "callee-composition-queue.py",
