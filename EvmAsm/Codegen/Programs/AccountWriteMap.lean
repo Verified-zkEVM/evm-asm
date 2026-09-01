@@ -251,11 +251,15 @@ live writers `.Lawr_store` / `.Lawb_store` are twins and must stay field-identic
     Targets the TRANSACTION level, which is where the spec's assignment points.
     The block level is filled only by `account_writes_incorporate_tx`.
 
-    Clobbers nothing the caller can see: `t0`-`t6`, `ra` and the argument
-    registers it forwards are saved and restored, so this is safe to call from a
-    handler `preBody` holding live dispatcher state in caller-saved registers —
-    the same contract `storage_write_record` relies on to leave verified
-    Programs untouched.
+    The explicit save/restore set is `t0`-`t6` and `ra`.  The prologue also
+    spills `a0`-`a7`, but those slots are argument scratch: the routine reuses
+    them across its own `account_writes_undo_push` call and the epilogue does
+    not reload them.  Callers must therefore not rely on an entry `a0`-`a7`
+    value surviving this call.  In the linked callers, no entry `a0`-`a7`
+    value is read after the `jal`: callers overwrite the registers before a
+    later use, ignore them, or save and restore their live state themselves.
+    The storage twin is different, because its argument registers are either
+    saved/restored or never written.
 
     Convention: real producers already provide canonical BE20, so the map and
     builder keep that form end-to-end. The unused older stack-word API had no
