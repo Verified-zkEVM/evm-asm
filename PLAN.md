@@ -5411,6 +5411,20 @@ preserves both inputs and states the exact branch semantics: copy the wrapping
 BE subtraction on no borrow, otherwise subtract the encoded `2^256 - p`
 constant; the two call-site return-address values are joined before an explicit
 saved-register restore.
+`Secp256k1FieldAddModPSAsm.lean` verifies `secf_add_mod_p` byte-identically as
+an ABI-frame caller over `u256_add_be` (twice — once all-distinct, once with
+`a0 = a2` aliased for the carry fold-back) and `secf_reduce_once`.  Unlike the
+`secf_sub_mod_p` precedent, which is proved at the probe-only placeholder PC
+`secfSubModPPc = 0x80000000`, `secfAddModP_spec` is anchored at the real linked
+address `GuestAddrs.secf_add_mod_p` and covers the whole 140-byte routine
+(`secfAddModP_prog.length * 4 = 140`, matching `secf_mul_mod_p -
+secf_add_mod_p` in `scripts/asm-fixtures/symbol-addresses.tsv`).  The post is
+operational: the output buffer receives `reduceOnceBytes (addModPTmpBytes …)`,
+i.e. the wrapping BE sum when it does not carry and that sum with
+`C = 2^256 mod p` folded back in when it does, then one conditional subtraction
+of `p`.  The numeric bridge (`beBytesToNat out = (x + y) % p` for `x, y < p`)
+is a **named residual**, not absorbed; `secfAddModP_sideConditions_satisfiable`
+and `secfAddModP_dstAliasesTmp0_excluded` are the non-vacuity controls.
 `Secp256k1FieldReduceOnceNSAsm.lean` applies the same verified ABI-frame and
 shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
 the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and

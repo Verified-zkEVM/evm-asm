@@ -78,6 +78,7 @@ import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldAddModPSAsm
 -- #12244: `blsgLeToBeFlat_spec` — the OWN-`CodeReq` triple, in the routine's own
 -- module rather than either caller's stage file.
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
@@ -2384,6 +2385,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "separate from `Frame`, so the census missed it by more than one token "
         ++ "(#12568). Lives in "
         ++ "`Codegen/Programs/Secp256k1FieldReduceOnceNSAsm.lean`"),
+  -- #12319: the first CALLER of `secf_reduce_once` to be rowed, and the first
+  -- secp256k1 field routine whose triple sits at its REAL linked address.
+  -- ⚠️ Do not read the sibling `secf_sub_mod_p` as precedent for coverage: that
+  -- port is proved at the probe-only placeholder PC `secfSubModPPc = 0x80000000`
+  -- and is therefore NOT anchored to the deployed image, which is why it has no
+  -- row here. Extent cross-checked against the image, not the docstring:
+  -- `secfAddModP_prog.length * 4 = 35 * 4 = 140`, and `secf_mul_mod_p -
+  -- secf_add_mod_p = 0x8001f8d4 - 0x8001f848 = 140`.
+  routine "secf_add_mod_p" .proven (some "secfAddModP_spec")
+      (notes := "whole-routine ABI contract at `GuestAddrs.secf_add_mod_p` over "
+        ++ "`secfAddModPCr` — a SIX-way `ofProg` union: this routine, "
+        ++ "`u256_add_be`, and everything `secfReduceOnceCr` already carries "
+        ++ "(`secf_reduce_once`, `u256_lt_be`, `u256_sub_be`, `secf_copy32`), "
+        ++ "every leg at a REAL guest address and every callee itself rowed. "
+        ++ "Byte-transparency kernel-checked: `abiFrameProg (-48) 48 "
+        ++ "secfAddModPFrame secfAddModPBody = secfAddModP_prog := rfl`, and the "
+        ++ "35-instruction program is exactly the 140-byte image extent "
+        ++ "(`secf_mul_mod_p - secf_add_mod_p`). Both `u256_add_be` call shapes are "
+        ++ "inside the claim: the all-distinct one for `x + y → secf_tmp0`, and the "
+        ++ "`a0 = a2` ALIASED one for the carry fold-back of `C = 2^256 mod p` into "
+        ++ "the temporary in place. `sp` and all six callee-saved registers restored "
+        ++ "to ENTRY values. ⚠️ OPERATIONAL POST, not a numeric one: the output is "
+        ++ "`reduceOnceBytes (addModPTmpBytes xs ys tmpOrig) outOrig`, i.e. the exact "
+        ++ "branch semantics of the emitted code. The mod-p identity "
+        ++ "`beBytesToNat out = (beBytesToNat xs + beBytesToNat ys) % p` under "
+        ++ "`xs, ys < p` is a NAMED RESIDUAL and is NOT claimed by this row. "
+        ++ "⚠️ NOT total: same window-disjointness domain restriction as the "
+        ++ "`secf_reduce_once` row above, plus the caller must own the three "
+        ++ "`secfReduceOnceFrame` slots at `sp - 80` that the tail call pushes. "
+        ++ "Non-vacuity is witnessed in-module by "
+        ++ "`secfAddModP_sideConditions_satisfiable` (a concrete call site "
+        ++ "discharging every decidable hypothesis at once) and "
+        ++ "`secfAddModP_dstAliasesTmp0_excluded` (the negative control: aliasing "
+        ++ "the output onto `secf_tmp0` makes one hypothesis provably FALSE). "
+        ++ "Lives in `Codegen/Programs/Secp256k1FieldAddModPSAsm.lean`"),
   -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
   -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
   -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
@@ -4790,10 +4826,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 226 := by decide
+theorem routineCount_eq : routineCount = 227 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 174 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 50 := by decide
 set_option maxRecDepth 16000 in
@@ -4813,7 +4849,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 187 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6174,6 +6210,9 @@ private noncomputable abbrev _secf_reduce_once_n_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+-- #12319: the first rowed CALLER of `secf_reduce_once`, at its real linked PC.
+private noncomputable abbrev _secf_add_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldAddModPSAsm.secfAddModP_spec
 -- #12245 flat-block pilot: eight machine-level strongest-post contracts.
 private noncomputable abbrev _wcidx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
