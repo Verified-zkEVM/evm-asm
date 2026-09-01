@@ -111,21 +111,28 @@ structure Names where
   instr : Name
   reg : Name
 
+-- Two spellings per role. The RISC-V core and program logic moved to the
+-- riscv-zkvm dependency, and evm-asm re-exports them: `EvmAsm.Rv64.Assertion`
+-- is now an ALIAS, and `Environment.find?` resolves constants, not aliases.
+-- Listing the upstream name keeps this working across that boundary, and
+-- keeping the `EvmAsm.` spelling means the sweep still resolves if a
+-- declaration ever moves back. An unresolved role is a hard error, never a
+-- skip -- the census would silently under-report.
 def nameCandidates : List (String × List String) :=
-  [ ("assertion", ["EvmAsm.Rv64.Assertion"])
-  , ("cpsTripleWithin", ["EvmAsm.Rv64.cpsTripleWithin"])
-  , ("cpsBranchWithin", ["EvmAsm.Rv64.cpsBranchWithin"])
-  , ("cpsHaltTripleWithin", ["EvmAsm.Rv64.cpsHaltTripleWithin"])
-  , ("cpsNBranchWithin", ["EvmAsm.Rv64.cpsNBranchWithin"])
+  [ ("assertion", ["EvmAsm.Rv64.Assertion", "RiscvZkvm.Rv64.Assertion"])
+  , ("cpsTripleWithin", ["EvmAsm.Rv64.cpsTripleWithin", "RiscvZkvm.Rv64.cpsTripleWithin"])
+  , ("cpsBranchWithin", ["EvmAsm.Rv64.cpsBranchWithin", "RiscvZkvm.Rv64.cpsBranchWithin"])
+  , ("cpsHaltTripleWithin", ["EvmAsm.Rv64.cpsHaltTripleWithin", "RiscvZkvm.Rv64.cpsHaltTripleWithin"])
+  , ("cpsNBranchWithin", ["EvmAsm.Rv64.cpsNBranchWithin", "RiscvZkvm.Rv64.cpsNBranchWithin"])
   , ("itemsSound", ["EvmAsm.Rv64.SAsm.RecDecode.ItemsSound"])
-  , ("bytesRegion", ["EvmAsm.Rv64.bytesRegion", "EvmAsm.Rv64.MemRegion.bytesRegion"])
-  , ("memIs", ["EvmAsm.Rv64.memIs"])
-  , ("regIs", ["EvmAsm.Rv64.regIs"])
-  , ("regOwn", ["EvmAsm.Rv64.regOwn"])
-  , ("sepConj", ["EvmAsm.Rv64.sepConj"])
-  , ("ofProg", ["EvmAsm.Rv64.CodeReq.ofProg"])
-  , ("instr", ["EvmAsm.Rv64.Instr", "EvmAsm.Rv64.Basic.Instr"])
-  , ("reg", ["EvmAsm.Rv64.Reg", "EvmAsm.Rv64.Basic.Reg"]) ]
+  , ("bytesRegion", ["EvmAsm.Rv64.bytesRegion", "EvmAsm.Rv64.MemRegion.bytesRegion", "RiscvZkvm.Rv64.bytesRegion"])
+  , ("memIs", ["EvmAsm.Rv64.memIs", "RiscvZkvm.Rv64.memIs"])
+  , ("regIs", ["EvmAsm.Rv64.regIs", "RiscvZkvm.Rv64.regIs"])
+  , ("regOwn", ["EvmAsm.Rv64.regOwn", "RiscvZkvm.Rv64.regOwn"])
+  , ("sepConj", ["EvmAsm.Rv64.sepConj", "RiscvZkvm.Rv64.sepConj"])
+  , ("ofProg", ["EvmAsm.Rv64.CodeReq.ofProg", "RiscvZkvm.Rv64.CodeReq.ofProg"])
+  , ("instr", ["EvmAsm.Rv64.Instr", "EvmAsm.Rv64.Basic.Instr", "RiscvZkvm.Rv64.Instr"])
+  , ("reg", ["EvmAsm.Rv64.Reg", "EvmAsm.Rv64.Basic.Reg", "RiscvZkvm.Rv64.Reg"]) ]
 
 def resolveNames (env : Environment) : Except (Array String) Names := do
   let mut missing : Array String := #[]

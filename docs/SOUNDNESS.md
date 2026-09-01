@@ -207,6 +207,38 @@ asserted as measured fact and is **wrong** — it inferred a fixed reference thr
 arithmetic before anyone had measured one, and it was retracted publicly. Do not rebuild it. The
 constant-memory justification above is what survived the measurement.
 
+**⭐ Both sides measured, 2026-08-30 — and the reading above survives it.** §4 was written when
+nobody had run the reference. Both boundaries have now been measured on pinned artifacts, and the
+numbers are recorded here so no future reader has to re-derive them or re-infer them from frames:
+
+| side | boundary | artifact |
+|---|---|---|
+| reference | depths 331 and 332 decode; **333**, 334 and 340 raise `RecursionError` | `ethereum-rlp 0.1.6`, wheel sha256 `f4144caa…` from `execution-specs/uv.lock`, CPython 3.12.3, default `getrecursionlimit() == 1000` |
+| guest | accepts through observed depth **1025**; `status 7` at **1026**, 5000 and 20000 | production ELF sha256 `4104d3e8…`; harness with all seven walker/recursive spans byte-identical to the linked image |
+
+The capped path is reachable: BFS from `_start` reaches `stateless_verdict_v2` →
+`header_extract_state_root` → `rlp_walk_next` (`0x80004cec`) → `rlp_walk_next_shared`
+(`0x80004d20`) → `rlp_validate_payload` (`0x80004df0`, `li a2,1024`). The cap is depth fuel, not a
+byte budget — confirmed by the `1026` boundary rather than inferred from the immediate.
+
+⚠️ **The machine cap is not the observed depth.** With cap `C` the walk accepts through observed
+depth `C + 1` and first rejects at `C + 2` — hence cap 1024 accepting 1025. A reader setting the
+constant to an observed figure ships a cap two levels looser than intended, with a number that
+reads correctly in the source. `Layout.lean`'s docstring carries this offset (#13097).
+
+**Ruling (maintainer, 2026-08-30): accepting through observed depth 1025 is fine — the cap stays
+at 1024.** The measurement changes what is *known*, not what is *correct*: 333 remains a property
+of CPython at its default limit, so there is still no reference boundary to match, and the
+constant-memory justification above is unaffected. ⛔ **This is a documented divergence, not a
+defect. Do not re-open it as a false accept** — that claim has now been raised and retracted
+**twice** (once from frame arithmetic, once from measurement), and the second time the measurement
+was sound while the inference drawn from it was not.
+
+⇒ **Tightening the cap is the more dangerous direction, not the safe one.** Lowering 1024 → 331 to
+"match" the default-limit reference would triple the exposure described two paragraphs above — the
+guest rejecting inputs a raised-limit reference decodes — and shrink the frame arena by the same
+factor, since `FrameBytes = 40 * depthCap + 40`.
+
 **Relationship to §3 — same mechanism, different open question.** CPython's `RecursionError` is
 an `Exception`, so it reaches `stateless.py:363` exactly as an `OverflowError` does and likewise
 becomes `successful_validation = False`. **Both entries therefore reject, by the same mechanism**,

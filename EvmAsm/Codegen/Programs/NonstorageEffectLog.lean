@@ -288,16 +288,16 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_balance + 16)),
     .ADDI .x12 .x12 (laLo GuestAddrs.exec_nonstorage_effect_log (GuestAddrs.nonstorage_effect_latest_balance + 16)),
     .LI .x5 (0 : Word),
-    .BEQ .x5 .x30 (108 : BitVec 13),
+    .BEQ .x5 .x30 (brOff (GuestAddrs.nonstorage_effect_latest_balance + 136) (GuestAddrs.nonstorage_effect_latest_balance + 28)),
     .LI .x6 (112 : Word),
     .MUL .x6 .x5 .x6,
     .ADD .x7 .x12 .x6,
     .LD .x28 .x7 (0 : BitVec 12),
     .LD .x29 .x10 (0 : BitVec 12),
-    .BNE .x28 .x29 (76 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.nonstorage_effect_latest_balance + 128) (GuestAddrs.nonstorage_effect_latest_balance + 52)),
     .LD .x28 .x7 (8 : BitVec 12),
     .LD .x29 .x10 (8 : BitVec 12),
-    .BNE .x28 .x29 (64 : BitVec 13),
+    .BNE .x28 .x29 (brOff (GuestAddrs.nonstorage_effect_latest_balance + 128) (GuestAddrs.nonstorage_effect_latest_balance + 64)),
     .LWU .x28 .x7 (16 : BitVec 12),
     .LWU .x29 .x10 (16 : BitVec 12),
     .BNE .x28 .x29 (52 : BitVec 13),
@@ -314,7 +314,7 @@ def nonstorageEffectLatestBalance_prog : Program :=
     .SD .x11 .x28 (24 : BitVec 12),
     .LI .x31 (1 : Word),
     .ADDI .x5 .x5 (1 : BitVec 12),
-    .JAL .x0 (-104 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.nonstorage_effect_latest_balance + 28) (GuestAddrs.nonstorage_effect_latest_balance + 132)),
     .MV .x10 .x31,
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
@@ -338,7 +338,6 @@ theorem nonstorageEffectLatestBalanceFunction_eq_prog :
 
 #guard nonstorageEffectLatestBalanceFunction.startsWith "nonstorage_effect_latest_balance:\n"
 #guard nonstorageEffectLatestBalance_prog.length = 36
-
 /-- `nonstorage_effect_latest_nonce`: bmvmx.5.5.10 — nonce analog of
 `nonstorage_effect_latest_balance`. Sequential multi-tx CREATE address
 derivation seeds `create_nonce` from the PRE-state witness

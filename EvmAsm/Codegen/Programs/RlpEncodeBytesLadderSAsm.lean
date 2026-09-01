@@ -55,11 +55,12 @@ private theorem rebLadder_bc1 (len v28 v29 : Word) (hlo : 1 ≤ len.toNat) (hhi 
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
-    (rebBase + 128)
-  rw [show rebBase + 128 + signExtend13 (80 : BitVec 13) = rebBase + 208 from by
-        rw [show signExtend13 (80 : BitVec 13) = (80 : Word) from by decide]
-        bv_omega] at hb10
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128))
+    len (256 : Word) (rebBase + 128)
+  rw [show rebBase + 128 + signExtend13
+      (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) = rebBase + 208 from by
+        decide] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -94,8 +95,9 @@ private theorem rebLadder_bc2 (len v28 v29 : Word) (hlo : 256 ≤ len.toNat) (hh
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
-    (rebBase + 128)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128))
+    len (256 : Word) (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
@@ -112,11 +114,12 @@ private theorem rebLadder_bc2 (len v28 v29 : Word) (hlo : 256 ≤ len.toNat) (hh
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
-    (rebBase + 140)
-  rw [show rebBase + 140 + signExtend13 (68 : BitVec 13) = rebBase + 208 from by
-        rw [show signExtend13 (68 : BitVec 13) = (68 : Word) from by decide]
-        bv_omega] at hb20
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140))
+    len (65536 : Word) (rebBase + 140)
+  rw [show rebBase + 140 + signExtend13
+      (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) = rebBase + 208 from by
+        decide] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)
@@ -151,7 +154,8 @@ private theorem rebLadder_bc3 (len v28 v29 : Word) (hlo : 65536 ≤ len.toNat) (
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -169,7 +173,8 @@ private theorem rebLadder_bc3 (len v28 v29 : Word) (hlo : 65536 ≤ len.toNat) (
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -226,7 +231,8 @@ private theorem rebLadder_bc4 (len v28 v29 : Word) (hlo : 16777216 ≤ len.toNat
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -244,7 +250,8 @@ private theorem rebLadder_bc4 (len v28 v29 : Word) (hlo : 16777216 ≤ len.toNat
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -319,7 +326,8 @@ private theorem rebLadder_bc5 (len v28 v29 : Word) (hlo : 4294967296 ≤ len.toN
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -337,7 +345,8 @@ private theorem rebLadder_bc5 (len v28 v29 : Word) (hlo : 4294967296 ≤ len.toN
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -430,7 +439,8 @@ private theorem rebLadder_bc6 (len v28 v29 : Word) (hlo : 1099511627776 ≤ len.
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -448,7 +458,8 @@ private theorem rebLadder_bc6 (len v28 v29 : Word) (hlo : 1099511627776 ≤ len.
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -559,7 +570,8 @@ private theorem rebLadder_bc7 (len v28 v29 : Word) (hlo : 281474976710656 ≤ le
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -577,7 +589,8 @@ private theorem rebLadder_bc7 (len v28 v29 : Word) (hlo : 281474976710656 ≤ le
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -709,7 +722,8 @@ private theorem rebLadder_bc8 (len v28 v29 : Word) (hlo : 72057594037927936 ≤ 
   rw [show rebBase + 120 + 4 = rebBase + 124 from by bv_omega] at hL1
   have hL2 := li_spec_gen_within .x29 v29 (256 : Word) (rebBase + 124) (by decide)
   rw [show rebBase + 124 + 4 = rebBase + 128 from by bv_omega] at hL2
-  have hb10 := bltu_spec_gen_within .x6 .x29 (80 : BitVec 13) len (256 : Word)
+  have hb10 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 128)) len (256 : Word)
     (rebBase + 128)
   rw [show rebBase + 128 + 4 = rebBase + 132 from by bv_omega] at hb10
   have hb1 := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -727,7 +741,8 @@ private theorem rebLadder_bc8 (len v28 v29 : Word) (hlo : 72057594037927936 ≤ 
     (rebBase + 136) (by decide)
   rw [show rebBase + 136 + 4 = rebBase + 140 from by bv_omega,
       show (256 : Word) <<< (8 : BitVec 6).toNat = (65536 : Word) from by decide] at hS2
-  have hb20 := bltu_spec_gen_within .x6 .x29 (68 : BitVec 13) len (65536 : Word)
+  have hb20 := bltu_spec_gen_within .x6 .x29
+    (brOff (GuestAddrs.rlp_encode_bytes + 208) (GuestAddrs.rlp_encode_bytes + 140)) len (65536 : Word)
     (rebBase + 140)
   rw [show rebBase + 140 + 4 = rebBase + 144 from by bv_omega] at hb20
   have hb2 := cpsTripleWithin_weaken (fun _ hp => hp)

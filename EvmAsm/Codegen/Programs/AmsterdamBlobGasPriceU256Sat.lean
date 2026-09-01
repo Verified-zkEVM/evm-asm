@@ -7,7 +7,6 @@
 import EvmAsm.Codegen.Programs.Header
 import EvmAsm.Codegen.Programs.U256
 import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
-import EvmAsm.Codegen.Programs.U256MulU64Be.WholeTop
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
 import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Rv64.SAsm.AbiFrame

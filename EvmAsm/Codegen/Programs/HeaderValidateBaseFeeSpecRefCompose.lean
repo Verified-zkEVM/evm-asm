@@ -49,12 +49,14 @@
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpec
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRef
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.HeaderBaseFeeSpec hiding K73
 open EvmAsm.Codegen.HeaderValidateBaseFeeSpec
+open EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
 open EvmAsm.Stateless.SpecRef
 
 /-- Strip a trailing pure conjunct (the Route-B arm guards). -/
@@ -124,7 +126,14 @@ def k73RouteBPost (spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr 
     `expectedBytes := hvbfExpectedBytes`: the success arms assert exactly that
     scratch content, while the failure arm carries the bytes actually left in
     the scratch region.  The pinned success status is dropped into
-    `k73PostOwn`'s owned `a0`; a failure status remains explicit. -/
+    `k73PostOwn`'s owned `a0`; a failure status remains explicit.
+
+    Superseded as a consumer: after the caller-owned-seam reshape the
+    wrapper (`header_validate_base_fee_spec_within`) is increase-arm-specific
+    and `header_validate_base_fee_specref_within` carries the direct
+    `k73_incr_env`/`k73_incr_outj` contract, discharged by
+    `k73_incr_route_adapter`.  This arm-agnostic collapse remains true and
+    is kept for the SpecRef history. -/
 theorem k73RouteB_adapt
     {k73Code : CodeReq} {n73 : Nat}
     (spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
@@ -282,24 +291,29 @@ def hvbfSpecRefRetPost (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentP
           .error (.invalidBlock "base fee mismatch")⌝) h
 
 /-- The K74 `header_validate_base_fee` wrapper with the SpecRef attribution
-    layer: #12762's machine-layer theorem applied as-is, its K73 premise
-    discharged from the Route-B contract, its post lifted to
-    `hvbfSpecRefRetPost`.
+     layer: #12762's machine-layer theorem applied as-is, its K73 premise
+     enriched to the real caller-owned multiply seam (see the wrapper's
+     docstring in `HeaderValidateBaseFeeSpec`), its post lifted to
+     `hvbfSpecRefRetPost`.
 
-    The `hk73RouteB` premise IS the Route-B contract of issue #12346 item
-    10: an unconditional whole-routine triple over the linked K73 entry
-    (`GuestAddrs.eip1559_calc_base_fee_per_gas`) returning to an arbitrary
-    caller `ra`, with the arm-indexed post `k73RouteBPost` (equal / increase
-    / decrease arms each asserting the scratch holds `hvbfExpectedBytes`,
-    plus a failure arm).  codex2's forthcoming whole-routine K73 theorem
-    discharges this hypothesis directly.  The equality call is discharged
-    by the machine-layer `u256EqBody` adapter, which supplies the explicit
-    scratch pointers, owns the body temporaries, and preserves x11. -/
+     The `hk73` premise IS the increase-arm Route-B contract of #12986 /
+     #12346 item 10: a whole-routine triple over the linked K73 entry
+     (`GuestAddrs.eip1559_calc_base_fee_per_gas`) returning to `H + 40`,
+     with the asymmetric caller-owned seam ambients (`k73_incr_env` on
+     entry, `k73_incr_outj` on return).  `k73_incr_route_adapter`
+     (`HeaderValidateBaseFeeCompositionIncreaseRoute`) discharges this
+     hypothesis directly, modulo the caller's static ABI gates.  The
+     equality call is discharged
+     by the machine-layer `u256EqBody` adapter, which supplies the explicit
+     scratch pointers, owns the body temporaries, and preserves x11.  (The
+     arm-agnostic `k73RouteB_adapt` collapse below is retained for the
+     SpecRef history; the wrapper is increase-arm-specific since the seam
+     reshape.) -/
 theorem header_validate_base_fee_specref_within
     {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 old18 v19 v20 : Word)
-    (parentBytes headerBytes : List (BitVec 8)) (F : Assertion)
+    (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (parentBytes headerBytes accBytes : List (BitVec 8)) (F : Assertion)
     (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
@@ -313,16 +327,16 @@ theorem header_validate_base_fee_specref_within
       Expected.toNat + 32 ≤ headerPtr.toNat)
     (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
     (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
-    (hk73RouteB : ∀ (raRet : Word) (initBytes : List (BitVec 8)),
-      initBytes.length = 32 →
-      (raRet &&& ~~~(1 : Word)) = raRet →
-      parentBytes.length = 32 →
-      cpsTripleWithin n73 K73 raRet k73Code
-        ((.x1 ↦ᵣ raRet) **
-          k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
-            parentBytes initBytes headerBytes raIn old8 (k74FlatFrame F))
-        (k73RouteBPost spH spK raRet raIn old8 headerPtr gasLimit gasUsed parentPtr
-          v9 old18 v19 v20 parentBytes initBytes headerBytes (k74FlatFrame F)))
+    (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
+          parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
+          raIn old8 (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes F))
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1)
+          v19 v20 gasUsed gasLimit parentPtr parentBytes headerBytes
+          (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes
+            accBytes F)))
     (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
     parentBytes.length = 32 →
     cpsTripleWithin
@@ -333,15 +347,17 @@ theorem header_validate_base_fee_specref_within
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20
         parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
-          (k74FlatFrame F))
+          (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes F))
       (hvbfSpecRefRetPost sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-        v9 old18 v19 v20 parentBytes headerBytes (k74FlatFrame F)) := by
-  intro hsrc
-  have hk73 := k73RouteB_adapt spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-    v9 old18 v19 v20 parentBytes headerBytes F hk73RouteB hsrc
+        v9 old18 v19 v20 parentBytes headerBytes
+          (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes
+            accBytes F)) := by
+  intro _hsrc
   have hmachine := HeaderValidateBaseFeeSpec.header_validate_base_fee_spec_within
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr v9 old18 v19 v20
-    parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes F
+    f0 f1 f2 f3 f4 f5
+    parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
+      accBytes F
     hspH hspK hret hF hHeaderWf hExpectedWf hHeaderLen hExpectedLen hDisj
     hcode hk73Mono hk73 heqMono
   refine cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) hmachine
@@ -366,8 +382,8 @@ theorem header_validate_base_fee_specref_within
     named residual premise of the main theorem. -/
 theorem header_validate_base_fee_specref_within_inhabitable :
     ∃ (cr k73Code : CodeReq) (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed
-        parentPtr : Word) (v9 old18 v19 v20 : Word)
-      (parentBytes headerBytes : List (BitVec 8)) (F : Assertion),
+        parentPtr : Word) (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+      (parentBytes headerBytes accBytes : List (BitVec 8)) (F : Assertion),
       F.pcFree ∧
       (spH = sp0 + signExtend12 (-16 : BitVec 12)) ∧
       (spK = spH + signExtend12 (-56 : BitVec 12)) ∧
@@ -385,7 +401,7 @@ theorem header_validate_base_fee_specref_within_inhabitable :
         (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20
         parentBytes (hvbfExpectedBytes gasLimit gasUsed parentBytes) headerBytes
-          (k74FlatFrame F)).pcFree := by
+          (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes F)).pcFree := by
   let cr : CodeReq := hvbfCode.union u256EqCode
   have hcrDisj : hvbfCode.Disjoint u256EqCode := by
     apply CodeReq.Disjoint.ofProg_ranges <;> decide
@@ -393,8 +409,9 @@ theorem header_validate_base_fee_specref_within_inhabitable :
     (0x100000 : Word), (0x0ffff0 : Word), (0x0fffb8 : Word),
     (0x12340000 : Word), (0x56780000 : Word), (0x200000 : Word),
     (100000 : Word), (50000 : Word), (0x200100 : Word),
-    1, 2, 3, 4,
+    1, 2, 3, 4, 0, 0, 0, 0, 0, 0,
     List.replicate 32 (0 : BitVec 8), List.replicate 32 (0 : BitVec 8),
+    List.replicate 40 (0 : BitVec 8),
     empAssertion, pcFree_emp, by decide, by decide, by decide,
     by decide, by decide, by decide, by decide, by decide, by decide,
     (fun a i h => by
@@ -407,7 +424,7 @@ theorem header_validate_base_fee_specref_within_inhabitable :
           (oldCr := u256EqCode) (head := hvbfCode) (tail := u256EqCode)
           hcrDisj (fun _ _ h' => h') a i h)), ?_⟩
   unfold hvbfPre
-  dsimp [k74FlatFrame]
+  dsimp [k73_incr_env]
   pcf
 
 #print axioms header_validate_base_fee_specref_within

@@ -1087,7 +1087,7 @@ def ziskTxPostExecGasSettlementDataSection : String :=
       a4 (output) : applied refund
 -/
 def txGasResultIncrements_prog : Program :=
-  [ .BLTU .x10 .x11 (80 : BitVec 13),
+  [ .BLTU .x10 .x11 (brOff (GuestAddrs.tx_gas_result_increments + 80) (GuestAddrs.tx_gas_result_increments + 0)),
     .SUB .x5 .x10 .x11,
     .LI .x6 (5 : Word),
     .DIVU .x7 .x5 .x6,

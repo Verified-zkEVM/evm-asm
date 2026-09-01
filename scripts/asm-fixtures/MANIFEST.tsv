@@ -1,5 +1,6 @@
 # asm_to_program.py conversion manifest: <func>\t<lean file> (bead evm-asm-4ch8f.9)
 callFrameForwardGasFunction	EvmAsm/Codegen/Programs/CallFrameDescend.lean
+callExtraGasFunction	EvmAsm/Codegen/Programs/EvmMessageCallGas.lean
 execLogAddrToBalCanonicalFunction	EvmAsm/Codegen/Programs/StorageReadLog.lean
 rlpFieldToU64StrictFunction	EvmAsm/Codegen/Programs/RlpFieldToU64StrictProgram.lean
 storageWritesBlockLatestValueFunction	EvmAsm/Codegen/Programs/CommittedStorageLookup.lean
@@ -68,14 +69,12 @@ balCanonicalSortSelftestFunction	EvmAsm/Codegen/Programs/BalCanonicalSort.lean
 balEmitStorageChangesFunction	EvmAsm/Codegen/Programs/BlockAccessListBuilderStorage.lean
 balFindAccountByAddressFunction	EvmAsm/Codegen/Programs/BlockVerdictBalFindAccount.lean
 balGasValidFromBuilderFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
-balGasValidFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balMapAccountMatchesFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balMapBuilderConsistentFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balMapBuilderHasRowFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balMapFinalValueMatchesFunction	EvmAsm/Codegen/Programs/BalMapBuilderConsistent.lean
 balRlpEmitBytesFunction	EvmAsm/Codegen/Programs/BalRlpEncode.lean
 balRlpMeasureIntoThrowawayFunction	EvmAsm/Codegen/Programs/BalRlpEncode.lean
-balSectionInfoFunction	EvmAsm/Codegen/Programs/BalGasValid.lean
 balSerializerAddrMatchesBeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerAddrMatchesFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
 balSerializerBalanceToLeFunction	EvmAsm/Codegen/Programs/BalSerializer.lean
@@ -389,7 +388,6 @@ p256PointAddFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256PointDblFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256PowFunction	EvmAsm/Codegen/Programs/P256Verify.lean
 p256ScalarMulFunction	EvmAsm/Codegen/Programs/P256Verify.lean
-parentHeaderMatchesWitnessFirstFunction	EvmAsm/Codegen/Programs/BlockHashPredicates.lean
 parseDepositRequestsFunction	EvmAsm/Codegen/Programs/ParseDepositRequests.lean
 priorityFeePerGasEip1559Function	EvmAsm/Codegen/Programs/U256GasPricing.lean
 processBlockStartSystemTransactionsFunction	EvmAsm/Codegen/Programs/SystemCallStaging.lean
@@ -452,7 +450,6 @@ secp256k1ScalarFieldSquareFunction	EvmAsm/Codegen/Programs/Secp256k1Field.lean
 secp256k1ScalarMulFunction	EvmAsm/Codegen/Programs/Secp256k1Curve.lean
 selfdestructBalanceTransferFunction	EvmAsm/Codegen/Programs/AccountBalance.lean
 senderDebitFromGasFunction	EvmAsm/Codegen/Programs/SenderBalanceDebit.lean
-senderPostNonceConsistentFunction	EvmAsm/Codegen/Programs/SenderPostNonceConsistent.lean
 simpleTransferIntrinsicGasFunction	EvmAsm/Codegen/Programs/BlockVerdictSimpleTransferGas.lean
 simpleTransferTxContextFunction	EvmAsm/Codegen/Programs/BlockVerdictSimpleTransfer.lean
 singleLeafTrieRootFunction	EvmAsm/Codegen/Programs/MptEncode.lean

@@ -513,12 +513,16 @@
 #   tier B in their own reasons; they are not tier-A debt, which is why the header
 #   count reads 0 with two lines below it.
 #   ⚠️ AND the header count is about THIS SECTION only — it is NOT the gate's tally.
-#   `check-registry-coverage.py` computes its own tier-A proxy from the theorem NAME
-#   and, after this change, still reports 1 tier-A: `header_validate_base_fee`, whose
-#   entry sits under a different header in this file.  Sections and the gate's grade
-#   have never agreed here; read the gate's output, not the headers.
-bal_serializer_balance_to_le	tier B — `balanceToLeFn_spec` (Codegen/Programs/BalSerializerLeSAsm.lean) is a structured `Fn.SpecR` at the pinned guest placement `GuestAddrs.bal_serializer_balance_to_le`, proof-first (DCode) generated code with `blockA`/`la`. SpecR is the CALLER-SHAPED (`Stmt.soundR`) contract — `Fn.retSpecFlat` flattens only the leaf (`Fn.Spec`) path, so no flat whole-routine triple exists yet; deriving a SpecR→flat lift (or restating the routine's post at `cpsTripleWithin` level as the `abiFrame` consumers do) is the unblock (#12736)
-bal_serializer_slot_to_le	tier B — same class as `bal_serializer_balance_to_le` directly above: `slotToLeFn_spec` is a structured `Fn.SpecR` at `GuestAddrs.bal_serializer_slot_to_le` (the twin instantiation of the same DCode derivation, `bslDeriv`); blocked on the same SpecR→flat lift (#12736)
+#   `check-registry-coverage.py` computes its own tier-A proxy from the theorem NAME.
+#   After this change the new wrapper row is no longer a gap, so the run reports
+#   0 tier-A.  Sections and the gate's grade have never agreed here; read the gate's
+#   output, not the headers.
+
+# ✅ #13069 (2026-08-30): the final three linked spec-bearing exemptions were
+#   registered as conditional rows in `Progress/Routines.lean` and removed below.
+#   The allowlist is now empty.  Keep the expiry check: a future linked
+#   spec-bearing routine must either gain a reasoned registry row or fail the
+#   gate immediately; the zero is a ratchet, not permission to grow silently.
 
 # ⚠️ THE TWO `rlp_content_to_*_strict` ENTRIES BELOW ARE NOT "structured SAsm spec only"
 #   despite sitting under this header — both are flat whole-routine triples at a FREE
@@ -526,12 +530,4 @@ bal_serializer_slot_to_le	tier B — same class as `bal_serializer_balance_to_le
 #   `Fn.retSpecFlat`. They are here because this is where non-tier-A entries live; read
 #   each entry's own reason, not the header (see the tier-drift warning at the top).
 #
-# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (8) ---
-bal_serializer_balance_to_le	tier B — `balanceToLeFn_spec` is a complete, discharged caller-shaped `Fn.SpecR` at `GuestAddrs.bal_serializer_balance_to_le` (the generated derivation has no `DStmt.call`; only `hreg`/`hrw` are explicit). It is not yet a flat `Fn.Spec`/`cpsTripleWithin` contract consumable by `Progress/Routines.lean`; row only after a flat whole-routine triple is derived and consumed at this concrete placement, with image identity tied to the emitted program.
-bal_serializer_slot_to_le	tier B — `slotToLeFn_spec` is the corresponding complete, discharged caller-shaped `Fn.SpecR` at `GuestAddrs.bal_serializer_slot_to_le` (no applied-callee premises; only `hreg`/`hrw`). It is not yet a flat `Fn.Spec`/`cpsTripleWithin` contract consumable by `Progress/Routines.lean`; row only after a flat whole-routine triple is derived and consumed at this concrete placement, with image identity tied to the emitted program.
-call_frame_forward_gas	tier B — `callFrameForwardGasFn_spec` (Codegen/Programs/CallFrameForwardGasSAsm.lean) is the structured DCode/SAsm contract used to generate the linked oracle Program; no flat whole-routine `cpsTripleWithin` exists at `GuestAddrs.call_frame_forward_gas` yet, so do not grade it `.proven` until the `Fn.retSpecFlat` lift is derived (#12853)
-erh_hash_one	tier B — linked and spec-bearing (`erh_hash_one_spec_within_empty` and `_nonempty`) but invisible to the registry gate until the detector widened; needs a registry row.
-
-witness_codes_lookup_by_hash	tier B — linked and spec-bearing (`witness_codes_lookup_by_hash_spec_within_empty_section`) but invisible to the registry gate until the detector widened; needs a registry row.
-witness_lookup_by_hash_indexed	tier B — linked and spec-bearing (`witness_lookup_by_hash_indexed_spec_within_empty` and `_one_hit`) but invisible to the registry gate until the detector widened; needs a registry row.
-header_validate_base_fee	K74 composition theorem has explicit independent hk73 and heq production-callee triples as premises; row only after hk73 and heq are discharged for the linked K73 and u256_eq callees (#12346).
+# --- TIER B: structured SAsm spec only; needs Fn.retSpecFlat first (0) ---

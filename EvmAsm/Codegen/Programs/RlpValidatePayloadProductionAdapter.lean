@@ -568,7 +568,7 @@ theorem rlp_validate_payload_production_frame_pointer_setup_spec_within
       have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 8
         (V + 32) (by decide) (by decide) (by bv_omega)
       simpa [wrapperCode, rlpValidatePayload_prog,
-        rlpValidatePayload_prog_with_cap, hi] using hm)
+        rlpValidatePayload_prog_of, hi] using hm)
   have h8'' := cpsTripleWithin_extend_code h8code h8'
   have h9 := addi_spec_gen_same_within .x13 v8 lo (V + 36) (by decide)
   have hla : v8 + signExtend12 lo = Frame := by
@@ -586,7 +586,7 @@ theorem rlp_validate_payload_production_frame_pointer_setup_spec_within
       have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 9
         (V + 36) (by decide) (by decide) (by bv_omega)
       simpa [wrapperCode, rlpValidatePayload_prog,
-        rlpValidatePayload_prog_with_cap, lo] using hm)
+        rlpValidatePayload_prog_of, lo] using hm)
   have h9'' := cpsTripleWithin_extend_code h9code h9'
   runBlock h8'' h9''
 
@@ -968,7 +968,7 @@ theorem rlp_validate_payload_production_empty_branch_spec_within
       have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 3
         (V + 12) (by decide) (by decide) (by bv_omega)
       simpa [wrapperCode, rlpValidatePayload_prog,
-        rlpValidatePayload_prog_with_cap] using hm)
+        rlpValidatePayload_prog_of] using hm)
   exact cpsBranchWithin_extend_code hcode h
 
 theorem rlp_validate_payload_production_range_branch_spec_within
@@ -994,7 +994,7 @@ theorem rlp_validate_payload_production_range_branch_spec_within
       have hm := CodeReq.ofProg_lookup_addr V rlpValidatePayload_prog 4
         (V + 16) (by decide) (by decide) (by bv_omega)
       simpa [wrapperCode, rlpValidatePayload_prog,
-        rlpValidatePayload_prog_with_cap] using hm)
+        rlpValidatePayload_prog_of] using hm)
   exact cpsBranchWithin_extend_code hcode h
 
 theorem rlp_validate_payload_production_early_failure_tail_spec_within
@@ -1236,10 +1236,10 @@ theorem rlp_validate_payload_production_status_branch_spec_within
         wrapperCode a = some i :=
     CodeReq.singleton_mono (by
       have hm := CodeReq.ofProg_lookup_addr V
-        (rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)) 11
+        (rlpValidatePayload_prog_of (rlpRecursiveDecodeDepthCap : Word)) 11
         (V + 44) (by decide) (by decide) (by bv_omega)
       simpa [wrapperCode, rlpValidatePayload_prog,
-        rlpValidatePayload_prog_with_cap] using hm)
+        rlpValidatePayload_prog_of] using hm)
   exact cpsBranchWithin_extend_code hmono h
 
 /-! The linked status branch and its two tails form a complete local

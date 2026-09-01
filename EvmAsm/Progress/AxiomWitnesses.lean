@@ -104,6 +104,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec.mul6_core
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceBody4Spec.swapdiv_core
@@ -134,6 +136,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceDivisionBridge.divst_eq_divBitRun
 
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.priceContract_ex0_inhabited
+
+#print axioms EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.taylor_price_contract_excess0_inhabited
+
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
 
 #print axioms EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_outcome_zero
@@ -163,6 +169,10 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.BalCanonicalSortDigitSpec.balDigit_at_67
 
 #print axioms EvmAsm.Codegen.BalGasValidU64SAsm.bgvU64leFlat_spec
+
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
+
+#print axioms EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
 
 #print axioms EvmAsm.Codegen.Blake2fLoadLe64SAsm.blk2LdLe64Flat_spec
 
@@ -284,6 +294,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.CallFrameCalldataFlat.callFrameSetCalldataFlat_spec
 
+#print axioms EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
+
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.chain_validate_post_merge_full_spec_within_empty
 
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes_value
@@ -291,6 +303,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ChainValidatePostMergeFullSpec.nonce_rule_agrees
 
 #print axioms EvmAsm.Codegen.CheckGasLimitSAsm.checkGasLimit_ref_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.eddMemcpyFlat_spec
+
+#print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
 
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
@@ -339,6 +357,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashVal.erh_validation_precondition_reachable
 
 #print axioms EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject10_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject1_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_probe_spec
+
+#print axioms EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_spec
 
 #print axioms EvmAsm.Codegen.FrameDepthPopSAsm.frameDepthPop_spec
 
@@ -514,6 +544,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
 
 #print axioms EvmAsm.Codegen.HeaderValidateExtraDataLengthSpec.header_extra_data_length_of_decode
@@ -607,6 +639,14 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_region_sat
+
+#print axioms EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+
+#print axioms EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+
+#print axioms EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 
 #print axioms EvmAsm.Codegen.Proofs.keccakBodyDigest_div_eq_specref
 
@@ -932,6 +972,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Secp256k1PointZero64SAsm.secp256k1PointZero64Flat_spec
 
+#print axioms EvmAsm.Codegen.SgLoadU32leFlatEntry.sgLoadU32leFlat_spec
+
+#print axioms EvmAsm.Codegen.SgMemcpyFlatEntry.sgMemcpyFlat_spec
+
+#print axioms EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
+
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.bvEip7702AuthRegularGas_eq_spec
 
 #print axioms EvmAsm.Codegen.SpecRefConstantPins.emptyTrieRootHex_eq_adBytes
@@ -984,6 +1030,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
@@ -1006,6 +1056,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
 
+#print axioms EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_spec
+
 #print axioms EvmAsm.Codegen.U256LtBeSAsm.u256LtBe_spec
 
 #print axioms EvmAsm.Codegen.U256MinSAsm.u256Min_spec
@@ -1013,6 +1065,20 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_inPlace_spec
 
 #print axioms EvmAsm.Codegen.U256MulU64Be.mulWhole_spec
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_boundary_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_overflow_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_under_target_spec_within
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+
+#print axioms EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
+
+#print axioms EvmAsm.Codegen.ValidateHeaderWhole.validateHeaderCoreContract_hcoreStatus1_inhabited
 
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.top_frameSaved_with_rest_to_own
 
@@ -1115,6 +1181,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.ValidateParentHashLinkSpec.vphl_success_field0_bound
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
+
+#print axioms EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedEmpty.witness_lookup_by_hash_indexed_spec_within_empty
+
+#print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
 

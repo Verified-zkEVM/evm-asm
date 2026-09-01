@@ -193,22 +193,20 @@ theorem evm_mod_callable_v4_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     (branch : ModStackSpecCase base a b)
     (hStack :
       cpsTripleWithin unifiedDivBound base (base + nopOff) (sharedDivModCodeNoNop_v4 base)
-        (divModStackDispatchPre sp a b
-          branch.x1 branch.x2 v5 v6 v7 v10 v11
+        (divModStackDispatchPreNoX1 sp a b
+          branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+        (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal))) :
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_mod_callable_code_v4 base)
-      (divModStackDispatchPre sp a b
-        branch.x1 branch.x2 v5 v6 v7 v10 v11
+      (divModStackDispatchPreNoX1 sp a b
+        branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-      (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) := by
-  have hpcFreePost : (modStackDispatchPostNoX1 sp a b).pcFree := by
-    rw [modStackDispatchPostNoX1_unfold]
-    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
-    pcFree
+      (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) := by
+  have hpcFreePost : (modStackDispatchPostCallable sp a b).pcFree :=
+    modStackDispatchPostCallable_pcFree sp a b
   have hStackCall :=
     cpsTripleWithin_extend_code
       (hmono := sharedDivModCodeNoNop_v4_sub_mod_callable_code_v4) hStack
@@ -216,7 +214,7 @@ theorem evm_mod_callable_v4_spec_from_noNop_preserving_x1 (sp base raVal : Word)
     cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v4_ret_sub (base := base))
       (ret_spec_within' (base + nopOff) raVal)
   have hRetFramed :=
-    cpsTripleWithin_frameL (modStackDispatchPostNoX1 sp a b) hpcFreePost hRet
+    cpsTripleWithin_frameL (modStackDispatchPostCallable sp a b) hpcFreePost hRet
   exact cpsTripleWithin_seq_same_cr hStackCall hRetFramed
 
 theorem evm_mod_callable_v4_spec_from_noNop_preserving_x1_framed
@@ -227,18 +225,18 @@ theorem evm_mod_callable_v4_spec_from_noNop_preserving_x1_framed
     (branch : ModStackSpecCase base a b)
     (hStack :
       cpsTripleWithin unifiedDivBound base (base + nopOff) (sharedDivModCodeNoNop_v4 base)
-        (divModStackDispatchPre sp a b
-          branch.x1 branch.x2 v5 v6 v7 v10 v11
+        (divModStackDispatchPreNoX1 sp a b
+          branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal))) :
+        (modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal))) :
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_mod_callable_code_v4 base)
-      (divModStackDispatchPre sp a b
-        branch.x1 branch.x2 v5 v6 v7 v10 v11
+      (divModStackDispatchPreNoX1 sp a b
+        branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
-      ((modStackDispatchPostNoX1 sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
+      ((modStackDispatchPostCallable sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
   exact
     cpsTripleWithin_frameR F (by pcFree)
       (evm_mod_callable_v4_spec_from_noNop_preserving_x1
@@ -987,33 +985,45 @@ theorem evm_mod_callable_v4_spec_from_noNop (sp base raVal : Word)
     (branch : ModStackSpecCase base a b)
     (hStack :
       cpsTripleWithin unifiedDivBound base (base + nopOff) (sharedDivModCodeNoNop_v4 base)
-        (divModStackDispatchPre sp a b
-          branch.x1 branch.x2 v5 v6 v7 v10 v11
+        (divModStackDispatchPreNoX1 sp a b
+          branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (modStackDispatchPost sp a b)) :
+        ((modStackDispatchPostCallable sp a b ** regOwn .x9) **
+          (.x1 ↦ᵣ raVal))) :
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_mod_callable_code_v4 base)
-      (divModStackDispatchPre sp a b
-        branch.x1 branch.x2 v5 v6 v7 v10 v11
+      (divModStackDispatchPreNoX1 sp a b
+        branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal))
-      (modStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) := by
-  have hpcFreePost : (modStackDispatchPost sp a b).pcFree := by
-    rw [modStackDispatchPost_unfold]
-    rw [divScratchOwnCall_unfold, divScratchOwn_unfold]
-    pcFree
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+      ((modStackDispatchPostCallable sp a b ** regOwn .x9) **
+        (.x1 ↦ᵣ raVal)) := by
   have hStackCall :=
     cpsTripleWithin_extend_code
       (hmono := sharedDivModCodeNoNop_v4_sub_mod_callable_code_v4) hStack
-  have hStackFramed :=
-    cpsTripleWithin_frameR (.x1 ↦ᵣ raVal) (by pcFree) hStackCall
+  have hStackForRet :
+      cpsTripleWithin unifiedDivBound base (base + nopOff)
+        (evm_mod_callable_code_v4 base)
+        (divModStackDispatchPreNoX1 sp a b
+          branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
+          q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
+          shiftMem nMem jMem retMem dMem dloMem scratchUn0)
+        ((modStackDispatchPostCallable sp a b ** regOwn .x9) **
+          (.x1 ↦ᵣ raVal)) :=
+    cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by xperm_hyp hp) hStackCall
   have hRet :=
     cpsTripleWithin_extend_code (hmono := evm_mod_callable_code_v4_ret_sub (base := base))
       (ret_spec_within' (base + nopOff) raVal)
   have hRetFramed :=
-    cpsTripleWithin_frameL (modStackDispatchPost sp a b) hpcFreePost hRet
-  exact cpsTripleWithin_seq_same_cr hStackFramed hRetFramed
+    cpsTripleWithin_frameL (modStackDispatchPostCallable sp a b ** regOwn .x9)
+      (by
+        rw [modStackDispatchPostCallable_unfold, divScratchOwnCallNoX1_unfold,
+          divScratchOwn_unfold]
+        pcFree)
+      hRet
+  exact cpsTripleWithin_weaken (fun _ hp => hp) (fun _ hp => by xperm_hyp hp)
+    (cpsTripleWithin_seq_same_cr hStackForRet hRetFramed)
 
 theorem evm_mod_callable_v4_spec_from_noNop_framed
     {F : Assertion} [Assertion.PCFree F] (sp base raVal : Word)
@@ -1023,18 +1033,20 @@ theorem evm_mod_callable_v4_spec_from_noNop_framed
     (branch : ModStackSpecCase base a b)
     (hStack :
       cpsTripleWithin unifiedDivBound base (base + nopOff) (sharedDivModCodeNoNop_v4 base)
-        (divModStackDispatchPre sp a b
-          branch.x1 branch.x2 v5 v6 v7 v10 v11
+        (divModStackDispatchPreNoX1 sp a b
+          branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (modStackDispatchPost sp a b)) :
+        ((modStackDispatchPostCallable sp a b ** regOwn .x9) **
+          (.x1 ↦ᵣ raVal))) :
     cpsTripleWithin (unifiedDivBound + 1) base (raVal &&& ~~~1)
       (evm_mod_callable_code_v4 base)
-      ((divModStackDispatchPre sp a b
-        branch.x1 branch.x2 v5 v6 v7 v10 v11
+      ((divModStackDispatchPreNoX1 sp a b
+        branch.x1 raVal branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** (.x1 ↦ᵣ raVal)) ** F)
-      ((modStackDispatchPost sp a b ** (.x1 ↦ᵣ raVal)) ** F) := by
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0) ** F)
+      (((modStackDispatchPostCallable sp a b ** regOwn .x9) **
+        (.x1 ↦ᵣ raVal)) ** F) := by
   exact
     cpsTripleWithin_frameR F (by pcFree)
       (evm_mod_callable_v4_spec_from_noNop

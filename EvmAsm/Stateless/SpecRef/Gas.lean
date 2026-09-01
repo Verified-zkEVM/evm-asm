@@ -33,8 +33,10 @@
   `i ≥ 2·numerator/denominator` each step at least halves it; the loop
   therefore takes at most `4·(numerator/denominator) +
   log₂(factor·denominator) + O(1)` iterations, which the fuel strictly
-  over-approximates.  Exhaustion is unreachable; it rejects rather than
-  returning a wrong value.
+  over-approximates.  The factor = 1 instance used by
+  `calculate_blob_gas_price` is proved in `TaylorExponentialFuel`; that is the
+  only in-repository call site.  Exhaustion is unreachable there; it rejects
+  rather than returning a wrong value.
 -/
 
 module

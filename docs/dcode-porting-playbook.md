@@ -14,7 +14,6 @@ Reference consumers, roughly in order of difficulty:
 | `sg_validate_fixed_list` | `SgValidateFixedListSAsm.lean` | `dretCascade` (guards → shared bad tail) |
 | `modexp_iszero` | `ModexpIszeroSAsm.lean` | `dretWhileBreakSwap` (break loop, tails swapped), read-only loads |
 | `edd_be32_eq` | `EddBe32EqSAsm.lean` | `dretWhileHeaderBreak` (header-reload loop → cascade), load-heavy stage block |
-| `sender_post_nonce_consistent` | `SenderPostNonceConsistentSAsm.lean` | cascade + `dwhile` accumulate loop |
 | `edd_memcpy` | `EddMemcpySAsm.lean` | `dwhile` with STORES into the rw window |
 | `call_frame_forward_gas` etc. | `CallFrameForwardGasSAsm.lean` | straight-line + `dretIf` |
 | `bal_serializer_*_to_le` | `BalSerializerLeSAsm.lean` | `blockA` (`la`/AUIPC), placement-pinned |
@@ -116,7 +115,8 @@ Proof idioms, in the order you will hit them:
    patterns: (a) `exact`/`refine` a helper lemma stating the clean ite
    (`edd_vc_nil`, `mc_vc`) — full-unifier defeq tolerates the instance
    mismatch; (b) re-state the whole ite with `show` before rewriting
-   (`SenderPostNonceConsistentSAsm.lean`).
+   (the former `SenderPostNonceConsistentSAsm.lean` probe is retired; use a
+   current cascade example instead).
 4. **Register bookkeeping** is `rw [RegFile.get_set_self _ _ _ (by
    decide), RegFile.get_set_ne _ _ _ _ (by decide : Reg.a ≠ .b), …]`
    chains — `simp only` will NOT discharge the `≠` side conditions

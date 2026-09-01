@@ -5,6 +5,7 @@ byte copy `out[k] = sumByte[31-k]` (big-endian), then status + jump to the
 epilogue at PriceK+968, or status 1 on the overflow arm. Copy-loop cells use
 ofNat addressing; the entry converts the two check-phase se12 cells once.
 -/
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBodySpec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Rv64.SyscallSpecs
 import EvmAsm.Rv64.ControlFlow
@@ -13,7 +14,7 @@ import EvmAsm.Rv64.Tactics.XSimp
 namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 set_option maxRecDepth 8000
 
 /-- The 5-instr exitDiv prologue over a small core frame; `FR` absorbs the
@@ -380,7 +381,7 @@ namespace EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Codegen EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell EvmAsm.Codegen.AmsterdamBlobGasPriceBodySpec
-open EvmAsm.Codegen.AmsterdamBlobGasPriceBody2Spec EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceBody5Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody6Spec
 
 set_option maxRecDepth 8000

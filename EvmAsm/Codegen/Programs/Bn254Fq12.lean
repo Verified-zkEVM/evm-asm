@@ -518,7 +518,7 @@ def bnqPow_prog : Program :=
     .JAL .x1 (jalOff GuestAddrs.bnq_copy (GuestAddrs.bnq_pow + 148)),
     .BEQ .x19 .x0 (12 : BitVec 13),
     .ADDI .x19 .x19 (-1 : BitVec 12),
-    .JAL .x0 (-112 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.bnq_pow + 48) (GuestAddrs.bnq_pow + 160)),
     .LD .x1 .x2 (0 : BitVec 12),
     .LD .x8 .x2 (8 : BitVec 12),
     .LD .x9 .x2 (16 : BitVec 12),

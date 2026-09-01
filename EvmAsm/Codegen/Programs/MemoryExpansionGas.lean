@@ -28,6 +28,10 @@ public import EvmAsm.Codegen.Emit
 meta import EvmAsm.Rv64.Program
 meta import EvmAsm.Codegen.Layout
 meta import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.GuestAddrs
 
 @[expose] public section
 
@@ -40,7 +44,7 @@ open EvmAsm.Rv64
     a0 (output) = the memory-expansion gas charge = cost(new) - cost(old), or 0 if
     new <= old. cost(b) = w*3 + w*w/512 with w = (b + 31) >> 5. Leaf (no calls). -/
 def memoryExpansionGas_prog : Program :=
-  [ .BGEU .x10 .x11 (64 : BitVec 13),
+  [ .BGEU .x10 .x11 (brOff 2147483712 2147483648),
     .ADDI .x5 .x10 (31 : BitVec 12),
     .SRLI .x5 .x5 (5 : BitVec 6),
     .ADDI .x6 .x11 (31 : BitVec 12),

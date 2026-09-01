@@ -144,19 +144,19 @@ theorem evm_div_callable_v4_preserving_branch_return_x1_spec_in_sdivCodeV4
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp a b
-          branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+          branch.returnX1 branch.returnX1 branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp a b **
           (.x1 ↦ᵣ branch.returnX1))) :
     EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
       (base + wrapperEndOff) (branch.returnX1 &&& ~~~1) (sdivCodeV4 base)
-      (EvmAsm.Evm64.divModStackDispatchPre sp a b
-        branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+      (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+        branch.returnX1 branch.returnX1 branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
         shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-      (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+      (EvmAsm.Evm64.divStackDispatchPostCallable sp a b **
         (.x1 ↦ᵣ branch.returnX1)) := by
   exact EvmAsm.Rv64.cpsTripleWithin_extend_code
     (hmono := evm_div_callable_code_v4_sub_sdivCodeV4 (base := base))
@@ -178,19 +178,19 @@ theorem evm_div_callable_v4_preserving_branch_return_x1_framed_spec_in_sdivCodeV
         (base + wrapperEndOff)
         ((base + wrapperEndOff) + EvmAsm.Evm64.nopOff)
         (EvmAsm.Evm64.sharedDivModCodeNoNop_v4 (base + wrapperEndOff))
-        (EvmAsm.Evm64.divModStackDispatchPre sp a b
-          branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+        (EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+          branch.returnX1 branch.returnX1 branch.x2 v5 v6 v7 v10 v11
           q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
           shiftMem nMem jMem retMem dMem dloMem scratchUn0)
-        (EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+        (EvmAsm.Evm64.divStackDispatchPostCallable sp a b **
           (.x1 ↦ᵣ branch.returnX1))) :
     EvmAsm.Rv64.cpsTripleWithin (EvmAsm.Evm64.unifiedDivBound + 1)
       (base + wrapperEndOff) (branch.returnX1 &&& ~~~1) (sdivCodeV4 base)
-      (EvmAsm.Evm64.divModStackDispatchPre sp a b
-        branch.returnX1 branch.x2 v5 v6 v7 v10 v11
+      ((EvmAsm.Evm64.divModStackDispatchPreNoX1 sp a b
+        branch.returnX1 branch.returnX1 branch.x2 v5 v6 v7 v10 v11
         q0 q1 q2 q3 u0 u1 u2 u3 u4 u5 u6 u7
-        shiftMem nMem jMem retMem dMem dloMem scratchUn0 ** F)
-      ((EvmAsm.Evm64.divStackDispatchPostNoX1 sp a b **
+        shiftMem nMem jMem retMem dMem dloMem scratchUn0) ** F)
+      ((EvmAsm.Evm64.divStackDispatchPostCallable sp a b **
         (.x1 ↦ᵣ branch.returnX1)) ** F) := by
   exact
     EvmAsm.Rv64.cpsTripleWithin_frameR F (by pcFree)

@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   source-checks:
@@ -58,8 +58,6 @@ jobs:
         run: |
           scripts/check-correspondence-deps.sh --self-test
           scripts/check-correspondence-deps.sh
-      - name: Round-trip coverage fence (every Instr ctor has a #guard)
-        run: scripts/check-roundtrip-coverage.sh
       - name: EEST sampler span check (negative control on the --random guard)
         run: scripts/check-eest-sampler-span.py
       - name: "Guest-ELF override guard (negative control; an ignored override ran the default guest, #10617)"
@@ -100,6 +98,12 @@ jobs:
         run: scripts/check-code-preimage-empty-hash.sh
       - name: check-mpt-status-vocab
         run: scripts/check-mpt-status-vocab.sh
+      # #12829: every standalone Function/Program render needs an external
+      # oracle; a *_eq_prog self-tie alone cannot detect shared drift.
+      - name: Guarded render oracle coverage
+        run: |
+          python3 scripts/check-render-oracle-coverage.py --self-test
+          python3 scripts/check-render-oracle-coverage.py
       - name: Opcode-structure (AddrNorm pairing; advisory checklist for new complex dirs)
         run: scripts/check-opcode-structure.sh
       # Advisory naming nudge (camelCase hypotheses newly added in the PR);
@@ -129,6 +133,16 @@ jobs:
         run: |
           scripts/check-gates-can-fail.py --self-test
           scripts/check-gates-can-fail.py
+
+      # #13056: the independent fixed-sink scan must agree with the union of
+      # this manifest and check-derived-artifacts.py's guest-code registry.
+      # Its self-test proves that deleting an owner row and adding an unknown
+      # writer both fail; dynamic/temp/manual sinks remain explicitly named in
+      # the manifest scope rather than being guessed.
+      - name: Artifact-writer ownership (manifest + independent scan)
+        run: |
+          python3 scripts/check-artifact-writer-ownership.py --self-test
+          python3 scripts/check-artifact-writer-ownership.py
 
   build:
     runs-on: ubuntu-latest
@@ -224,10 +238,51 @@ jobs:
       - name: No-warnings guard (EvmAsm/ source paths)
         run: scripts/check-no-warnings.sh build.log
 
+      # #13013/#13015: the callee-composition worklist is a verifier-backed
+      # instrument, not a report-only script.  Its self-test needs the
+      # Program-derived shape dump, so generate that input only after its Lean
+      # producer has been built.  Exercise the missing-input path first: a
+      # self-test that silently accepts an absent dump is a green no-op.  The
+      # planted controls and the current-tree regression pins are hard failures:
+      # when the tree improves past an exemplar, update the pin or replace it
+      # with a population invariant rather than weakening the check.
+      - name: Callee-composition shape dump and self-test
+        run: |
+          set -euo pipefail
+          shape_dump="$RUNNER_TEMP/evm-asm-shape.tsv"
+          rm -f "$shape_dump"
+          if python3 scripts/callee-composition-queue.py --tsv "$shape_dump" --self-test; then
+            echo "::error::callee-composition self-test unexpectedly accepted a missing shape dump"
+            exit 1
+          else
+            status=$?
+            if [ "$status" -ne 2 ]; then
+              echo "::error::missing shape dump returned $status, expected hard-failure status 2"
+              exit "$status"
+            fi
+          fi
+          LAKE_ARTIFACT_CACHE=false lake build EvmAsm.Tests.GuestImageShapeDump
+          LAKE_ARTIFACT_CACHE=false lake env lean scripts/lean/GuestImageShapeDumpRun.lean > "$shape_dump"
+          test -s "$shape_dump"
+          python3 scripts/callee-composition-queue.py --tsv "$shape_dump" --self-test
+
+      # Runs here, not in source-checks: re-deriving the export lists needs the
+      # dependency's oleans, so it requires a build. Without this gate a
+      # declaration added upstream would simply never surface under
+      # `EvmAsm.Rv64`, and the first sign would be an unrelated-looking
+      # "unknown identifier" in whichever proof happened to need it next.
+      - name: Rv64 re-export shims match the riscv-zkvm dependency
+        run: python3 scripts/gen-rv64-shims.py --check
+
+      # Moved out of source-checks: `Instr` now lives in the dependency, so this
+      # reads .lake/packages/riscv-zkvm and needs a populated package dir.
+      - name: Round-trip coverage fence (every Instr ctor has a #guard)
+        run: scripts/check-roundtrip-coverage.sh
+
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep satsweep footsweep
+        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep satsweep footsweep regionsweep
 
       # Replays the committed oracle corpora against their Lean models — the
       # evidence behind the verdicts in docs/*-spec-correspondence.md and the
@@ -267,6 +322,7 @@ jobs:
       # soak cannot silently rot.
       - name: Axiom sweep (whole-library, report-only)
         run: |
+          lake exe axiomsweep --self-test
           status=0
           lake exe axiomsweep --check || status=$?
           if [ "$status" -eq 1 ]; then
@@ -316,10 +372,32 @@ jobs:
             exit "$status"
           fi
 
-      # #12268: derives each routine's covering artifact set from MANIFEST.tsv +
-      # the pipeline and names the stale artifact (fixture vs source, tsv vs ELF,
-      # GuestAddrs vs tsv, GuestImageEntries vs MANIFEST+tsv, pins vs ELF).
-      # Blocking tier: deterministic, no network.
+      # #12740: elaborated assertion footprint census.  This is the Tier-B
+      # complement to SatSweep (kernel witnesses) and FootSweep (code/contact
+      # footprint): it reports possible duplicate occupancy inside a single
+      # sepConj component and marks opaque/data-driven leaves unaudited.
+      # Four structural controls must fire before the report is trusted;
+      # findings remain advisory because Assertion is intentionally opaque.
+      - name: Region ownership sweep (report-only)
+        run: |
+          status=0
+          lake exe regionsweep --self-test || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::regionsweep self-test failure (exit $status) — census not trustworthy"
+            exit "$status"
+          fi
+          lake exe regionsweep --out gen-out/regionsweep-report.json || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::regionsweep infrastructure failure (exit $status) — not a census verdict"
+            exit "$status"
+          fi
+
+      # #12268/#12836: checks the reviewed GENERATORS registry for the guest
+      # codegen artifact pipeline and names the stale artifact (fixture vs
+      # source, tsv vs ELF, GuestAddrs vs tsv, GuestImageEntries vs MANIFEST+tsv,
+      # pins vs ELF, transcription queue). Registry visibility and every
+      # entry's negative control are self-tested; other generated ledgers have
+      # their own gates. Blocking tier: deterministic, no network.
       - name: Derived-artifact consistency (self-test)
         run: |
           lake build codegen
@@ -367,6 +445,28 @@ jobs:
       - name: Non-vacuity citations are witnessed
         run: |
           python3 scripts/check-nonvacuity-witnessed.py --self-test
+
+      # #13030: explicit typed evidence (non-vacuity instances, negative
+      # controls, machine-body contracts and temporary module floors) must
+      # name live declarations and the audit surface that actually checks
+      # them.  This is deliberately separate from the row-driven citation
+      # gate above: an evidence declaration with no row would otherwise be
+      # invisible, while a source-print floor has not yet entered the witness
+      # registry.
+      - name: Typed evidence ledger
+        run: |
+          python3 scripts/check-evidence-ledger.py --self-test
+          python3 scripts/check-evidence-ledger.py
+
+      # #12926: semantic CPS/Hoare seam contracts are an explicit opt-in
+      # surface.  A broad `Prop` census cannot identify them without hundreds
+      # of false positives, so this gate checks the checked-in ledger: every
+      # target is a real Prop declaration of its recorded shape, every missing
+      # witness has an explicit reason, and supplied evidence is in the axiom
+      # witness module.
+      - name: Seam-contract ledger
+        run: |
+          python3 scripts/check-seam-contract-ledger.py --self-test
 
       # The remaining two classes of the same family (#12129): an `infra` blocker
       # claiming a symbol is UNCONVERTED when `GuestImageEntries.lean` lists it,

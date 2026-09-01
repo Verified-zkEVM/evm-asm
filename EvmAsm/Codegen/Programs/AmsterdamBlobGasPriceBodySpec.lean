@@ -474,21 +474,26 @@ theorem amsterdam_blob_gas_price_prog_eq_abiFrameProg :
       = abiFrameProg (-208 : BitVec 12) (208 : BitVec 12) priceFrame priceBody := by
   decide
 
-/-- Body-entry precondition: frame slots saved (holding the entry values),
-    frame registers exposed, caller ABI atoms (`x10` = excess, `x11` =
-    outPtr, temporaries owned), the explicit setup workspace, plus the
-    caller's `scratch`.  The output buffer is *not* pinned here — callers
-    supply it through `scratch`, matching how `priceContract` accounts for it;
-    the eighteen dwords written by setup are exposed separately by
-    `priceWorkspaceOwn`. -/
+/-- Body-entry precondition: the caller-supplied output pointer, its ABI
+    alignment/range/validity facts, frame slots saved (holding the entry
+    values), frame registers exposed, caller ABI atoms (`x10` = excess,
+    `x11` = outPtr, temporaries owned), the explicit setup workspace, the four
+    writable output cells, plus the caller's residual `scratch`.  The output
+    cells are explicit because the status-0 path writes all 32 output bytes;
+    leaving them in an arbitrary frame would make the CPS contract false under
+    a frame that owns the same cells.  The pure geometry premise is discharged
+    by `decide` at the two static linked callers and remains an ABI premise for
+    dynamic callers. -/
 def priceBodyPre
     (newSp : Word) (vals : Reg → Word)
     (excess outPtr : Word) (scratch : Assertion) : Assertion :=
   (.x2 ↦ᵣ newSp) ** regsAt priceFrame vals **
     frameSlotsSaved priceFrame newSp vals **
-    ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
-      priceWorkspaceOwn newSp **
-      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
+    (⌜priceOutputGeometry outPtr⌝ **
+      ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        priceWorkspaceOwn newSp **
+        priceOutputOwn outPtr **
+        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch))
 
 /-- Body-exit postcondition: `x10` = status, `x11` still exactly `outPtr`
     (audited: the body never writes `x11`), temporaries owned, frame
@@ -606,10 +611,15 @@ theorem priceBodyFrameRel_postVals
   · have hmod : swapCount % 2 = 1 := by omega
     simp [priceBodyFrameRel, priceBodyPostVals, hmod]
 
-def priceBodyOutcomePost
+/-! The executable body has no operation that changes the caller's residual
+    assertion.  Keep that residual outside the existential outcome witness so
+    the frame rule can carry it from entry to exit.  In particular, do not
+    quantify an unrelated `scratchPost`: that would promise a transition from
+    one arbitrary resource to another that the body cannot perform. -/
+def priceBodyOutcomeCore
     (outcome : Word → Word × List (BitVec 8))
     (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
-    (scratchPost : Assertion) : Assertion :=
+    : Assertion :=
   fun h => ∃ (finalIndex : Word) (swapCount : Nat),
     priceBodyFrameRel newSp excess outPtr finalIndex vals
         (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount) swapCount ∧
@@ -617,7 +627,13 @@ def priceBodyOutcomePost
     priceBodyOutcomeRel outcome excess status (outcome excess).2 ∧
     priceBodyPost newSp vals
       (priceBodyPostVals newSp excess outPtr finalIndex vals swapCount)
-      status outPtr (outcome excess).2 scratchPost h
+      status outPtr (outcome excess).2 empAssertion h
+
+def priceBodyOutcomePost
+    (outcome : Word → Word × List (BitVec 8))
+    (newSp : Word) (vals : Reg → Word) (excess outPtr status : Word)
+    (scratch : Assertion) : Assertion :=
+  priceBodyOutcomeCore outcome newSp vals excess outPtr status ** scratch
 
 /-! The open seam statement (#12851 / K70 item 7): a model-indexed two-exit
     triple for the functional body between the frame entry (`PriceK + 36`)
@@ -625,21 +641,42 @@ def priceBodyOutcomePost
     bytes; the status-1 arm carries only output ownership through
     `priceOutputPost`.  Discharging this over the emitted body — including the
     6-limb bignum arithmetic and the Taylor recurrence invariant — is the
-    remaining machine work. -/
+    remaining machine work.  The same `scratch` assertion is used on both
+    sides: the body preserves the caller's residual frame, and arbitrary
+    `pcFree` scratch is obtained by framing the core (`empAssertion`) contract.
+    The former independent `scratchPost` quantified a behavior the body cannot
+    perform and was therefore not a stronger contract. -/
 def priceBodyContract
     (bodySteps : Nat) (sp0 : Word) (vals : Reg → Word)
     (excess outPtr : Word)
     (outcome : Word → Word × List (BitVec 8))
-    (scratch scratchPost : Assertion) : Prop :=
+    (scratch : Assertion) : Prop :=
   cpsNBranchWithin bodySteps
     (PriceK + 36) priceCode
     (priceBodyPre (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr scratch)
     [(PriceK + 968,
         priceBodyOutcomePost outcome
-          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratchPost),
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 0 scratch),
       (PriceK + 968,
         priceBodyOutcomePost outcome
-          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratchPost)]
+          (sp0 + signExtend12 (-208 : BitVec 12)) vals excess outPtr 1 scratch)]
+
+/-- Frame the core body contract with any caller-owned, PC-free residual.
+    This is the general form used by callers: the executable body is proved
+    once against `empAssertion`, then `scratch` is carried unchanged by the
+    separation-logic frame rule. -/
+theorem priceBodyContract_frame
+    {bodySteps : Nat} (sp0 : Word) (vals : Reg → Word)
+    (excess outPtr : Word)
+    (outcome : Word → Word × List (BitVec 8))
+    (scratch : Assertion)
+    (hcore : priceBodyContract bodySteps sp0 vals excess outPtr outcome empAssertion)
+    (hscratch : scratch.pcFree) :
+    priceBodyContract bodySteps sp0 vals excess outPtr outcome scratch := by
+  unfold priceBodyContract at hcore ⊢
+  have hfr := cpsNBranchWithin_frameR hscratch hcore
+  simpa only [List.map, priceBodyOutcomePost, priceBodyOutcomeCore,
+    priceBodyPre, sepConj_emp_right', sepConj_emp_left', sepConj_assoc'] using hfr
 
 theorem priceOutputPost_pcFree (status outPtr : Word) (outBytes : List (BitVec 8)) :
     (priceOutputPost status outPtr outBytes).pcFree := by
@@ -692,13 +729,18 @@ theorem amsterdam_blob_gas_price_abi_from_body
       (priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12))).pcFree := by
     pcf
   have hcallerPre :
-      ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
-        priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
-        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch).pcFree := by
-    exact pcFree_sepConj pcFree_regIs
+      (⌜priceOutputGeometry outPtr⌝ **
+        ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+          priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+          priceOutputOwn outPtr **
+          regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)).pcFree := by
+    exact pcFree_sepConj pcFree_pure
       (pcFree_sepConj pcFree_regIs
-        (pcFree_sepConj hworkspace
-          (pcFree_sepConj (pcFree_regOwns _) hscratch)))
+        (pcFree_sepConj pcFree_regIs
+          (pcFree_sepConj hworkspace
+            (pcFree_sepConj
+              (EvmAsm.Codegen.HeaderValidateExcessBlobGasSpec.priceOutputOwn_pcFree outPtr)
+              (pcFree_sepConj (pcFree_regOwns _) hscratch)))))
   have hcallerPost :
       ((.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
         regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
@@ -717,9 +759,11 @@ theorem amsterdam_blob_gas_price_abi_from_body
     (sregs := priceSavedFrame) (vals := vals) (vals' := bodyVals)
     (body := priceBody) (bodySteps := bodySteps)
     (callerPre :=
-      (.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
-      priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
-      regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch)
+      ⌜priceOutputGeometry outPtr⌝ **
+        ((.x10 ↦ᵣ excess) ** (.x11 ↦ᵣ outPtr) **
+        priceWorkspaceOwn (sp0 + signExtend12 (-208 : BitVec 12)) **
+        priceOutputOwn outPtr **
+        regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] ** scratch))
     (callerPost :=
       (.x10 ↦ᵣ status) ** (.x11 ↦ᵣ outPtr) **
       regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
@@ -748,7 +792,7 @@ theorem amsterdam_blob_gas_price_abi_from_body
       frameSlotsOwn, regsAt, regOwns, sepConj_emp_right'] at hp ⊢
     xperm_hyp hp
   · intro h hq
-    simp [priceCalleePost, priceFrame, priceSavedFrame,
+    simp [priceCalleePost, priceCalleePostCore, priceFrame, priceSavedFrame,
       priceFrameVals, frameSlotsSaved, regsAt, regOwns,
       sepConj_emp_right'] at hq ⊢
     rw [← hret]
@@ -756,6 +800,7 @@ theorem amsterdam_blob_gas_price_abi_from_body
 
 #print axioms amsterdam_blob_gas_price_prog_eq_abiFrameProg
 #print axioms priceCode_sub_abiFrameProg
+#print axioms priceBodyContract_frame
 #print axioms amsterdam_blob_gas_price_abi_from_body
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell

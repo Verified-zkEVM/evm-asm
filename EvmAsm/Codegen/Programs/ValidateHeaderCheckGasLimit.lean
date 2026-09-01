@@ -8,16 +8,17 @@
   zero falls through to the base-fee setup at `+116`.  This file proves
   those two routes without assuming any particular base-fee contract.
 
-  The fall-through post carries the check-gas result and its SpecRef
-  correspondence into the continuation at `H + 116`, where the base-fee
-  checks begin.  The shared status-4 post also carries the same correspondence
-  together with `cglStatus ≠ 0`; those facts independently attribute that exit
-  to the gas-limit check, so this composition needs no base-fee contract.
+  The fall-through post carries the check-gas result, the target-positivity
+  fact derived from its zero status, and its SpecRef correspondence into the
+  continuation at `H + 116`, where the base-fee checks begin.  The shared
+  status-4 post also carries the same correspondence together with
+  `cglStatus ≠ 0`; those facts independently attribute that exit to the
+  gas-limit check, so this composition needs no base-fee contract.
 -/
 
 import EvmAsm.Codegen.Programs.CheckGasLimitBridge
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
-import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 
 namespace EvmAsm.Codegen.ValidateHeaderCheckGasLimit
@@ -227,10 +228,11 @@ def checkGasLimitTakenPost
 def checkGasLimitFallPost
     (spC raSlot o8 o9 o18 o19 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 : Word)
     (nl pl : Word) (F : Assertion) : Assertion :=
-  (((.x10 ↦ᵣ cglStatus nl pl) ** (.x11 ↦ᵣ pl) ** (.x1 ↦ᵣ Ret) **
+  ((((.x10 ↦ᵣ cglStatus nl pl) ** (.x11 ↦ᵣ pl) ** (.x1 ↦ᵣ Ret) **
       regOwns [.x5, .x6, .x7] ** (.x0 ↦ᵣ (0 : Word)) **
       callerFrame spC raSlot o8 o9 o18 o19 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F) **
     ⌜cglStatus nl pl = 0⌝) **
+    ⌜0 < (pl >>> 1).toNat⌝) **
     ⌜cglStatus nl pl = 0 ↔
       EvmAsm.Stateless.SpecRef.check_gas_limit nl.toNat pl.toNat = true⌝
 
@@ -323,7 +325,18 @@ theorem validate_header_check_gas_limit_routes_spec_within
     exact cpsBranchWithin_weaken
       (fun _ hp => by unfold callerFrame at hp ⊢; xperm_hyp hp)
       (fun _ hq => by unfold callerFrame at hq ⊢; xperm_hyp hq)
-      (fun _ hq => by unfold callerFrame at hq ⊢; xperm_hyp hq)
+      (fun _ hq => by
+        unfold callerFrame at hq ⊢
+        have hq0 := ((sepConj_pure_right _).1 hq).1
+        have hiff := ((sepConj_pure_right _).1 hq).2
+        have hbase := ((sepConj_pure_right _).1 hq0).1
+        have hzero := ((sepConj_pure_right _).1 hq0).2
+        have htarget := cglStatus_zero_implies_parent_target_pos nl pl hzero
+        apply (sepConj_pure_right _).2
+        constructor
+        · apply (sepConj_pure_right _).2
+          exact ⟨(sepConj_pure_right _).2 ⟨hbase, hzero⟩, htarget⟩
+        · exact hiff)
       hbranchF
   have hbranchN := cpsBranchWithin_as_cpsNBranchWithin hbranch'
   have hroute := cpsNBranchWithin_extend_head hbranchN hstatus'

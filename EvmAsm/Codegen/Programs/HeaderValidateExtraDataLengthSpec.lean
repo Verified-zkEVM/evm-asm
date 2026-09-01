@@ -21,6 +21,33 @@
   and its three-way post pins `a0` to the ACTUAL field-12 content length via
   K20's `Result` relation:  `a0 = 0 ↔ len ≤ 32`, `a0 = 1 ↔ len > 32`
   (both on a genuine `Success`), and `a0 = 2 ↔` a genuine `Failure`.
+
+  ## ⚠️ The comparison boundary, which is NOT the one the other header rows use
+
+  Every other `header_*` row so far ties a guest routine to a field of
+  `_decode_header`.  This one does not, and saying so precisely is required by
+  `docs/agents/spec-correspondence.md` §5:
+
+  * `extra_data` is plain `Bytes` in the reference — genuinely **unbounded at
+    decode time**, unlike the `FixedBytes` aliases of #11615.  So there is
+    nothing to compare against in `_decode_header`.
+  * The ≤32 rule is a clause of **`validate_header`** (`SeamShell.lean:248`,
+    `if header.extraData.length > 32 then throw`), a different spec function.
+
+  So the boundary is: `_decode_header` supplies the *field*, and this routine
+  implements a *`validate_header` clause* over it.  The tie below therefore has
+  two conclusions rather than one — the length equation (decode side) and the
+  decision equivalence (validation side).  Reading this row as "a
+  `_decode_header` field row" would misdescribe what is proved.
+
+  ## Why the decision is an iff, where row 1's was one-directional in the field
+
+  `hvedPost`'s first two arms differ only in the guard — `a0 = 0` with
+  `¬ (32 <ᵤ len)` and `a0 = 1` with `32 <ᵤ len` — so on a successful decode the
+  guest's accept/reject choice is *total* over the field, and the honest
+  statement is an equivalence with the reference's clause.  What stays
+  one-directional is the same thing as everywhere else in this family: arity.
+  The guest never checks how many fields the header has.
 -/
 
 import EvmAsm.Codegen.Programs.Header

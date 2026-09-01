@@ -71,7 +71,6 @@ import EvmAsm.Rv64.Tactics.XPermChunked
 import EvmAsm.Evm64.Terminating.ReturnWindowLoopSpec
 import EvmAsm.Codegen.Programs.HeaderDecode
 import EvmAsm.Codegen.Programs.HeaderU64ExtractSpec
-import EvmAsm.Codegen.GuestAddrs
 
 namespace EvmAsm.Codegen.HeaderExtendedDecodeCopy
 

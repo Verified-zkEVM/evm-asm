@@ -53,7 +53,7 @@ def withdrawalToPathDelta_prog : Program :=
     .AUIPC .x12 (laHi GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 24)),
     .ADDI .x12 .x12 (laLo GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 24)),
     .JAL .x1 (jalOff GuestAddrs.withdrawal_decode (GuestAddrs.withdrawal_to_path_delta + 32)),
-    .BNE .x10 .x0 (104 : BitVec 13),
+    .BNE .x10 .x0 (brOff (GuestAddrs.withdrawal_to_path_delta + 140) (GuestAddrs.withdrawal_to_path_delta + 36)),
     .AUIPC .x10 (laHi GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 40)),
     .ADDI .x10 .x10 (laLo GuestAddrs.wtpd_struct (GuestAddrs.withdrawal_to_path_delta + 40)),
     .ADDI .x10 .x10 (16 : BitVec 12),

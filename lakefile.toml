@@ -27,7 +27,7 @@ rev = "v4.33.0"
 [[require]]
 name = "riscv-zkvm"
 git = "https://github.com/Verified-zkEVM/riscv-zkvm"
-rev = "v0.2.0"
+rev = "v0.3.0"
 
 [[lean_lib]]
 name = "EvmAsm"
@@ -115,4 +115,14 @@ supportInterpreter = true
 name = "footsweep"
 srcDir = "scripts"
 root = "FootSweep"
+supportInterpreter = true
+
+# Advisory elaborated-assertion footprint census for GH #12740: possible
+# duplicate register/cell/byte-region occupancy inside one sepConj tree.
+# Complements satsweep (satisfiability witnesses) and footsweep (code/contact
+# footprint); opaque or data-driven leaves are reported as unaudited.
+[[lean_exe]]
+name = "regionsweep"
+srcDir = "scripts"
+root = "RegionSweep"
 supportInterpreter = true

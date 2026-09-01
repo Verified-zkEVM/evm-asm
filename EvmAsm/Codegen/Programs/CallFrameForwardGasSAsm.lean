@@ -85,20 +85,22 @@ theorem cffgCap_eq_capped (r g : Word) :
     stipend for value-bearing calls, return the callee gas in `a0`.
     Clobbers t0/t1 only (both exposed). -/
 def callFrameForwardGasDeriv (g r v : Word) :
-    (fun rf _ _ => rf.get .x10 = g ∧ rf.get .x11 = r ∧ rf.get .x12 = v)
-      ⤳ (fun rf _ _ =>
-          rf.get .x10 = cffgCap r g + MessageCallGasSAsm.stipend v
-          ∧ rf.get .x11 = cffgCap r g) :=
-  calc (fun rf _ _ => rf.get .x10 = g ∧ rf.get .x11 = r ∧ rf.get .x12 = v
-        : Reach)
-    _ ⤳ (fun rf _ _ => rf.get .x6 = cffgMax g ∧ rf.get .x11 = r
-          ∧ rf.get .x12 = v : Reach) :=
+    (fun rf _ A => (rf.get .x10 = g ∧ rf.get .x11 = r ∧ rf.get .x12 = v)
+        ∧ A = empAssertion)
+      ⤳ (fun rf _ A =>
+          (rf.get .x10 = cffgCap r g + MessageCallGasSAsm.stipend v
+            ∧ rf.get .x11 = cffgCap r g)
+          ∧ A = empAssertion) :=
+  calc (fun rf _ A => (rf.get .x10 = g ∧ rf.get .x11 = r ∧ rf.get .x12 = v)
+        ∧ A = empAssertion : Reach)
+    _ ⤳ (fun rf _ A => (rf.get .x6 = cffgMax g ∧ rf.get .x11 = r
+          ∧ rf.get .x12 = v) ∧ A = empAssertion : Reach) :=
       DCode.block "max" [.SRLI .x5 .x10 6, .SUB .x6 .x10 .x5] (by decide)
         (fun h => absurd h (by decide))
         (by
-          rintro rf ws A _ ⟨h10, h11, h12⟩
+          rintro rf ws A _ ⟨⟨h10, h11, h12⟩, hA⟩
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-          refine ⟨?_, ?_, ?_⟩
+          refine ⟨⟨?_, ?_, ?_⟩, hA⟩
           · rw [RegFile.get_set_self _ _ _ (by decide),
               RegFile.get_set_ne _ _ _ _ (by decide),
               RegFile.get_set_self _ _ _ (by decide), h10]
@@ -107,39 +109,40 @@ def callFrameForwardGasDeriv (g r v : Word) :
               RegFile.get_set_ne _ _ _ _ (by decide), h11]
           · rw [RegFile.get_set_ne _ _ _ _ (by decide),
               RegFile.get_set_ne _ _ _ _ (by decide), h12])
-    _ ⤳ (fun rf _ _ => rf.get .x6 = cffgCap r g ∧ rf.get .x12 = v
-          : Reach) :=
+    _ ⤳ (fun rf _ A => (rf.get .x6 = cffgCap r g ∧ rf.get .x12 = v)
+          ∧ A = empAssertion : Reach) :=
       DCode.ite "cap" (.bgeu .x11 .x6)
         (DCode.pure "keepmax"
           (by
-            rintro rf ws A ⟨⟨h6, h11, h12⟩, hc⟩
+            rintro rf ws A ⟨⟨⟨h6, h11, h12⟩, hA⟩, hc⟩
             simp only [Cond.holds, h6, h11] at hc
-            refine ⟨?_, h12⟩
+            refine ⟨⟨?_, h12⟩, hA⟩
             rw [h6, cffgCap, if_neg hc]))
         (DCode.block "takereq" [.MV .x6 .x11] (by decide)
           (fun h => absurd h (by decide))
           (by
-            rintro rf ws A _ ⟨⟨h6, h11, h12⟩, hc⟩
+            rintro rf ws A _ ⟨⟨⟨h6, h11, h12⟩, hA⟩, hc⟩
             simp only [Cond.holds, h6, h11, not_not] at hc
             simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-            refine ⟨?_, ?_⟩
+            refine ⟨⟨?_, ?_⟩, hA⟩
             · rw [RegFile.get_set_self _ _ _ (by decide), h11,
                 cffgCap, if_pos hc]
             · rw [RegFile.get_set_ne _ _ _ _ (by decide), h12]))
-    _ ⤳ (fun rf _ _ => rf.get .x11 = cffgCap r g
-          ∧ rf.get .x6 = cffgCap r g ∧ rf.get .x12 = v : Reach) :=
+    _ ⤳ (fun rf _ A => (rf.get .x11 = cffgCap r g
+          ∧ rf.get .x6 = cffgCap r g ∧ rf.get .x12 = v)
+          ∧ A = empAssertion : Reach) :=
       DCode.block "cost" [.MV .x11 .x6] (by decide)
         (fun h => absurd h (by decide))
         (by
-          rintro rf ws A _ ⟨h6, h12⟩
+          rintro rf ws A _ ⟨⟨h6, h12⟩, hA⟩
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-          refine ⟨?_, ?_, ?_⟩
+          refine ⟨⟨?_, ?_, ?_⟩, hA⟩
           · rw [RegFile.get_set_self _ _ _ (by decide), h6]
           · rw [RegFile.get_set_ne _ _ _ _ (by decide), h6]
           · rw [RegFile.get_set_ne _ _ _ _ (by decide), h12])
-    _ ⤳ (fun rf _ _ => rf.get .x11 = cffgCap r g
-          ∧ rf.get .x6 = cffgCap r g + MessageCallGasSAsm.stipend v
-          : Reach) :=
+    _ ⤳ (fun rf _ A => (rf.get .x11 = cffgCap r g
+          ∧ rf.get .x6 = cffgCap r g + MessageCallGasSAsm.stipend v)
+          ∧ A = empAssertion : Reach) :=
       DCode.when "stipend" (.bne .x12 .x0)
         -- CALL_STIPEND = 2300 > 2047: emitted as its exact GNU-as `li`
         -- expansion (lui+addiw) so Program layout = machine layout.
@@ -149,10 +152,10 @@ def callFrameForwardGasDeriv (g r v : Word) :
           (by decide)
           (fun h => absurd h (by decide))
           (by
-            rintro rf ws A _ ⟨⟨h11, h6, h12⟩, hc⟩
+            rintro rf ws A _ ⟨⟨⟨h11, h6, h12⟩, hA⟩, hc⟩
             simp only [Cond.holds, RegFile.get_x0, h12] at hc
             simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-            refine ⟨?_, ?_⟩
+            refine ⟨⟨?_, ?_⟩, hA⟩
             · rw [RegFile.get_set_ne _ _ _ _ (by decide),
                 RegFile.get_set_ne _ _ _ _ (by decide),
                 RegFile.get_set_ne _ _ _ _ (by decide), h11]
@@ -164,20 +167,20 @@ def callFrameForwardGasDeriv (g r v : Word) :
                 MessageCallGasSAsm.stipend, if_neg hc]
               congr 1))
         (by
-          rintro rf ws A ⟨h11, h6, h12⟩ hc
+          rintro rf ws A ⟨⟨h11, h6, h12⟩, hA⟩ hc
           simp only [Cond.holds, RegFile.get_x0, h12, ne_eq, not_not] at hc
-          refine ⟨h11, ?_⟩
+          refine ⟨⟨h11, ?_⟩, hA⟩
           rw [h6, MessageCallGasSAsm.stipend, if_pos hc]
           bv_omega)
-    _ ⤳ (fun rf _ _ =>
-          rf.get .x10 = cffgCap r g + MessageCallGasSAsm.stipend v
-          ∧ rf.get .x11 = cffgCap r g : Reach) :=
+    _ ⤳ (fun rf _ A =>
+          (rf.get .x10 = cffgCap r g + MessageCallGasSAsm.stipend v
+            ∧ rf.get .x11 = cffgCap r g) ∧ A = empAssertion : Reach) :=
       DCode.block "ret0" [.MV .x10 .x6] (by decide)
         (fun h => absurd h (by decide))
         (by
-          rintro rf ws A _ ⟨h11, h6⟩
+          rintro rf ws A _ ⟨⟨h11, h6⟩, hA⟩
           simp only [execBlock_cons, execBlock_nil, execInstrRF, aluSem]
-          refine ⟨?_, ?_⟩
+          refine ⟨⟨?_, ?_⟩, hA⟩
           · rw [RegFile.get_set_self _ _ _ (by decide), h6]
           · rw [RegFile.get_set_ne _ _ _ _ (by decide), h11])
 

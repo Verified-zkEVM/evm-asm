@@ -42,6 +42,7 @@
 # #12541 records both resolutions: retire it with its pairing and row in one PR
 # (#12351 pattern, the likely answer since its caller went for the same reason), or
 # wire it — in which case this exemption expires by itself.
+
 enrg_u32le	issue=12541	the retired EIP-7702 nonce-reuse guard was its only caller; kept in the image as "still linked" but nothing reaches it on a fresh link
 
 # ── The unwired call-frame ASCENT path (measured on the 2026-08-17 link, #12521) ──

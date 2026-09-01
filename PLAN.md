@@ -137,6 +137,264 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13158 — last vacuous Div/Mod callable wrapper resolved, 2026-09-01)
+
+- ✅ The regionsweep-flagged `evm_div_callable_v1_spec_from_branch_noNop`
+  (pre carried both `regOwn .x1` inside `divScratchValuesCall` AND a
+  framed `(.x1 ↦ᵣ raVal)` — unsatisfiable) is REMOVED, not repaired:
+  the issue-prescribed NoX1 restatement does not close from
+  `evm_div_stack_spec_noNop`, whose post only *owns* `x1` (the `div128`
+  JALs clobber it), so the exact return atom the `cc_ret` step needs is
+  underivable (xperm record: `LHS: regOwn Reg.x1` vs
+  `RHS: Reg.x1 ↦ᵣ raVal`).  The surface is covered by the
+  hypothesis-style `…_from_noNop` wrappers (fixed in fa8475d4c) and the
+  self-contained `evm_div_callable_bzero_v1_*` zero-divisor instances.
+  Audited duplicate-occupancy pairs: 2 → 0.  Remaining census (57
+  partially-unaudited pairs: K73 Route-B adapters, MptWalk/SHA x0) is a
+  separate follow-up.
+
+### Recent (#13135 — K70's price-free arms at the caller's shape, 2026-08-31)
+
+- ✅ **Three whole-routine ABI-frame triples** for
+  `header_validate_excess_blob_gas` in the new
+  `Codegen/Programs/HeaderValidateExcessBlobGasArms.lean`, fully
+  parametric in every argument register (including arbitrary `a3` —
+  these paths never dereference the base-fee pointer) and with pure
+  branch-fact hypotheses instead of pinned values:
+  `…_overflow_spec_within` (wrap ⇒ status 1, 25 steps),
+  `…_under_target_spec_within` (total < 1,835,008 ⇒ status
+  `if a0 = 0 then 0 else 2`, 29 steps — subsumes the old all-zero
+  status-0 witness and adds the mismatch sub-arm),
+  `…_boundary_spec_within` (total ≥ target ∧ parent.excess ≥
+  2,073,394,371 ⇒ expected `total − target`, status by match, 34
+  steps).  Constant-folding idiom: `k70Target`/`k70Bound` defs pinned
+  by `decide`, folded into the LUI/ADDIW posts via `rw [show … from
+  rfl]`.  Per-arm non-vacuity examples pin the gates' boundaries.
+  Registry row regated; witness = the under-target triple.
+  Remaining: the price arms, gated on `priceContract` (#12851).
+
+### Recent (#13070 COMPLETE — arena-parametric edd contract, 2026-08-31)
+
+- ✅ **Step 1 landed**: the whole edd proof layer (5 combinators, 25
+  instantiation lemmas, 11 arm theorems, the unified contract) is now
+  parametric over the arenas — `eddDataArenaOk dp` / `eddOutArenaOk op`
+  / `eddArenasDisjoint dp op` replace the probe constants; parametric
+  `eddP_src_wf`/`eddP_out_wf`/`eddP_mcStatic`/`eddP_memcpy_callsite`
+  replace the #12805 concrete discharges.  The deployed instance is
+  `extractDepositData_probe_spec` (arena facts by `decide`+omega at
+  the concrete addresses).  Remarkable: the blanket
+  constants→parameters sweep (357 substitutions) compiled with ZERO
+  errors — none of the proofs exploited concreteness outside the
+  discharge lemmas.  Row gate updated; #13070 closed.
+
+### Recent (#13070 step 2 — the unified edd contract, 2026-08-30)
+
+- ✅ **`extractDepositData_spec`**
+  (`Codegen/Proofs/ExtractDepositDataUnified.lean`): ONE whole-routine
+  contract for `extract_deposit_data`, total over the payload — the
+  post is `if eddAccept lenW chunks… then eddOkPost else eddRejPost`
+  with `eddAccept` (length = 576 ∧ ten `eddOk`s) decidable.  The key
+  collapse: every failure arm — wrong length, or check `k` rejecting —
+  leaves the SAME machine state, so twelve arms fold into a two-way
+  `if`, not a twelve-way match.  Proof: 11 nested `by_cases` dispatch
+  to the arm triples (fail / reject-k / ok), each framed and
+  fuel-monotoned to 7749.  Row witness switched to the unified
+  theorem; the arena-parametric generalization is #13070's remaining
+  step 1.
+- Ops lesson: `git checkout main` with a dirty tree CARRIES the
+  uncommitted edits onto the new branch — the abandoned #13069
+  duplicate rows leaked in and had to be surgically reverted (restore
+  file from main + re-pin counts from `git show main:`).
+
+### Recent (#13090 — sg_memcpy rowed, 2026-08-30)
+
+- ✅ **`sg_memcpy` rowed `.proven`** (228/174/188):
+  `sgMemcpyFlat_spec` (`Codegen/Proofs/SgMemcpyFlatEntry.lean`) — the
+  alignment-safe byte copy (28 call sites) at its new
+  `GuestAddrs.sg_memcpy` pin.  `sgMemcpyFn`'s ambient is free in BOTH
+  pre and post, which `Fn.retSpecFlatAmbient` cannot consume
+  (`hpostAmb` needs a pinned post ambient), so the lift goes through an
+  ambient-pinned twin (`sgmcFn`, identical emitted bytes, invariant
+  conjoined with `A = empAssertion`) with its own `vcgen` discharge —
+  the #12244 leaf-pin done as a twin so the shared `Fn` and its
+  `MsetMemcpySAsm` consumer stay untouched.
+- Adapter note: `retSpecFlatAmbient`'s flat pre carries an explicit
+  `** A` conjunct — with `A = empAssertion`, `rw [sepConj_emp_right']`
+  it away before the final xperm weaken (xperm won't invent `emp`).
+
+### Recent (#13091 — sg_load_u32le, the sixth u32le twin, 2026-08-30)
+
+- ✅ **`sg_load_u32le` rowed `.proven`** (227/173/187):
+  `sgLoadU32leFlat_spec` (`Codegen/Proofs/SgLoadU32leFlatEntry.lean`)
+  — the sws_u32le lift verbatim: a separate ambient-pinned `Fn`
+  literal (`sgluFn`, the shared five-consumer `sgLoadU32leFn`
+  untouched) whose spec delegates to `bahU32leFn_spec` by `exact`
+  (Fn.Spec ignores `name`), then `Fn.retSpecFlatAmbient` at the new
+  `GuestAddrs.sg_load_u32le` pin.  39 call sites become
+  census-covered; the emission tie is `StatelessGuestEpilogue`'s
+  `emitProgram sgLoadU32le_prog`.
+
+### Recent (#13089 — the four remaining DCode leaves rowed, 2026-08-30)
+
+- ✅ **`modexp_iszero`, `sender_post_nonce_consistent`, `edd_be32_eq`,
+  `edd_memcpy` rowed `.proven`** (226/172/186):
+  `Codegen/Proofs/DCodeLeafFlatEntries.lean` derives each leaf's flat
+  whole-routine triple at its linked entry from the DCode retSpec
+  (asrtM pack/unpack; shared `rf2`/`rf3` callee register files and
+  exposed-register split lemmas).  Three new GuestAddrs pins via the
+  `asm_to_program.py` extras.
+- **Flatten-identity findings**: `mizDeriv` (fuel-256 break-swap loop),
+  `spncDeriv` (cascade + fuel-8 accumulate), and `mcDeriv` all admit
+  DIRECT `rfl` ghost-free flatten at `maxHeartbeats 4000000` +
+  `maxRecDepth 1000000` — only `eddDeriv`'s `dretWhileHeaderBreak`
+  shape blows the kernel recursion guard and needs the stmt-pin.
+- Keeping fuel SYMBOLIC (`(deriv …).stmt.steps`) in the flat statements
+  avoids the steps identities entirely — only the CodeReq is rewritten.
+
+### Recent (#13071 — sg_validate_fixed_list rowed, 2026-08-30)
+
+- ✅ **`sg_validate_fixed_list` rowed `.proven`** (219/168/179):
+  `sgValidateFixedListFlat_spec`
+  (`Codegen/Proofs/SgValidateFixedListFlatEntry.lean`) — the flat
+  whole-routine triple at the linked entry, derived from the DCode
+  guard-cascade retSpec by the asrtM pack/unpack recipe.  `a0 =
+  sgvOut len esz maxc` (`0` iff `esz ≠ 0 ∧ len % esz = 0 ∧
+  len / esz ≤ maxc`); register-only leaf, ABI hyps only.  The
+  routine had a verified leaf but NO row and no GuestAddrs constant —
+  added `sg_validate_fixed_list` to `asm_to_program.py`'s
+  hand-maintained GuestAddrs extras (the #12534-style pin) and
+  regenerated.  `Stmt.retCascade` carries no ghost slots, so the
+  flatten/steps identities are plain `rfl` (no stmt-pin needed).
+
+### Recent (#13068 — priority_fee_per_gas_eip1559 whole-routine, 2026-08-30)
+
+- ✅ **`priority_fee_per_gas_eip1559` upgraded `.partly` → `.proven`**
+  (167 proven / 3 partly): `priority_fee_per_gas_eip1559_spec`
+  (`Codegen/Programs/U256GasPricingSAsm.lean`) is the entry-anchored
+  all-outcome contract — frame prologue (6 insns), the Stage-1 body
+  triple (setup, `u256_sub_be`, in-place `u256_min`, status split),
+  and the epilogue (7 insns), ending at the aligned `ra` with `sp` and
+  the four callee-saved registers restored.  Post is the success/reject
+  disjunction.  ABI/resource hypotheses only.
+- **Enablers**: the body/setup specs' saved-register entry values were
+  PINNED to the argument pointers (an artifact of instantiating the mv
+  lemmas at `vOld := new value`) — generalized to arbitrary `v8 v9 v18
+  v19` in place.  New reusable pieces: `cps_or_pre` (disjunctive-pre
+  elimination), `sepConj_or_distrib`, and the epilogue lemma peeling
+  `ra` ownership (both status arms leave different link values).
+- Lesson: when a seq-composition target has a `set`-bound post, unfold
+  it in the COMPOSED hypothesis (`rw [hWholeQ] at s2`) before the final
+  weaken — post-weaken lambdas over an unresolved metavariable break
+  `rw`/xperm.  Filed alongside: #13069 (allowlist burn-down to zero),
+  #13070 (edd unified contract), #13071 (sg_validate_fixed_list row).
+
+### Recent (#12989 COMPLETE — the ten rejection arms, 2026-08-29)
+
+- ✅ **All three arm families of `extract_deposit_data` proven**:
+  `extractDepositData_reject{1..10}_spec` (same file as the ok path)
+  cover `a1 = 576` with checks `1..k-1` passing and check `k` failing —
+  the callee returns `a0 = 0`, its `beq a0, x0` is TAKEN to the shared
+  fail tail (`EddB + 280`, every group's `bofs` lands there), and the
+  routine returns `a0 = 1` through the common epilogue.  New reusable
+  pieces: `edd_entry_spec` (prologue + not-taken guard + the
+  atoms→`regOwns exposedRegs` bridge, fuel 8), `edd_check_group_fail`
+  (the rejecting group combinator, `takenPath` + `eddOut = 0` unpack),
+  `edd_failTail_spec` (`li a0, 1` + epilogue, fuel 6, parametrized by
+  `nsp + 32 = sp0`).  Arm `k` needs only chunks `1..k` in its
+  footprint; fuel `14 + 636k`.
+- **#12989 closed.** Remaining generalization (recorded in the row's
+  gate, not blocking): a single arena-parametric case-split statement
+  instead of twelve separate triples pinned to the probe arenas.
+
+### Recent (#12989 tranche 2 — edd ok path composed, 2026-08-29)
+
+- ✅ **`extractDepositData_ok_spec`**
+  (`Proofs/ExtractDepositDataOkSpec.lean`): flat whole-path
+  `cpsTripleWithin 7749` over the shared three-entry bundle image —
+  prologue, guard not taken, TEN `jal ra, edd_be32_eq` call groups and
+  FIVE `jal ra, edd_memcpy` call groups composed by `callWithin_spec`
+  with the leaves' DCode retSpecs, `a0 := 0`, epilogue.  At the deployed
+  probe arenas (payload `0x40000010`, out `0xa0010008`); the five
+  `mcStatic` premises are #12805's call-site discharges.  Row upgraded:
+  gate now claims fail arm + ok path; the ten mid-check rejection arms
+  are the remaining #12989 slice.
+- **Key idioms established** (first multi-call flat composition over
+  DCode leaves):
+  - `asrtM`'s `regFileIs` covers only `exposedRegs` — `sp`/`s0`/`s1`/
+    `ra` are FRAMED around each call, so callee-post forgetting is
+    confined to the exposed set (pack: explicit `rf` + per-register
+    `if_neg` rewrites; unpack: `regAtomsOf_to_regOwns`).
+  - Kernel deep-recursion on `flatten` ghost-independence: pin the
+    derivation's generated `Stmt` EXPLICITLY (`eddDeriv_stmt`, cheap
+    `rfl` — ghosts survive only in the loop-invariant slot) and prove
+    `flatten b = prog` for ANY base by `rw [eddDeriv_stmt]; rfl`.
+    Direct `rfl` on the un-pinned form blows the kernel's fixed
+    recursion guard regardless of `maxRecDepth`.
+  - `runBlock`'s argument grammar is a greedy `ident*` — it swallows a
+    following identifier-initial tactic line; keep it last in its
+    `by`-block or use a typed hole (`refine … (?_ : cps …)`).
+  - Restored the #12805 call-site section (`EddMemcpyCallSites`)
+    accidentally dropped by the tranche-1 emission swap.
+
+### Recent (#12989 tranche 1 — edd main body Program-ized + fail arm rowed, 2026-08-29)
+
+- ✅ **`extract_deposit_data` main body is now a Lean instruction list**:
+  `extractDepositData_prog` (76 insns, `Codegen/Programs/
+  ExtractDepositData.lean`) replaces the label-form text via
+  `emitProgram`; byte-identical over the whole three-entry unit
+  (428 bytes, assemble+cmp).  `extractDepositDataBundle_prog`
+  (++ `eddBe32Eq_prog` ++ `eddMemcpy_prog`, 107 insns, `#guard`-pinned)
+  is the shared image for the ok-path composition.  All branch/jal
+  offsets verified programmatically (bne +252 → fail tail; ten jal
+  +264..+120 → `edd_be32_eq`; five jal +192..+128 → `edd_memcpy`).
+- ✅ **Length-guard fail arm proven and rowed** (216/166+46cond/176):
+  `extractDepositData_lenFail_spec`
+  (`Proofs/ExtractDepositDataFailSpec.lean`) — flat `cpsTripleWithin
+  14` at `GuestAddrs.extract_deposit_data`: frame prologue (7 insns,
+  `runBlock`), `bne a1, 576` taken to the shared fail tail
+  (`cpsBranchWithin_takenPath` + pure-drop), `li a0, 1`, epilogue
+  restore + `jalr x0 ra`.  Rowed `.conditional` (gate: only the
+  `a1 ≠ 576` arm claimed; ok path is #12989's open remainder).
+  v4.33 note: `signExtend12 (-32)` must be concretized to
+  `0xFFFFFFFFFFFFFFE0` by `decide` before `bv_omega` sees it.
+- **#12989 remainder (documented, not started)**: the ok-path
+  composition — ten `edd_be32_eq` calls + five `edd_memcpy` calls over
+  `extractDepositDataBundle_prog` (callWithin + the leaves' DCode
+  retSpecs + the #12805 call-site instantiations).
+
+### Recent (#12988 COMPLETE — all three rows, 2026-08-29)
+
+- ✅ **Tranche 2: the serializer twins rowed** (215/166/175):
+  `bslFlat_spec` (`Proofs/BalSerializerLeFlatEntry.lean`) proves the
+  shared 12-instruction routine ONCE, parametric over placement with the
+  `la` identity as a hypothesis — prologue (AUIPC/ADDI + counter +
+  cursor), the 32-iteration reverse byte copy as a `countdownLoop_spec`
+  instance over the region-level byte lemmas
+  (`bytesRegion_{lbu,sb}_within`), window laws reused from
+  `SwrRevLeBeSAsm` (`revWin`) — then instantiated at both guest
+  placements where the identity closes by `rfl`.  All four twins'
+  allowlist lines retired.  Learned: `runBlock` choked on the AUIPC
+  prologue (manual frameR/seq composition instead), and `xperm` wants
+  NAMED regOwns lists (`bslScratch`), not literals.
+
+### Recent (call_frame_forward_gas rowed — #12988 tranche 1, 2026-08-29)
+
+- ✅ **`call_frame_forward_gas` `.proven`** (213/164/173): the allowlist's
+  stated blocker ("needs the `Fn.retSpecFlat` lift") was an
+  UN-INSTANTIATED adapter — the routine's contract was a plain `Fn.Spec`
+  all along.  `callFrameForwardGasFlat_spec`
+  (`Proofs/CallFrameForwardGasFlatEntry.lean`) derives the flat EIP-150
+  gas-forwarding triple at the guest address; the derivation's reaches
+  gained an `A = empAssertion` pin (adapter eliminator requirement, pure
+  threading).  Allowlist exemption retired.
+- ⚠️ **The generic SpecR→flat lift is a GRANULARITY wall, not effort**
+  (recorded in #12988 and the twins' allowlist reasons): `asrtR = asrtM
+  ** regOwn x1` FORGETS `ra`, so no adapter can append the ret epilogue;
+  a pinned-`ra` soundness variant means re-walking `Stmt.soundR`'s
+  ~2200-line induction (#12770 family).  The bal twins' unblock is a
+  DIRECT flat proof (13 insns, `beqCountLoop_spec`, the
+  `afpCopyLoop_spec` recipe) — #12988 tranche 2.
+
 ### Recent (widx_swap_records reconciled and rowed — #12990, 2026-08-29)
 
 - ✅ **#12990**: the historical `x6`/`x31` loop-counter mismatch between
