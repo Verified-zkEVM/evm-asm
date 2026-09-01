@@ -177,13 +177,18 @@ nested-list span-vs-payload strength mismatch)" },
 interpreter. The one-opcode `h_ADD` pilot's FOUNDATION landed \
 (`Codegen/Proofs/ExecuteSeamBridge.lean`: `guestExec` relation, \
 `add_limb_result_eq_add`) and its issue closed; the one-step simulation itself is \
-NOT claimed there. ⚠️ Its single blocker is representation: `.dispatch_loop` is \
-emitted as a raw String (`Codegen/Dispatch.lean:1199`) and no `dispatchLoop_prog` \
-exists, so the dispatch-step lemma is not statable. That is also why the \
-per-opcode gas debit is unobservable to any triple — it EXISTS, at \
-`Dispatch.lean:1208-1214` (loads `opcode_gas_costs`, compares `env+568`, \
-`sub`/`sd`, table modelled at `Proofs/OpcodeTables.lean:229`), and is simply \
-inside the untranscribed dispatcher. Ranked in `docs/4ch8f-transcription-queue.md`",
+NOT claimed there. ⚠️ The representation blocker this entry used to name is \
+CLOSED and must not be re-derived: #12204 step 3 landed `dispatchLoop_prog` \
+(`Codegen/Dispatch.lean`, sixteen instructions), tied to the SHIPPED dispatcher \
+text by `dispatchLoopLabeledFunction_eq_prog` (`rfl`) composed with \
+`emitRuntimeDispatcherLoop_split`, so the loop is no longer a raw String. The \
+per-opcode gas debit is likewise now visible in that Program — the \
+`opcode_gas_costs` load, the `env+568` compare, the `sub`/`sd`, and the \
+`.exit_outofgas` branch (table modelled at `Proofs/OpcodeTables.lean`). What \
+remains is NOT transcription: `dispatchLoop_prog` has no `GuestImageEntries` \
+pairing, so there is no `CodeReq.ofProg` at its linked entry to hang a triple \
+on, and the dispatch-step lemma still wants that plus the handler-side seam. \
+Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "the `execution_requests_hash` hash-half compose is still \
 open. (The validation-accept prefix landed domainRestricted; that work is DONE \
 and its issue closed.) ⚠️ `stage_system_call` NO LONGER belongs on this list: \

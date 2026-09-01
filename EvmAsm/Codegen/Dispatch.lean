@@ -35,12 +35,27 @@
   `dispatchLoopFunction`, with the split pinned by
   `emitRuntimeDispatcherLoop_split`, so `scripts/asm_to_program.py` can see it.
 
-  `dispatchLoop_prog` itself does **not** exist yet and is blocked on #12204
-  step 1, the symbolic-branch reloc kind. `EvmAsm/Codegen/AsmReloc.lean` handles
-  exactly two symbolic forms — `la reg, symbol` and `jal ra, callee` — whereas
-  the loop body contains `bltu x7, x6, .exit_outofgas`, a conditional branch to
-  a symbolic label, which no existing reloc kind can represent. Step 1 is its
-  own change: every future branch-carrying routine inherits that kind.
+  #12204 step 3 (this file): **`dispatchLoop_prog` now exists** — sixteen
+  instructions, mechanically converted from `dispatchLoopLabeledFunction` and
+  tied to the shipped dispatcher text by `dispatchLoopLabeledFunction_eq_prog`
+  (`rfl`) composed with `emitRuntimeDispatcherLoop_split`.
+
+  ⚠️ Do not re-derive the blockers this docstring used to list; all three are
+  closed and each cost someone a rebuild of work that existed:
+
+  * the symbolic-branch reloc kind (`brOff` / `AsmSym.br`) landed in **#11510**,
+    with the converter half in **#12795**.  `EvmAsm/Codegen/AsmReloc.lean` has
+    handled three symbolic forms — `la`, `jal`, and the conditional branch —
+    since then, whatever its own module docstring said at the time;
+  * `.exit_outofgas` was never unresolvable.  `_load_symmap` was discarding every
+    dot-prefixed row as a section pseudo-symbol, taking 86 real code labels with
+    it; fixed in #12795;
+  * the loop needed **no** per-`depthAwareStop` specialisation.  Step 5 left the
+    guard in the caller (`emitDispatchLoopCodeSizeStopGuard`), so
+    `dispatchLoopFunction` is already constant, which is all the converter asks.
+
+  Still open on this issue: `dispatchLoop_prog` has no `GuestImageEntries`
+  pairing, so no triple is attachable to it yet.
 -/
 
 import EvmAsm.Codegen.Emit
@@ -3177,21 +3192,25 @@ def dispatchLoopEntryAsm : String :=
     `emitDispatchLoopCodeSizeStopGuard`), and `emitDispatchResume` — which opens
     with two label definitions — stays a separate trailing factor.
 
-    Measured converter verdicts for this body (#12204 step 5), which name the
-    remaining blockers rather than predicting them:
+    Measured converter verdicts for this body, re-run at #12204 step 3 rather
+    than carried forward:
 
-    * as extracted here (no leading label) — `first line is not a label`;
-    * prefixed with `.dispatch_loop:` alone —
-      `unresolved branch/jump target '.exit_outofgas'`, i.e. **#12204 step 1**,
-      the symbolic-branch reloc kind, is the real blocker;
+    * as extracted here (no leading label) — `first line is not a label`.  Still
+      true, and by design: the entry label lives in `dispatchLoopEntryAsm`;
+    * prefixed with `.dispatch_loop:` alone — **converts**, `n=16 reloc=3
+      asm_cmp=IDENTICAL (64 vs 64 bytes)`.  That prefix is
+      `dispatchLoopLabeledFunction` below, and its Program is
+      `dispatchLoop_prog`;
     * prefixed with both labels — `secondary non-.L label '.dispatch_loop':
-      multi-entry bundle … (MULTI-ENTRY-BUNDLE)`.
+      multi-entry bundle … (MULTI-ENTRY-BUNDLE)`.  Still true, and why the
+      labelled target carries exactly one label.
 
-    So step 1 is necessary but not sufficient: because the only available entry
-    labels sit above a `depthAwareStop`-parameterised guard and the converter
-    scans constant defs only, `dispatchLoop_prog` will additionally need the
-    loop specialised per `depthAwareStop` arm (or a hand-written `Program`)
-    rather than a single mechanical conversion of this def. -/
+    ⛔ This docstring previously recorded the middle verdict as `unresolved
+    branch/jump target '.exit_outofgas'` and concluded that step 3 "will
+    additionally need the loop specialised per `depthAwareStop` arm".  Both were
+    obsolete by the time anyone read them: the resolution failure was a symbol-
+    table filter fixed in #12795, and the step-5 factoring left this def
+    constant, so no specialisation was ever needed.  See the module docstring. -/
 def dispatchLoopFunction : String :=
   "  lbu x5, 0(x10)\n" ++
   "  slli x5, x5, 3\n" ++           -- x5 = opcode * 8 (index for both tables)
