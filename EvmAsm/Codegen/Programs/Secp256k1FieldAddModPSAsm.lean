@@ -964,6 +964,151 @@ private theorem reduceTailOwn_spec (newSp xPtr yPtr dst : Word)
       hroTmp hrwDst hlenTmp hlenOut hovDst hdisjTD hdisjP)
 
 
+/-- The merged temporary keeps its 32-byte width on both arms of the carry
+    branch. -/
+private theorem addModPTmpBytes_length (xs ys tmpOrig : List (BitVec 8))
+    (hlen : tmpOrig.length = 32) :
+    (addModPTmpBytes xs ys tmpOrig).length = 32 := by
+  unfold addModPTmpBytes
+  split
+  · exact U256BeFlat.u256AddBeBytes_length xs ys tmpOrig hlen
+  · exact U256BeFlat.u256AddBeBytes_length _ _ _
+      (U256BeFlat.u256AddBeBytes_length xs ys tmpOrig hlen)
+
+/-- `secf_tmp0` is a well-formed read-only region for any 32-byte contents:
+    its base is a concrete, dword-aligned global inside valid memory. -/
+private theorem tmp0_region_wf (bs : List (BitVec 8)) (hlen : bs.length = 32) :
+    Region.wf ⟨(GuestAddrs.secf_tmp0 : Word), bs⟩ := by
+  simp only [Region.wf, hlen]
+  decide
+
+/-- Caller-visible entry footprint of `secf_add_mod_p`, over and above the six
+    callee-saved registers and this routine's own frame slots.  `newSp` is the
+    stack pointer *inside* the routine's frame; `secf_reduce_once` pushes its
+    own three-slot frame at `newSp - 32`, so those slots are part of the
+    footprint too. -/
+private def secfAddModPCallerPre (xPtr yPtr dst newSp : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ xPtr) ** ((.x11 : Reg) ↦ᵣ yPtr) **
+  ((.x12 : Reg) ↦ᵣ dst) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  regOwns U256BeFlat.addScratch **
+  bytesRegion (GuestAddrs.secf_tmp0 : Word) tmpOrig **
+  bytesRegion xPtr xs ** bytesRegion yPtr ys ** bytesRegion dst outOrig **
+  globalConst (GuestAddrs.secp256k1_c_be : Word)
+    Secp256k1FieldSubModPSAsm.secp256k1CBytes **
+  globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+  memOwn (GuestAddrs.secf_cmp : Word) **
+  frameSlotsOwn secfReduceOnceFrame (newSp + signExtend12 (-32 : BitVec 12))
+
+/-- Caller-visible exit footprint of `secf_add_mod_p`.  The output buffer holds
+    `reduce_once` applied to the merged temporary; the temporary itself is left
+    holding the (possibly carry-folded) 256-bit sum, and `a0` is the constant
+    zero the routine returns. -/
+private def secfAddModPCallerPost (xPtr yPtr dst newSp : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ (0 : Word)) ** regOwns retScratch **
+  ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+  bytesRegion (GuestAddrs.secf_tmp0 : Word) (addModPTmpBytes xs ys tmpOrig) **
+  bytesRegion xPtr xs ** bytesRegion yPtr ys **
+  bytesRegion dst (reduceOnceBytes (addModPTmpBytes xs ys tmpOrig) outOrig) **
+  globalConst (GuestAddrs.secp256k1_c_be : Word)
+    Secp256k1FieldSubModPSAsm.secp256k1CBytes **
+  globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+  ((GuestAddrs.secf_cmp : Word) ↦ₘ
+    cmpFlagWord (addModPTmpBytes xs ys tmpOrig)) **
+  frameSlotsSaved secfReduceOnceFrame (newSp + signExtend12 (-32 : BitVec 12))
+    (secfReduceOnceVals (GuestAddrs.secf_add_mod_p + 104 : Word) xPtr yPtr)
+
+/-- Total step count of the body (indices 7..26): setup and the first
+    `u256_add_be`, then the carry test and its fold-back arm, then the
+    `secf_reduce_once` tail and the `li a0, 0`. -/
+def secfAddModPBodySteps (xPtr yPtr dst : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) : Nat :=
+  (8 + (1 + u256AddSteps xPtr yPtr (GuestAddrs.secf_tmp0 : Word) xs ys tmpOrig)) +
+  (2 + (4 + (1 + u256AddInPlaceSteps (GuestAddrs.secf_tmp0 : Word)
+    (GuestAddrs.secp256k1_c_be : Word)
+    (U256AddBeSAsm.u256AddBeBytes xs ys tmpOrig)
+    Secp256k1FieldSubModPSAsm.secp256k1CBytes))) +
+  (2 + (1 + reduceOnceSteps (GuestAddrs.secf_tmp0 : Word) dst
+    (addModPTmpBytes xs ys tmpOrig) outOrig) + 1)
+
+/-- Body indices 7..26 of `secf_add_mod_p`, from the end of the prologue at
+    `+28` to the start of the epilogue at `+108`. -/
+private theorem secfAddModPBody_spec
+    (newSp xPtr yPtr dst ret v8 v9 v18 v19 v20 : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hrwTmp : RwRegion.wf ⟨(GuestAddrs.secf_tmp0 : Word), 32⟩)
+    (hroX : Region.wf ⟨xPtr, xs⟩) (hroY : Region.wf ⟨yPtr, ys⟩)
+    (hroC : Region.wf ⟨(GuestAddrs.secp256k1_c_be : Word),
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes⟩)
+    (hrwDst : RwRegion.wf ⟨dst, 32⟩)
+    (hlenX : xs.length = 32) (hlenY : ys.length = 32)
+    (hlenTmp : tmpOrig.length = 32) (hlenOut : outOrig.length = 32)
+    (hovX : xPtr.toNat + 32 < 2 ^ 64) (hovY : yPtr.toNat + 32 < 2 ^ 64)
+    (hovDst : dst.toNat + 32 < 2 ^ 64)
+    (hdX : xPtr.toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ xPtr.toNat)
+    (hdY : yPtr.toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ yPtr.toNat)
+    (hdTmpDst : (GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secf_tmp0 : Word).toNat)
+    (hdPDst : (GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secp256k1_p_be : Word).toNat) :
+    cpsTripleWithin (secfAddModPBodySteps xPtr yPtr dst xs ys outOrig tmpOrig)
+      (GuestAddrs.secf_add_mod_p + 28 : Word)
+      (GuestAddrs.secf_add_mod_p + 108 : Word) secfAddModPCr
+      (((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) **
+        ((.x18 : Reg) ↦ᵣ v18) ** ((.x19 : Reg) ↦ᵣ v19) **
+        ((.x20 : Reg) ↦ᵣ v20) ** ((.x1 : Reg) ↦ᵣ ret) **
+        secfAddModPCallerPre xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A)
+      (((.x2 : Reg) ↦ᵣ newSp) ** ((.x8 : Reg) ↦ᵣ xPtr) **
+        ((.x9 : Reg) ↦ᵣ yPtr) ** ((.x18 : Reg) ↦ᵣ dst) **
+        ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x20 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 104 : Word)) **
+        secfAddModPCallerPost xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A) := by
+  have hfirst := setupFirstCall_spec xPtr yPtr dst ret v8 v9 v18 v19 v20
+    xs ys tmpOrig
+    (((.x2 : Reg) ↦ᵣ newSp) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      bytesRegion dst outOrig **
+      globalConst (GuestAddrs.secp256k1_c_be : Word)
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes **
+      globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+      memOwn (GuestAddrs.secf_cmp : Word) **
+      frameSlotsOwn secfReduceOnceFrame
+        (newSp + signExtend12 (-32 : BitVec 12)) ** A)
+    (by pcf; exact hA) hrwTmp hroX hroY hlenX hlenY hlenTmp hovX hovY hdX hdY
+  have hjoin := carryBranchJoin_spec xPtr yPtr dst v20 xs ys tmpOrig
+    (((.x2 : Reg) ↦ᵣ newSp) ** bytesRegion dst outOrig **
+      globalConst (GuestAddrs.secp256k1_p_be : Word) secp256k1PBytes **
+      memOwn (GuestAddrs.secf_cmp : Word) **
+      frameSlotsOwn secfReduceOnceFrame
+        (newSp + signExtend12 (-32 : BitVec 12)) ** A)
+    (by pcf; exact hA) hrwTmp hroC hlenTmp
+  have htail := reduceTailOwn_spec newSp xPtr yPtr dst
+    (addModPTmpBytes xs ys tmpOrig) outOrig
+    (((.x20 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig) **
+      bytesRegion xPtr xs ** bytesRegion yPtr ys **
+      globalConst (GuestAddrs.secp256k1_c_be : Word)
+        Secp256k1FieldSubModPSAsm.secp256k1CBytes ** A)
+    (by pcf; exact hA)
+    (tmp0_region_wf _ (addModPTmpBytes_length xs ys tmpOrig hlenTmp))
+    hrwDst (addModPTmpBytes_length xs ys tmpOrig hlenTmp) hlenOut hovDst
+    hdTmpDst hdPDst
+  have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hfirst hjoin
+  have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      unfold addJoinPost at hp
+      xperm_hyp hp) h12 htail
+  rw [secfAddModPBodySteps]
+  exact cpsTripleWithin_weaken (fun _ hp => by
+      unfold secfAddModPCallerPre at hp
+      xperm_hyp hp)
+    (fun _ hq => by
+      unfold secfAddModPCallerPost
+      xperm_hyp hq) h123
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen

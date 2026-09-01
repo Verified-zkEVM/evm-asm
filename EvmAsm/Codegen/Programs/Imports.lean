@@ -620,6 +620,7 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldAddModPSAsm
 import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
 import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
