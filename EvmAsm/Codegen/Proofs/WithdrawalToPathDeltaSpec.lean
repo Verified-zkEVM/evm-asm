@@ -270,4 +270,134 @@ theorem withdrawalToPathDelta_segC_body_spec
   have T5 := EvmAsm.Evm64.ret_spec_within' (base + (160 : Word)) ra
   runBlock T0 T1 T2 T3 T4 T5
 
+/-! ## The code requirement -/
+
+theorem wtpd_length : withdrawalToPathDelta_prog.length = 41 := by decide
+
+/-- `withdrawal_to_path_delta`'s code requirement: its own 41 instructions at
+    `GuestAddrs.withdrawal_to_path_delta` — the `GuestImageEntries.lean:235`
+    pairing — unioned with `withdrawal_decode`'s full linked closure.
+
+    The union is FORCED: the `jal ra, withdrawal_decode` at instruction index 8
+    is UNCONDITIONAL and sits above every branch, so every path through this
+    routine leaves its own bytes.
+
+    ⚠️ Spelled `CodeReq.union a b`, not `a.union b` — see the module docstring. -/
+def wtpdCR : CodeReq :=
+  CodeReq.union
+    (CodeReq.ofProg WTPD withdrawalToPathDelta_prog)
+    WithdrawalDecodeSpec.fullCode
+
+theorem wtpd_disj_decode :
+    (CodeReq.ofProg WTPD withdrawalToPathDelta_prog).Disjoint
+      WithdrawalDecodeSpec.fullCode := by
+  unfold WithdrawalDecodeSpec.fullCode WithdrawalDecodeSpec.wdCode
+    EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+  refine CodeReq.Disjoint.union_right ?_
+    (CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_))
+  · unfold WithdrawalDecodeSpec.WB WTPD
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [wtpd_length]; decide
+    · rw [WithdrawalDecodeSpec.wd_length]; decide
+    · rw [wtpd_length, WithdrawalDecodeSpec.wd_length]; decide
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.wrapperCode
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.B WTPD
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [wtpd_length]; decide
+    · rw [EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+    · rw [wtpd_length, EvmAsm.Codegen.RlpFieldToU64StrictSAsm.program_length]; decide
+  · unfold EvmAsm.Codegen.RlpListNthItemSAsm.code
+      EvmAsm.Codegen.RlpListNthItemSAsm.B WTPD
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [wtpd_length]; decide
+    · rw [EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+    · rw [wtpd_length, EvmAsm.Codegen.RlpListNthItemSAsm.total_length]; decide
+  · unfold EvmAsm.Codegen.RlpFieldToU64StrictSAsm.contentCode
+      EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_code
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.C64B WTPD
+    apply CodeReq.Disjoint.ofProg_ranges
+    · rw [wtpd_length]; decide
+    · rw [EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
+    · rw [wtpd_length, EvmAsm.Rv64.RLP.rlp_content_to_u64_strict_prog_length]; decide
+
+theorem wtpdProg_sub_wtpdCR :
+    ∀ a i, CodeReq.ofProg WTPD withdrawalToPathDelta_prog a = some i →
+      wtpdCR a = some i :=
+  CodeReq.union_mono_left
+
+/-- Call-site adapter for the `jal ra, withdrawal_decode` at instruction index
+    8 (`WTPD + 32`) — the unconditional decode. -/
+theorem wtpd_callSite8 {n : Nat} {Prest Q : Assertion} (vRa : Word)
+    (hPrest : Prest.pcFree)
+    (hcallee : cpsTripleWithin n WithdrawalDecodeSpec.WB
+        ((WTPD + (32 : Word) + 4) &&& ~~~(1 : Word))
+        WithdrawalDecodeSpec.fullCode
+        ((.x1 ↦ᵣ (WTPD + (32 : Word) + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (WTPD + (32 : Word)) (WTPD + (32 : Word) + 4) wtpdCR
+      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
+  have hdisj :
+      (CodeReq.singleton (WTPD + (32 : Word))
+        (.JAL .x1 (jalOff GuestAddrs.withdrawal_decode
+          (GuestAddrs.withdrawal_to_path_delta + 32)))).Disjoint
+        WithdrawalDecodeSpec.fullCode := by
+    unfold WithdrawalDecodeSpec.fullCode WithdrawalDecodeSpec.wdCode
+      EvmAsm.Codegen.RlpFieldToU64StrictSAsm.code
+    refine CodeReq.Disjoint.union_right ?_
+      (CodeReq.Disjoint.union_right ?_ (CodeReq.Disjoint.union_right ?_ ?_))
+    · exact CodeReq.Disjoint.singleton_ofProg (by decide +kernel)
+    · exact CodeReq.Disjoint.singleton_ofProg (by decide +kernel)
+    · exact CodeReq.Disjoint.singleton_ofProg (by decide +kernel)
+    · exact CodeReq.Disjoint.singleton_ofProg (by decide +kernel)
+  have hcall := WP.cpsCallWithin
+    (nSteps := n) (callerPC := WTPD + (32 : Word))
+    (calleeEntry := WithdrawalDecodeSpec.WB) (vOld := vRa)
+    (calleeCode := WithdrawalDecodeSpec.fullCode)
+    (Prest := Prest) (Q := Q)
+    (jalOff GuestAddrs.withdrawal_decode (GuestAddrs.withdrawal_to_path_delta + 32))
+    (by decide) (by decide) hPrest hdisj hcallee
+  refine cpsTripleWithin_extend_code
+    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
+  · exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at WTPD (WTPD + (32 : Word)) withdrawalToPathDelta_prog 8 _
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h)
+  · exact CodeReq.mono_union_right wtpd_disj_decode (fun _ _ h => h) a i h
+
+/-! ## The gate: the input is not a strict RLP list -/
+
+/-- ⭐ **The gate is sufficient, and the implication is one line.**
+    `Decoded`'s third conjunct is `RlpListNthItemSAsm.Success bytes listBase
+    listLen 2 o2 l2`, and `Success` is *defined* to begin with a
+    `StrictListPayload` for the outer list
+    (`Programs/RlpListNthItemSAsmBase.lean:399`).  So an input that is not a
+    strict RLP list at all cannot decode, whatever the four field values. -/
+theorem notDecoded_of_noStrictList
+    (bytes : List (BitVec 8)) (listBase : Word) (listLen : Nat)
+    (hno : ¬ ∃ cursorOff endPtr,
+      EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload bytes listBase listLen
+        cursorOff endPtr) :
+    ∀ v0 v1 v3 o2 l2,
+      ¬ WithdrawalDecodeSpec.Decoded bytes listBase listLen v0 v1 v3 o2 l2 := by
+  intro v0 v1 v3 o2 l2 hd
+  obtain ⟨cursorOff, endPtr, _next, hpay, _, _⟩ := hd.2.2.1
+  exact hno ⟨cursorOff, endPtr, hpay⟩
+
+/-! ## The failure-arm leftover, with the callee's witnesses named -/
+
+/-- `WithdrawalDecodeSpec.wdFailLeftover`'s body with its nine existential
+    witnesses named, so the tail segments can be proved witness-by-witness and
+    re-quantified by `cpsTripleWithin_exists_pre_gen`. -/
+def wtpdFailRest (spW outBase listBase s3 s4 s5 : Word)
+    (bytes : List (BitVec 8))
+    (o0 o1 o3 woff wlen roff rlen : Word)
+    (addr20 pad4 : List (BitVec 8)) : Assertion :=
+  (outBase ↦ₘ o0) ** ((outBase + 8) ↦ₘ o1) **
+  bytesRegion (outBase + 16) addr20 ** bytesRegion (outBase + 36) pad4 **
+  ((outBase + 40) ↦ₘ o3) ** bytesRegion listBase bytes **
+  (WithdrawalDecodeSpec.wdOffsetAddr ↦ₘ woff) **
+  (WithdrawalDecodeSpec.wdLengthAddr ↦ₘ wlen) **
+  (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.offsetCell ↦ₘ roff) **
+  (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.lengthCell ↦ₘ rlen) **
+  EvmAsm.Rv64.SAsm.stackFree spW 12 ** WithdrawalDecodeSpec.wdScratch s3 s4 s5
+
 end EvmAsm.Codegen.Proofs
