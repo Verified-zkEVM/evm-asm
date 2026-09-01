@@ -196,6 +196,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_align_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_header_bytes_valid
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_len_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.block_access_list_hash_spec_within
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
@@ -1105,6 +1115,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longHdr_domain_nonvacuous
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous_4844
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_pre155_arm_unreachable
 
