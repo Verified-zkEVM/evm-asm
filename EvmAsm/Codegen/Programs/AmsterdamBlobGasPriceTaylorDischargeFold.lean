@@ -26,6 +26,7 @@ open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14TerminalSpec
 open EvmAsm.Codegen.AmsterdamBlobGasPrice
 open EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec
 open EvmAsm.Codegen.AmsterdamBlobGasPriceOuterSpec
+open EvmAsm.Codegen.AmsterdamBlobGasPriceU256Sat
 
 set_option maxRecDepth 8000
 
@@ -826,5 +827,202 @@ theorem taylor_loop_invariant_fold
 
 #check taylor_loop_invariant_fold
 #print axioms taylor_loop_invariant_fold
+
+/-! ## Vacuity witness for the composed fold precondition
+
+The composed pre of the 495-round fold (`taylorLoopInvariant ... 0`) is
+inhabited at the sample layout: every register atom, the eight saved-frame
+cells, the three six-limb workspaces (the accumulator at `sampleStackA`
+holding `[taylorDW,  0×5]`, the product buffer at `sampleStackB` and the sum
+buffer at `newSp + 160`, both holding zeros), the four exit-divide output cells,
+and the architectural-zero `x0` rider are present exactly once each, pairwise
+disjoint.  This rules out the "atom owned twice" unsoundness trap for the
+fold's entry. -/
+
+private def foldSumBase : Word := sampleNewSp + signExtend12 (160 : BitVec 12)
+
+private inductive foldWitnessResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private inductive foldWitnessAtom where
+  | regVal (r : Reg) (v : Word)
+  | regOwn (r : Reg)
+  | memVal (a : Word) (v : Word) (valid : isValidDwordAccess a = true)
+  deriving DecidableEq
+
+private def foldWitnessAtomResource : foldWitnessAtom → foldWitnessResource
+  | .regVal r _ => .reg r
+  | .regOwn r => .reg r
+  | .memVal a _ _ =>.mem a
+
+private def foldWitnessAtomAssertion : foldWitnessAtom → Assertion
+  | .regVal r v => r ↦ᵣ v
+  |.regOwn r => regOwn r
+  |.memVal a v _ => a ↦ₘ v
+
+private def foldWitnessAtomHeap : foldWitnessAtom → PartialState
+  | .regVal r v => PartialState.singletonReg r v
+  |.regOwn r => PartialState.singletonReg r 0
+  |.memVal a v _ => PartialState.singletonMem a v
+
+private theorem foldWitnessSingletonReg_disjoint
+    {r1 r2 : Reg} {v1 v2 : Word} (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) :=by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem foldWitnessSingletonMem_disjoint
+    {a1 a2 : Word} {v1 v2 : Word} (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) :=by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem foldWitnessReg_mem_disjoint
+    {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) :=by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem foldWitnessMem_reg_disjoint
+    {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  foldWitnessReg_mem_disjoint.symm
+
+private theorem foldWitnessAtomHeap_disjoint_of_resource_ne
+    {x y : foldWitnessAtom}
+    (h : foldWitnessAtomResource x ≠ foldWitnessAtomResource y) :
+    (foldWitnessAtomHeap x).Disjoint (foldWitnessAtomHeap y) :=by
+  cases x <;> cases y
+  · apply foldWitnessSingletonReg_disjoint
+    simpa [foldWitnessAtomResource] using h
+  · apply foldWitnessSingletonReg_disjoint
+    simpa [foldWitnessAtomResource] using h
+  · exact foldWitnessReg_mem_disjoint
+  · apply foldWitnessSingletonReg_disjoint
+    simpa [foldWitnessAtomResource] using h
+  · apply foldWitnessSingletonReg_disjoint
+    simpa [foldWitnessAtomResource] using h
+  · exact foldWitnessReg_mem_disjoint
+  · exact foldWitnessMem_reg_disjoint
+  · exact foldWitnessMem_reg_disjoint
+  · apply foldWitnessSingletonMem_disjoint
+    simpa [foldWitnessAtomResource] using h
+
+private def foldWitnessAtoms : List foldWitnessAtom :=
+  [ .regVal .x2 sampleNewSp
+  , .regVal .x1 (sampleSaved .x1)
+  , .regVal .x10 0
+  , .regVal .x11 sampleOutPtr
+  , .regVal .x8 0
+  , .regVal .x9 taylorDW
+  , .regVal .x18 1
+  , .regVal .x19 sampleStackA
+  , .regVal .x20 sampleStackB
+  , .regVal .x21 sampleOutPtr
+  , .regVal .x22 foldSumBase
+  , .memVal (sampleNewSp + signExtend12 (0 : BitVec  12)) (sampleSaved .x1) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (8 : BitVec  12)) (sampleSaved .x8) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (16 : BitVec  12)) (sampleSaved .x9) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (24 : BitVec  12)) (sampleSaved .x18) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (32 : BitVec  12)) (sampleSaved .x19) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (40 : BitVec  12)) (sampleSaved .x20) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (48 : BitVec  12)) (sampleSaved .x21) (by decide)
+  , .memVal (sampleNewSp + signExtend12 (56 : BitVec  12)) (sampleSaved .x22) (by decide)
+  , .regOwn .x5, .regOwn .x6, .regOwn .x7
+  , .regOwn .x28, .regOwn .x29, .regOwn .x30, .regOwn .x31
+  , .memVal sampleStackA taylorDW (by decide)
+  , .memVal (sampleStackA + (8 : Word)) 0 (by decide)
+  , .memVal (sampleStackA + (16 : Word)) 0 (by decide)
+  , .memVal (sampleStackA + (24 : Word)) 0 (by decide)
+  , .memVal (sampleStackA + (32 : Word)) 0 (by decide)
+  , .memVal (sampleStackA + (40 : Word))  0 (by decide)
+  , .memVal sampleStackB 0 (by decide)
+  , .memVal (sampleStackB + (8 : Word))  0 (by decide)
+  , .memVal (sampleStackB + (16 : Word))  0 (by decide)
+  , .memVal (sampleStackB + (24 : Word))  0 (by decide)
+  , .memVal (sampleStackB + (32 : Word))  0 (by decide)
+  , .memVal (sampleStackB + (40 : Word))  0 (by decide)
+  , .memVal foldSumBase 0 (by decide)
+  , .memVal (foldSumBase + (8 : Word))  0 (by decide)
+  , .memVal (foldSumBase + (16 : Word))  0 (by decide)
+  , .memVal (foldSumBase + (24 : Word))  0 (by decide)
+  , .memVal (foldSumBase + (32 : Word))  0 (by decide)
+  , .memVal (foldSumBase + (40 : Word))  0 (by decide)
+  , .memVal (sampleOutPtr + BitVec.ofNat 64 0)  0 (by decide)
+  , .memVal (sampleOutPtr + BitVec.ofNat 64 8)  0 (by decide)
+  , .memVal (sampleOutPtr + BitVec.ofNat 64 16)  0 (by decide)
+  , .memVal (sampleOutPtr + BitVec.ofNat 64 24)  0 (by decide)
+  , .regVal .x0 0 ]
+
+private def foldWitnessAtomsAssert : Assertion :=
+  foldWitnessAtoms.foldr
+    (fun x acc => foldWitnessAtomAssertion x ** acc) empAssertion
+
+private def foldWitnessHeap : PartialState :=
+  foldWitnessAtoms.foldr
+    (fun x acc => (foldWitnessAtomHeap x).union acc) PartialState.empty
+
+private theorem foldWitnessAtoms_pairwise :
+    foldWitnessAtoms.Pairwise
+      (fun x y => foldWitnessAtomResource x ≠ foldWitnessAtomResource y) :=by
+  unfold foldWitnessAtoms foldWitnessAtomResource foldSumBase sampleNewSp
+    sampleStackA sampleStackB sampleOutPtr sampleSp0
+  decide
+private theorem foldWitnessAtoms_hsat :
+    foldWitnessAtomsAssert foldWitnessHeap :=by
+  have hAtom : ∀ x ∈ foldWitnessAtoms, foldWitnessAtomAssertion x (foldWitnessAtomHeap x) :=by
+    intro x hx
+    cases x with
+    | regVal r v => exact rfl
+    | regOwn r => exact ⟨0, rfl⟩
+    | memVal a v hvalid => exact ⟨rfl, hvalid⟩
+  have hPair : foldWitnessAtoms.Pairwise
+      (fun x y => (foldWitnessAtomHeap x).Disjoint (foldWitnessAtomHeap y)) :=by
+    exact List.Pairwise.imp
+      (fun {_ _} h => foldWitnessAtomHeap_disjoint_of_resource_ne h)
+      foldWitnessAtoms_pairwise
+  exact sepConj_foldr_satisfiable foldWitnessAtomAssertion foldWitnessAtomHeap foldWitnessAtoms hAtom hPair
+
+/-- The composed pre of the 495-round fold is inhabited at the sample layout. -/
+theorem taylor_loop_fold_pre_inhabited :
+    ∃ h : PartialState,
+      taylorLoopInvariant sampleNewSp (0 : Word) sampleOutPtr sampleSaved
+      sampleStackA sampleStackB taylorDW (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) empAssertion 0 h :=by
+  refine ⟨foldWitnessHeap, ?_⟩
+  unfold taylorLoopInvariant
+  simpa [taylorRoundAccList, taylorRoundProdList, taylorRoundSumList, taylorLoopIndex,
+    taylorLoopInvParityAt, cellsOf_six, exitdivOutputCells, frameSlotsSaved, priceFrame, sampleSaved,
+    parityBuffer, sampleNewSp, sampleStackA, sampleStackB, sampleOutPtr, sampleSp0, foldSumBase,
+    foldWitnessAtomsAssert, foldWitnessAtoms, foldWitnessAtomAssertion,
+    foldWitnessHeap, foldWitnessAtomHeap, sepConj_assoc', sepConj_emp_right', sepConj_emp_left',
+    EvmAsm.Rv64.AddrNorm.se12_0, EvmAsm.Rv64.AddrNorm.se12_8,
+    EvmAsm.Rv64.AddrNorm.se12_16, EvmAsm.Rv64.AddrNorm.se12_24,
+    EvmAsm.Rv64.AddrNorm.se12_32, EvmAsm.Rv64.AddrNorm.se12_40,
+    EvmAsm.Rv64.AddrNorm.se12_48, EvmAsm.Rv64.AddrNorm.se12_56] using foldWitnessAtoms_hsat
+
+#print axioms taylor_loop_fold_pre_inhabited
 
 end EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorDischarge
