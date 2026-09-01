@@ -178,9 +178,9 @@ interpreter. The one-opcode `h_ADD` pilot's FOUNDATION landed \
 (`Codegen/Proofs/ExecuteSeamBridge.lean`: `guestExec` relation, \
 `add_limb_result_eq_add`) and its issue closed; the one-step simulation itself is \
 NOT claimed there. ⚠️ The representation blocker this entry used to name is \
-CLOSED and must not be re-derived: #12204 step 3 landed `dispatchLoop_prog` \
+CLOSED and must not be re-derived: #12204 step 3 landed `dispatchLoopBody_prog` \
 (`Codegen/Dispatch.lean`, sixteen instructions), tied to the SHIPPED dispatcher \
-text by `dispatchLoopLabeledFunction_eq_prog` (`rfl`) composed with \
+text by `dispatchLoopFunction_eq_prog` (`rfl`) composed with \
 `emitRuntimeDispatcherLoop_split`, so the loop is no longer a raw String. The \
 per-opcode gas debit is likewise now visible in that Program — the \
 `opcode_gas_costs` load, the `env+568` compare, the `sub`/`sd`, and the \
@@ -190,10 +190,16 @@ exit label is deliberately NOT spelled in this cell: \
 `blockedBy` as DEMANDED work at +100 per obligation, so spelling it here would \
 rank a 500-byte exit path nobody is blocked on near the top of the \
 transcription queue. Name symbols here only when they ARE the remaining work. \
-What \
-remains is NOT transcription: `dispatchLoop_prog` has no `GuestImageEntries` \
-pairing, so there is no `CodeReq.ofProg` at its linked entry to hang a triple \
-on, and the dispatch-step lemma still wants that plus the handler-side seam. \
+⚠️ The PAIRING blocker this entry used to name is also CLOSED: #13173 gave the \
+loop body its own linker label, rebased `dispatchLoopBody_prog` onto it (the \
+Program had been anchored 348 bytes early, at the loop HEAD, behind the \
+code-size stop guard), and registered it in `guestImageEntries`. There IS now a \
+`CodeReq.ofProg` at its linked entry inside `guestImageCodeReq`, and \
+`guestImage_block_sub` lifts a triple stated over it into the image. What \
+remains is NOT transcription and NOT registration: the dispatch-step lemma \
+wants a triple over that Program plus the handler-side seam, and one iteration \
+of the shipped loop ALSO runs the code-size stop guard, which sits between the \
+head label and the body and is still an unconverted 348-byte span. \
 Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "the `execution_requests_hash` hash-half compose is still \
 open. (The validation-accept prefix landed domainRestricted; that work is DONE \
