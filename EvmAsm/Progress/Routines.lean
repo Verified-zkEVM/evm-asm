@@ -387,6 +387,8 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
+-- #12318: the SSZ navigation wrapper that tail-calls the core above.
+import EvmAsm.Codegen.Programs.BlockAccessListHashSpec
 import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
@@ -4175,6 +4177,51 @@ def routineRegistry : List RoutineEntry := [
         ++ "wrapper's ABI and the digest of WHATEVER bytes the caller supplies; "
         ++ "that those bytes are the serialised block access list is the "
         ++ "`bal_serializer_*` rung, not this one"),
+  -- #12318 callee-composition lane, the caller of the row above. 31
+  -- instructions, no branch: SSZ navigation, two `bah_u32le` calls, then a TAIL
+  -- CALL into `block_access_list_hash_core`. Because idx 30 is `JAL x0` executed
+  -- AFTER the epilogue has restored `ra` and popped the frame, control never
+  -- returns into this routine — the triple's exit is the caller's `ret` and the
+  -- post is the core's post verbatim.
+  routine "block_access_list_hash" .proven
+      (some "block_access_list_hash_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (54 + 1 + (6 + (5 + "
+        ++ "keccakBodyFuel N rem + 6)))` at `GuestAddrs.block_access_list_hash` "
+        ++ "over `CodeReq.union` of the four linked images it may fetch from "
+        ++ "(this wrapper, `bah_u32le`, `block_access_list_hash_core`, "
+        ++ "`zkvm_keccak256`) — every leg a `guestImageEntries` pairing, so the "
+        ++ "union is still an image claim. `proof-frontier.py --shape` grades it "
+        ++ "`whole-routine`: entry and CodeReq both anchored at "
+        ++ "`GuestAddrs.block_access_list_hash`. Composed as `body_spec` (idx "
+        ++ "0..29, both `bah_u32le` calls discharged against the rowed "
+        ++ "`bah_u32le_offset_spec_within` — the offset form, because both u32 "
+        ++ "pointers are ≡ 4 mod 8) ▸ `tail_jump_spec` ▸ the rowed "
+        ++ "`block_access_list_hash_core_spec_within`; both callee contracts are "
+        ++ "USED, not assumed. `bal_start` crosses the second call in the `.bss` "
+        ++ "cell `bah_bal_start`, carried as OWNED rather than framed. "
+        ++ "Hypotheses are resource/ABI plus ONE semantic bridge, `h_len`: the "
+        ++ "navigated extent `bal_end - bal_start` is the length of the slab the "
+        ++ "caller presents. That is a statement about the payload's own offset "
+        ++ "fields, not an input-domain restriction on which BAL sections run, so "
+        ++ "the row stays `.proven`. Non-vacuity is a triple: coverRef "
+        ++ "`blockAccessListHash_precondition_reachable` (+ "
+        ++ "`blockAccessListHash_header_bytes_valid`) satisfies every "
+        ++ "payload-dependent hypothesis on a concrete 592-byte SSZ window with "
+        ++ "`bal_off = 596`, `vh_off = 680`, a nonempty 40-byte slab and the two "
+        ++ "regions geometrically disjoint; and TWO negative controls on the same "
+        ++ "base show the new conjuncts can fail — "
+        ++ "`blockAccessListHash_len_negative_control` (`vh_off` off by one → "
+        ++ "`h_len` FALSE) and `blockAccessListHash_align_negative_control` "
+        ++ "(`bal_off` off the ≡ 4 mod 8 residue → the keccak absorb-cursor "
+        ++ "alignment FALSE, which is #13014's mechanism seen from the side where "
+        ++ "it is satisfiable). ⚠️ SCOPE: this grades the navigation and the "
+        ++ "digest of whatever bytes sit at `bal_start`; that those bytes are the "
+        ++ "serialised block access list is the `bal_serializer_*` rung. ⚠️ There "
+        ++ "is deliberately no `8 ∣ input.length` premise — the proof does not "
+        ++ "need one and it would only understate the theorem; for a slab whose "
+        ++ "length is not a dword multiple the `bytesRegion` atom itself pins the "
+        ++ "post-slab bytes to 0x00, so such callers are uncovered rather than "
+        ++ "assumed away"),
   -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
   -- and the first whose post is stated against `SpecRef` rather than the guest's
   -- own sponge model.
@@ -5412,10 +5459,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 239 := by decide
+theorem routineCount_eq : routineCount = 240 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 178 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 58 := by decide
 set_option maxRecDepth 16000 in
@@ -5435,7 +5482,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 199 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 200 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6957,6 +7004,20 @@ private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
 private noncomputable abbrev _block_access_list_hash_core_control_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+-- #12318: the SSZ navigation wrapper above the core.  The reachability term and
+-- BOTH negative controls are forced here, so the axiom gate audits the evidence
+-- that the navigated absorb-cursor alignment and the `h_len` bridge can each
+-- fail — not only the triple.
+private noncomputable abbrev _block_access_list_hash_routine_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.block_access_list_hash_spec_within
+private noncomputable abbrev _block_access_list_hash_reachable_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_precondition_reachable
+private noncomputable abbrev _block_access_list_hash_bytes_valid_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_header_bytes_valid
+private noncomputable abbrev _block_access_list_hash_len_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_len_negative_control
+private noncomputable abbrev _block_access_list_hash_align_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_align_negative_control
 -- #13030: keep the envelope's positive instance, old-premise refutation and
 -- byte-level padding control on the generated axiom-audit surface.
 private noncomputable abbrev _keccak_envelope_region_sat_witness :=

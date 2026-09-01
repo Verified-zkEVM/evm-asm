@@ -196,6 +196,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_align_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_header_bytes_valid
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_len_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.block_access_list_hash_spec_within
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
