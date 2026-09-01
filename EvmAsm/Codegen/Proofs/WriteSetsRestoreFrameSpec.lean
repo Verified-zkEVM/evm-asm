@@ -358,7 +358,7 @@ theorem writeSetsRestoreFrameEmptyFlat_spec
     is fully concrete: the seven spill slots hold their saved values in
     spill order, `sp` is back at `0x30000000`, and
     `storage_writes_undo_count` reads the mark, 0. -/
-example (ra : Word) :
+theorem wsrfEmpty_numeric_instance (ra : Word) :
     cpsTripleWithin 31 (GuestAddrs.write_sets_restore_frame : Word)
       (ra &&& ~~~(1 : Word))
       (CodeReq.ofProg (GuestAddrs.write_sets_restore_frame : Word)
@@ -397,7 +397,7 @@ example (ra : Word) :
        index 19, which this module does not claim.
     3. The two arms of the `bgeu` at index 18 land at distinct addresses
        (`base + 76` versus `base + 276`), so "taken" is a real choice. -/
-example :
+theorem wsrfEmpty_gate_reachable :
     (¬ BitVec.ult (0 : Word) (0 : Word))
     ∧ ¬ (¬ BitVec.ult (0 : Word) (1 : Word))
     ∧ ¬ (¬ BitVec.ult (5 : Word) (200000 : Word))
@@ -410,7 +410,7 @@ example :
     addresses, and the global is disjoint from the frame — so the separating
     conjunction is inhabitable and the numeric post above is not vacuously
     true. -/
-example :
+theorem wsrfEmpty_precondition_satisfiable :
     isValidDwordAccess (0x2fffffc0 : Word) = true ∧
     isValidDwordAccess (0x2fffffc8 : Word) = true ∧
     isValidDwordAccess (0x2fffffd0 : Word) = true ∧
@@ -428,5 +428,8 @@ example :
 
 #print axioms writeSetsRestoreFrame_empty_body_spec
 #print axioms writeSetsRestoreFrameEmptyFlat_spec
+#print axioms wsrfEmpty_numeric_instance
+#print axioms wsrfEmpty_gate_reachable
+#print axioms wsrfEmpty_precondition_satisfiable
 
 end EvmAsm.Codegen.Proofs
