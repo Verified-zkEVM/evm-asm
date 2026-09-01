@@ -89,15 +89,15 @@ work.
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
-| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 4 | `h_SLOAD` | 130 | obl 5; gate 2 | handler-spec | 1408 |
+| 5 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
+| 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 8 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 9 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 10 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 11 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 12 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
 | 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
 | 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
 | 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
@@ -172,6 +172,8 @@ in the current tree:
 | `h_ADD` | alias `ADD` (#11801) | opcode registry mnemonic; guest handler(s) `h_ADD` |
 | `h_ADD` | alias `ADD` (#11802) | opcode registry mnemonic; guest handler(s) `h_ADD` |
 | `h_ADD` | alias `ADD` (obligation 4) | opcode registry mnemonic; guest handler(s) `h_ADD` |
+| `h_SLOAD` | alias `SLOAD` (registry) | opcode registry mnemonic; guest handler(s) `h_SLOAD` |
+| `h_SLOAD` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_BALANCE` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_LOG0` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_EXTCODESIZE` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
@@ -179,7 +181,6 @@ in the current tree:
 | `h_LOG2` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_LOG3` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_LOG4` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
-| `h_SLOAD` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_EXTCODECOPY` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
 | `h_REVERT` | alias `REVERT` (obligation 5) | opcode registry mnemonic; guest handler(s) `h_REVERT` |
 | `h_EXTCODEHASH` | tier set `.execSpec` (obligation 5) | the blocker counts "14 `.execSpec` entries" — a SET, not a symbol; expanded from `Progress.lean`'s registry so it tracks promotions |
@@ -364,15 +365,15 @@ bytes.
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
-| 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
-| 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
-| 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
-| 8 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
-| 9 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
-| 10 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
-| 11 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
-| 12 | `h_SLOAD` | 100 | obl 5 | handler-spec | 1408 |
+| 4 | `h_SLOAD` | 130 | obl 5; gate 2 | handler-spec | 1408 |
+| 5 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
+| 6 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
+| 7 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
+| 8 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
+| 9 | `h_LOG1` | 100 | obl 5 | handler-spec | 788 |
+| 10 | `h_LOG2` | 100 | obl 5 | handler-spec | 820 |
+| 11 | `h_LOG3` | 100 | obl 5 | handler-spec | 852 |
+| 12 | `h_LOG4` | 100 | obl 5 | handler-spec | 884 |
 | 13 | `h_EXTCODECOPY` | 100 | obl 5 | handler-spec | 1448 |
 | 14 | `h_REVERT` | 100 | obl 5 | handler-spec | 1508 |
 | 15 | `h_EXTCODEHASH` | 100 | obl 5 | handler-spec | 1644 |
