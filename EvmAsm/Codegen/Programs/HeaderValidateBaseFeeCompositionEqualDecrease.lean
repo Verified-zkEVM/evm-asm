@@ -100,7 +100,7 @@ theorem header_validate_base_fee_equal_route_spec_within
     spH spK old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes expectedBytes headerBytes F
     hspK heqWord hsrc hout hret hF hk73Mono
-  have hgen := header_validate_base_fee_spec_gen_within
+  have hgen := header_validate_base_fee_gen_spec_within
     (cr := cr) (k73Code := cr) (n73 := 29)
     sp0 spH spK (H + 40) old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes expectedBytes headerBytes F Ftail F
@@ -231,7 +231,7 @@ theorem header_validate_base_fee_decrease_route_spec_within
           (gasLimit >>> 1) v19 v20 gasUsed gasLimit parentPtr parentBytes
           headerBytes F) := by
     simpa [Fenv, F, k73_decr_route_steps] using hrouteRaw
-  have hgen := header_validate_base_fee_spec_gen_within
+  have hgen := header_validate_base_fee_gen_spec_within
     (cr := cr) (k73Code := cr)
     (n73 := k73_decr_route_steps gasLimit gasUsed parentPtr parentBytes expectedBytes)
     sp0 spH spK (H + 40) old8 headerPtr gasLimit gasUsed parentPtr
@@ -324,7 +324,7 @@ theorem header_validate_base_fee_zero_decrease_route_spec_within
       EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj F =
         k74FlatFrame F := by
     exact EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj_out_eq F
-  have hgen := header_validate_base_fee_spec_gen_within
+  have hgen := header_validate_base_fee_gen_spec_within
     (cr := cr) (k73Code := cr)
     (n73 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_route_steps
       parentPtr parentBytes expectedBytes)

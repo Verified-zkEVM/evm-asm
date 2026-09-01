@@ -243,7 +243,7 @@ the callee contract's own arity (`k73IncreaseMulCalleePre` pins `f0..f5`;
 `k73IncreaseMulCalleePost` does not — pinned pre values are what the caller
 supplies, absence from the post is licence to clobber). -/
 
-theorem header_validate_base_fee_spec_gen_within
+theorem header_validate_base_fee_gen_spec_within
     {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
     (v9 old18 v19 v20 : Word)
@@ -1087,7 +1087,7 @@ theorem header_validate_base_fee_spec_within
     dsimp [F, Ftail]
     exact k73_incr_outj_out_eq spK parentPtr gasUsed (gasLimit >>> 1)
       parentBytes accBytes G
-  exact header_validate_base_fee_spec_gen_within
+  exact header_validate_base_fee_gen_spec_within
     (cr := cr) (k73Code := k73Code) (n73 := n73)
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes expectedBytes headerBytes Fenv Ftail F
