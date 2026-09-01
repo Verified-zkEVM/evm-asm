@@ -24,47 +24,38 @@
 
   ## What this module proves
 
-  `withdrawalToPathDeltaFailFlat_spec`, a whole-routine triple entry → `ret`
-  under one named gate: **the input is not a strict RLP list at all**, so
-  `withdrawal_decode` cannot return its `Decoded` verdict, the `bnez a0` at
-  instruction index 9 is TAKEN, and the routine answers `a0 = 1` from
-  `.Lwtpd_fail`.
+  ⭐ **`wtpdKeccakSeamAligned`** — the reason this file exists.  #12318 left
+  open whether `withdrawal_to_path_delta`'s `zkvm_keccak256` call is usable at
+  all, since the same seam is what makes `bal_account_path` unrowable.  It is,
+  and the fact is now a kernel-checked `decide` rather than prose.  See the
+  section below.
 
-  The covered path is instruction indices **0..9 and 35..40** — sixteen of the
-  forty-one — and it composes exactly one callee contract,
-  `withdrawal_decode_spec_within` (`Programs/WithdrawalDecodeClose5.lean:1167`),
-  reused rather than re-proved.
+  Then the composable scaffold for the routine's **failure arm** — the arm on
+  which `withdrawal_decode` rejects the input, `bnez a0` at instruction index 9
+  is TAKEN, and the routine answers `a0 = 1` from `.Lwtpd_fail`:
 
-  ⭐ **The load-bearing part is what the post does NOT name.**  Neither the
-  caller's 64-byte path buffer (`a2`, stashed in `s0`) nor its 32-byte delta
-  buffer (`a3`, stashed in `s1`) appears anywhere in the pre or the post, and
-  neither does `wtpd_hash`.  Because `cpsTripleWithin` universally quantifies
-  over a `pcFree` frame, that silence is a **no-write guarantee**: on the
-  failure arm the routine leaves both caller output buffers and the hash
-  scratch exactly as it found them.  That is precisely the property a caller
-  needs in order to read `a0 = 1` and skip the withdrawal.
+  * `withdrawalToPathDelta_segA/B/C_body_spec` — instruction indices 0..7, 9
+    and 35..40, the sixteen instructions on that arm;
+  * `wtpdCR`, `wtpd_disj_decode`, `wtpd_callSite8` — the forced code-requirement
+    union with `withdrawal_decode`'s linked closure, and the call adapter for
+    the `jal` at index 8;
+  * `notDecoded_of_noStrictList` — the gate;
+  * `wtpdFailCells`, `wdFailLeftover_split` — the callee's existential leftover
+    reshaped so a tail can run under it;
+  * `wtpdDecodeFailStep` — `withdrawal_decode_spec_within` instantiated at this
+    routine's frame with its two-way post collapsed onto the failure disjunct.
 
-  ## ⭐ The keccak seam is available here — measured, not assumed
+  ⛔ **The whole-routine triple is NOT closed**, so this file registers no row.
+  The obstruction is in `xperm`/`seqFrame`, not in the routine; it is written
+  up in full in the "The whole-routine triple is NOT closed here" section at the
+  bottom, together with what the next attempt should do.  Every declaration
+  here is `#print axioms`-audited and carries the classical three only.
 
-  This routine's `zkvm_keccak256` call is NOT on the covered path, but the
-  question of whether it *could* be was the blocker that ruled out
-  `bal_account_path`, so it is worth recording where it actually lands.
-
-  Every keccak seam carries `hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0`
-  (`Proofs/HashBridgeKeccakTop.lean:408`), forced by `bytesRegion_lbu_within`'s
-  `regionBase.toNat % 8 = 0` (`riscv-zkvm/RiscvZkvm/Rv64/Logic/MemRegion.lean:211`).
-  The hashed slab here is the 20-byte address at `wtpd_struct + 16`, and
-  `keccakAbsorbCursor inputBase 0 = inputBase` for a 20-byte preimage
-  (`N = 0`, `rem = 20`), so the premise reduces to a static `decide` — see
-  `wtpdKeccakSeamAligned` below.  `bal_account_path` hashes in place at
-  `item + 2`, where `8 ∤ 2` makes the same premise *provably false*.
-
-  The other two obstructions recorded on #13014 are absent as well: the
-  20-byte window is already handed over pre-carved as a standalone
-  `bytesRegion (outBase + 16) oldAddr` by `withdrawal_decode`'s own contract
-  (so nothing must be split out of a dword-granular region), and
-  `zkvm_keccak256_spec_within` asks only `input.length = 136 * N + rem` with
-  `rem ≤ 135`, which `20 = 136 * 0 + 20` satisfies.
+  ⭐ **What the failure arm would say, once assembled.**  Neither caller output
+  buffer (`a2`, the 64-nibble path; `a3`, the 32-byte delta) nor `wtpd_hash`
+  appears in `wtpdDecodeFailStep`'s footprint, and `cpsTripleWithin` quantifies
+  over a `pcFree` frame — so the arm is a **no-write guarantee** on all three,
+  which is what a caller reading `a0 = 1` depends on.
 
   ## The `CodeReq` union is FORCED
 
@@ -499,6 +490,8 @@ def wdDecodeFuel : Nat :=
     "there is a keccak call" — it is where the hashed slab sits. -/
 theorem wtpdKeccakSeamAligned : (WS + (16 : Word)).toNat % 8 = 0 := by decide
 
+#print axioms wtpdKeccakSeamAligned
+
 /-- The output-window byte accesses `withdrawal_decode` asks its caller to
     guarantee, discharged statically: the 20 address bytes at
     `wtpd_struct + 16` all land in `[RAM_MEM_START, RAM_MEM_END]`. -/
@@ -506,6 +499,8 @@ theorem wtpdStructAddrValid :
     ∀ k, k < 20 → isValidByteAccess ((WS + (16 : Word)) + BitVec.ofNat 64 k) = true := by
   intro k hk
   interval_cases k <;> decide
+
+#print axioms wtpdStructAddrValid
 
 /-! ## ⭐ The whole-routine failure-arm contract -/
 
@@ -523,7 +518,7 @@ theorem wtpdStructAddrValid :
     it has to find, and on a 36-atom footprint an arbitrary reordering makes it
     give up — silently, emitting `sorryAx` rather than an error. Keeping both
     permutations near-identity is what makes this step check. -/
-private theorem wtpdDecodeFailStep
+theorem wtpdDecodeFailStep
     (sp listBase len v12 v13 v14 v18 s3 s4 s5 : Word)
     (oldOut0 fld1Out oldOut2 oldOffset0 oldLen0 wOldOff wOldLen : Word)
     (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
@@ -653,5 +648,49 @@ private theorem wtpdDecodeFailStep
         would cut the visible atom count at the seam from 36 to about 10.
 
     The third is the cheapest and is what the next attempt should do. -/
+
+/-! ## Non-vacuity of the gate
+
+  `notDecoded_of_noStrictList` is only worth anything if its premise is
+  satisfiable AND is a real restriction.  Both directions are exhibited, and
+  the second one is the load-bearing half: the gate has to be provably FALSE
+  somewhere, or it would be framing dressed up as a hypothesis. -/
+
+/-- **Satisfiable instance.**  Two zero bytes are not a strict RLP list —
+    `StrictListPayload`'s two constructors both require `bytes[0] ≥ 0xc0`
+    (`short` via `hlist`, `long` via `hlong`) — so no assignment of the four
+    field values makes them a `Decoded` withdrawal, for any declared length. -/
+example (base : Word) (listLen : Nat) :
+    ∀ v0 v1 v3 o2 l2,
+      ¬ WithdrawalDecodeSpec.Decoded (List.replicate 2 (0 : BitVec 8)) base listLen
+        v0 v1 v3 o2 l2 :=
+  notDecoded_of_noStrictList _ base listLen (by
+    rintro ⟨cursorOff, endPtr, h⟩
+    cases h with
+    | short b hbyte hlist _ _ _ =>
+        have hb : (0 : BitVec 8) = b := by simpa using hbyte
+        exact hlist (by rw [← hb]; decide)
+    | long b _ hbyte hlong _ _ _ _ _ =>
+        have hb : (0 : BitVec 8) = b := by simpa using hbyte
+        exact hlong (by rw [← hb]; decide))
+
+/-- ⛔ **Negative control — the gate is provably FALSE here.**  A leading
+    `0xc4` IS a short-form strict list header, so `StrictListPayload` holds and
+    `notDecoded_of_noStrictList`'s premise is refuted outright.  The gate is
+    therefore a genuine restriction on the input, not a fact about every input,
+    and the `[0x00, 0x00]` witness above is not proving something vacuous. -/
+example (base : Word) :
+    ∃ cursorOff endPtr,
+      EvmAsm.Codegen.RlpListNthItemSAsm.StrictListPayload
+        [(0xc4 : BitVec 8), 0, 0, 0, 0] base 5 cursorOff endPtr :=
+  ⟨1, base + BitVec.ofNat 64 5,
+    .short 5 1 (0xc4 : BitVec 8) (by decide) (by decide) (by decide) rfl (by decide)⟩
+
+/-- ⛔ **Second control, on the arm the gate selects.**  `withdrawal_decode`'s
+    post is a two-way disjunction and the gate picks the right one; the two
+    arms are distinguishable exactly because the answers differ, which is what
+    makes the `bnez a0` at index 9 decidable. -/
+example : (1 : Word) ≠ (0 : Word) := by decide
+
 
 end EvmAsm.Codegen.Proofs
