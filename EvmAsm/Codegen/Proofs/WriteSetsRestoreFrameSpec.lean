@@ -85,11 +85,21 @@ open EvmAsm.Codegen
   ⚠️ **Measured, not stylistic.**  `bv_omega` expands to
   `simp only [bitvec_to_nat] at * <;> omega`, and the `at *` walks the whole
   local context.  Inside the body proof below that context carries
-  `hlaCount0`/`hlaCount1`/`hbr` — hypotheses whose `laHi`/`laLo`/`brOff`
-  applications `omega` then tries to evaluate.  With them in scope the very
-  first `sd` frame-offset rewrite costs ~254 s on its own; with them cleared
-  it costs milliseconds.  So every offset identity the body proof needs is
-  proved HERE, at file scope, where the context is one or two `Word`s. -/
+  `hlaCount0` and `hlaCount1` — two `la storage_writes_undo_count` round-trips,
+  at indices 8/9 and 69/70, **both equated to the same `undoPtr`**.  `omega`
+  therefore has to reconcile the two `laHi`/`laLo` blobs with each other
+  instead of using each to define a fresh variable, and it does not come back:
+  with both in scope the very first `sd` frame-offset rewrite costs ~254 s on
+  its own (~132 s with the code requirement still folded, as it is below), and
+  `clear`ing *either one* of them drops the whole file to ~3 s.  So every
+  offset identity the body proof needs is proved HERE, at file scope, where the
+  context is one or two `Word`s.
+
+  This is specific to the shared right-hand side, not to relocation hypotheses
+  in general — the sibling write-map specs carry two or three `la` hypotheses
+  bound to *distinct* pointers and call `bv_omega` inline at no measurable
+  cost.  Measurements and the repo-wide scan are in issue #13202; the rule is
+  written up in `docs/agents/proof-patterns.md`. -/
 
 /-- `(sp − 64) + off = sp − (64 − off)` for a spill slot at `off` bytes into a
     64-byte frame, with the 12-bit immediate's sign extension discharged by the
