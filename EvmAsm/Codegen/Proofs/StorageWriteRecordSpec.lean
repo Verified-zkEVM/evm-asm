@@ -6,22 +6,14 @@
   WORK IN PROGRESS: segment A pilot.
 -/
 
-module
-
-public import EvmAsm.Rv64.SyscallSpecs
-public import EvmAsm.Rv64.ControlFlow
-public import EvmAsm.Rv64.Tactics.RunBlock
-public import EvmAsm.Rv64.WP.Call
-public import EvmAsm.Evm64.CallingConvention
-public import EvmAsm.Codegen.Programs.StorageWriteMap
-meta import EvmAsm.Rv64.SyscallSpecs
-meta import EvmAsm.Rv64.ControlFlow
-meta import EvmAsm.Rv64.Tactics.RunBlock
-meta import EvmAsm.Rv64.WP.Call
-meta import EvmAsm.Evm64.CallingConvention
-meta import EvmAsm.Codegen.Programs.StorageWriteMap
-
-@[expose] public section
+import EvmAsm.Rv64.SyscallSpecs
+import EvmAsm.Rv64.ControlFlow
+import EvmAsm.Rv64.Tactics.RunBlock
+import EvmAsm.Rv64.WP.Call
+import EvmAsm.Rv64.SAsm.DualReadByteScan
+import EvmAsm.Rv64.SAsm.TwoExitLoop
+import EvmAsm.Evm64.CallingConvention
+import EvmAsm.Codegen.Programs.StorageWriteMap
 
 namespace EvmAsm.Codegen.Proofs
 
@@ -597,5 +589,189 @@ theorem storageWriteRecord_segC_body_spec
   have R22 := EvmAsm.Evm64.ret_spec_within' (base + (576 : Word)) ra
   runBlock R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R20
     R21 R22
+
+/-! ## The deployed (anchored) whole-routine contract -/
+
+/-- The routine's linked entry. -/
+abbrev SWR : Word := (GuestAddrs.storage_write_record : Word)
+
+/-- Its one callee's linked entry. -/
+abbrev SWUP : Word := (GuestAddrs.storage_writes_undo_push : Word)
+
+/-- `storage_write_record`'s code requirement: its own 145 instructions at
+    `GuestAddrs.storage_write_record`, plus the only routine it calls.
+
+    The union is FORCED, not a convenience: `storage_write_record` has no arm
+    that both terminates at `ret` and stays inside its own bytes.  The scan
+    exits either into a `jal ra, storage_writes_undo_push` (both the hit and the
+    append arm) or, after 5588 iterations, into `.Lswr_overflow`.  So a
+    whole-routine triple must range over the callee's bytes too. -/
+def swrCR : CodeReq :=
+  (CodeReq.ofProg SWR storageWriteRecord_prog).union
+    (CodeReq.ofProg SWUP storageWritesUndoPush_prog)
+
+theorem swr_disj_undoPush :
+    (CodeReq.ofProg SWR storageWriteRecord_prog).Disjoint
+      (CodeReq.ofProg SWUP storageWritesUndoPush_prog) :=
+  CodeReq.Disjoint.ofProg_ranges _ _ _ _
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+
+theorem swrProg_sub_swrCR :
+    ∀ a i, CodeReq.ofProg SWR storageWriteRecord_prog a = some i → swrCR a = some i :=
+  CodeReq.union_mono_left
+
+/-- Call-site adapter for the `jal ra, storage_writes_undo_push` at instruction
+    index 77 (`SWR + 308`) — the append arm's journal push. -/
+theorem swr_callSite77 {n : Nat} {Prest Q : Assertion} (vRa : Word)
+    (hPrest : Prest.pcFree)
+    (hcallee : cpsTripleWithin n SWUP ((SWR + (308 : Word) + 4) &&& ~~~(1 : Word))
+      (CodeReq.ofProg SWUP storageWritesUndoPush_prog)
+      ((.x1 ↦ᵣ (SWR + (308 : Word) + 4)) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (SWR + (308 : Word)) (SWR + (308 : Word) + 4) swrCR
+      ((.x1 ↦ᵣ vRa) ** Prest) Q := by
+  have hcall := WP.cpsCallWithin
+    (nSteps := n) (callerPC := SWR + (308 : Word)) (calleeEntry := SWUP) (vOld := vRa)
+    (calleeCode := CodeReq.ofProg SWUP storageWritesUndoPush_prog)
+    (Prest := Prest) (Q := Q)
+    (jalOff GuestAddrs.storage_writes_undo_push (GuestAddrs.storage_write_record + 308))
+    (by decide) (by decide) hPrest
+    (CodeReq.Disjoint.singleton_ofProg (by decide +kernel))
+    hcallee
+  refine cpsTripleWithin_extend_code
+    (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
+  · exact CodeReq.union_mono_left a i
+      (CodeReq.ofProg_mem_at SWR (SWR + (308 : Word)) storageWriteRecord_prog 77 _
+        (by decide +kernel) (by decide +kernel) (by decide +kernel)
+        (by decide +kernel) a i h)
+  · exact CodeReq.mono_union_right swr_disj_undoPush (fun _ _ h => h) a i h
+
+/-- ⭐ **`storage_write_record`, whole routine, fail-closed arm.**
+
+    Entry `GuestAddrs.storage_write_record`, exit `ra &&& ~~~1` — the caller's
+    return address — over `swrCR`, which pairs the linked `GuestAddrs` entry
+    with `storageWriteRecord_prog` exactly as `GuestImageEntries.lean:395` does.
+
+    Two named gates select the arm:
+
+    * `tx_storage_writes_count = 0` — the transaction's storage-write map is
+      empty, i.e. this is the transaction's FIRST storage write.  The scan's
+      `bgeu` at index 22 is then taken with zero iterations, so no loop
+      invariant is needed and the routine goes straight to `.Lswr_append`.
+    * `hfull : ¬ storage_writes_undo_count < 167652` — the undo journal is full,
+      so `storage_writes_undo_push` refuses.
+
+    Under both, the routine is **fail-closed**: it latches
+    `tx_storage_writes_overflow` and `storage_writes_overflow` to 1, leaves
+    `tx_storage_writes_count` at 0, leaves `storage_writes_undo_count`
+    untouched, restores `sp` and every one of the thirteen registers the
+    prologue saved, and returns.  Because `cpsTripleWithin` quantifies over an
+    arbitrary `pcFree` frame, the triple ALSO says — for free — that nothing at
+    all is written to `TX_STORAGE_WRITES_AREA` or to the undo journal arena,
+    since neither is named in the pre or the post.  That is the content of the
+    "FAILS CLOSED — latches overflow and rejects" claim that
+    `Codegen/RegionMap.lean:164` makes in prose.
+
+    ⚠️ NOT proven here: the hit arm, the append arm's 16-dword row write, and
+    the 5588-iteration `.Lswr_overflow` arm.  Those need the scan loop
+    invariant and the `storageWritesMapIs` vocabulary, and they are where the
+    tie to `storageWriteUpsert` (`Stateless/State/StorageWriteUpsert.lean:142`)
+    will be made. -/
+theorem storageWriteRecordFailClosedFlat_spec
+    (sp ra a0 a6 undoCount ovfTx ovfBlk v5 v6 v7 v13 v14 v15 v28 v29 v30 v31 : Word)
+    (hfull : ¬ BitVec.ult undoCount (167652 : Word)) :
+    cpsTripleWithin 83 (GuestAddrs.storage_write_record : Word) (ra &&& ~~~(1 : Word))
+      swrCR
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ a0) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ a6) **
+       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+       memOwn (sp - (176 : Word)) ** memOwn (sp - (168 : Word)) **
+       memOwn (sp - (160 : Word)) ** memOwn (sp - (152 : Word)) **
+       memOwn (sp - (144 : Word)) ** memOwn (sp - (136 : Word)) **
+       memOwn (sp - (128 : Word)) **
+       memOwn (sp - (112 : Word)) ** memOwn (sp - (104 : Word)) **
+       memOwn (sp - (96 : Word)) ** memOwn (sp - (88 : Word)) **
+       memOwn (sp - (80 : Word)) ** memOwn (sp - (72 : Word)) **
+       memOwn (sp - (64 : Word)) ** memOwn (sp - (56 : Word)) **
+       memOwn (sp - (48 : Word)) ** memOwn (sp - (40 : Word)) **
+       memOwn (sp - (32 : Word)) ** memOwn (sp - (24 : Word)) **
+       memOwn (sp - (16 : Word)) **
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ undoCount) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ ovfTx) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ ovfBlk))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) ** (.x10 ↦ᵣ a0) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ a6) **
+       (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) ** (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
+       ((sp - (176 : Word)) ↦ₘ (GuestAddrs.tx_storage_writes_count : Word)) **
+       ((sp - (168 : Word)) ↦ₘ (0 : Word)) **
+       ((sp - (160 : Word)) ↦ₘ (5588 : Word)) **
+       ((sp - (152 : Word)) ↦ₘ (0xa2d57ec0 : Word)) **
+       ((sp - (144 : Word)) ↦ₘ (0 : Word)) **
+       ((sp - (136 : Word)) ↦ₘ v30) ** ((sp - (128 : Word)) ↦ₘ v31) **
+       ((sp - (112 : Word)) ↦ₘ v5) ** ((sp - (104 : Word)) ↦ₘ v6) **
+       ((sp - (96 : Word)) ↦ₘ v7) ** ((sp - (88 : Word)) ↦ₘ v28) **
+       ((sp - (80 : Word)) ↦ₘ v29) ** ((sp - (72 : Word)) ↦ₘ v30) **
+       ((sp - (64 : Word)) ↦ₘ v31) ** ((sp - (56 : Word)) ↦ₘ ra) **
+       ((sp - (48 : Word)) ↦ₘ v13) ** ((sp - (40 : Word)) ↦ₘ v14) **
+       ((sp - (32 : Word)) ↦ₘ v15) ** ((sp - (24 : Word)) ↦ₘ a6) **
+       ((sp - (16 : Word)) ↦ₘ a0) **
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ undoCount) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (1 : Word)) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ (1 : Word))) := by
+  -- segment A: prologue .. the empty-map `bgeu`
+  have hA := cpsTripleWithin_extend_code swrProg_sub_swrCR
+    (storageWriteRecord_segA_body_spec SWR sp ra a0 a6
+      (GuestAddrs.tx_storage_writes_count : Word) v5 v6 v7 v13 v14 v15 v28 v29 v30 v31
+      (by decide) (by decide))
+  -- the callee's frame slots and the three globals it touches are not in
+  -- segment A's footprint; carry them across it by the frame rule
+  have hA := cpsTripleWithin_frameR
+    (memOwn (sp - (176 : Word)) ** memOwn (sp - (168 : Word)) **
+     memOwn (sp - (160 : Word)) ** memOwn (sp - (152 : Word)) **
+     memOwn (sp - (144 : Word)) ** memOwn (sp - (136 : Word)) **
+     memOwn (sp - (128 : Word)) **
+     ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ undoCount) **
+     ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ ovfTx) **
+     ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ ovfBlk))
+    (by pcf) hA
+  -- segment B: the capacity gate and the call arguments
+  have hB := cpsTripleWithin_extend_code swrProg_sub_swrCR
+    (storageWriteRecord_segB_body_spec SWR v7 v13 v14 v15)
+  -- the callee, on its journal-full arm
+  have hU := storageWritesUndoPush_full_body_spec SWUP (sp - (112 : Word))
+    (SWR + (308 : Word) + 4)
+    (GuestAddrs.storage_writes_undo_count : Word)
+    (GuestAddrs.tx_storage_writes_overflow : Word)
+    (GuestAddrs.storage_writes_overflow : Word)
+    undoCount ovfTx ovfBlk
+    (GuestAddrs.tx_storage_writes_count : Word) (0 : Word) (5588 : Word) a0
+    (0xa2d57ec0 : Word) (0 : Word) v30 v31
+    (by decide) (by decide) (by decide) (by decide) hfull
+  rw [show (sp - (112 : Word)) - (64 : Word) = sp - (176 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (56 : Word) = sp - (168 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (48 : Word) = sp - (160 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (40 : Word) = sp - (152 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (32 : Word) = sp - (144 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (24 : Word) = sp - (136 : Word) from by bv_omega,
+      show (sp - (112 : Word)) - (16 : Word) = sp - (128 : Word) from by bv_omega] at hU
+  have hCall := swr_callSite77 (n := 30) ra (by pcf) hU
+  rw [show SWR + (308 : Word) + 4 = SWR + (312 : Word) from by bv_omega] at hCall
+  -- segment C: the reject arm and the epilogue
+  have hC := cpsTripleWithin_extend_code swrProg_sub_swrCR
+    (storageWriteRecord_segC_body_spec SWR sp ra a0 a6 (SWR + (312 : Word)) (1 : Word)
+      (GuestAddrs.tx_storage_writes_overflow : Word)
+      (GuestAddrs.storage_writes_overflow : Word) (1 : Word) (1 : Word)
+      v5 v6 v7 v13 v14 v15 v28 v29 v30 v31
+      (GuestAddrs.tx_storage_writes_count : Word) (0 : Word) (5588 : Word)
+      (0 : Word) (1 : Word) (0 : Word) a6 (0xa2d57ec0 : Word) (0 : Word) v30 v31
+      (by decide) (by decide) (by decide) (by decide))
+  seqFrame hA hB
+  seqFrame hAhB hCall
+  seqFrame hAhBhCall hC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hAhBhCallhC
 
 end EvmAsm.Codegen.Proofs
