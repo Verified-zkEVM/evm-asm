@@ -41,11 +41,13 @@ def leafHpVals (link s0 s1 s2 s3 s4 : Word) : Reg → Word
 def leafHpCallFuel (srcLen : Nat) : Nat :=
   1 + hdnFuel srcLen
 
-/-- Walk ambient framed through the leaf hp call. -/
+/-- Walk ambient framed through the leaf hp call.  `x0` is deliberately
+    absent: `hdnCallEntry` already pins it, and a second `(.x0 ↦ᵣ 0)` atom
+    here made the call triple's pre/post unsatisfiable (#13161
+    duplicate-occupancy). -/
 def leafHpCallFrame (newSp : Word) (ws : WalkSaved)
     (nodeBase pathOff pathLen : Word) : Assertion :=
   walkSavedFrame newSp ws **
-  (.x0 ↦ᵣ (0 : Word)) **
   (.x23 ↦ᵣ nodeBase) **
   (MwPathOff ↦ₘ pathOff) ** (MwPathLen ↦ₘ pathLen) **
   stackFree newSp 8
