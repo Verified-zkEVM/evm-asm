@@ -408,6 +408,11 @@ import EvmAsm.Codegen.Proofs.StorageWriteRecordSpec
 -- `accountWritesUndoPushFullFlat_spec` — the account writer's fail-closed
 -- arm and the undo-journal push it rejects on.
 import EvmAsm.Codegen.Proofs.AccountWriteRecordSpec
+-- #11921 remainder: the two write-map LEAVES —
+-- `accountWritesLookupCurrentAbsentFlat_spec` (both tiers empty) and
+-- `storageWritesBlockUpsertAppendFlat_spec` (first-row append).
+import EvmAsm.Codegen.Proofs.AccountWritesLookupCurrentSpec
+import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
@@ -4940,6 +4945,119 @@ def routineRegistry : List RoutineEntry := [
         ++ "unwitnessed is why `account_write_record` did not appear in the "
         ++ "startable frontier at all. Lives in "
         ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`"),
+  -- #11921 remainder: the two write-map routines that are LEAVES. Both carry a
+  -- SINGLE `CodeReq.ofProg` rather than the two-program union the two writers
+  -- above needed — checked against the Program, not assumed from the family.
+  routine "account_writes_lookup_current" .conditional
+      (some "accountWritesLookupCurrentAbsentFlat_spec")
+      (gate := "TWO input-domain gates, both genuine restrictions rather than "
+        ++ "framing, and BOTH are needed. (1) `tx_account_writes_count = 0` — "
+        ++ "the transaction tier is empty, so the scan's `bgeu t3, t1` at "
+        ++ "instruction index 11 is taken with ZERO iterations. (2) "
+        ++ "`account_writes_count = 0` — the block tier is empty likewise, so "
+        ++ "the second scan's `bgeu t3, t1` at index 51 is taken with ZERO "
+        ++ "iterations; an empty transaction tier ALONE does not reach "
+        ++ "`.Lawlc_absent`. The arms excluded are both hits (indices 12..43 "
+        ++ "and 52..83) and the three non-zero answers `a0 = 1` / `2` / `3` at "
+        ++ "indices 82, 84 and 88; none of them is claimed here. coverRef: the "
+        ++ "three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWritesLookupCurrentSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, both counts 0, temps `1..4`, "
+        ++ "`s0 = 9`, argument registers `20..22`, with `a0`/`a1`/`a2` read "
+        ++ "back as 0 rather than their entry values), a NEGATIVE control "
+        ++ "(`¬¬(0 <ᵤ 1)` — provably FALSE, so a tier holding even ONE row is "
+        ++ "genuinely outside the arm) plus four distinct-address checks "
+        ++ "separating `.Lawlc_absent` from the three non-zero answers, and an "
+        ++ "`isValidDwordAccess` satisfiability check on both frame slots and "
+        ++ "both tier counters")
+      (notes := "`cpsTripleWithin 27` at "
+        ++ "`GuestAddrs.account_writes_lookup_current`, exit `ra &&& ~~~1`, "
+        ++ "over `CodeReq.ofProg … accountWritesLookupCurrent_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:409` pairing itself, so "
+        ++ "entry AND CodeReq are both at the anchor. ⭐ A SINGLE `ofProg`, "
+        ++ "NOT the two-program union `storage_write_record` and "
+        ++ "`account_write_record` were forced into — and the difference was "
+        ++ "checked against the Program rather than assumed from the family: "
+        ++ "`accountWritesLookupCurrent_prog` contains no `jal ra, …` at all, "
+        ++ "only `JAL .x0` internal jumps and the closing `jalr x0, 0(ra)`. It "
+        ++ "is a LEAF, so no callee contract is needed and none is assumed. "
+        ++ "⭐ Unlike the two fail-closed writer arms this is a FUNCTIONAL "
+        ++ "arm: `a0 = 0` is the answer the model gives for an address with no "
+        ++ "row in either tier, not a refusal. The post also restores `ra`, "
+        ++ "`s0` and `sp`, and — because `cpsTripleWithin` quantifies over a "
+        ++ "`pcFree` frame and neither arena is named — says for free that the "
+        ++ "routine writes nothing anywhere and does not even read "
+        ++ "`TX_ACCOUNT_WRITES_AREA` or `ACCOUNT_WRITES_AREA` on this arm. "
+        ++ "⚠️ `t0`-`t3` are CLOBBERED and the post states it rather than "
+        ++ "framing it away: they come back holding the block-tier count "
+        ++ "pointer, 0, `ACCOUNT_WRITES_AREA` and 0. That is correct under the "
+        ++ "RISC-V ABI (caller-saved) and, unlike #13182's finding about "
+        ++ "`account_write_record`, it matches what the epilogue actually "
+        ++ "does — indices 95..96 reload exactly the `ra`/`s0` pair indices "
+        ++ "1..2 saved. `Nodup` does not arise: a READER constructs no row "
+        ++ "sequence, and on the empty-tier arm there is no matching row for "
+        ++ "uniqueness to be about; the model theorem "
+        ++ "`accountWriteUpsert_rowsMap` (#11938) is consumed on a HIT arm, "
+        ++ "not here. No Correspondence row: this arm ties to no spec-side "
+        ++ "VALUE beyond `absent`. Lives in "
+        ++ "`Codegen/Proofs/AccountWritesLookupCurrentSpec.lean`"),
+  routine "storage_writes_block_upsert" .conditional
+      (some "storageWritesBlockUpsertAppendFlat_spec")
+      (gate := "TWO input-domain gates. (1) `storage_writes_count = 0` — the "
+        ++ "block's storage-write map is EMPTY, so the scan's `bgeu t4, t1` at "
+        ++ "instruction index 16 is taken with ZERO iterations and no loop "
+        ++ "invariant is claimed. (2) `a3 = 0` — a null baseline pointer, so "
+        ++ "the `beq a3, x0` at index 67 selects `.Lswbu_base_zero` (the "
+        ++ "four-dword zero fill at `+96 .. +120`) rather than the baseline "
+        ++ "copy at indices 68..75. The arms excluded are the HIT arm (indices "
+        ++ "17..45), the baseline-COPY arm, and `.Lswbu_overflow` at index 92, "
+        ++ "which is reachable only once the count has driven "
+        ++ "`blockStorageWritesCapacity` = 66666 scan iterations. coverRef: "
+        ++ "the three `example`s at the end of "
+        ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, three distinct 32-byte source "
+        ++ "blocks carrying `101..104` / `201..204` / `301..304`, temps "
+        ++ "`1..7`, with the sixteen row PRE-images left universally "
+        ++ "quantified precisely because the arm overwrites all of them), gate "
+        ++ "witnesses with a NEGATIVE control (`¬¬(0 <ᵤ 1)` — provably FALSE, "
+        ++ "so a map holding one row is genuinely outside the arm) plus "
+        ++ "`¬ 66666 <ᵤ 66666` for the capacity boundary, distinct addresses "
+        ++ "for `.Lswbu_base_zero` vs the copy arm, a "
+        ++ "`blockStorageWritesCapacity = 66666` pin, and an "
+        ++ "`isValidDwordAccess`-plus-disjointness satisfiability check")
+      (notes := "`cpsTripleWithin 63` at "
+        ++ "`GuestAddrs.storage_writes_block_upsert`, exit `ra &&& ~~~1`, over "
+        ++ "`CodeReq.ofProg … storageWritesBlockUpsert_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:396` pairing itself. ⭐ A "
+        ++ "SINGLE `ofProg`, NOT a union, and the difference was checked: this "
+        ++ "Program contains no `jal ra, …` — the block-level upsert pushes no "
+        ++ "undo record, which is exactly why it could be factored out of "
+        ++ "`storage_write_record`. It is a LEAF. ⭐ Unlike the two "
+        ++ "fail-closed writer arms this is a fully FUNCTIONAL triple, the "
+        ++ "first value-producing whole-routine claim in the #11921 family: "
+        ++ "the post says row 0 at `STORAGE_WRITES_AREA` receives the caller's "
+        ++ "four rowAddress dwords at `+0 .. +24`, four slotKey dwords at "
+        ++ "`+32 .. +56`, four value dwords at `+64 .. +88` and four ZEROES at "
+        ++ "`+96 .. +120`; `storage_writes_count` goes 0 → 1; and `sp`, `ra`, "
+        ++ "`a0`-`a3` and all seven spilled temporaries `t0`-`t6` come back "
+        ++ "intact. The `pcFree` frame then says for free that nothing outside "
+        ++ "those seventeen dwords is written — no other arena row, no "
+        ++ "overflow flag, no undo journal. ⚠️ Register discipline read from "
+        ++ "the EPILOGUE, not a docstring (#13182): indices 96..102 reload "
+        ++ "exactly the seven registers indices 1..7 spilled, so unlike "
+        ++ "`account_write_record` this IS an honest full-restoration claim. "
+        ++ "`Nodup` is neither proven nor assumed, and the reason is sharper "
+        ++ "than on the fail-closed arms: on an EMPTY map the appended row is "
+        ++ "the ONLY row, so distinctness is degenerate; it becomes a real "
+        ++ "obligation only where the scan can find a prior match, i.e. the "
+        ++ "hit arm, which is outside this triple. "
+        ++ "`storageWriteUpsert_nodup` is already hypothesis-free and is "
+        ++ "consumed there, not here. The arena base the code builds with a "
+        ++ "bare `lui 162 / addiw 1333 / slli 12 / addi -1600` chain is "
+        ++ "carried through the proof SYMBOLICALLY — the post-shift "
+        ++ "intermediate is written `STORAGE_WRITES_AREA + 1600`, never as a "
+        ++ "bare in-range literal (GH #12586). Lives in "
+        ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean`"),
   -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
   -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
   -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
@@ -5043,12 +5161,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 233 := by decide
+theorem routineCount_eq : routineCount = 235 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 176 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 54 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 56 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5066,7 +5184,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 193 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 195 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6819,6 +6937,11 @@ private noncomputable abbrev _account_write_record_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
 private noncomputable abbrev _account_writes_undo_push_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
+-- #11921 remainder: the two write-map leaves.
+private noncomputable abbrev _account_writes_lookup_current_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
+private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 
 -- #12851: the machine restoring-division fold is tied to the pure K70 model.
 -- The signed-zero and complementary-comparison representation changes are
