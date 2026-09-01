@@ -92,9 +92,10 @@
   (`a0 = 1` live code, `2` present-but-empty, `3` deleted) are outside its
   contract, so the `beq a0, 2` / `bne a0, 1` discrimination is only exercised
   on the one value the callee can currently produce.  With it go the
-  empty-code hit at index 33, the 23-byte length check at index 15, the
-  `0xef 0x01 0x00` marker bytes at indices 16..23, and both store paths
-  (indices 24..29 and 33..38) — including every `la` in the routine, so this
+  empty-code branch at index 13 (`beq s2, x0`, target `base + 128`), the
+  23-byte length check at indices 14..15, the `0xef 0x01 0x00` marker bytes at
+  indices 16..23, and both store paths (indices 24..31 for the marker hit and
+  32..39 for the empty hit) — including every `la` in the routine, so this
   proof steps through no address materialisation at all.  The registry row is
   therefore `.conditional` with both gates named, and the gate is the
   callee's, inherited.
@@ -372,8 +373,9 @@ theorem rsbd_callSite6 {n : Nat} {Prest Q : Assertion} (vRa : Word)
     `ACCOUNT_WRITES_AREA`, `0` from the callee.  They are caller-saved.
 
     ⚠️ NOT proven: the callee's three non-absent answers, and with them the
-    empty-code hit, the 23-byte length check, the `0xef 0x01 0x00` marker
-    comparison, and both store paths. -/
+    empty-code branch at index 13, the 23-byte length check at indices 14..15,
+    the `0xef 0x01 0x00` marker comparison at indices 16..23, and both store
+    paths (24..31 and 32..39). -/
 theorem runtimeSameBlockDelegationCodeMissFlat_spec
     (sp ra v5 v6 v7 v8 v9 v10 v11 v12 v18 v28 : Word) :
     cpsTripleWithin 45 RSBD (ra &&& ~~~(1 : Word)) rsbdCR
