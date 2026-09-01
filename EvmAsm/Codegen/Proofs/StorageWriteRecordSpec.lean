@@ -3,7 +3,88 @@
 
   **The `storage_write_record` machine triple — fail-closed arm (#11921).**
 
-  WORK IN PROGRESS: segment A pilot.
+  `storage_write_record` (`Codegen/Programs/StorageWriteMap.lean`,
+  `storageWriteRecord_prog`, 145 instructions at
+  `GuestAddrs.storage_write_record`, image entry
+  `GuestImageEntries.lean:395`) is the guest's `set_storage`
+  (`state_tracker.py:489`): scan `TX_STORAGE_WRITES_AREA` for the
+  `(address, slot)` pair, overwrite the value on a hit, append a fresh
+  128-byte row with a captured pre-transaction baseline on a miss, drop
+  the write and latch the sticky overflow flags when either the arena or
+  the undo journal is full.
+
+  ## ⭐ Why the `CodeReq` is a union, and why that is forced
+
+  `Codegen.Proofs.AccountReadRecordSpec` could state its arm over
+  `CodeReq.ofProg (GuestAddrs.account_read_record) accountReadRecord_prog`
+  alone, because that routine's suppression gate reaches the epilogue
+  without leaving its own bytes.  **`storage_write_record` has no such
+  arm.** Every terminating path either
+
+  * runs the scan at index 22 for `tx_storage_writes_count` iterations, or
+  * reaches a `jal ra, storage_writes_undo_push` (index 65 on the hit arm,
+    index 77 on the append arm),
+
+  and the only path that avoids the call — `.Lswr_overflow` at index 123 —
+  is reachable only when the count has already driven 5588 scan
+  iterations.  So a whole-routine triple over this Program must range over
+  the callee's bytes too, and `swrCR` is that union: the routine's own 145
+  instructions at their linked `GuestAddrs` entry, plus
+  `storageWritesUndoPush_prog` at its own.  (This is the `pdCr`/`bansfCR`
+  shape; `scripts/proof-frontier.py`'s classifier resolves the union body
+  and still sees `GuestAddrs.storage_write_record` as the anchor.)
+
+  ## What this module proves
+
+  `storageWriteRecordFailClosedFlat_spec`, an 83-step whole-routine triple
+  entry → `ret` under two named gates:
+
+  * the transaction's storage-write map is empty
+    (`tx_storage_writes_count ↦ₘ 0`) — this is a transaction's FIRST
+    storage write, so the scan's `bgeu` at index 22 is taken with zero
+    iterations and no loop invariant is needed;
+  * the undo journal is full (`hfull`), so `storage_writes_undo_push`
+    refuses.
+
+  Under those, the routine is **fail-closed**: both sticky flags latch to
+  1, `tx_storage_writes_count` stays 0, `storage_writes_undo_count` is not
+  advanced, and `sp` plus all thirteen prologue-saved registers come back
+  intact.  Because `cpsTripleWithin` universally quantifies over a `pcFree`
+  frame, the triple ALSO says — for free, since neither is named in the
+  pre or the post — that nothing is written to `TX_STORAGE_WRITES_AREA` or
+  to the undo-journal arena.  That is the spec-side content of the
+  "⭐ **FAILS CLOSED** — latches overflow and rejects" claim that
+  `Codegen/RegionMap.lean:164` currently makes only in prose.
+
+  `storageWritesUndoPush_full_body_spec` is the callee's own whole-routine
+  contract on the same arm — the first triple of any shape for
+  `storage_writes_undo_push`, which the frontier census lists as `absent`.
+
+  ## ⚠️ What is deliberately NOT proven
+
+  The hit arm, the append arm's sixteen-dword row write, and the
+  5588-iteration `.Lswr_overflow` arm.  Those need the scan's loop
+  invariant (`measureTwoExitLoop_spec`, measure
+  `tx_storage_writes_count − t4`) and the `storageWritesMapIs` vocabulary
+  (`Stateless/State/WriteMapAssertions.lean:248`), and they are where the
+  machine will be tied to the already-proven model
+  `storageWriteUpsert` (`Stateless/State/StorageWriteUpsert.lean:142`,
+  #12016).  The registry row is therefore `.conditional` with both gates
+  named.
+
+  ## Mechanics
+
+  Same two pilot rules as `AccountReadRecordSpec`: present the code
+  requirement as the `singleton`-union chain (`unfold` + `CodeReq.ofProg_cons`)
+  before `runBlock`, and write every offset `(k : Word)`.  Segments compose
+  with `seqFrame`; the call site uses `WP.cpsCallWithin` behind the
+  `swr_callSite77` adapter, exactly as `bansf_callSite22_walk_init` does.
+  The file is not `module`-ised because `CodeReq.ofProg_mem_at` and
+  `CodeReq.Disjoint.ofProg_ranges` live in non-`module` `Rv64/SAsm` files —
+  the same reason `BalAccountNonstorageFinalsSpec.lean` is not.
+
+  No `sorry`/`admit`/`native_decide`/`bv_decide`; classical-3 axioms only
+  (audited by the `#print axioms` at the end of this file).
 -/
 
 import EvmAsm.Rv64.SyscallSpecs
@@ -773,5 +854,177 @@ theorem storageWriteRecordFailClosedFlat_spec
   seqFrame hAhBhCall hC
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hAhBhCallhC
+
+/-! ## Non-vacuity
+
+  Four checks, in the shape `docs/agents` asks for: a fully numeric instance
+  (so a `True`-shaped or trivially satisfiable post could not have passed),
+  a positive witness for each gate, a NEGATIVE control showing that each gate
+  really excludes the inputs the routine is normally asked about, and a
+  satisfiability check on the numeric precondition — `memOwn`/`↦ₘ` both
+  *assert* `isValidDwordAccess`, so an unsatisfiable pre is a real risk rather
+  than a formality. -/
+
+/-- **Numeric instance.** `sp = 0x30000000`, an undo cursor of 200000 (past the
+    167652 capacity), both sticky flags starting at 0, and the ten saved
+    temporaries `1..7, 11..13`.  The post is fully concrete: the twenty spill
+    slots hold their saved values in spill order (the callee's seven carrying
+    the scan state the caller had live at the call — the count pointer, 0, the
+    capacity 5588, the arena base 0xa2d57ec0, 0, and `t5`/`t6`), `sp` is back at
+    `0x30000000`, `tx_storage_writes_count` still reads 0, the undo cursor is
+    still 200000, and BOTH overflow flags now read 1. -/
+example (ra a0 a6 : Word) :
+    cpsTripleWithin 83 (GuestAddrs.storage_write_record : Word) (ra &&& ~~~(1 : Word))
+      swrCR
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) **
+       (.x10 ↦ᵣ a0) **
+       (.x5 ↦ᵣ (1 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** (.x7 ↦ᵣ (3 : Word)) **
+       (.x13 ↦ᵣ (11 : Word)) ** (.x14 ↦ᵣ (12 : Word)) ** (.x15 ↦ᵣ (13 : Word)) **
+       (.x16 ↦ᵣ a6) **
+       (.x28 ↦ᵣ (4 : Word)) ** (.x29 ↦ᵣ (5 : Word)) ** (.x30 ↦ᵣ (6 : Word)) **
+       (.x31 ↦ᵣ (7 : Word)) **
+       memOwn (0x2fffff50 : Word) **
+       memOwn (0x2fffff58 : Word) **
+       memOwn (0x2fffff60 : Word) **
+       memOwn (0x2fffff68 : Word) **
+       memOwn (0x2fffff70 : Word) **
+       memOwn (0x2fffff78 : Word) **
+       memOwn (0x2fffff80 : Word) **
+       memOwn (0x2fffff90 : Word) **
+       memOwn (0x2fffff98 : Word) **
+       memOwn (0x2fffffa0 : Word) **
+       memOwn (0x2fffffa8 : Word) **
+       memOwn (0x2fffffb0 : Word) **
+       memOwn (0x2fffffb8 : Word) **
+       memOwn (0x2fffffc0 : Word) **
+       memOwn (0x2fffffc8 : Word) **
+       memOwn (0x2fffffd0 : Word) **
+       memOwn (0x2fffffd8 : Word) **
+       memOwn (0x2fffffe0 : Word) **
+       memOwn (0x2fffffe8 : Word) **
+       memOwn (0x2ffffff0 : Word) **
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ (200000 : Word)) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ (0 : Word)))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) **
+       (.x10 ↦ᵣ a0) **
+       (.x5 ↦ᵣ (1 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** (.x7 ↦ᵣ (3 : Word)) **
+       (.x13 ↦ᵣ (11 : Word)) ** (.x14 ↦ᵣ (12 : Word)) ** (.x15 ↦ᵣ (13 : Word)) **
+       (.x16 ↦ᵣ a6) **
+       (.x28 ↦ᵣ (4 : Word)) ** (.x29 ↦ᵣ (5 : Word)) ** (.x30 ↦ᵣ (6 : Word)) **
+       (.x31 ↦ᵣ (7 : Word)) **
+       ((0x2fffff50 : Word) ↦ₘ (GuestAddrs.tx_storage_writes_count : Word)) **
+       ((0x2fffff58 : Word) ↦ₘ (0 : Word)) **
+       ((0x2fffff60 : Word) ↦ₘ (5588 : Word)) **
+       ((0x2fffff68 : Word) ↦ₘ (0xa2d57ec0 : Word)) **
+       ((0x2fffff70 : Word) ↦ₘ (0 : Word)) **
+       ((0x2fffff78 : Word) ↦ₘ (6 : Word)) **
+       ((0x2fffff80 : Word) ↦ₘ (7 : Word)) **
+       ((0x2fffff90 : Word) ↦ₘ (1 : Word)) **
+       ((0x2fffff98 : Word) ↦ₘ (2 : Word)) **
+       ((0x2fffffa0 : Word) ↦ₘ (3 : Word)) **
+       ((0x2fffffa8 : Word) ↦ₘ (4 : Word)) **
+       ((0x2fffffb0 : Word) ↦ₘ (5 : Word)) **
+       ((0x2fffffb8 : Word) ↦ₘ (6 : Word)) **
+       ((0x2fffffc0 : Word) ↦ₘ (7 : Word)) **
+       ((0x2fffffc8 : Word) ↦ₘ ra) **
+       ((0x2fffffd0 : Word) ↦ₘ (11 : Word)) **
+       ((0x2fffffd8 : Word) ↦ₘ (12 : Word)) **
+       ((0x2fffffe0 : Word) ↦ₘ (13 : Word)) **
+       ((0x2fffffe8 : Word) ↦ₘ a6) **
+       ((0x2ffffff0 : Word) ↦ₘ a0) **
+       ((GuestAddrs.tx_storage_writes_count : Word) ↦ₘ (0 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ (200000 : Word)) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (1 : Word)) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ (1 : Word))) := by
+  have h := storageWriteRecordFailClosedFlat_spec (0x30000000 : Word) ra a0 a6
+    (200000 : Word) 0 0 1 2 3 11 12 13 4 5 6 7 (by decide)
+  rw [
+      show (0x30000000 : Word) - (176 : Word) = (0x2fffff50 : Word) from by decide,
+      show (0x30000000 : Word) - (168 : Word) = (0x2fffff58 : Word) from by decide,
+      show (0x30000000 : Word) - (160 : Word) = (0x2fffff60 : Word) from by decide,
+      show (0x30000000 : Word) - (152 : Word) = (0x2fffff68 : Word) from by decide,
+      show (0x30000000 : Word) - (144 : Word) = (0x2fffff70 : Word) from by decide,
+      show (0x30000000 : Word) - (136 : Word) = (0x2fffff78 : Word) from by decide,
+      show (0x30000000 : Word) - (128 : Word) = (0x2fffff80 : Word) from by decide,
+      show (0x30000000 : Word) - (112 : Word) = (0x2fffff90 : Word) from by decide,
+      show (0x30000000 : Word) - (104 : Word) = (0x2fffff98 : Word) from by decide,
+      show (0x30000000 : Word) - (96 : Word) = (0x2fffffa0 : Word) from by decide,
+      show (0x30000000 : Word) - (88 : Word) = (0x2fffffa8 : Word) from by decide,
+      show (0x30000000 : Word) - (80 : Word) = (0x2fffffb0 : Word) from by decide,
+      show (0x30000000 : Word) - (72 : Word) = (0x2fffffb8 : Word) from by decide,
+      show (0x30000000 : Word) - (64 : Word) = (0x2fffffc0 : Word) from by decide,
+      show (0x30000000 : Word) - (56 : Word) = (0x2fffffc8 : Word) from by decide,
+      show (0x30000000 : Word) - (48 : Word) = (0x2fffffd0 : Word) from by decide,
+      show (0x30000000 : Word) - (40 : Word) = (0x2fffffd8 : Word) from by decide,
+      show (0x30000000 : Word) - (32 : Word) = (0x2fffffe0 : Word) from by decide,
+      show (0x30000000 : Word) - (24 : Word) = (0x2fffffe8 : Word) from by decide,
+      show (0x30000000 : Word) - (16 : Word) = (0x2ffffff0 : Word) from by decide] at h
+  exact h
+
+/-- **Gate witnesses and negative controls.**
+
+    1. `¬ 200000 <ᵤ 167652` inhabits `hfull` — a journal past capacity.
+    2. `¬ ¬ 0 <ᵤ 167652` is provably FALSE, so the arm genuinely EXCLUDES the
+       ordinary case of an empty undo journal rather than covering it silently.
+       (`storage_writes_undo_push` then falls through to its append path at
+       index 14 instead of branching to `+188`.)
+    3. `0 <ᵤ 5588` and `¬ 0 <ᵤ 0`: with an empty transaction map the scan's
+       `bgeu` at index 22 IS taken with zero iterations, and the capacity
+       `bgeu` at index 73 is NOT — which is why this arm needs no loop
+       invariant.  A non-empty map (`count = 1`) makes the first one FALSE, so
+       the hit / append / 5588-iteration arms really are outside the triple.
+    4. The two arms of the caller's `bne` at index 78 are distinct addresses,
+       so "taken" is a real restriction. -/
+example :
+    (¬ BitVec.ult (200000 : Word) (167652 : Word))
+    ∧ ¬ (¬ BitVec.ult (0 : Word) (167652 : Word))
+    ∧ (¬ BitVec.ult (0 : Word) (0 : Word))
+    ∧ ¬ (¬ BitVec.ult (0 : Word) (1 : Word))
+    ∧ BitVec.ult (0 : Word) (5588 : Word)
+    ∧ (GuestAddrs.storage_write_record + 316 ≠ GuestAddrs.storage_write_record + 492) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-- **Satisfiability of the numeric instance's precondition.**  All twenty
+    frame slots and all four globals are valid, 8-byte-aligned dword addresses,
+    and the four globals are pairwise distinct and disjoint from the frame — so
+    the separating conjunction is inhabitable and the numeric post above is not
+    vacuously true. -/
+example :
+    isValidDwordAccess (0x2fffff50 : Word) = true ∧
+    isValidDwordAccess (0x2fffff58 : Word) = true ∧
+    isValidDwordAccess (0x2fffff60 : Word) = true ∧
+    isValidDwordAccess (0x2fffff68 : Word) = true ∧
+    isValidDwordAccess (0x2fffff70 : Word) = true ∧
+    isValidDwordAccess (0x2fffff78 : Word) = true ∧
+    isValidDwordAccess (0x2fffff80 : Word) = true ∧
+    isValidDwordAccess (0x2fffff90 : Word) = true ∧
+    isValidDwordAccess (0x2fffff98 : Word) = true ∧
+    isValidDwordAccess (0x2fffffa0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffa8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffb0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffb8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffc0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffc8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffd0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffd8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe8 : Word) = true ∧
+    isValidDwordAccess (0x2ffffff0 : Word) = true ∧
+    isValidDwordAccess (GuestAddrs.tx_storage_writes_count : Word) = true ∧
+    isValidDwordAccess (GuestAddrs.storage_writes_undo_count : Word) = true ∧
+    isValidDwordAccess (GuestAddrs.tx_storage_writes_overflow : Word) = true ∧
+    isValidDwordAccess (GuestAddrs.storage_writes_overflow : Word) = true ∧
+    (GuestAddrs.tx_storage_writes_count : Word) ≠ (GuestAddrs.storage_writes_undo_count : Word) ∧
+    (GuestAddrs.tx_storage_writes_overflow : Word) ≠ (GuestAddrs.storage_writes_overflow : Word) ∧
+    (GuestAddrs.tx_storage_writes_count : Word) ≠ (0x2fffff50 : Word) ∧
+    (GuestAddrs.storage_writes_overflow : Word) ≠ (0x2ffffff0 : Word) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-! ## Axiom audit — classical-only. -/
+
+#print axioms storageWritesUndoPush_full_body_spec
+#print axioms storageWriteRecordFailClosedFlat_spec
 
 end EvmAsm.Codegen.Proofs
