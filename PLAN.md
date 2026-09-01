@@ -137,6 +137,22 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13158 — last vacuous Div/Mod callable wrapper resolved, 2026-09-01)
+
+- ✅ The regionsweep-flagged `evm_div_callable_v1_spec_from_branch_noNop`
+  (pre carried both `regOwn .x1` inside `divScratchValuesCall` AND a
+  framed `(.x1 ↦ᵣ raVal)` — unsatisfiable) is REMOVED, not repaired:
+  the issue-prescribed NoX1 restatement does not close from
+  `evm_div_stack_spec_noNop`, whose post only *owns* `x1` (the `div128`
+  JALs clobber it), so the exact return atom the `cc_ret` step needs is
+  underivable (xperm record: `LHS: regOwn Reg.x1` vs
+  `RHS: Reg.x1 ↦ᵣ raVal`).  The surface is covered by the
+  hypothesis-style `…_from_noNop` wrappers (fixed in fa8475d4c) and the
+  self-contained `evm_div_callable_bzero_v1_*` zero-divisor instances.
+  Audited duplicate-occupancy pairs: 2 → 0.  Remaining census (57
+  partially-unaudited pairs: K73 Route-B adapters, MptWalk/SHA x0) is a
+  separate follow-up.
+
 ### Recent (#13135 — K70's price-free arms at the caller's shape, 2026-08-31)
 
 - ✅ **Three whole-routine ABI-frame triples** for
