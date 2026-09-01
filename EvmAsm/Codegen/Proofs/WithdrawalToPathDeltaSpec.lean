@@ -189,6 +189,8 @@ theorem withdrawalToPathDelta_segA_body_spec
   rw [hla] at P7
   runBlock P0 P1 P2 P3 P4 P5 P6 P7
 
+#print axioms withdrawalToPathDelta_segA_body_spec
+
 /-! ## Segment B — the failure discrimination -/
 
 /-- `withdrawal_to_path_delta` instruction 9 (`base + 36`): `bnez a0,
@@ -222,6 +224,8 @@ theorem withdrawalToPathDelta_segB_body_spec
       obtain ⟨_, _, _, _, _, ⟨_, _, _, _, _, h_pure⟩⟩ := hQf
       exact absurd h_pure.2 (by decide))
   runBlock R0
+
+#print axioms withdrawalToPathDelta_segB_body_spec
 
 /-! ## Segment C — `.Lwtpd_fail` and the epilogue -/
 
@@ -269,6 +273,8 @@ theorem withdrawalToPathDelta_segC_body_spec
   -- index 40: `ret`
   have T5 := EvmAsm.Evm64.ret_spec_within' (base + (160 : Word)) ra
   runBlock T0 T1 T2 T3 T4 T5
+
+#print axioms withdrawalToPathDelta_segC_body_spec
 
 /-! ## The code requirement -/
 
@@ -329,12 +335,18 @@ theorem wtpdProg_sub_wtpdCR :
     8 (`WTPD + 32`) — the unconditional decode. -/
 theorem wtpd_callSite8 {n : Nat} {Prest Q : Assertion} (vRa : Word)
     (hPrest : Prest.pcFree)
-    (hcallee : cpsTripleWithin n WithdrawalDecodeSpec.WB
-        ((WTPD + (32 : Word) + 4) &&& ~~~(1 : Word))
+    (hcallee : cpsTripleWithin n WithdrawalDecodeSpec.WB (WTPD + (36 : Word))
         WithdrawalDecodeSpec.fullCode
-        ((.x1 ↦ᵣ (WTPD + (32 : Word) + 4)) ** Prest) Q) :
-    cpsTripleWithin (1 + n) (WTPD + (32 : Word)) (WTPD + (32 : Word) + 4) wtpdCR
+        ((.x1 ↦ᵣ (WTPD + (36 : Word))) ** Prest) Q) :
+    cpsTripleWithin (1 + n) (WTPD + (32 : Word)) (WTPD + (36 : Word)) wtpdCR
       ((.x1 ↦ᵣ vRa) ** Prest) Q := by
+  have h36 : WTPD + (32 : Word) + 4 = WTPD + (36 : Word) := by bv_omega
+  have halign : (WTPD + (32 : Word) + 4) &&& ~~~(1 : Word) = WTPD + (32 : Word) + 4 := by
+    decide
+  have hcallee' : cpsTripleWithin n WithdrawalDecodeSpec.WB
+      ((WTPD + (32 : Word) + 4) &&& ~~~(1 : Word)) WithdrawalDecodeSpec.fullCode
+      ((.x1 ↦ᵣ (WTPD + (32 : Word) + 4)) ** Prest) Q := by
+    rw [halign, h36]; exact hcallee
   have hdisj :
       (CodeReq.singleton (WTPD + (32 : Word))
         (.JAL .x1 (jalOff GuestAddrs.withdrawal_decode
@@ -354,7 +366,8 @@ theorem wtpd_callSite8 {n : Nat} {Prest Q : Assertion} (vRa : Word)
     (calleeCode := WithdrawalDecodeSpec.fullCode)
     (Prest := Prest) (Q := Q)
     (jalOff GuestAddrs.withdrawal_decode (GuestAddrs.withdrawal_to_path_delta + 32))
-    (by decide) (by decide) hPrest hdisj hcallee
+    (by decide) halign hPrest hdisj hcallee'
+  rw [h36] at hcall
   refine cpsTripleWithin_extend_code
     (CodeReq.union_split_mono (fun a i h => ?_) (fun a i h => ?_)) hcall
   · exact CodeReq.union_mono_left a i
@@ -362,6 +375,9 @@ theorem wtpd_callSite8 {n : Nat} {Prest Q : Assertion} (vRa : Word)
         (by decide +kernel) (by decide +kernel) (by decide +kernel)
         (by decide +kernel) a i h)
   · exact CodeReq.mono_union_right wtpd_disj_decode (fun _ _ h => h) a i h
+
+#print axioms wtpd_disj_decode
+#print axioms wtpd_callSite8
 
 /-! ## The gate: the input is not a strict RLP list -/
 
@@ -382,13 +398,20 @@ theorem notDecoded_of_noStrictList
   obtain ⟨cursorOff, endPtr, _next, hpay, _, _⟩ := hd.2.2.1
   exact hno ⟨cursorOff, endPtr, hpay⟩
 
-/-! ## The failure-arm leftover, with the callee's witnesses named -/
+#print axioms notDecoded_of_noStrictList
 
-/-- `WithdrawalDecodeSpec.wdFailLeftover`'s body with its nine existential
-    witnesses named, so the tail segments can be proved witness-by-witness and
-    re-quantified by `cpsTripleWithin_exists_pre_gen`. -/
-def wtpdFailRest (spW outBase listBase s3 s4 s5 : Word)
-    (bytes : List (BitVec 8))
+/-! ## The failure-arm leftover, split so the tail can run
+
+    `WithdrawalDecodeSpec.wdFailLeftover` bundles nine existential witnesses
+    *and* `wdScratch`, which owns `x0`.  Segments B and C need `x0` (the
+    `bnez a0, x0` discriminator and the `ret`), so the scratch has to come out
+    from under the existential before the tail can be composed.  Splitting it
+    once here keeps the whole rest of the proof existential-free: the cells
+    below travel as a single opaque, `pcFree` frame atom. -/
+
+/-- The failure leftover's *cells* — everything `wdFailLeftover` owns except
+    `wdScratch` — with the nine witnesses named. -/
+def wtpdFailCellsBody (spW outBase listBase : Word) (bytes : List (BitVec 8))
     (o0 o1 o3 woff wlen roff rlen : Word)
     (addr20 pad4 : List (BitVec 8)) : Assertion :=
   (outBase ↦ₘ o0) ** ((outBase + 8) ↦ₘ o1) **
@@ -398,6 +421,237 @@ def wtpdFailRest (spW outBase listBase s3 s4 s5 : Word)
   (WithdrawalDecodeSpec.wdLengthAddr ↦ₘ wlen) **
   (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.offsetCell ↦ₘ roff) **
   (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.lengthCell ↦ₘ rlen) **
-  EvmAsm.Rv64.SAsm.stackFree spW 12 ** WithdrawalDecodeSpec.wdScratch s3 s4 s5
+  EvmAsm.Rv64.SAsm.stackFree spW 12
+
+/-- The same, re-quantified: the routine's post owns the 48-byte struct, the
+    input region, the four RLP data cells and the reclaimed scratch stack, with
+    their contents forgotten. -/
+def wtpdFailCells (spW outBase listBase : Word) (bytes : List (BitVec 8)) : Assertion :=
+  fun h => ∃ (o0 o1 o3 woff wlen roff rlen : Word) (addr20 pad4 : List (BitVec 8)),
+    wtpdFailCellsBody spW outBase listBase bytes o0 o1 o3 woff wlen roff rlen addr20 pad4 h
+
+theorem pcFree_wtpdFailCells (spW outBase listBase : Word) (bytes : List (BitVec 8)) :
+    (wtpdFailCells spW outBase listBase bytes).pcFree := by
+  intro h hp
+  obtain ⟨_, _, _, _, _, _, _, _, _, hbody⟩ := hp
+  revert h hbody
+  show Assertion.pcFree _
+  unfold wtpdFailCellsBody
+  repeat' first
+    | exact pcFree_memIs | exact bytesRegion_pcFree _ _
+    | exact pcFree_stackFree _ _ | exact pcFree_memOwn
+    | exact pcFree_emp | apply pcFree_sepConj
+
+/-- Lift `wdScratch` — and with it `x0` — out from under the callee post's
+    existential, leaving the cells as one opaque frame atom. -/
+theorem wdFailLeftover_split (spW outBase listBase s3 s4 s5 : Word)
+    (bytes : List (BitVec 8)) :
+    ∀ h, WithdrawalDecodeSpec.wdFailLeftover spW outBase listBase s3 s4 s5 bytes h →
+      (WithdrawalDecodeSpec.wdScratch s3 s4 s5 **
+        wtpdFailCells spW outBase listBase bytes) h := by
+  intro h hp
+  obtain ⟨o0, o1, o3, woff, wlen, roff, rlen, addr20, pad4, hbody⟩ := hp
+  have hbody' : (WithdrawalDecodeSpec.wdScratch s3 s4 s5 **
+      wtpdFailCellsBody spW outBase listBase bytes
+        o0 o1 o3 woff wlen roff rlen addr20 pad4) h := by
+    unfold wtpdFailCellsBody
+    xperm_hyp hbody
+  obtain ⟨h1, h2, hd, hu, hscr, hcells⟩ := hbody'
+  exact ⟨h1, h2, hd, hu, hscr, o0, o1, o3, woff, wlen, roff, rlen, addr20, pad4, hcells⟩
+
+#print axioms pcFree_wtpdFailCells
+#print axioms wdFailLeftover_split
+
+/-- `wtpd_struct`, the 48-byte decode destination, on its linked `.bss`
+    address (`symbol-addresses.tsv:1427`, `.balign 8` in the emitted data
+    section). -/
+abbrev WS : Word := (GuestAddrs.wtpd_struct : Word)
+
+/-- `withdrawal_decode_spec_within`'s step bound, named so the caller's total
+    can be written without repeating it.  If this drifts from the callee's
+    expression the composition below simply does not typecheck. -/
+def wdDecodeFuel : Nat :=
+  (8 +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (0 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (1 + 2)) + 6)) + 9))) +
+        ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) +
+        ((7 + (1 + ((12 + ((85 + 93 * (2 + 2)) + 6)) + 9)) + 1) +
+        (5 + (5 + (6 * (19 + 1)) +
+        ((4 + (1 + ((7 + 4 + (1 + ((12 + ((85 + 93 * (3 + 2)) + 6)) + 9))) +
+          ((1 + ((7 + (1 + (7 * (2 ^ 64 - 1) + 11))) + 5)) + 5))) + 1) + 8)))))))
+
+/-! ## ⭐ The keccak seam's alignment premise, measured
+
+    Recorded here even though the seam is off the covered path, because it is
+    the fact that separates this routine from `bal_account_path`. -/
+
+/-- **`wtpd_struct + 16` — the 20-byte address slab `zkvm_keccak256` is asked
+    to hash — is dword-aligned.**  With a 20-byte preimage the absorb loop runs
+    zero times (`N = 0`, `rem = 20`), so `keccakAbsorbCursor inputBase 0`
+    *is* `inputBase`, and `zkvm_keccak256_spec_within`'s
+    `hb8i : (keccakAbsorbCursor inputBase N).toNat % 8 = 0` reduces to exactly
+    this `decide`.
+
+    ⛔ The contrast that matters: `bal_account_path` hashes **in place at
+    `item + 2`**, and `8 ∤ 2` makes the very same premise *provably false*, so
+    a triple taken under it would cover no real input.  The obstruction is not
+    "there is a keccak call" — it is where the hashed slab sits. -/
+theorem wtpdKeccakSeamAligned : (WS + (16 : Word)).toNat % 8 = 0 := by decide
+
+/-- The output-window byte accesses `withdrawal_decode` asks its caller to
+    guarantee, discharged statically: the 20 address bytes at
+    `wtpd_struct + 16` all land in `[RAM_MEM_START, RAM_MEM_END]`. -/
+theorem wtpdStructAddrValid :
+    ∀ k, k < 20 → isValidByteAccess ((WS + (16 : Word)) + BitVec.ofNat 64 k) = true := by
+  intro k hk
+  interval_cases k <;> decide
+
+/-! ## ⭐ The whole-routine failure-arm contract -/
+
+/-- ⭐ **The gated callee step**, lifted to top level.
+
+    `withdrawal_decode_spec_within` instantiated at this routine's frame
+    (`sp0 = sp - 32`, `spW = sp - 64`, return address `WTPD + 36`) with
+    `wtpd_struct` as the output struct, and its two-way post collapsed onto the
+    FAILURE disjunct by the gate `hnodec`.
+
+    ⚠️ Both assertions are written in the order their sources produce them —
+    the pre is `withdrawal_decode`'s own pre with the link register hoisted for
+    `WP.cpsCallWithin`, the post is `wdCommon ;; wdScratch ;; cells` flattened.
+    That is not cosmetic: `xperm` is worst-case in the size of the permutation
+    it has to find, and on a 36-atom footprint an arbitrary reordering makes it
+    give up — silently, emitting `sorryAx` rather than an error. Keeping both
+    permutations near-identity is what makes this step check. -/
+private theorem wtpdDecodeFailStep
+    (sp listBase len v12 v13 v14 v18 s3 s4 s5 : Word)
+    (oldOut0 fld1Out oldOut2 oldOffset0 oldLen0 wOldOff wOldLen : Word)
+    (bytes oldAddr pad4 : List (BitVec 8)) (listLen : Nat)
+    (hlenW : len = BitVec.ofNat 64 listLen)
+    (hsalign : listBase.toNat % 8 = 0)
+    (hbytes : listLen ≤ bytes.length)
+    (hnowrap : listBase.toNat + listLen + 9 < 2 ^ 64)
+    (hover : listBase.toNat + bytes.length < 2 ^ 64)
+    (hvalid : ∀ k, k < bytes.length →
+      isValidByteAccess (listBase + BitVec.ofNat 64 k) = true)
+    (hnz : 0 < bytes.length)
+    (haddrlen : oldAddr.length = 20)
+    (hnodec : ∀ v0 v1 v3 o2 l2,
+      ¬ WithdrawalDecodeSpec.Decoded bytes listBase listLen v0 v1 v3 o2 l2) :
+    cpsTripleWithin wdDecodeFuel WithdrawalDecodeSpec.WB (WTPD + (36 : Word))
+      WithdrawalDecodeSpec.fullCode
+      ((.x1 ↦ᵣ (WTPD + (36 : Word))) **
+       (EvmAsm.Rv64.SAsm.stackFree (sp - (64 : Word)) 12 **
+        (.x2 ↦ᵣ (sp - (32 : Word))) ** (.x8 ↦ᵣ v12) ** (.x9 ↦ᵣ v13) **
+        (.x18 ↦ᵣ v18) ** (.x10 ↦ᵣ listBase) ** (.x11 ↦ᵣ len) ** (.x12 ↦ᵣ WS) **
+        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) **
+        (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+        (.x0 ↦ᵣ (0 : Word)) **
+        memOwn (sp - (64 : Word)) ** memOwn (sp - (56 : Word)) **
+        memOwn (sp - (48 : Word)) ** memOwn (sp - (40 : Word)) **
+        bytesRegion listBase bytes **
+        (WS ↦ₘ oldOut0) ** ((WS + 8) ↦ₘ fld1Out) **
+        bytesRegion (WS + 16) oldAddr ** bytesRegion (WS + 36) pad4 **
+        ((WS + 40) ↦ₘ oldOut2) **
+        (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.offsetCell ↦ₘ oldOffset0) **
+        (EvmAsm.Codegen.RlpFieldToU64StrictSAsm.lengthCell ↦ₘ oldLen0) **
+        (WithdrawalDecodeSpec.wdOffsetAddr ↦ₘ wOldOff) **
+        (WithdrawalDecodeSpec.wdLengthAddr ↦ₘ wOldLen)))
+      ((.x10 ↦ᵣ (1 : Word)) **
+       (.x2 ↦ᵣ (sp - (32 : Word))) ** (.x1 ↦ᵣ (WTPD + (36 : Word))) **
+       (.x8 ↦ᵣ v12) ** (.x9 ↦ᵣ v13) ** (.x18 ↦ᵣ v18) **
+       ((sp - (64 : Word)) ↦ₘ (WTPD + (36 : Word))) **
+       ((sp - (56 : Word)) ↦ₘ v12) ** ((sp - (48 : Word)) ↦ₘ v13) **
+       ((sp - (40 : Word)) ↦ₘ v18) **
+       (.x19 ↦ᵣ s3) ** (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+       regOwn .x11 ** regOwn .x12 ** regOwn .x13 ** regOwn .x14 **
+       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31 **
+       (.x0 ↦ᵣ (0 : Word)) **
+       wtpdFailCells (sp - (64 : Word)) WS listBase bytes) := by
+  have hU0 := WithdrawalDecodeSpec.withdrawal_decode_spec_within
+    (sp - (32 : Word)) (sp - (64 : Word)) (sp - (96 : Word)) (WTPD + (36 : Word))
+    v12 v13 v18 listBase len WS v13 v14 oldOut0 oldOffset0 oldLen0 fld1Out oldOut2
+    wOldOff wOldLen s3 s4 s5 bytes oldAddr pad4 listLen
+    (by rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide]; bv_omega)
+    (by rw [show signExtend12 (-32 : BitVec 12) = (-32 : Word) from by decide]; bv_omega)
+    (by decide) hlenW hsalign hbytes hnowrap hover hvalid hnz
+    (by decide) (by decide) haddrlen wtpdStructAddrValid
+  -- normalise the callee's frame-slot addresses to this routine's `sp - N` form
+  rw [show (sp - (64 : Word)) + 8 = sp - (56 : Word) from by bv_omega,
+      show (sp - (64 : Word)) + 16 = sp - (48 : Word) from by bv_omega,
+      show (sp - (64 : Word)) + 24 = sp - (40 : Word) from by bv_omega] at hU0
+  -- reshape into the call adapter's `(.x1 ↦ᵣ ret) ** Prest` shape, and collapse
+  -- the callee's two-way post onto its failure disjunct using the gate
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun h hq => ?_) hU0
+  rcases hq with ⟨v0, v1, v3, o2, l2, hL⟩ | hR
+  · exact absurd ((sepConj_pure_left h).mp hL).1 (hnodec v0 v1 v3 o2 l2)
+  · have hR2 := (sepConj_pure_left h).mp hR
+    obtain ⟨ha, hb, hd1, hu1, hx10, hrest⟩ := hR2.2
+    obtain ⟨hc, hdd, hd2, hu2, hcom, hlft⟩ := hrest
+    have hlft' := wdFailLeftover_split (sp - (64 : Word)) WS listBase s3 s4 s5
+      bytes hdd hlft
+    have hall : ((.x10 ↦ᵣ (1 : Word)) **
+        WithdrawalDecodeSpec.wdCommon (sp - (32 : Word)) (sp - (64 : Word))
+          (WTPD + (36 : Word)) v12 v13 v18 **
+        WithdrawalDecodeSpec.wdScratch s3 s4 s5 **
+        wtpdFailCells (sp - (64 : Word)) WS listBase bytes) h :=
+      ⟨ha, hb, hd1, hu1, hx10, hc, hdd, hd2, hu2, hcom, hlft'⟩
+    unfold WithdrawalDecodeSpec.wdCommon WithdrawalDecodeSpec.wdScratch at hall
+    rw [show (sp - (64 : Word)) + 8 = sp - (56 : Word) from by bv_omega,
+        show (sp - (64 : Word)) + 16 = sp - (48 : Word) from by bv_omega,
+        show (sp - (64 : Word)) + 24 = sp - (40 : Word) from by bv_omega] at hall
+    xperm_hyp hall
+
+#print axioms wtpdDecodeFailStep
+
+/-! ## ⛔ The whole-routine triple is NOT closed here — and why
+
+    Everything above composes.  What does not go through is the final assembly
+
+        segment A  ;;  the gated call  ;;  segment B  ;;  segment C
+
+    and the obstruction is in `seqFrame`/`xperm`, not in the routine.
+
+    `xperm_hyp h` expands to `exact (congrFun (show _ = _ by xperm) _).mp h`
+    (`riscv-zkvm/…/Tactics/XSimp.lean:34`), and `xperm` has to *find* the
+    permutation relating the two `**` chains.  On this routine the footprint is
+    **36 atoms** — `withdrawal_decode`'s precondition is large (a 12-cell scratch
+    stack, four save slots, fourteen registers, seven `regOwn`s, the input
+    region, five output-struct pieces and four RLP data cells) — and beyond some
+    distance `xperm` gives up.
+
+    ⛔ **It gives up SILENTLY, by emitting `sorryAx`, not by reporting an error.**
+    That is the trap worth recording.  The visible symptom is a cascade of
+    "don't know how to synthesize placeholder" attributed to *every* `have` in
+    the tactic block, with the main goal shown; there is no message naming
+    `xperm`, and `#print axioms` is the only thing that tells the truth.
+    `seqFrame` inherits the same behaviour: its `assignOrPermuteWithin` path
+    (`riscv-zkvm/…/Tactics/SeqFrame.lean:1012`) calls `replaceMainGoal []` on
+    success, so a permutation that "succeeds" with a sorry inside leaves an
+    empty goal list and a tainted proof, and a following tactic reports
+    "No goals to be solved" rather than anything diagnostic.
+
+    Distance, not size, is what matters: `wtpdDecodeFailStep` above performs
+    **two** 36-atom permutations and is clean (classical-3 only), because both
+    were deliberately written near-identity — the precondition in
+    `withdrawal_decode_spec_within`'s own order with only the link register
+    hoisted, the postcondition as `wdCommon ;; wdScratch ;; cells` flattened in
+    place.  The four-way assembly cannot be arranged that way: segment A's
+    postcondition order is fixed by the prologue's instruction order and does
+    not align with the callee's precondition order, so `seqFrame` is asked for a
+    genuinely long permutation.
+
+    Closing the row therefore needs one of:
+
+      * an `xperm` that is complete (or that fails loudly) on ~40 atoms; or
+      * a `seqFrame` variant that takes the atom correspondence explicitly; or
+      * bundling `withdrawal_decode`'s precondition behind a single opaque
+        `def` (as `wtpdFailCells` already does for its postcondition), which
+        would cut the visible atom count at the seam from 36 to about 10.
+
+    The third is the cheapest and is what the next attempt should do. -/
 
 end EvmAsm.Codegen.Proofs
