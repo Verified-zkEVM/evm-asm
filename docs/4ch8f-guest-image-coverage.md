@@ -38,7 +38,7 @@ kernel-checked `#guard <prog>.length` pin) fills the extent; a shorter
 layout drift). The script asserts covered + gaps = `textSizeBytes` exactly.
 
 Manifest entries whose entry symbol is NOT in the TSV are **converted but
-not linked** (85 of 560 today — gas helpers etc.
+not linked** (85 of 561 today — gas helpers etc.
 awaiting wiring); they are excluded from `guestImageEntries` (the image
 `CodeReq` must reflect the emitted ELF) and are NOT gaps.
 
@@ -46,9 +46,9 @@ awaiting wiring); they are excluded from `guestImageEntries` (the image
 
 `.text` = [0x80000000, 0x800543e8), 345064 bytes (`RegionMap.textSizeBytes = 0x543e8`)
 
-- symbols in `.text`: 908 (475 converted, 433 unconverted)
-- covered by converted `_prog`s: 133184 bytes (38.60%)
-- NOT covered: 211880 bytes (61.40%), 434 ranges
+- symbols in `.text`: 909 (476 converted, 433 unconverted)
+- covered by converted `_prog`s: 133248 bytes (38.62%)
+- NOT covered: 211816 bytes (61.38%), 434 ranges
 
 Everything covered is anchored BY NAME (`GuestAddrs.<entry>`), so layout
 regens flow through `GuestAddrs.lean` without touching the entries table
@@ -242,7 +242,7 @@ The kernel-checked extent fact `guestImageEntries_extentsOk`
 | `0x8003053c` | `0x8003054c` | 16 | `.runtime_tx_top_level_message_d0_done` | UNCONVERTED |
 | `0x8003054c` | `0x8003067c` | 304 | `.runtime_tx_shared_message_body` | UNCONVERTED |
 | `0x8003067c` | `0x8003067c` | 0 | `.dispatch_loop` | UNCONVERTED |
-| `0x8003067c` | `0x80030818` | 412 | `.runtime_tx_message_entry` | UNCONVERTED |
+| `0x8003067c` | `0x800307d8` | 348 | `.runtime_tx_message_entry` | UNCONVERTED |
 | `0x80030818` | `0x80030818` | 0 | `.dispatch_resume` | UNCONVERTED |
 | `0x80030818` | `0x80030878` | 96 | `.runtime_tx_child_message_entry` | UNCONVERTED |
 | `0x80031630` | `0x80031658` | 40 | `create_deployed_code_valid` | UNCONVERTED |

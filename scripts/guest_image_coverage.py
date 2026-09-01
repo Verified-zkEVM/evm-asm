@@ -94,9 +94,9 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # 133276 / 476, remeasured with `--write-floor`.
 # GH #13096 retires the 96-byte linked sender probe, leaving the current
 # floor at 133184 covered bytes / 475 converted entries.
-EXPECTED_COVERED_BYTES_FLOOR = 133184
+EXPECTED_COVERED_BYTES_FLOOR = 133248
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 475
+EXPECTED_CONVERTED_COUNT_FLOOR = 476
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
