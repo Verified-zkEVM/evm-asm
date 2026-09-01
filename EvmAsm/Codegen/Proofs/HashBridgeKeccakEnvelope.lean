@@ -43,6 +43,14 @@
     `bytesRegion_window_focus_any` hands back from the caller's arena is
     exactly the seam's input resource, and the resulting keccak call site
     carries **no** hypothesis about the bytes following the address.
+  * `zkvm_keccak256_spec_within_arena_slice` (§3) — the seam stated the way a
+    caller holds its memory: the **whole buffer** `bytesRegion arenaBase ws` in
+    the precondition, the hashed bytes an interior slice, the buffer handed
+    back intact.  The caller carves nothing; the envelope does not appear in
+    the statement.  `balAccountPath_keccak_arena_call_available` is its
+    `N = 0, rem = 20` consumer instance, and `bacpArena_hyps_hold` /
+    `bacpArena_exact_region_unobtainable` are its non-vacuity pair on a
+    concrete buffer whose bytes after the slice are the nonzero `0xc0 …`.
 -/
 
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
@@ -443,6 +451,83 @@ theorem zkvm_keccak256_spec_within_arena_slice
     rw [arenaSlice_envelope_focus arenaBase ws off (keccakAbsorbStep * N + rem)
       h8off hslice, henvsplit]
     xperm_hyp hq
+
+/-- **The consumer's obstruction is gone at the caller's own resource.**  A
+    `bal_account_path`-shaped keccak call site (`N = 0`, `rem = 20`: the 20-byte
+    address hashed in place at byte offset `off` of the caller's RLP buffer),
+    stated with the caller's **whole buffer** `bytesRegion arenaBase ws` in the
+    precondition and handed back in the postcondition.  The only hypotheses
+    about that buffer are `h8off` and `hslice`, both of which only say where the
+    item sits; nothing constrains `ws[off+20 … off+24)`, the four bytes that the
+    exactly-sized seam forced to `0x00`.
+
+    The `N = 0, rem = 20` instance of `zkvm_keccak256_spec_within_arena_slice`.
+
+    (A call-site availability witness, not `bal_account_path`'s own registry
+    triple: that additionally needs `rlp_walk_init`, `rlp_walk_next` and
+    `bytes_to_nibbles` composed, and belongs to the #12318 lane.) -/
+theorem balAccountPath_keccak_arena_call_available
+    (sp0 ret arenaBase outputBase : Word)
+    (ws : List (BitVec 8)) (off : Nat) (out0 : List (BitVec 8))
+    (v8 v9 v18 v20 v28 v29 : Word) (os : List (BitVec 8))
+    (A : Assertion) (hA : A.pcFree)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (h8off : off % 8 = 0)
+    (hslice : off + 24 ≤ ws.length)
+    (hout0 : out0.length = 32)
+    (hos : os.length = 200)
+    (halign_zk : Zk3.toNat % 8 = 0)
+    (hover : Zk3.toNat + 200 < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0).toNat % 8 = 0)
+    (hovers : ∀ n, n < 20 → Zk3.toNat + (20 - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < 20 →
+      (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0).toNat
+        + (20 - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < 20 →
+      isValidByteAccess (Zk3 + BitVec.ofNat 64 (20 - (n + 1))) = true)
+    (hvalidi : ∀ n, n < 20 →
+      isValidByteAccess
+        (keccakAbsorbCursor (arenaBase + BitVec.ofNat 64 off) 0
+          + BitVec.ofNat 64 (20 - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess (Zk3 + BitVec.ofNat 64 20) = true)
+    (hvalid135 : isValidByteAccess (Zk3 + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr (Zk3 + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (5 + keccakBodyFuel 0 20 + 6) B ret keccakCr
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsOwn keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12))) **
+        ((.x10 ↦ᵣ (arenaBase + BitVec.ofNat 64 off)) **
+          (.x11 ↦ᵣ BitVec.ofNat 64 (keccakAbsorbStep * 0 + 20)) **
+          (.x12 ↦ᵣ outputBase) **
+          (.x28 ↦ᵣ v28) ** (.x29 ↦ᵣ v29) **
+          (.x0 ↦ᵣ (0 : Word)) **
+          regOwns keccakBodyFreeTemps **
+          bytesRegion Zk3 os **
+          bytesRegion arenaBase ws **
+          bytesRegion outputBase out0 ** A))
+      ((.x2 ↦ᵣ sp0) ** (.x1 ↦ᵣ ret) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        frameSlotsSaved keccakFrame (sp0 + signExtend12 ((-32 : BitVec 12)))
+          (keccakEntryVals v8 v9 v18 v20) **
+        (regOwn .x5 ** (.x10 ↦ᵣ (0 : Word)) **
+          bytesRegion Zk3
+            (setBytes
+              (keccakGuestPad
+                (keccakBodyPrePad
+                  ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) 20) 0
+              (keccakBytes
+                (keccakGuestPad
+                  (keccakBodyPrePad
+                    ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) 20) 0)) **
+          bytesRegion outputBase
+            (keccakBodyDigest ((ws.drop off).take (keccakAbsorbStep * 0 + 20)) 0 20) **
+          ((.x0 ↦ᵣ (0 : Word)) ** regOwns keccakCsrsRestNoX5 **
+            bytesRegion arenaBase ws ** A))) :=
+  zkvm_keccak256_spec_within_arena_slice sp0 ret arenaBase outputBase ws off 0 20
+    out0 v8 v9 v18 v20 v28 v29 os A hA halign_ret h8off (by omega) (by decide)
+    hout0 hos halign_zk hover (by decide) (by decide) hb8i hovers hoveri
+    hvalids hvalidi hvalidRem hvalid135 hvalidMem
 
 /-! ### §3.1  Non-vacuity of the arena seam, on nonzero trailing bytes
 

@@ -640,6 +640,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
 
+#print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec

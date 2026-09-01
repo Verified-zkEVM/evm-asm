@@ -6305,6 +6305,8 @@ private noncomputable abbrev _keccak_arena_hyps_hold_witness :=
   @EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
 private noncomputable abbrev _keccak_arena_exact_region_control_witness :=
   @EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
+private noncomputable abbrev _keccak_arena_consumer_call_witness :=
+  @EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
