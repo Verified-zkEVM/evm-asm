@@ -27,6 +27,8 @@
   * `Seam`         — the execution-seam interface types
   * `Transactions` — `transactions.py` envelope decode side
   * `Gas`          — `vm/gas.py` blob-gas/gas-limit slice
+  * `TaylorExponentialFuel` — fuel sufficiency and exact recurrence bridge for
+                             the `Gas` taylor call
   * `BlocksRlp`    — `blocks.py` RLP encode side (header/block/withdrawal)
   * `SeamShell`    — `new_payload.py` pre-checks + `validation_helpers.py`
                      + `fork.py` pre-execution frame: the partial seam
@@ -52,6 +54,7 @@ public import EvmAsm.Stateless.SpecRef.Transactions
 public import EvmAsm.Stateless.SpecRef.Gas
 public import EvmAsm.Stateless.SpecRef.WideFeeArithmetic
 public import EvmAsm.Stateless.SpecRef.TaylorExponential
+public import EvmAsm.Stateless.SpecRef.TaylorExponentialFuel
 public import EvmAsm.Stateless.SpecRef.BlocksRlp
 public import EvmAsm.Stateless.SpecRef.HeaderRoundTrip
 public import EvmAsm.Stateless.SpecRef.BlocksRlpRoundTrip

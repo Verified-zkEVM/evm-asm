@@ -729,7 +729,7 @@ def createRecordCodeEffectFunction (resolveExecutionState : Bool := true) : Stri
 def findCodeEffectByAddress_prog : Program :=
   [ .MV .x5 .x10,
     .MV .x6 .x11,
-    .BEQ .x6 .x0 (80 : BitVec 13),
+    .BEQ .x6 .x0 (brOff (GuestAddrs.find_code_effect_by_address + 88) (GuestAddrs.find_code_effect_by_address + 8)),
     .MV .x7 .x5,
     .MV .x28 .x12,
     .LI .x29 (20 : Word),
@@ -746,7 +746,7 @@ def findCodeEffectByAddress_prog : Program :=
     .ANDI .x30 .x30 (-8 : BitVec 12),
     .ADD .x5 .x5 .x30,
     .ADDI .x6 .x6 (-1 : BitVec 12),
-    .JAL .x0 (-68 : BitVec 21),
+    .JAL .x0 (jalOff (GuestAddrs.find_code_effect_by_address + 8) (GuestAddrs.find_code_effect_by_address + 76)),
     .MV .x10 .x5,
     .JALR .x0 .x1 (0 : BitVec 12),
     .LI .x10 (0 : Word),
@@ -764,7 +764,6 @@ theorem findCodeEffectByAddressFunction_eq_prog :
 
 #guard findCodeEffectByAddressFunction.startsWith "find_code_effect_by_address:\n"
 #guard findCodeEffectByAddress_prog.length = 24
-
 /-! ## find_code_effect_by_hash
 
     Spec `code_writes` is `Dict[Hash32, Bytes]` (state_tracker get_code): a hit

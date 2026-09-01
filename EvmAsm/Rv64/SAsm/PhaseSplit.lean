@@ -43,20 +43,16 @@ namespace SAsm
 -- Havoc'd byte-range ownership
 -- ============================================================================
 
-/-- Ownership of the `n` bytes at `base` with unspecified contents. -/
-def anyBytes (base : Word) (n : Nat) : Assertion :=
-  fun h => ∃ bs : List (BitVec 8), bs.length = n ∧ bytesRegion base bs h
-
-theorem pcFree_anyBytes (base : Word) (n : Nat) : (anyBytes base n).pcFree := by
-  rintro h ⟨bs, _, hb⟩
-  exact bytesRegion_pcFree base bs h hb
-
-/-- **The havoc weakening**: concrete contents are forgotten.  This is the
-    only way a buffer's ownership crosses a phase boundary. -/
-theorem bytesRegion_anyBytes (base : Word) (bs : List (BitVec 8))
-    (h : PartialState) (hb : bytesRegion base bs h) :
-    anyBytes base bs.length h :=
-  ⟨bs, rfl, hb⟩
+-- `anyBytes`, `pcFree_anyBytes` and `bytesRegion_anyBytes` used to be declared
+-- here.  riscv-zkvm v0.3.0 relocated them into `RiscvZkvm.Rv64.Logic.MemRegion`,
+-- which is where `bytesRegion` already lived; that cut the one upward import
+-- (`MemSat` -> `SAsm.PhaseSplit`) that made the program logic non-relocatable.
+--
+-- They now arrive through the `EvmAsm.Rv64.MemRegion` shim as `Rv64.anyBytes`.
+-- Redeclaring them here would put two `anyBytes` in scope and every use site
+-- below would be an ambiguous term.  The lemmas that stayed (`anyBytes_zero`,
+-- `anyBytes_add`, `anyBytes_sum_eq_anyTilesAt`, `cpsTripleWithin_anyBytes_pre`)
+-- are unchanged and now sit on the upstream definition.
 
 @[simp] theorem anyBytes_zero (base : Word) : anyBytes base 0 = empAssertion := by
   funext h

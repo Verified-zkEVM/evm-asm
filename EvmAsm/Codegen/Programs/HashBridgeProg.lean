@@ -62,7 +62,7 @@ def zkvmSha256_prog_of (L : GuestLayout) : Program :=
     .LD .x6 .x5 (24 : BitVec 12),
     .SD .x8 .x6 (24 : BitVec 12),
     .LI .x5 (64 : Word),
-    .BLT .x18 .x5 (92 : BitVec 13),
+    .BLT .x18 .x5 (brOff (L.zkvm_sha256 + 196) (L.zkvm_sha256 + 104)),
     .LD .x5 .x9 (0 : BitVec 12),
     .SD .x21 .x5 (0 : BitVec 12),
     .LD .x5 .x9 (8 : BitVec 12),
@@ -84,7 +84,7 @@ def zkvmSha256_prog_of (L : GuestLayout) : Program :=
     .CSRS (2053 : BitVec 12) .x10,
     .ADDI .x9 .x9 (64 : BitVec 12),
     .ADDI .x18 .x18 (-64 : BitVec 12),
-    .JAL .x0 (-92 : BitVec 21),
+    .JAL .x0 (jalOff (L.zkvm_sha256 + 100) (L.zkvm_sha256 + 192)),
     .SD .x21 .x0 (0 : BitVec 12),
     .SD .x21 .x0 (8 : BitVec 12),
     .SD .x21 .x0 (16 : BitVec 12),
@@ -185,7 +185,6 @@ theorem zkvmSha256Function_eq_prog :
 
 #guard zkvmSha256Function.startsWith "zkvm_sha256:\n"
 #guard (zkvmSha256_prog_of .zero).length = 121
-
 def zkvmKeccak256_prog_of (L : GuestLayout) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x8 (0 : BitVec 12),
@@ -204,7 +203,7 @@ def zkvmKeccak256_prog_of (L : GuestLayout) : Program :=
     .ADDI .x29 .x29 (-1 : BitVec 12),
     .BNE .x29 .x0 (-12 : BitVec 13),
     .LI .x29 (136 : Word),
-    .BLT .x9 .x29 (68 : BitVec 13),
+    .BLT .x9 .x29 (brOff (L.zkvm_keccak256 + 136) (L.zkvm_keccak256 + 68)),
     .MV .x28 .x8,
     .MV .x30 .x20,
     .LI .x31 (17 : Word),
@@ -220,7 +219,7 @@ def zkvmKeccak256_prog_of (L : GuestLayout) : Program :=
     .CSRS (2048 : BitVec 12) .x10,
     .ADDI .x20 .x20 (136 : BitVec 12),
     .ADDI .x9 .x9 (-136 : BitVec 12),
-    .JAL .x0 (-68 : BitVec 21),
+    .JAL .x0 (jalOff (L.zkvm_keccak256 + 64) (L.zkvm_keccak256 + 132)),
     .MV .x28 .x8,
     .MV .x30 .x20,
     .BEQ .x9 .x0 (36 : BitVec 13),
@@ -279,7 +278,6 @@ theorem zkvmKeccak256Function_eq_prog :
 
 #guard zkvmKeccak256Function.startsWith "zkvm_keccak256:\n"
 #guard (zkvmKeccak256_prog_of .zero).length = 69
-
 def zkvmKeccak256Segments_prog_of (L : GuestLayout) : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
@@ -302,7 +300,7 @@ def zkvmKeccak256Segments_prog_of (L : GuestLayout) : Program :=
     .ADDI .x6 .x6 (-1 : BitVec 12),
     .BNE .x6 .x0 (-12 : BitVec 13),
     .LI .x20 (0 : Word),
-    .BEQ .x9 .x0 (80 : BitVec 13),
+    .BEQ .x9 .x0 (brOff (L.zkvm_keccak256_segments + 164) (L.zkvm_keccak256_segments + 84)),
     .LD .x21 .x8 (0 : BitVec 12),
     .LD .x22 .x8 (8 : BitVec 12),
     .ADDI .x8 .x8 (16 : BitVec 12),
@@ -374,5 +372,4 @@ theorem zkvmKeccak256SegmentsFunction_eq_prog :
 
 #guard zkvmKeccak256SegmentsFunction.startsWith "zkvm_keccak256_segments:\n"
 #guard (zkvmKeccak256Segments_prog_of .zero).length = 70
-
 end EvmAsm.Codegen

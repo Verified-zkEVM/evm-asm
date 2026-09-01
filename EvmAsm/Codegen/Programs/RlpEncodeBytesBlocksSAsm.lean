@@ -968,7 +968,9 @@ theorem rebDispatchShort (len v28 : Word) (hlt : len.toNat < 56) :
       (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (56 : Word))) := by
   have hli := li_spec_gen_within .x28 v28 (56 : Word) (rebBase + 52) (by decide)
   rw [show rebBase + 52 + 4 = rebBase + 56 from by bv_omega] at hli
-  have hb0 := bgeu_spec_gen_within .x6 .x28 (64 : BitVec 13) len (56 : Word)
+  have hb0 := bgeu_spec_gen_within .x6 .x28
+    (brOff (GuestAddrs.rlp_encode_bytes + 120) (GuestAddrs.rlp_encode_bytes + 56))
+    len (56 : Word)
     (rebBase + 56)
   rw [show rebBase + 56 + 4 = rebBase + 60 from by bv_omega] at hb0
   have hb := cpsTripleWithin_weaken (fun _ hp => hp)
@@ -990,11 +992,13 @@ theorem rebDispatchLong (len v28 : Word) (hge : 56 ≤ len.toNat) :
       (((.x6 : Reg) ↦ᵣ len) ** ((.x28 : Reg) ↦ᵣ (56 : Word))) := by
   have hli := li_spec_gen_within .x28 v28 (56 : Word) (rebBase + 52) (by decide)
   rw [show rebBase + 52 + 4 = rebBase + 56 from by bv_omega] at hli
-  have hb0 := bgeu_spec_gen_within .x6 .x28 (64 : BitVec 13) len (56 : Word)
+  have hb0 := bgeu_spec_gen_within .x6 .x28
+    (brOff (GuestAddrs.rlp_encode_bytes + 120) (GuestAddrs.rlp_encode_bytes + 56))
+    len (56 : Word)
     (rebBase + 56)
-  rw [show rebBase + 56 + signExtend13 (64 : BitVec 13) = rebBase + 120 from by
-        rw [show signExtend13 (64 : BitVec 13) = (64 : Word) from by decide]
-        bv_omega] at hb0
+  rw [show rebBase + 56 + signExtend13
+      (brOff (GuestAddrs.rlp_encode_bytes + 120) (GuestAddrs.rlp_encode_bytes + 56)) =
+        rebBase + 120 from by decide] at hb0
   have hb := cpsTripleWithin_weaken (fun _ hp => hp)
     (fun h hp => sepConj_mono_right
       (fun h' hp' => ((sepConj_pure_right h').1 hp').1) h hp)

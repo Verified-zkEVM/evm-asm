@@ -98,7 +98,7 @@ import EvmAsm.Rv64.SyscallSpecs
 namespace EvmAsm.Codegen.Proofs
 
 open EvmAsm.Rv64
-open EvmAsm.Rv64.SAsm (anyBytes)
+-- `anyBytes` now comes from `EvmAsm.Rv64` (relocated upstream into MemRegion).
 open EvmAsm.Stateless
 open EvmAsm.Stateless.SpecRef
 
@@ -857,14 +857,14 @@ private theorem guestScratch_codeFree : CodeFree guestScratch := by
 
 private theorem guestScratch_pcFree : guestScratch.pcFree := by
   unfold guestScratch regionScratch
-  exact pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-    (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-      (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-        (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-          (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-            (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-              (pcFree_sepConj (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)
-                (EvmAsm.Rv64.SAsm.pcFree_anyBytes _ _)))))))
+  exact pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+    (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+      (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+        (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+          (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+            (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+              (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+                (EvmAsm.Rv64.pcFree_anyBytes _ _)))))))
 
 private theorem guestFraming_pre_codeFree :
     CodeFree (guestInputAssertion [] ** guestFraming.scratch) := by

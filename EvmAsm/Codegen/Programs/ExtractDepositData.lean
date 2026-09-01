@@ -54,48 +54,118 @@ open EvmAsm.Rv64
     ++ "  lbu x7, 31(x10)\n  or x6, x6, x7\n  bne x6, x11, .+12\n"
     ++ "  li x10, 1\n  jalr x0, 0(x1)\n  li x10, 0\n  jalr x0, 0(x1)"
 
+/-- The `extract_deposit_data` main body as an instruction list (#12989):
+    frame prologue, the 576-byte length guard, ten `edd_be32_eq` checks
+    (five canonical ABI offsets, five field sizes) sharing one fail tail,
+    five `edd_memcpy` field extractions, and the shared epilogue.  The
+    cross-entry `jal ra` targets are the numeric offsets of the two
+    verified leaves inside the emitted unit (`edd_be32_eq` at instruction
+    index 76, `edd_memcpy` at 99).  Byte-identity with the previous
+    label-form text checked by assemble+cmp (428 bytes, whole unit). -/
+def extractDepositData_prog : Program :=
+  [ .ADDI .x2 .x2 (-32 : BitVec 12),
+    .SD .x2 .x1 (0 : BitVec 12),
+    .SD .x2 .x8 (8 : BitVec 12),
+    .SD .x2 .x9 (16 : BitVec 12),
+    .MV .x8 .x10,
+    .MV .x9 .x12,
+    .LI .x5 (576 : Word),
+    .BNE .x11 .x5 (252 : BitVec 13),
+    .MV .x10 .x8,
+    .LI .x11 (160 : Word),
+    .JAL .x1 (264 : BitVec 21),
+    .BEQ .x10 .x0 (236 : BitVec 13),
+    .ADDI .x10 .x8 (32 : BitVec 12),
+    .LI .x11 (256 : Word),
+    .JAL .x1 (248 : BitVec 21),
+    .BEQ .x10 .x0 (220 : BitVec 13),
+    .ADDI .x10 .x8 (64 : BitVec 12),
+    .LI .x11 (320 : Word),
+    .JAL .x1 (232 : BitVec 21),
+    .BEQ .x10 .x0 (204 : BitVec 13),
+    .ADDI .x10 .x8 (96 : BitVec 12),
+    .LI .x11 (384 : Word),
+    .JAL .x1 (216 : BitVec 21),
+    .BEQ .x10 .x0 (188 : BitVec 13),
+    .ADDI .x10 .x8 (128 : BitVec 12),
+    .LI .x11 (512 : Word),
+    .JAL .x1 (200 : BitVec 21),
+    .BEQ .x10 .x0 (172 : BitVec 13),
+    .ADDI .x10 .x8 (160 : BitVec 12),
+    .LI .x11 (48 : Word),
+    .JAL .x1 (184 : BitVec 21),
+    .BEQ .x10 .x0 (156 : BitVec 13),
+    .ADDI .x10 .x8 (256 : BitVec 12),
+    .LI .x11 (32 : Word),
+    .JAL .x1 (168 : BitVec 21),
+    .BEQ .x10 .x0 (140 : BitVec 13),
+    .ADDI .x10 .x8 (320 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .JAL .x1 (152 : BitVec 21),
+    .BEQ .x10 .x0 (124 : BitVec 13),
+    .ADDI .x10 .x8 (384 : BitVec 12),
+    .LI .x11 (96 : Word),
+    .JAL .x1 (136 : BitVec 21),
+    .BEQ .x10 .x0 (108 : BitVec 13),
+    .ADDI .x10 .x8 (512 : BitVec 12),
+    .LI .x11 (8 : Word),
+    .JAL .x1 (120 : BitVec 21),
+    .BEQ .x10 .x0 (92 : BitVec 13),
+    .ADDI .x10 .x8 (192 : BitVec 12),
+    .MV .x11 .x9,
+    .LI .x12 (48 : Word),
+    .JAL .x1 (192 : BitVec 21),
+    .ADDI .x10 .x8 (288 : BitVec 12),
+    .ADDI .x11 .x9 (48 : BitVec 12),
+    .LI .x12 (32 : Word),
+    .JAL .x1 (176 : BitVec 21),
+    .ADDI .x10 .x8 (352 : BitVec 12),
+    .ADDI .x11 .x9 (80 : BitVec 12),
+    .LI .x12 (8 : Word),
+    .JAL .x1 (160 : BitVec 21),
+    .ADDI .x10 .x8 (416 : BitVec 12),
+    .ADDI .x11 .x9 (88 : BitVec 12),
+    .LI .x12 (96 : Word),
+    .JAL .x1 (144 : BitVec 21),
+    .ADDI .x10 .x8 (544 : BitVec 12),
+    .ADDI .x11 .x9 (184 : BitVec 12),
+    .LI .x12 (8 : Word),
+    .JAL .x1 (128 : BitVec 21),
+    .LI .x10 (0 : Word),
+    .JAL .x0 (8 : BitVec 21),
+    .LI .x10 (1 : Word),
+    .LD .x1 .x2 (0 : BitVec 12),
+    .LD .x8 .x2 (8 : BitVec 12),
+    .LD .x9 .x2 (16 : BitVec 12),
+    .ADDI .x2 .x2 (32 : BitVec 12),
+    .JALR .x0 .x1 (0 : BitVec 12) ]
+
+#guard (extractDepositData_prog : List Instr).length = 76
+
+/-- The full three-entry emitted unit. -/
+def extractDepositDataBundle_prog : Program :=
+  (extractDepositData_prog : List Instr)
+    ++ (EddBe32EqSAsm.eddBe32Eq_prog : List Instr)
+    ++ (EddMemcpySAsm.eddMemcpy_prog : List Instr)
+
+#guard (extractDepositDataBundle_prog : List Instr).length = 107
+
 def extractDepositDataFunction : String :=
+  -- The whole unit is emitted from the shared instruction lists
+  -- (`extractDepositDataBundle_prog`); byte-identity with the previous
+  -- label-form text checked by assemble+cmp (428 bytes).  The internal
+  -- fail/ret labels and the cross-entry `jal ra, edd_*` calls became
+  -- numeric offsets.
   "extract_deposit_data:\n" ++
-  "  addi sp, sp, -32\n" ++
-  "  sd ra, 0(sp); sd s0, 8(sp); sd s1, 16(sp)\n" ++
-  "  mv s0, a0                   # data ptr\n" ++
-  "  mv s1, a2                   # out ptr\n" ++
-  "  li t0, 576; bne a1, t0, .Ledd_fail        # DEPOSIT_EVENT_LENGTH\n" ++
-  "  # 5 ABI offsets must be the canonical 160,256,320,384,512 (big-endian u256)\n" ++
-  "  mv a0, s0;        li a1, 160; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 32;  li a1, 256; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 64;  li a1, 320; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 96;  li a1, 384; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 128; li a1, 512; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  # 5 field sizes must be 48,32,8,96,8 (at their offsets)\n" ++
-  "  addi a0, s0, 160; li a1, 48; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 256; li a1, 32; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 320; li a1, 8;  jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 384; li a1, 96; jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  addi a0, s0, 512; li a1, 8;  jal ra, edd_be32_eq; beqz a0, .Ledd_fail\n" ++
-  "  # extract fields (offset+32 skips each size word) into the 192-byte out\n" ++
-  "  addi a0, s0, 192; mv a1, s1;        li a2, 48; jal ra, edd_memcpy   # pubkey  -> out[0]\n" ++
-  "  addi a0, s0, 288; addi a1, s1, 48;  li a2, 32; jal ra, edd_memcpy   # wc      -> out[48]\n" ++
-  "  addi a0, s0, 352; addi a1, s1, 80;  li a2, 8;  jal ra, edd_memcpy   # amount  -> out[80]\n" ++
-  "  addi a0, s0, 416; addi a1, s1, 88;  li a2, 96; jal ra, edd_memcpy   # sig     -> out[88]\n" ++
-  "  addi a0, s0, 544; addi a1, s1, 184; li a2, 8;  jal ra, edd_memcpy   # index   -> out[184]\n" ++
-  "  li a0, 0; j .Ledd_ret\n" ++
-  ".Ledd_fail:\n" ++
-  "  li a0, 1\n" ++
-  ".Ledd_ret:\n" ++
-  "  ld ra, 0(sp); ld s0, 8(sp); ld s1, 16(sp)\n" ++
-  "  addi sp, sp, 32\n" ++
-  "  ret\n" ++
+  emitProgram extractDepositData_prog ++ "\n" ++
   -- a0=ptr to 32-byte BE field, a1=K (<2^32); a0=1 if value==K else 0.
   -- Emitted from the verified DCode program (`EddBe32EqSAsm.eddDeriv`,
-  -- spec `eddBe32Eq_retSpec`); byte-identity with the previous
-  -- hand-written text checked by assemble+cmp, the rendering pinned below.
+  -- spec `eddBe32Eq_retSpec`).
   "edd_be32_eq:\n" ++
   emitProgram EddBe32EqSAsm.eddBe32Eq_prog ++ "\n" ++
   -- a0=src, a1=dst, a2=len (leaf, byte-wise).  Emitted from the verified
   -- DCode program (`EddMemcpySAsm.mcDeriv`, spec `eddMemcpy_retSpec`);
-  -- byte-identity with the previous hand-written text checked by
-  -- assemble+cmp, the rendering pinned below.
+  -- call-site premises discharged in this file (#12805).
   "edd_memcpy:\n" ++
   emitProgram EddMemcpySAsm.eddMemcpy_prog
 

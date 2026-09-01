@@ -44,7 +44,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictSimpleTransfer
 import EvmAsm.Codegen.Programs.TxGasBalPostVerify
 import EvmAsm.Codegen.Programs.SenderBalanceDebit
 import EvmAsm.Codegen.Programs.TxGasBalPostVerifyRuntime
-import EvmAsm.Codegen.Programs.SenderPostNonceConsistent
 import EvmAsm.Codegen.Programs.SimpleTransferRecipient
 import EvmAsm.Codegen.Programs.SimpleTransferFeeRecipient
 import EvmAsm.Codegen.Programs.BlockVerdictChainConfig

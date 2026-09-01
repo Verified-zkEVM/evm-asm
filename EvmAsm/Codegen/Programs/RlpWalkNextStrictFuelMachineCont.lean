@@ -1328,7 +1328,7 @@ theorem shared_list_arm_goal_short_full_chain
         (regIs .x10 old10) ** (regIs .x1 raVal) **
         ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
         ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
-        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
         ⌜BitVec.ult pfx (248 : Word)⌝ **
@@ -1402,7 +1402,7 @@ theorem shared_list_arm_goal_long_full_chain
         (regIs .x0 (0 : Word)) ** bytesRegion base bytes **
         ⌜sharedPrefixByteAt bytes cursorOff pfx⌝ **
         ⌜¬ BitVec.ult pfx (192 : Word)⌝ **
-        ⌜BitVec.ult depth (1024 : Word)⌝ **
+        ⌜BitVec.ult depth (rlpRecursiveDecodeDepthCap : Word)⌝ **
         ⌜cursorOff < h.selector.payloadStart⌝ **
         ⌜h.selector.payloadStart ≤ h.selector.payloadEnd⌝ **
         ⌜¬ BitVec.ult pfx (248 : Word)⌝ **

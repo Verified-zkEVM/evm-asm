@@ -44,9 +44,11 @@
 #
 # Usage:
 #   scripts/codegen-eest-stateless-check.sh [options]
-#     --all              run every stateless block (slow); default: smoke subset
+#     --all              run every stateless block (slow); one explicit scope
+#                        is required unless --limit is supplied
 #     --skip N           skip first N selected stateless blocks after filtering
-#     --limit N          cap to N guest invocations (default 50)
+#     --limit N          cap to N guest invocations (one explicit scope is
+#                        required unless --all is supplied)
 #     --filter SUBSTR    only fixtures whose relpath contains SUBSTR
 #     --steps N          ziskemu max steps (default $EEST_STEPS or 5000000000)
 #     --budget-retry-steps N
@@ -108,6 +110,8 @@
 #     --guest-elf PATH   run PATH instead of building a guest. This is the ONLY
 #                        supported way to override the guest, and it implies
 #                        --no-build. See "Guest identity" below.
+#     --append-cycles     append successful Spike consumed-step records to
+#                        cycles-history.jsonl (opt-in; requires --backend spike)
 #
 # Guest identity (GH #10617):
 #   The resolved guest path and its sha256 are echoed at the start of every run
@@ -170,10 +174,10 @@ export MALLOC_ARENA_MAX
 
 ALL=0
 SKIP=0
-LIMIT=50
-# No default scope: --limit N or --all must be chosen explicitly (see the
-# hard error below).  LIMIT keeps a value so the smoke path is unchanged
-# once the flag IS passed; LIMIT_SET records whether it was.
+LIMIT=0
+# No default scope or cap: --limit N or --all must be chosen explicitly (see
+# the hard error below).  LIMIT_SET distinguishes an explicit --limit from
+# the zero value used while parsing --all.
 LIMIT_SET=0
 FILTER=""
 # Default step cap. ziskemu stops at the guest's halt, so this only bounds
@@ -251,6 +255,8 @@ RANDOM_SEED="${EEST_RANDOM_SEED:-}"
 REVERSE_ORDER="${EEST_REVERSE_ORDER:-0}"
 PREFLIGHT_REPORT="${EEST_PREFLIGHT_REPORT:-budget}"
 SPIKE_RUN="${SPIKE_RUN:-$REPO_ROOT/scripts/spike/spike_run}"
+APPEND_CYCLES="${EEST_APPEND_CYCLES:-0}"
+PERSIST_CYCLES="${EEST_PERSIST_CYCLES:-0}"
 
 usage() {
   cat <<'USAGE'
@@ -258,12 +264,12 @@ Usage:
   scripts/codegen-eest-stateless-check.sh [options]
 
 Options:
-  --all                    run every stateless block (slow); default: smoke subset
+  --all                    run every stateless block (slow)
   --exit-zero-on-failures  exit 0 even when rows FAIL or ERROR (GH #11737). Default is
                            to exit non-zero, so a failing run cannot read as green.
                            Use only when the summary is wanted regardless of outcome.
   --skip N                 skip first N selected stateless blocks after filtering
-  --limit N                cap to N guest invocations (default 50)
+  --limit N                cap to N guest invocations
   --filter SUBSTR          only fixtures whose relpath contains SUBSTR
   --backend ziskemu|spike  guest emulator backend (required, no default since GH #10533;
                            EEST_BACKEND works as the opt-in equivalent)
@@ -298,6 +304,11 @@ Options:
                            environment variable is removed and is now an error.
                            The resolved path and its sha256 are echoed and
                            recorded in the run's run-provenance.tsv.
+  --append-cycles           append successful Spike consumed-step records to
+                           cycles-history.jsonl (opt-in; requires --backend spike)
+  --persist-cycles          after a successful --append-cycles run, push the
+                           records to the cycles-history orphan branch (requires
+                           GITHUB_TOKEN/GITHUB_REPOSITORY or HISTORY_ORIGIN_URL)
   --no-verdict-debug       do not rerun fixed-size verdict probe on succ mismatches
   --random                 after --filter, sample individual stateless blocks
                            uniformly WITHOUT replacement BEFORE --limit
@@ -353,6 +364,8 @@ while [[ $# -gt 0 ]]; do
     --run-dir) require_arg "$1" "${2:-}"; RUN_DIR_OVERRIDE="$2"; shift 2 ;;
     --no-build) NO_BUILD=1; shift ;;
     --guest-elf) require_arg "$1" "${2:-}"; GUEST_ELF_OVERRIDE="$2"; shift 2 ;;
+    --append-cycles) APPEND_CYCLES=1; shift ;;
+    --persist-cycles) PERSIST_CYCLES=1; shift ;;
     --no-verdict-debug) VERDICT_DEBUG=0; shift ;;
     --random) RANDOM_ORDER=1; shift ;;
     --seed) require_arg "$1" "${2:-}"; RANDOM_SEED="$2"; shift 2 ;;
@@ -421,6 +434,23 @@ case "$BACKEND" in
   ziskemu|spike) ;;
   *) echo "--backend/EEST_BACKEND must be ziskemu or spike (got: $BACKEND)" >&2; exit 1 ;;
 esac
+
+if [[ "$APPEND_CYCLES" != "0" && "$APPEND_CYCLES" != "1" ]]; then
+  echo "--append-cycles/EEST_APPEND_CYCLES must be 0 or 1 (got: $APPEND_CYCLES)" >&2
+  exit 1
+fi
+if [[ "$PERSIST_CYCLES" != "0" && "$PERSIST_CYCLES" != "1" ]]; then
+  echo "--persist-cycles/EEST_PERSIST_CYCLES must be 0 or 1 (got $PERSIST_CYCLES)" >&2
+  exit 1
+fi
+if [[ "$APPEND_CYCLES" -eq 1 && "$BACKEND" != "spike" ]]; then
+  echo "--append-cycles currently requires --backend spike (the ziskemu log has no consumed-step marker)" >&2
+  exit 1
+fi
+if [[ "$PERSIST_CYCLES" -eq 1 && "$APPEND_CYCLES" -ne 1 ]]; then
+  echo "--persist-cycles requires --append-cycles" >&2
+  exit 1
+fi
 
 if [[ -n "$GUEST_ELF_OVERRIDE" ]]; then
   # Resolve against the CALLER's cwd and fail if it is not a readable file.  An
@@ -882,6 +912,8 @@ run_guest_elf() {
   if [[ "$BACKEND" == "ziskemu" ]]; then
     "$ZISKEMU" -e "$elf" -i "$input" -o "$out" -n "$steps" >"$log" 2>&1 </dev/null
   else
+    # spike_run reads Spike's minstret CSR around the guest run, so its clean
+    # halt marker is exact without disabling the normal fast step batching.
     "$SPIKE_RUN" "$elf" "$input" "$out" >"$log" 2>&1 </dev/null
   fi
 }
@@ -1245,6 +1277,8 @@ verdict_debug_for_case() {
 
 # --- convert fixtures -> ziskemu inputs + manifest --------------------------
 conv_args=(--fixtures-dir "$FX" --out-dir "$RUN_DIR")
+SELECTION_STATS="$RUN_DIR/selection-stats.json"
+conv_args+=(--selection-stats "$SELECTION_STATS")
 [[ "$SKIP" != "0" ]] && conv_args+=(--skip "$SKIP")
 [[ "$ALL" -eq 0 ]] && conv_args+=(--limit "$LIMIT")
 # GH #10596: the SHUFFLE must happen before the cap, so it belongs in the
@@ -1275,9 +1309,68 @@ fi
 
 MANIFEST="$RUN_DIR/manifest.tsv"
 [[ -s "$MANIFEST" ]] || { echo "no stateless blocks selected" >&2; exit 1; }
+[[ -s "$SELECTION_STATS" ]] || {
+  echo "selection stats missing after fixture conversion: $SELECTION_STATS" >&2
+  exit 1
+}
 mapfile -t manifestLines < "$MANIFEST"
 
 selectedCount="${#manifestLines[@]}"
+selection_stats="$(python3 - "$SELECTION_STATS" "$selectedCount" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+run_from_manifest = int(sys.argv[2])
+try:
+    with open(path, encoding="utf-8") as stream:
+        stats = json.load(stream)
+except (OSError, json.JSONDecodeError) as exc:
+    raise SystemExit(f"cannot read selection stats {path}: {exc}")
+
+if not isinstance(stats, dict) or stats.get("schema") != "selection-stats-v1":
+    raise SystemExit(f"invalid selection stats schema in {path}")
+for key in ("matched", "skipped", "run", "limit"):
+    value = stats.get(key)
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+        raise SystemExit(f"selection stats field {key!r} is not a nonnegative integer")
+matched = stats["matched"]
+skipped = stats["skipped"]
+run = stats["run"]
+limit = stats["limit"]
+truncated = stats.get("truncated")
+if not isinstance(truncated, bool):
+    raise SystemExit("selection stats field 'truncated' is not boolean")
+if skipped > matched:
+    raise SystemExit("selection stats skipped count exceeds matched count")
+if run != run_from_manifest:
+    raise SystemExit(
+        f"selection stats run={run} disagrees with manifest rows={run_from_manifest}"
+    )
+expected_run = max(matched - skipped, 0)
+if limit > 0:
+    expected_run = min(expected_run, limit)
+if run != expected_run:
+    raise SystemExit(
+        f"selection stats run={run} disagrees with matched={matched}, "
+        f"skipped={skipped}, limit={limit}"
+    )
+expected_truncated = limit > 0 and matched > skipped + limit
+if truncated != expected_truncated:
+    raise SystemExit(
+        f"selection stats truncated={truncated} disagrees with "
+        f"matched={matched}, skipped={skipped}, limit={limit}"
+    )
+print(f"{matched}\t{skipped}\t{run}\t{limit}\t{1 if truncated else 0}")
+PY
+)" || {
+  echo "invalid fixture selection stats" >&2
+  exit 1
+}
+IFS=$'\t' read -r matchedCount skippedCount selectionRunCount selectionLimit selectionTruncated <<< "$selection_stats"
+selectionTruncatedLabel=false
+[[ "$selectionTruncated" == 1 ]] && selectionTruncatedLabel=true
+echo "==> selection: matched=$matchedCount skipped=$skippedCount run=$selectedCount limit=$selectionLimit truncated=$selectionTruncatedLabel"
 declare -A manifestRowByLabel=()
 for i in "${!manifestLines[@]}"; do
   IFS=$'\t' read -r label _ <<< "${manifestLines[$i]}"
@@ -1447,6 +1540,54 @@ wait_for_one_worker() {
   return "$rc"
 }
 
+# Append a consumed-step record only from the parent result-consumption path.
+# run_case may execute in background workers, and cycles-append.sh appends one
+# shared JSONL file; invoking it in a worker would race with other workers.
+cycles_append_records=0
+cycles_append_errors=0
+append_cycles_for_case() {
+  [[ "$APPEND_CYCLES" -eq 1 ]] || return 0
+  local label="$1" relpath="$2" status="$3"
+  local log="$RUN_DIR/$label.emu.log"
+  local record
+
+  # Only a completed emulator invocation has a meaningful consumed-step count.
+  [[ "$status" == "OK" ]] || return 0
+  if [[ ! -f "$log" ]]; then
+    echo "  CYCLES ERROR: missing emulator log for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! grep -qE '^spike_run: halted cleanly steps=[0-9]+$' "$log"; then
+    echo "  CYCLES ERROR: no successful consumed-step marker for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+
+  # Ask the appender to render first so a nullable/malformed parse cannot be
+  # mistaken for a datapoint; append the same validated record afterwards.
+  if ! record="$(scripts/cycles-append.sh \
+      --program "eest:$label" --from-log "$log" --elf "$RESOLVED_GUEST_ELF" \
+      --halted true --source codegen-eest-stateless-check.sh --print)"; then
+    echo "  CYCLES ERROR: could not render record for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! jq -e '(.steps | type == "number") and .halted == true' <<< "$record" >/dev/null; then
+    echo "  CYCLES ERROR: consumed-step record is not a non-null clean halt for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  if ! scripts/cycles-append.sh \
+      --program "eest:$label" --from-log "$log" --elf "$RESOLVED_GUEST_ELF" \
+      --halted true --source codegen-eest-stateless-check.sh >/dev/null; then
+    echo "  CYCLES ERROR: failed to append record for $label ($relpath)" >&2
+    cycles_append_errors=$((cycles_append_errors + 1))
+    return 0
+  fi
+  cycles_append_records=$((cycles_append_records + 1))
+}
+
 # --- classify ---------------------------------------------------------------
 # Most successful Amsterdam SszStatelessValidationResult values are 69 bytes on
 # the current v0.6.x pin (ChainConfig dropped fork/blob-schedule; pre-v0.6 was
@@ -1607,6 +1748,7 @@ classify_case_result() {
     fi
     echo "  FAIL [$r/$s/$t]  $(case_identity "$label" "$relpath" "$case_id") (succ guest=${actual_hex:64:2} exp=${exp:64:2})$dbg"
   fi
+  append_cycles_for_case "$label" "$relpath" "$status"
   return 0
 }
 
@@ -1765,7 +1907,10 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
     echo "  spike_run:   $SPIKE_RUN"
   fi
   echo "  jobs:        $JOBS (cpus=$CPUS, ${JOB_MEM_MIB} MiB/proc budget)"
+  echo "  matched:     $matchedCount (filter population before skip/limit)"
+  echo "  skipped:     $skippedCount (filter rows skipped before execution)"
   echo "  selected:    $selectedCount"
+  echo "  truncated:   $selectionTruncatedLabel (limit=$selectionLimit)"
   [[ "$stopEarly" -eq 1 ]] && echo "  stopped:     after $((fail + err)) failure(s) (--max-failures $MAX_FAILURES)"
   echo "  total:       $total"
   echo "  errored:     $err"
@@ -1782,6 +1927,12 @@ BASELINE="$RUN_DIR/eest-baseline.txt"
     echo "  oracle diff:   $oracleDiff"
     echo "    guest false-accept: $guestFalseAccept"
     echo "    guest false-reject: $guestFalseReject"
+  fi
+  if [[ "$APPEND_CYCLES" -eq 1 ]]; then
+    echo "  cycles records: $cycles_append_records (errors=$cycles_append_errors)"
+    if [[ "$PERSIST_CYCLES" -eq 1 ]]; then
+      echo "  cycles persistence: requested (cycles-history orphan branch)"
+    fi
   fi
 } | tee "$BASELINE"
 
@@ -1818,5 +1969,24 @@ if [[ "$fail" -gt 0 || "$err" -gt 0 ]]; then
     echo "    read the summary block above for the verdict; pass --exit-zero-on-failures only if you need the summary regardless of outcome" >&2
     rc=1
   fi
+fi
+if [[ "$APPEND_CYCLES" -eq 1 ]]; then
+  if [[ "$cycles_append_errors" -gt 0 ]]; then
+    echo "==> CYCLES RECORDING FAILED: $cycles_append_errors case(s) lacked a validated consumed-step record" >&2
+    rc=1
+  elif [[ "$cycles_append_records" -eq 0 ]]; then
+    echo "==> CYCLES RECORDING FAILED: no non-null consumed-step datapoint was appended" >&2
+    rc=1
+  fi
+fi
+if [[ "$PERSIST_CYCLES" -eq 1 && "$rc" -eq 0 ]]; then
+  if scripts/cycles-history-persist.sh; then
+    echo "==> CYCLES PERSISTENCE: pushed $cycles_append_records record(s) to cycles-history"
+  else
+    echo "==> CYCLES PERSISTENCE FAILED: records were appended locally but not durable" >&2
+    rc=1
+  fi
+elif [[ "$PERSIST_CYCLES" -eq 1 ]]; then
+  echo "==> CYCLES PERSISTENCE SKIPPED: run did not complete cleanly" >&2
 fi
 exit $rc

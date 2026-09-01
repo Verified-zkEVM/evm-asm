@@ -137,7 +137,17 @@ theorem rlpWalkNextEntryFunction_eq_prog :
 #guard rlpWalkNextEntryFunction.startsWith "rlp_walk_next:\n"
 #guard rlpWalkNext_prog.length = 13
 
-def rlpWalkNextShared_prog : Program :=
+/-! The shared walker and the eager validator consume the same depth-budget
+    policy.  `depthCap` is the strict upper bound loaded into `x7` and compared
+    with the current list-depth counter in `x9`: descent is allowed only while
+    `x9 < depthCap`, and the `x9 ≥ depthCap` arm is the clean depth rejection.
+    The externally observed nesting count includes two wrapper levels above
+    this machine counter: with cap `C`, the linked walk accepts through
+    observed depth `C + 1` and first rejects at observed depth `C + 2`.
+    This offset is an interface fact, not another cap or a replacement value.
+    Keep the instruction-level program parameterized so changing that policy
+    is an instantiation, not a second literal (GH #12846). -/
+def rlpWalkNextShared_prog_of (depthCap : Word) : Program :=
   [ .ADDI .x2 .x2 (-64 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x10 (8 : BitVec 12),
@@ -146,20 +156,20 @@ def rlpWalkNextShared_prog : Program :=
     .SD .x2 .x10 (24 : BitVec 12),
     .SD .x2 .x11 (32 : BitVec 12),
     .SD .x2 .x12 (40 : BitVec 12),
-    .BNE .x11 .x0 (152 : BitVec 13),
+    .BNE .x11 .x0 (brOff (GuestAddrs.rlp_walk_next_shared + 184) (GuestAddrs.rlp_walk_next_shared + 32)),
     .LI .x5 (2 : Word),
-    .BLTU .x8 .x5 (128 : BitVec 13),
+    .BLTU .x8 .x5 (brOff (GuestAddrs.rlp_walk_next_shared + 168) (GuestAddrs.rlp_walk_next_shared + 40)),
     .ADDI .x8 .x8 (-2 : BitVec 12),
     .LD .x5 .x2 (8 : BitVec 12),
     .LBU .x6 .x5 (0 : BitVec 12),
     .LI .x7 (192 : Word),
-    .BLTU .x6 .x7 (124 : BitVec 13),
-    .LI .x7 (1024 : Word),
-    .BGEU .x9 .x7 (100 : BitVec 13),
+    .BLTU .x6 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 184) (GuestAddrs.rlp_walk_next_shared + 60)),
+    .LI .x7 depthCap,
+    .BGEU .x9 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 168) (GuestAddrs.rlp_walk_next_shared + 68)),
     .ADDI .x9 .x9 (1 : BitVec 12),
     .LD .x11 .x2 (24 : BitVec 12),
     .LI .x7 (248 : Word),
-    .BLTU .x6 .x7 (64 : BitVec 13),
+    .BLTU .x6 .x7 (brOff (GuestAddrs.rlp_walk_next_shared + 148) (GuestAddrs.rlp_walk_next_shared + 84)),
     .LI .x7 (247 : Word),
     .SUB .x28 .x6 .x7,
     .MV .x13 .x28,
@@ -191,12 +201,21 @@ def rlpWalkNextShared_prog : Program :=
     .ADDI .x2 .x2 (64 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-! The linked Amsterdam image uses the one policy instantiation shared with
+    the validator program; no replacement value is chosen here. -/
+def rlpWalkNextShared_prog : Program :=
+  rlpWalkNextShared_prog_of (rlpRecursiveDecodeDepthCap : Word)
+
 /-- Reloc side-table for `rlpWalkNextShared_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
     above carries the concrete guest-linked immediates for verification. -/
 def rlpWalkNextShared_relocs : RelocTable :=
   [ (4, .jal .x1 "rlp_walk_next_core"),
     (39, .jal .x1 "rlp_validate_payload") ]
+
+def rlpWalkNextSharedFunction_with_cap (depthCap : Word) : String :=
+  "rlp_walk_next_shared:\n" ++
+    emitProgramR (rlpWalkNextShared_prog_of depthCap) rlpWalkNextShared_relocs
 
 def rlpWalkNextSharedFunction : String :=
   "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs
@@ -209,8 +228,15 @@ def rlpWalkNextSharedFunction : String :=
 theorem rlpWalkNextSharedFunction_eq_prog :
     rlpWalkNextSharedFunction = "rlp_walk_next_shared:\n" ++ emitProgramR rlpWalkNextShared_prog rlpWalkNextShared_relocs := rfl
 
+theorem rlpWalkNextSharedFunction_with_cap_eq_prog (depthCap : Word) :
+    rlpWalkNextSharedFunction_with_cap depthCap =
+      "rlp_walk_next_shared:\n" ++
+        emitProgramR (rlpWalkNextShared_prog_of depthCap)
+          rlpWalkNextShared_relocs := rfl
+
 #guard rlpWalkNextSharedFunction.startsWith "rlp_walk_next_shared:\n"
 #guard rlpWalkNextShared_prog.length = 52
+#guard (rlpWalkNextShared_prog_of (rlpRecursiveDecodeDepthCap : Word)).length = 52
 
 /-! ## Recursive payload validator (parameterized cap)
 
@@ -294,7 +320,11 @@ def rlpRecursiveDecodeFunction : String :=
 
 #guard rlpRecursiveDecodeFunction.startsWith "rlp_recursive_decode:\n"
 
-def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
+/-- Validator entry parameterization.  `depthCap` is copied to the recursive
+    decoder's budget register (`x12`); the decoder consumes that budget and
+    returns its existing failure status when it reaches zero.  The linked
+    caller supplies the same policy value as `rlpWalkNextShared_prog`. -/
+def rlpValidatePayload_prog_of (depthCap : Word) : Program :=
   [ .ADDI .x2 .x2 (-32 : BitVec 12),
     .SD .x2 .x1 (0 : BitVec 12),
     .SD .x2 .x13 (8 : BitVec 12),
@@ -317,8 +347,11 @@ def rlpValidatePayload_prog_with_cap (depthCap : Word) : Program :=
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
 
+/-! The validator's linked entry uses the same policy instantiation as the
+    shared walker above.  The cap remains a parameter of the program family;
+    this default is the single production instantiation. -/
 def rlpValidatePayload_prog : Program :=
-  rlpValidatePayload_prog_with_cap (rlpRecursiveDecodeDepthCap : Word)
+  rlpValidatePayload_prog_of (rlpRecursiveDecodeDepthCap : Word)
 
 /-- Reloc side-table for `rlpValidatePayload_prog`: the `la`/cross-`jal` instruction indices
     kept SYMBOLIC in the emitted image text (`emitProgramR`), while the Program
@@ -332,7 +365,7 @@ def rlpValidatePayloadFunction : String :=
 
 def rlpValidatePayloadFunction_with_cap (depthCap : Word) : String :=
   "rlp_validate_payload:\n" ++
-    emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs
+    emitProgramR (rlpValidatePayload_prog_of depthCap) rlpValidatePayload_relocs
 
 /-- Kernel-checked drift guard: the emitted (image-agnostic, symbolic) Codegen
     string is exactly `rlpValidatePayload_prog` rendered under its label with the `la`/`jal`
@@ -345,7 +378,7 @@ theorem rlpValidatePayloadFunction_eq_prog :
 theorem rlpValidatePayloadFunction_with_cap_eq_prog (depthCap : Word) :
     rlpValidatePayloadFunction_with_cap depthCap =
       "rlp_validate_payload:\n" ++
-        emitProgramR (rlpValidatePayload_prog_with_cap depthCap) rlpValidatePayload_relocs := rfl
+        emitProgramR (rlpValidatePayload_prog_of depthCap) rlpValidatePayload_relocs := rfl
 
 #guard rlpValidatePayloadFunction.startsWith "rlp_validate_payload:\n"
 #guard rlpValidatePayload_prog.length = 21
@@ -382,13 +415,6 @@ def rlpValidatePayloadOffline_prog : Program :=
     .LD .x1 .x2 (0 : BitVec 12),
     .ADDI .x2 .x2 (32 : BitVec 12),
     .JALR .x0 .x1 (0 : BitVec 12) ]
-
-def rlpValidatePayloadOffline_relocs : RelocTable :=
-  [ (9, .jal .x1 "rlp_walk_next_nested_offline") ]
-
-def rlpValidatePayloadOfflineFunction : String :=
-  "rlp_validate_payload_offline:\n" ++
-    emitProgramR rlpValidatePayloadOffline_prog rlpValidatePayloadOffline_relocs
 
 #guard rlpValidatePayloadOffline_prog.length = 23
 

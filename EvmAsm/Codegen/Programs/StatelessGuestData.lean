@@ -554,4 +554,206 @@ def statelessGuestDataSection : String :=
   "er_child_roots:\n" ++
   "  .zero 0x40000"                    -- 256 KiB (up to MAX_DEPOSIT_REQUESTS = 2^13 roots)
 
+
+def statelessGuestInputDecode : String :=
+  "  # execution-specs deserialize_stateless_input: host length includes the 2-byte schema id\n" ++
+  "  li sp, 0xa0050000                 # SSZ framing validators use a private frame\n" ++
+  "  li t0, 0x40000008; ld t6, 0(t0)\n" ++
+  "  li t5, 2; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  # The SSZ container has a 16-byte fixed offset table after the schema.\n" ++
+  "  # Reject before touching it when the declared payload is shorter.\n" ++
+  "  li t5, 18; bltu t6, t5, .Lsg_default_failed_output\n" ++
+  "  li t1, 0x40000000; addi t1, t1, 16\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1)\n" ++
+  "  li t4, 0x15; bne t2, t4, .Lsg_default_failed_output\n" ++
+  "  li t4, 1; bne t3, t4, .Lsg_default_failed_output\n" ++
+  "  addi t6, t6, -2; li t1, 0x40000012\n" ++
+  "  # SszStatelessInput fixed section: four offsets, 16 bytes.\n" ++
+  "  lbu t2, 0(t1); lbu t3, 1(t1); slli t3, t3, 8; or t2, t2, t3\n" ++
+  "  lbu t3, 2(t1); slli t3, t3, 16; or t2, t2, t3; lbu t3, 3(t1); slli t3, t3, 24; or t2, t2, t3\n" ++
+  "  li t4, 16; bne t2, t4, .Lsg_default_failed_output; bgtu t2, t6, .Lsg_default_failed_output\n" ++
+  "  lbu t3, 4(t1); lbu t4, 5(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 6(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 7(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  add x22, t1, t3; mv t2, t3\n" ++
+  "  lbu t3, 8(t1); lbu t4, 9(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 10(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 11(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  add x23, t1, t3; mv x20, x23; mv t2, t3\n" ++
+  "  lbu t3, 12(t1); lbu t4, 13(t1); slli t4, t4, 8; or t3, t3, t4\n" ++
+  "  lbu t4, 14(t1); slli t4, t4, 16; or t3, t3, t4; lbu t4, 15(t1); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  bltu t3, t2, .Lsg_default_failed_output; bgtu t3, t6, .Lsg_default_failed_output\n" ++
+  "  li t4, 12; sub t5, t3, t2; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  sub t5, x23, x22; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  sub t5, x22, t1; li t4, 16; bltu t5, t4, .Lsg_default_failed_output\n" ++
+  "  # Keep the outer framing values across the nested SSZ checks.\n" ++
+  "  mv x17, t1                         # SSZ_BASE\n" ++
+  "  mv x16, t3                         # public_keys offset\n" ++
+  "  sub x18, t6, t3                    # public_keys byte length\n" ++
+  "  sub x15, t3, t2                    # chain_config byte length\n" ++
+  "  # The generic SSZ decoder rejects malformed nested containers and lists\n" ++
+  "  # before the verifier sees any derived field.\n" ++
+  "  mv a0, x17; jal ra, sg_load_u32le; add a0, x17, a0\n" ++
+  "  sub a1, x22, a0; li a2, 0; jal ra, sg_validate_npr\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  sub x14, x23, x22\n" ++
+  "  mv a0, x22; mv a1, x14; jal ra, sg_validate_witness\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  mv a0, x20; mv a1, x15; jal ra, sg_validate_chain_config\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  add a0, x17, x16; mv a1, x18; li a2, 65; li a3, 32768\n" ++
+  "  jal ra, sg_validate_fixed_list\n" ++
+  "  bnez a0, .Lsg_default_failed_output\n" ++
+  "  # Decode chain_config.chain_id (u64 LE) without an unaligned LD.\n" ++
+  "  lbu x10, 0(x20); lbu t5, 1(x20); slli t5, t5, 8; or x10, x10, t5\n" ++
+  "  lbu t5, 2(x20); slli t5, t5, 16; or x10, x10, t5; lbu t5, 3(x20); slli t5, t5, 24; or x10, x10, t5\n" ++
+  "  lbu t5, 4(x20); slli t5, t5, 32; or x10, x10, t5; lbu t5, 5(x20); slli t5, t5, 40; or x10, x10, t5\n" ++
+  "  lbu t5, 6(x20); slli t5, t5, 48; or x10, x10, t5; lbu t5, 7(x20); slli t5, t5, 56; or x10, x10, t5\n" ++
+  "  # Witness section: three variable lists, then the headers list.\n" ++
+  "  sub x14, x23, x22\n" ++
+  "  lbu x21, 8(x22); lbu t5, 9(x22); slli t5, t5, 8; or x21, x21, t5\n" ++
+  "  lbu t5, 10(x22); slli t5, t5, 16; or x21, x21, t5; lbu t5, 11(x22); slli t5, t5, 24; or x21, x21, t5\n" ++
+  "  li t4, 12; bltu x21, t4, .Lsg_default_failed_output; bgtu x21, x14, .Lsg_default_failed_output\n" ++
+  "  sub x14, x14, x21; add x21, x22, x21; li x11, 0\n" ++
+  "  beqz x14, .Lsg_decode_no_headers\n" ++
+  "  lbu x16, 0(x21); lbu t5, 1(x21); slli t5, t5, 8; or x16, x16, t5\n" ++
+  "  lbu t5, 2(x21); slli t5, t5, 16; or x16, x16, t5; lbu t5, 3(x21); slli t5, t5, 24; or x16, x16, t5\n" ++
+  "  li t4, 4; remu t5, x16, t4; bnez t5, .Lsg_default_failed_output; beqz x16, .Lsg_default_failed_output\n" ++
+  "  bgtu x16, x14, .Lsg_default_failed_output; srli x16, x16, 2\n" ++
+  "  li t4, 256; bgtu x16, t4, .Lsg_default_failed_output\n" ++
+  "  j .Lsg_decode_done\n" ++
+  ".Lsg_decode_no_headers:\n" ++
+  "  li x16, 0\n" ++
+  ".Lsg_decode_done:\n"
+
+/-! ## stateless_guest header-validator pipeline (integration PR)
+
+    Inserted after the entry decoder and output serializer, before the
+    existing SSZ `hash_tree_root` epilogue. Reads N=x16 (header count),
+    section_ptr=x17 (witness.headers section), section_len=x14, then
+    iterates a curated set of K-PR header validators on the chain.
+
+    On any K-PR violation: writes 0xFEFEFE..FE marker + 8-byte reason
+    code at OUTPUT_ADDR and HALTs (matches Stateless.unimplemented_exit
+    layout).  On all-pass: overrides OUTPUT[32] := 1 (the
+    `successful_validation` byte) and falls through to the hash code.
+
+    s2 = N (callee-saved)
+    s3 = section_ptr (callee-saved)
+    s4 = section_len (callee-saved)
+    s5 = headers_data_ptr = section_ptr + 4*N (callee-saved)
+
+    Reason codes (see `EvmAsm/Stateless/Unimplemented.lean`):
+      0x10 POST_MERGE_VIOLATION (K290)
+      0x11 EXTRA_DATA_TOO_LONG  (K291)
+      0x12 GAS_USED_OVER_LIMIT  (K240)
+      0x13 BLOB_GAS_MISALIGNED  (K278)
+      0x14 BLOB_GAS_OVER_MAX    (K277)
+      0x15 TIMESTAMP_NOT_INCREASING (K229)
+      0x16 NUMBERS_NOT_CONSECUTIVE  (K230)
+      0x17 RLP_PARSE_FAIL_IN_HEADER (any K-PR returns nonzero status) -/
+
+def statelessGuestValidatorPipeline : String :=
+  "  # PR-integration: header-validator pipeline\n" ++
+  "  li sp, 0xa0050000\n" ++
+  "  mv s2, x16                  # s2 = N\n" ++
+  "  mv s3, x21                  # s3 = section_ptr (now from decoder's x21,\n" ++
+  "                              # which holds headers_addr; x17 is kept as\n" ++
+  "                              # SSZ_BASE for the encoder's bounded byte-copy)\n" ++
+  "  mv s4, x14                  # s4 = section_len\n" ++
+  "  beqz s2, .Lsg_all_pass      # N=0: skip validators\n" ++
+  "  # 9lw0m: spec validate_headers asserts len(encoded_headers) <= 256. Enforce it\n" ++
+  "  # here, BEFORE building sg_header_lengths (a fixed 256*8 = 2048-byte buffer):\n" ++
+  "  # this both matches the spec (a >256-header witness is invalid -> reject, closing\n" ++
+  "  # a false-accept) and prevents the .Lsg_bl loop from overflowing sg_header_lengths.\n" ++
+  "  li t0, 256\n" ++
+  "  bgtu s2, t0, .Lsg_fail_toomany\n" ++
+  "  # Build sg_header_lengths[N]: convert N u32 inner-offset deltas\n" ++
+  "  # to N u64 absolute lengths.\n" ++
+  "  mv t0, s3                   # t0 = offsets cursor (section_ptr)\n" ++
+  "  la t1, sg_header_lengths    # t1 = lengths-out cursor\n" ++
+  "  mv t2, s2                   # t2 = i (counts down from N)\n" ++
+  ".Lsg_bl:\n" ++
+  "  beqz t2, .Lsg_bl_done\n" ++
+  "  # #12057 u32 LE t0+0\n  lbu t3, 0(t0)\n  lbu t4, 1(t0); slli t4, t4, 8; or t3, t3, t4\n  lbu t4, 2(t0); slli t4, t4, 16; or t3, t3, t4\n  lbu t4, 3(t0); slli t4, t4, 24; or t3, t3, t4\n" ++
+  "  addi t4, t2, -1\n" ++
+  "  beqz t4, .Lsg_bl_last       # if last header, end = section_len\n" ++
+  "  # #12057 u32 LE t0+4\n  lbu t5, 4(t0)\n  lbu t4, 5(t0); slli t4, t4, 8; or t5, t5, t4\n  lbu t4, 6(t0); slli t4, t4, 16; or t5, t5, t4\n  lbu t4, 7(t0); slli t4, t4, 24; or t5, t5, t4\n" ++
+  "  j .Lsg_bl_diff\n" ++
+  ".Lsg_bl_last:\n" ++
+  "  mv t5, s4                   # t5 = section_len\n" ++
+  ".Lsg_bl_diff:\n" ++
+  "  sub t5, t5, t3              # length_i = end - start\n" ++
+  "  sd t5, 0(t1)\n" ++
+  "  addi t0, t0, 4\n" ++
+  "  addi t1, t1, 8\n" ++
+  "  addi t2, t2, -1\n" ++
+  "  j .Lsg_bl\n" ++
+  ".Lsg_bl_done:\n" ++
+  "  # s5 = headers_data_ptr = section_ptr + 4*N\n" ++
+  "  slli t0, s2, 2\n" ++
+  "  add s5, s3, t0\n" ++
+  "  # 9lw0m: spec validate_headers parent_hash contiguity (stateless.py:266-277).\n" ++
+  "  # For i in 1..N-1, child.parent_hash == keccak256(encoded_header[i-1]); reject a\n" ++
+  "  # non-contiguous witness chain. This is the spec's ONLY header-chain check and\n" ++
+  "  # was previously omitted (a false-accept: a witness with a broken keccak link but\n" ++
+  "  # plausible fields would pass). N<2 is vacuously contiguous. s6-s9 hold the loop\n" ++
+  "  # state and survive validate_parent_hash_link (it saves s0-s4 only).\n" ++
+  "  li t0, 2\n" ++
+  "  bltu s2, t0, .Lsg_contig_done\n" ++
+  "  la t0, sg_header_lengths\n" ++
+  "  ld s6, 0(t0)                # prev_len = lengths[0]\n" ++
+  "  mv s7, s5                   # prev_ptr = header[0]\n" ++
+  "  add s8, s5, s6              # cur_ptr = header[1]\n" ++
+  "  li s9, 1                    # i = 1\n" ++
+  ".Lsg_contig_loop:\n" ++
+  "  beq s9, s2, .Lsg_contig_done\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld a3, 0(t1)  # cur_len\n" ++
+  "  mv a0, s7; mv a1, s6; mv a2, s8; la a4, sg_contig_valid\n" ++
+  "  jal ra, validate_parent_hash_link\n" ++
+  "  bnez a0, .Lsg_fail_contig   # parse/size failure => reject\n" ++
+  "  la t0, sg_contig_valid; ld t0, 0(t0); beqz t0, .Lsg_fail_contig\n" ++
+  "  slli t0, s9, 3; la t1, sg_header_lengths; add t1, t1, t0; ld t2, 0(t1)  # cur_len (a3 clobbered)\n" ++
+  "  mv s7, s8; mv s6, t2; add s8, s8, t2; addi s9, s9, 1\n" ++
+  "  j .Lsg_contig_loop\n" ++
+  ".Lsg_contig_done:\n" ++
+  "  # 9lw0m deviation B: the spec's validate_headers (amsterdam stateless.py:266-277)\n" ++
+  "  # field-validates the witness ancestor headers ONLY for parent_hash contiguity\n" ++
+  "  # (checked above) + count<=256 (checked at entry). It does NOT re-validate the\n" ++
+  "  # ancestors' post-merge fields / extra_data / gas_used / blob_gas / timestamps /\n" ++
+  "  # numbers -- those are historical blocks the stateless client trusts, and the\n" ++
+  "  # block-under-test's own header is validated separately in the verdict path. The\n" ++
+  "  # 7 per-witness-header validators here were a spec-absent over-check (a latent\n" ++
+  "  # false-reject vector), so they are removed to match the spec. (RLP-decodability\n" ++
+  "  # of each ancestor is still enforced: the contiguity check parses every header to\n" ++
+  "  # extract parent_hash.)\n" ++
+  ".Lsg_all_pass:\n" ++
+  "  # All validators that ran passed (or N=0 fast-path). The entry decoder\n" ++
+  "  # has already established the schema and SSZ framing, and the serializer\n" ++
+  "  # has recorded the decoded chain id and the validator's success byte.\n" ++
+  "  # The existing verifier machinery owns the remaining payload semantics;\n" ++
+  "  # this stage only preserves its result and continues to the SSZ root.\n" ++
+  "  j .Lsg_hash\n" ++
+  ".Lsg_fail_contig: li a0, 0x18; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_toomany: li a0, 0x19; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_pm:   li a0, 0x10; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_ed:   li a0, 0x11; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_gas:  li a0, 0x12; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_bgm:  li a0, 0x13; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_bgum: li a0, 0x14; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_ts:   li a0, 0x15; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_nm:   li a0, 0x16; j .Lsg_unimpl\n" ++
+  ".Lsg_fail_rlp:  li a0, 0x17\n" ++
+  ".Lsg_unimpl:\n" ++
+  "  # Previously this block wrote the 0xFEFEFEFEFEFEFEFE unimplemented-\n" ++
+  "  # exit marker at OUTPUT[0..8) plus the REASON code at OUTPUT[8..16),\n" ++
+  "  # then halted with ECALL. That diverged from the spec's behaviour\n" ++
+  "  # for the same input shape (spec catches the validator exception\n" ++
+  "  # and returns valid=False with chain_config echo + empty NPR root).\n" ++
+  "  # Falling through to .Lsg_hash matches the spec: the encoder's\n" ++
+  "  # x11=0 writes valid=False to OUTPUT[32], .Lsg_hash computes\n" ++
+  "  # the NPR root at OUTPUT[0..32), and the codegen halt stub takes\n" ++
+  "  # over.\n" ++
+  "  j .Lsg_hash"
+
 end EvmAsm.Codegen

@@ -41,7 +41,7 @@
   `phaseD_children` left-to-right); Phase-D dispatch routines (`.49`,
   `.56`) frame `phaseDView`; the `block_verdict` composition (`.61`)
   performs each transition by a single rewrite, weakening any concrete
-  buffer contents through `SAsm.bytesRegion_anyBytes` first.
+  buffer contents through `Rv64.bytesRegion_anyBytes` first.
 
   The absolute arena base stays a parameter (`base`) — the model is
   link-layout-independent; `RegionMap.callFrameArenaBase` pins this build's

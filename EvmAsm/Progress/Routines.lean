@@ -63,6 +63,7 @@ import EvmAsm.Codegen.Programs.U256DivU64BeInPlaceSAsm
 import EvmAsm.Codegen.Programs.U256MulU64Be.Whole
 import EvmAsm.Codegen.Programs.U256MulU64Be.WholeInPlace
 import EvmAsm.Codegen.Proofs.U256BeFlatTriples
+import EvmAsm.Codegen.Programs.U256AddBeAInPlaceSAsm
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.CallFrameCalldataFlatTriple
@@ -145,6 +146,10 @@ import EvmAsm.Codegen.Programs.Secp256k1FieldMulModPSAsm
 -- The guest-address instantiations of the two position-independent witness-index
 -- triples (#12244) — a THIRD blocker class: flat and whole-routine but at a free base.
 import EvmAsm.Codegen.Proofs.MptWitnessIndexFlatEntry
+import EvmAsm.Codegen.Proofs.CallFrameForwardGasFlatEntry
+import EvmAsm.Codegen.Proofs.BalSerializerLeFlatEntry
+import EvmAsm.Codegen.Proofs.ExtractDepositDataFailSpec
+import EvmAsm.Codegen.Proofs.ExtractDepositDataOkSpec
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
 -- First lift of a `model-only` leaf (#12244) — needed an `Fn` change before any
 -- adapter applied; see the row's notes.
@@ -180,6 +185,13 @@ import EvmAsm.Codegen.Programs.U256MinSAsm
 -- starts after the priority helper's six-instruction entry prologue, so its
 -- registry row remains honestly `.partly` until that prologue is composed.
 import EvmAsm.Codegen.Programs.U256GasPricingSAsm
+import EvmAsm.Codegen.Programs.U256GasPricingWholeSAsm
+import EvmAsm.Codegen.Proofs.SgValidateFixedListFlatEntry
+import EvmAsm.Codegen.Proofs.DCodeLeafFlatEntries
+import EvmAsm.Codegen.Proofs.SgLoadU32leFlatEntry
+import EvmAsm.Codegen.Proofs.SgMemcpyFlatEntry
+import EvmAsm.Codegen.Proofs.ExtractDepositDataUnified
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
 import EvmAsm.Codegen.Programs.TxGasResultIncrementsSAsm
 import EvmAsm.Rv64.RLP.WalkNextStrict
 -- #12799 rows 1 and 2: the two canonical-strict content decoders, instantiated
@@ -255,9 +267,11 @@ import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
+import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus1Witness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeMulNativeContract
 import EvmAsm.Codegen.Programs.AccountDecodeCompose
 -- #11516: AccountDecodeCompose imports AccountDecodeBridge, not Close6, so the
@@ -301,6 +315,11 @@ import EvmAsm.Codegen.Programs.RlpEncodeListPrefixLong8Spec
 -- #12038 / #12324: K145 `tx_signing_hash` whole-routine short-domain triple
 -- (preimage ≤135, single-rate-block via `zkvm_keccak256_segments`).
 import EvmAsm.Codegen.Programs.TxSigningHashSpec
+-- #12427: K146's linked-buffer disjointness consequences.  The whole K146
+-- entry remains unrowed while its input-layout bridge is supplied by the
+-- production caller; these two named lemmas are still axiom-gate witnessed
+-- because they carry the static-source separation argument.
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailLayout
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -334,10 +353,13 @@ import EvmAsm.Codegen.Programs.MptWalkWlEnabledEmpty
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHit
 import EvmAsm.Codegen.Programs.MptWalkWlEnabledHitSat
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashWrap
--- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha
--- (no whole-routine row yet; witnesses still required for axiom gate).
+-- #12011/#13069 hash-half: `erh_hash_one` empty+nonempty tops under residual
+-- `h_sha`; the linked symbol now has a conditional registry row below.
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneTop
 import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
+-- #13069: witness-code lookup's empty-section top is a linked whole-routine
+-- claim and is registered below as a conditional row.
+import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
@@ -360,6 +382,8 @@ import EvmAsm.Codegen.Programs.ChainValidateIncreasingTimestampsLoopClose
 import EvmAsm.Codegen.Programs.TxTypeDispatchTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+-- #13030: envelope seam satisfiability and negative-control evidence.
+import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
 import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
@@ -389,9 +413,13 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody5Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody7Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody9Spec
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPricePriceContractConsumer
+import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody14Spec
 -- #12244: `eip8037TxStateGas_spec_within` — the 4-instruction Amsterdam per-tx
 -- state-gas leaf, whole-routine at `GuestAddrs.eip8037_tx_state_gas`.
 import EvmAsm.Codegen.Programs.Eip8037TxStateGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArmWitness
 
 namespace EvmAsm.Progress
 
@@ -717,26 +745,6 @@ def routineRegistry : List RoutineEntry := [
         ++ "The strict LIST validator (`rlp_walk_next_shared → "
         ++ "rlp_validate_payload → shared`) is not covered "
         ++ "by this row and remains the recursive proof residual"),
-  -- #12300: the validator entry is tied to the strict LIST-cycle model, but
-  -- the machine CPS continuation remains an explicit caller premise.
-  routine "rlp_validate_payload" .conditional
-      (some "rlp_validate_payload_cps_under_shared")
-      (gate := "caller supplies the CPS contract `hshared` for the recursive "
-        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
-        ++ "structural fuel family, but the instruction-level continuation "
-        ++ "is not yet derived from it. The surviving witness is explicitly "
-        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
-        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
-        ++ "Program is not byte-identical to the linked 21-instruction "
-        ++ "`rlpValidatePayload_prog`; this row does not claim production-image "
-        ++ "correspondence. This is a DOWNGRADE relative to main forced by the "
-        ++ "legacy strict-fuel contract's V+36→V+40 nested-JAL shape: the shipped "
-        ++ "21-instruction RecDecode adapter has no such edge, so retaining the "
-        ++ "production anchor would not state the existing CPS theorem. Re-proving "
-        ++ "that production-image contract is tracked by #12661")
-      (notes := "entry contract covers empty, precheck-failure, nested-failure "
-        ++ "and continuation tails under the explicit shared-arm contract; the "
-        ++ "terminal `NestedFuel.done` case models the exact cursor=end check"),
   -- #12749: the recursive ITEMS entry, tied to the LINKED image. The synthetic
   -- knot (`itemsSound_all` over `decCr`) and the emitted direct-JAL programs
   -- share pins and programs: decEntry/itemsEntry/rdbeEntry are the GuestAddrs
@@ -1010,6 +1018,49 @@ def routineRegistry : List RoutineEntry := [
         ++ "production-shaped 0xf8/0x38 long-list full-premise instance at "
         ++ "RegionMap.inputRegion.base; the short-list inhabitant is also "
         ++ "available but is not the coverage citation)"),
+  -- #12979: closed K74 wrapper witness at the real composition seam.  The
+  -- concrete witness is conditional because the K73 increasing route has the
+  -- genuine input-domain gate `0 < target`.
+  routine "header_validate_base_fee" .conditional
+      (some "header_validate_base_fee_spec_within_inhabited")
+      (gate := "the wrapper selects the K73 increasing arm: `target = "
+        ++ "gas_limit >>> 1`, `target < gas_used`, and `0 < target` (the "
+        ++ "latter is the genuine input-domain gate from #12951). All "
+        ++ "ABI/resource hypotheses are discharged by the closed witness.")
+      (notes := "closed wrapper-level witness at the real K74 seam: "
+        ++ "`header_validate_base_fee_spec_within` consumes the Route-B K73 "
+        ++ "adapter and the u256-equality callee under the union code request. "
+        ++ "The concrete inhabitant uses gas_limit = 10,000, gas_used = 7,500, "
+        ++ "zero parent/header bytes, real aligned 32-byte regions, and "
+        ++ "pairwise code-range disjointness. K73 remains conditional; this "
+        ++ "row records non-vacuity of the wrapper composition, not an "
+        ++ "unconstrained K74 claim."),
+  -- #12849: the first closed arm of K70.  The status-0 under-target arm is
+  -- fully discharged at a concrete, non-vacuous point; the price-dependent
+  -- arms remain an explicit open dependency until the Amsterdam price callee
+  -- has its own machine contract.
+  routine "header_validate_excess_blob_gas" .conditional
+      (some "header_validate_excess_blob_gas_under_target_spec_within")
+      (gate := "the PRICE-FREE arm families are claimed, at the caller's "
+        ++ "argument shape (#13135: fully parametric registers, ANY `a3` — "
+        ++ "these paths never dereference the base-fee pointer). Overflow "
+        ++ "(`…_overflow_spec_within`): parent total wraps → status 1. "
+        ++ "Under-target (`…_under_target_spec_within`): total below the "
+        ++ "Amsterdam target → status `if thisExcess = 0 then 0 else 2` "
+        ++ "(the mismatch sub-arm included). Boundary-guard "
+        ++ "(`…_boundary_spec_within`): total at/above target and "
+        ++ "parent.excess ≥ 2,073,394,371 → expected `total − target`, "
+        ++ "status 0/2 by match. UNCLAIMED: the price arms (the "
+        ++ "`amsterdam_blob_gas_price_u256` route — high-fee schedule "
+        ++ "branch and exact non-high compare), gated on `priceContract` "
+        ++ "(#12851). The original all-zero status-0 witness "
+        ++ "(`…_status0_arm_spec_within`) remains as the closed inhabitant")
+      (notes := "three whole-routine ABI-frame triples (25/29/34 steps) in "
+        ++ "`Codegen/Programs/HeaderValidateExcessBlobGasArms.lean`, each "
+        ++ "with pure branch-fact hypotheses instead of pinned arguments; "
+        ++ "per-arm inhabitant/negative-control examples pin the gates' "
+        ++ "boundaries (the measured price bound admits at 2,073,394,371 "
+        ++ "and refutes at its predecessor)."),
   routine "header_extract_number" .proven (some "header_extract_number_spec_within")
       (notes := "8-instruction wrapper: prologue ;; `rlp_field_to_u64` at field index 8 "
         ++ ";; epilogue. The whole-routine triple predates the correspondence row "
@@ -1816,7 +1867,10 @@ def routineRegistry : List RoutineEntry := [
         ++ "geometry). `taylorPriceContract` — the single-exit "
         ++ "model-determined triple over `priceEntryRest`/`priceCalleePost` "
         ++ "at `GuestAddrs.amsterdam_blob_gas_price_u256` — is the pinned "
-        ++ "open seam (K70 item 7 / #12851). `#12851` update: the ABI-frame "
+        ++ "open seam. Guard-order divergence is recorded in #12850: the "
+        ++ "emitted loop has no per-iteration output-bound check and checks "
+        ++ "256-bit width only after final division, unlike `taylorExp384`. "
+        ++ "(K70 item 7 / #12851.) `#12851` update: the ABI-frame "
         ++ "shell `amsterdam_blob_gas_price_abi_from_body` is now proven — "
         ++ "the emitted 252-instruction program IS "
         ++ "`abiFrameProg (-208) 208 priceFrame priceBody` (kernel `decide`), "
@@ -1888,6 +1942,39 @@ def routineRegistry : List RoutineEntry := [
         ++ "non-vacuity witnesses for the status-zero route, not "
         ++ "a claim that every K73 input is covered; the generic unconstrained "
         ++ "entry theorem remains open. No emitted code changes."),
+  -- #12346 residual 2b: the increase arm's wrapper-vocabulary Route-B
+  -- adapter.  The composed triple is complete over the wrapper contract
+  -- (`k73PreRest` premise, `k73RouteBCallPost` conclusion) but carries the
+  -- multiply callee DISCHARGED (issue #12346): `k73_incr_callee_discharged`
+  -- inhabits the `hcallee` obligation from the proven `mulWhole_spec` via the
+  -- disjoint call-site geometry (aPtr = parentPtr, outPtr = Expected are
+  -- separate windows); the respeller's copyState idempotency gap is closed by
+  -- a proven list lemma, and the wrapper's accumulator window is the
+   -- constructed product image. The row stays `.conditional` for the honest
+   -- static input-domain gates: `target = gas_limit >>> 1` and
+   -- `target < gas_used` SELECT this arm (the spec branches three ways on
+   -- parent_gas_used vs parent_gas_target, and the equal/decreasing arms have
+   -- their own routes), while `0 < target` (issue #12951) is a genuine
+   -- domain gate — a live soundness question, not a formality.
+  routine "eip1559_calc_base_fee_per_gas" .conditional
+      (some "k73_incr_route_adapter_inhabited")
+      (gate := "the multiply callee is discharged internally from the "
+        ++ "proven `mulWhole_spec` (disjoint call-site windows; see "
+        ++ "`k73_incr_callee_discharged`). Remaining static gates: "
+        ++ "ABI facts (8-byte alignment, 32-byte validity of the parent-fee "
+        ++ "and expected-window regions, window disjointness), "
+        ++ "`target = gas_limit >>> 1` and `target < gas_used` (these "
+        ++ "SELECT this arm — the equal/decreasing arms have their own "
+        ++ "routes), and `0 < target` (issue #12951 — genuine domain gate, "
+        ++ "live soundness question).")
+      (notes := "wrapper-vocab Route-B adapter for the increase arm "
+        ++ "(`k73_incr_route_adapter`, witness = constructed inhabitance at "
+        ++ "gas_limit = 10,000, gas_used = 7,500, parent fee bytes 0): "
+        ++ "the strengthened `k73IncreaseStatusFinalPost` carries the "
+        ++ "zero-test branch pures (a path-blind post admits countermodel "
+        ++ "states no local window algebra can kill). The concrete witness "
+        ++ "establishes non-vacuity only; it does NOT upgrade the general "
+        ++ "theorem past the static input-domain gates."),
   -- #12244 ask 3, first harvest from the MECHANICAL queue that
   -- `scripts/ambient-triage.py` computes. That triage partitions the `--shape`
   -- model-only bucket by whether the leaf `Fn`'s post PINS its ambient — the
@@ -2951,6 +3038,142 @@ def routineRegistry : List RoutineEntry := [
         ++ "dependent. That identity is `rfl`, not `decide` — `Decidable` does not "
         ++ "synthesize through `laHi`/`laLo`. Lives in "
         ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12990: the third widx sibling, unblocked by reconciling the historical
+  -- x6/x31 loop-counter mismatch — the proof was transposed onto the image's
+  -- register assignment, and `widxSwapProg = widxSwapRecords_prog` is now a
+  -- decide-checked identity (the old `widxSwapProg_ne` negative control is
+  -- gone). The allowlist exemption is retired with this row.
+  routine "widx_swap_records" .proven (some "widxSwapRecordsEntry_spec")
+      (notes := "whole-routine triple at `GuestAddrs.widx_swap_records` over "
+        ++ "`CodeReq.ofProg … widxSwapRecords_prog` (the image's own program via "
+        ++ "`widxSwapProg_eq`, #12990), 58 steps: swaps two six-dword index "
+        ++ "records in place inside one arena (`widxSwapMem arena qa qb 6` in "
+        ++ "the post), counter `x31` ends zero, `t0`/`t1` clobbered, `a0`/`a1` "
+        ++ "end one record past the swapped pair. Hypotheses: the two records "
+        ++ "are distinct and both fit the arena; single-arena shape because the "
+        ++ "machine model has one writable-region resource — offsets are "
+        ++ "explicit, not existentially hidden. Lives in "
+        ++ "`Codegen/Proofs/MptWitnessIndexFlatEntry.lean`"),
+  -- #12988: the allowlist's stated blocker ("needs the Fn.retSpecFlat lift")
+  -- was an UN-INSTANTIATED adapter, not missing machinery — the routine's
+  -- contract was a plain `Fn.Spec` all along. The derivation's reaches gained
+  -- an `A = empAssertion` pin (required by the adapter's eliminator; pure
+  -- threading, no proof content changed).
+  -- #13089: the three remaining proof-first (DCode) leaves, rowed at
+  -- their linked entries with flat derivations of their retSpecs
+  -- (Codegen/Proofs/DCodeLeafFlatEntries.lean).
+  routine "modexp_iszero" .proven (some "modexpIszeroFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.modexp_iszero` "
+        ++ "over `CodeReq.ofProg … modexpIszero_prog`: `a0` = limb ptr, "
+        ++ "`a1` = limb count `n` (`n ≤ 256`, `8n` bytes readable) — "
+        ++ "returns `a0 = mizOut ptr bs n`, `1` iff all `n` little-endian "
+        ++ "dwords are zero. Proof-first `dretWhileBreakSwap` scan; ABI/"
+        ++ "resource hypotheses only"),
+  routine "edd_be32_eq" .proven (some "eddBe32EqFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.edd_be32_eq` "
+        ++ "over `CodeReq.ofProg … eddBe32Eq_prog`: `a0` = 32-byte BE "
+        ++ "field ptr, `a1 = K` — returns `a0 = eddOut ptr bs K`, `1` iff "
+        ++ "the high 28 bytes are zero and the trailing BE u32 equals `K`. "
+        ++ "The same DCode retSpec the #12989 extract_deposit_data ok-path "
+        ++ "composition consumes at the bundle-interior copy; this row "
+        ++ "makes the standalone linked entry census-visible"),
+  routine "edd_memcpy" .proven (some "eddMemcpyFlat_spec")
+      (notes := "whole-routine flat triple at `GuestAddrs.edd_memcpy` over "
+        ++ "`CodeReq.ofProg … eddMemcpy_prog`: `a0` = src, `a1` = dst, "
+        ++ "`a2 = n` — the n-byte destination window becomes the source "
+        ++ "prefix. `mcStatic` (bounds + no-wrap + src/dst disjointness) "
+        ++ "is a resource-shaped hypothesis; #12805 discharges it at the "
+        ++ "deployed call sites. Same retSpec as the #12989 bundle-"
+        ++ "interior copy, rowed at the standalone linked entry"),
+  -- #13071: the SSZ fixed-list framing validator, rowed at its linked
+  -- entry with the flat derivation of its DCode guard-cascade retSpec.
+  routine "sg_validate_fixed_list" .proven
+      (some "sgValidateFixedListFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.sg_validate_fixed_list` over "
+        ++ "`CodeReq.ofProg … sgValidateFixedList_prog` (the emitted "
+        ++ "program — the stateless-guest bundle slice is `emitProgram` of "
+        ++ "it, byte-identity checked at the port): entered with `a1` = "
+        ++ "section byte length, `a2` = element size, `a3` = max element "
+        ++ "count, returns `a0 = sgvOut len esz maxc` — `0` iff `esz ≠ 0 ∧ "
+        ++ "len % esz = 0 ∧ len / esz ≤ maxc`. Register-only leaf (proof-"
+        ++ "first `dretCascade` derivation, three guards into one shared "
+        ++ "fail tail); ABI hypotheses only (aligned `ra`). Lives in "
+        ++ "`Codegen/Proofs/SgValidateFixedListFlatEntry.lean`"),
+  routine "call_frame_forward_gas" .proven
+      (some "callFrameForwardGasFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.call_frame_forward_gas` over "
+        ++ "`CodeReq.ofProg … callFrameForwardGas_prog` (the emitted program; "
+        ++ "the address/program pairing is registered in guestImageEntries): "
+        ++ "EIP-150 gas forwarding — on return `a1 = cffgCap requested "
+        ++ "gas_left` (the all-but-one-64th cap) and `a0 = cap + stipend "
+        ++ "value_nonzero` (CALL_STIPEND 2300 when value moves). Register-only "
+        ++ "leaf; `a2` and the temporaries return as `regOwn` riders. DERIVED "
+        ++ "from the proof-first `callFrameForwardGasFn_spec` by "
+        ++ "`Fn.retSpecFlat`; `cffgCap_eq_capped` ties the cap to "
+        ++ "`message_call_gas`'s `capped` at `s = 0`. Total over its argument "
+        ++ "types: the sole hypothesis is an aligned return address. Lives in "
+        ++ "`Codegen/Proofs/CallFrameForwardGasFlatEntry.lean`"),
+  -- #12988 tranche 2: the two serializer twins, via a DIRECT flat proof
+  -- (parametric over placement, instantiated twice). The structured
+  -- `Fn.SpecR` contracts remain as the DCode-generated specs; the generic
+  -- SpecR→flat lift is blocked by the asrtR granularity wall (asrtR
+  -- forgets `ra`), recorded in #12988.
+  routine "bal_serializer_slot_to_le" .proven
+      (some "balSerializerSlotToLeFlat_spec")
+      (notes := "whole-routine flat triple at "
+        ++ "`GuestAddrs.bal_serializer_slot_to_le` over "
+        ++ "`CodeReq.ofProg … balSerializerSlotToLe_prog` (the emitted "
+        ++ "program, 12 insns): reverses the 32-byte big-endian buffer at "
+        ++ "`a0` into the `bal_serializer_slot_le` scratch (BE → LE), source "
+        ++ "intact, scratch = `(bs.take 32).reverse`. Direct flat proof "
+        ++ "(`countdownLoop_spec` over the region-level byte lemmas), "
+        ++ "parametric over placement with the `la` identity as hypothesis "
+        ++ "(`bslFlat_spec`), instantiated here where it closes by `rfl`. "
+        ++ "Lives in `Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  routine "bal_serializer_balance_to_le" .proven
+      (some "balSerializerBalanceToLeFlat_spec")
+      (notes := "twin instantiation of `bslFlat_spec` at "
+        ++ "`GuestAddrs.bal_serializer_balance_to_le` (target scratch "
+        ++ "`bal_serializer_balance_le`) — see the "
+        ++ "`bal_serializer_slot_to_le` row directly above; the two differ "
+        ++ "only in their `la` immediates and placement. Lives in "
+        ++ "`Codegen/Proofs/BalSerializerLeFlatEntry.lean`"),
+  -- #12989 tranche 1: the length-guard fail arm. The routine's main body
+  -- is now a Lean instruction list (`extractDepositData_prog`, emitted via
+  -- emitProgram, byte-identical to the previous label-form text — 428
+  -- bytes over the whole three-entry unit); this arm is call-free, so its
+  -- CodeReq is the main body's own program at the guest entry.
+  routine "extract_deposit_data" .conditional
+      (some "extractDepositData_spec")
+      (gate := "ONE unified, ARENA-PARAMETRIC contract (#13070 complete): "
+        ++ "for ANY payload/output arenas satisfying "
+        ++ "`eddDataArenaOk`/`eddOutArenaOk`/`eddArenasDisjoint` "
+        ++ "(8-aligned, wrap-free, byte-valid, non-overlapping), the post "
+        ++ "cases on the decidable `eddAccept` (canonical 576 length ∧ all "
+        ++ "ten ABI header checks) — accept: `a0 = 0` with the five raw "
+        ++ "fields copied to the output arena; otherwise `a0 = 1` and "
+        ++ "NOTHING written; in both arms `sp`/`ra`/`s0`/`s1` and the "
+        ++ "frame are restored. Total over the payload. The deployed-probe "
+        ++ "instance is `extractDepositData_probe_spec` (arena facts "
+        ++ "discharged from the concrete addresses)")
+      (notes := "unified: `extractDepositData_spec` "
+        ++ "(`Codegen/Proofs/ExtractDepositDataUnified.lean`), a single "
+        ++ "`cpsTripleWithin 7749` whose post is "
+        ++ "`if eddAccept … then eddOkPost else eddRejPost`. Underneath, "
+        ++ "the ok path: flat whole-path `cpsTripleWithin 7749` over the "
+        ++ "shared three-entry bundle image "
+        ++ "(`CodeReq.ofProg … extractDepositDataBundle_prog`, 107 insns) "
+        ++ "— prologue, guard not taken, ten `jal ra, edd_be32_eq` and "
+        ++ "five `jal ra, edd_memcpy` call groups composed by "
+        ++ "`callWithin_spec` with the leaves' DCode retSpecs (the "
+        ++ "caller's exposed-register atoms packed into/unpacked from the "
+        ++ "callee `asrtM` register file; `sp`/`s0`/`s1`/`ra` framed — "
+        ++ "not in `exposedRegs`), `a0 := 0`, epilogue. #12805's "
+        ++ "call-site discharges supply the five `mcStatic` premises. "
+        ++ "Lives in `Codegen/Proofs/ExtractDepositDataOkSpec.lean`; the "
+        ++ "fail arm in `…FailSpec.lean`"),
   -- ==========================================================================
   -- ⭐ FIRST LIFT OF A `model-only` LEAF (#12244), and the reason the whole bucket
   -- was stuck is NOT what the allowlist says.
@@ -3297,6 +3520,31 @@ def routineRegistry : List RoutineEntry := [
         ++ "`bah_u32le` / `enrg_u32le`; its `Fn` is pinned by re-delegating its spec to "
         ++ "the already-pinned `bahU32leFn`, leaving the shared `sgLoadU32leFn` alone. "
         ++ "Lives in `Codegen/Programs/SszPayloadWithdrawalsSAsm.lean`"),
+  -- #13090: the alignment-safe byte copy, rowed at its linked entry via
+  -- an ambient-pinned twin of sgMemcpyFn (the shared Fn untouched).
+  routine "sg_memcpy" .proven (some "sgMemcpyFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sg_memcpy` over "
+        ++ "`sgmcCr = CodeReq.ofProg … sgMemcpy_prog` (the "
+        ++ "`StatelessGuestEpilogue` emission): `a0` = dst, `a1` = src, "
+        ++ "`a2 = len` — the len-byte destination window becomes the source "
+        ++ "prefix, the source region intact. Domain: lengths/no-wrap/"
+        ++ "src-dst disjointness plus ABI (resource-shaped); total. "
+        ++ "`sgMemcpyFn`'s ambient is free in pre AND post, which "
+        ++ "`Fn.retSpecFlatAmbient` cannot consume, so the lift goes "
+        ++ "through an ambient-pinned twin (`sgmcFn`, same emitted bytes) "
+        ++ "with its own `vcgen` discharge. Lives in "
+        ++ "`Codegen/Proofs/SgMemcpyFlatEntry.lean`"),
+  -- #13091: the sixth u32le twin, at its own linked entry.
+  routine "sg_load_u32le" .proven (some "sgLoadU32leFlat_spec")
+      (notes := "whole-routine triple at `GuestAddrs.sg_load_u32le` over "
+        ++ "`sgluCr = CodeReq.ofProg … sgLoadU32le_prog` (the "
+        ++ "`StatelessGuestEpilogue` emission): `a0` becomes `leU32 bs 0`. "
+        ++ "Memory UNTOUCHED (read-only region intact, empty writable "
+        ++ "window). Domain: `4 ≤ bs.length` plus ABI; total. Sixth twin of "
+        ++ "the u32le family, same lift as `sws_u32le` via a separate "
+        ++ "ambient-pinned `Fn` delegating to `bahU32leFn_spec` (the shared "
+        ++ "five-consumer `sgLoadU32leFn` untouched). Lives in "
+        ++ "`Codegen/Proofs/SgLoadU32leFlatEntry.lean`"),
   routine "sws_u32le" .proven (some "swsU32leFlat_spec")
       (notes := "whole-routine triple at `GuestAddrs.sws_u32le` over `swsU32leCr = "
         ++ "CodeReq.ofProg … swsU32le_prog`, the `GuestImageEntries` pairing: `a0` "
@@ -3553,16 +3801,23 @@ def routineRegistry : List RoutineEntry := [
   -- triple.  Its callee adapters and both status arms are consumed; the
   -- six-instruction stack/prologue prefix at P..P+24 remains a separate
   -- composition obligation and is deliberately not hidden by `.proven`.
-  routine "priority_fee_per_gas_eip1559" .partly
-      (some "priority_fee_per_gas_eip1559_body_spec")
-      (notes := "linked body triple at `GuestAddrs.priority_fee_per_gas_eip1559 + 24` "
-        ++ "through `+88`: setup, `u256_sub_be`, the in-place `u256_min` call, "
-        ++ "status split, restore and return. The theorem consumes the concrete "
-        ++ "subtraction inhabitant and the exact-alias min contract, and states "
-        ++ "both success and reject posts. It intentionally does NOT claim the "
-        ++ "six-instruction entry prologue at `P..P+24`; an entry-anchored whole-"
-        ++ "routine triple is the remaining Stage 2 composition. Lives in "
-        ++ "`Codegen/Programs/U256GasPricingSAsm.lean`"),
+  -- #13068 Stage 2: the entry prologue and epilogue are composed with the
+  -- body triple; the contract is now entry-anchored and all-outcome.
+  routine "priority_fee_per_gas_eip1559" .proven
+      (some "priority_fee_per_gas_eip1559_spec")
+      (notes := "entry-anchored whole-routine triple at "
+        ++ "`GuestAddrs.priority_fee_per_gas_eip1559`: frame prologue, setup, "
+        ++ "`u256_sub_be`, the in-place `u256_min` call, status split, restore "
+        ++ "and return, ending at the aligned `ra` with `sp` and the four "
+        ++ "callee-saved registers restored. The post is the success/reject "
+        ++ "disjunction: `a0 = 0` with `min(priority, max_fee - base_fee)` "
+        ++ "written to `*out`, or `a0 = 1` when the subtraction borrowed "
+        ++ "(`max_fee < base_fee`). ABI/resource hypotheses only (region wf, "
+        ++ "alignment, disjointness of `out` from the two read operands); no "
+        ++ "input-domain gate. Consumes the concrete subtraction inhabitant "
+        ++ "and the exact-alias min contract; the saved-register entry values "
+        ++ "are arbitrary (#13068 generalized the body's pinned setup). Lives "
+        ++ "in `Codegen/Programs/U256GasPricingSAsm.lean`"),
   -- #12659 Stage 2: entry-anchored all-outcome gas/refund arithmetic triple.
   routine "tx_gas_result_increments" .proven
       (some "tx_gas_result_increments_spec")
@@ -3807,6 +4062,9 @@ def routineRegistry : List RoutineEntry := [
         ++ "arena. ORDER is load-bearing and pinned: the post is "
         ++ "`SpecRef.keccak256 (segs.flatMap (·.2))` in DESCRIPTOR order. "
         ++ "Non-vacuity: `kss_sample_witness_multi` (same 3-segment gather). "
+        ++ "Output buffer contents on entry are ARBITRARY (`out0`, any 32 "
+        ++ "bytes -- the #12897/#12987 fix): every byte is overwritten, so "
+        ++ "callers need not pre-clear and repeated calls are covered. "
         ++ "`tx_signing_hash_spec_within` (short-domain) now exists as a "
         ++ "separate row; this row closes the segments leg of #12113's "
         ++ "`h_tsh` residual until the EIP-7702 wrapper re-points to the "
@@ -3843,6 +4101,22 @@ def routineRegistry : List RoutineEntry := [
         ++ "This row's own prefix triple is what makes THAT row conditional: "
         ++ "B → B+300 does not return, so `requests_hash_verify` cannot "
         ++ "compose it and states the call under `ErhCallShape` instead"),
+
+  -- #13069: `erh_hash_one` has complete tops for the nonempty and empty-body
+  -- arms, but neither theorem alone is total over the input body.  Keep one
+  -- honest conditional row for the linked symbol and retain both arm
+  -- witnesses below so the axiom gate sees the full partial surface.
+  routine "erh_hash_one" .conditional
+      (some "erh_hash_one_spec_within_nonempty")
+      (gate := "`body ≠ []` (the nonempty-body arm); the complementary `body = []` "
+        ++ "top is `erh_hash_one_spec_within_empty` and is witnessed separately. "
+        ++ "Both tops discharge the SHA call through `ShaDischargeHyps`; arbitrary "
+        ++ "body/SHA composition remains outside this row")
+      (notes := "whole-routine `cpsTripleWithin` at `GuestAddrs.erh_hash_one` "
+        ++ "over the emitted hash-one program. The nonempty top carries the "
+        ++ "body-length partition; the empty top covers the zero-body edge. "
+        ++ "Both theorem forms are retained in the axiom ledger. Lives in "
+        ++ "`Codegen/Programs/ExecutionRequestsHashHashOne{,Nonempty}Top.lean`"),
 
   -- #12206: `assemble_execution_requests` — the ONE routine of that issue with
   -- zero callees, so it proves standalone with no unproven-callee residual to
@@ -4246,6 +4520,30 @@ def routineRegistry : List RoutineEntry := [
         ++ "NOT established here: `bytesRegion`'s "
         ++ "dword-aligned-base convention is assumed of `mset_db_data`, not "
         ++ "derived from the link map"),
+  -- #13069: these two linked lookup symbols have real whole-routine tops,
+  -- but only on empty/one-hit index classes.  The gates name those classes
+  -- explicitly so the rows do not read as claims about the general scans.
+  routine "witness_codes_lookup_by_hash" .conditional
+      (some "witness_codes_lookup_by_hash_spec_within_empty_section")
+      (gate := "`section_len = 0` and `wcidx_enabled = 0` (empty-section miss); "
+        ++ "the scan, indexed and nonempty-section arms are not claimed")
+      (notes := "whole-routine `cpsTripleWithin 52` at "
+        ++ "`GuestAddrs.witness_codes_lookup_by_hash`, over the emitted "
+        ++ "155-instruction program. The empty-section top proves the miss "
+        ++ "post and telemetry updates with no unproven callee reached; this "
+        ++ "is a conditional coverage row, not a claim about the scan/hash "
+        ++ "arms. Lives in `Codegen/Programs/WitnessCodesLookupSpec.lean`"),
+  routine "witness_lookup_by_hash_indexed" .conditional
+      (some "witness_lookup_by_hash_indexed_spec_within_one_hit")
+      (gate := "`widx_count = 1` with the target equal to the sole indexed "
+        ++ "record (one-hit); the complementary `widx_count = 0` empty-miss "
+        ++ "top is witnessed separately. Arbitrary binary-search counts remain "
+        ++ "outside the row")
+      (notes := "whole-routine tops at `GuestAddrs.witness_lookup_by_hash_indexed` "
+        ++ "cover the empty miss (`cpsTripleWithin 28`) and one-hit (`343`) "
+        ++ "domains. The row cites the one-hit top; both empty and one-hit "
+        ++ "theorems are witnessed so the partial surface remains auditable. "
+        ++ "Lives in `Codegen/Programs/WitnessLookupByHashIndexed*.lean`"),
   -- #12036. `witness_lookup_by_hash` (155 insn) at
   -- `GuestAddrs.witness_lookup_by_hash`, over the emitted program itself
   -- (`wlhCr = CodeReq.ofProg wlhB witnessLookupByHash_prog`). Graded
@@ -4441,6 +4739,43 @@ def routineRegistry : List RoutineEntry := [
         ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
 ]
 
+/-! ## Offline routine contracts
+
+    These witnessed contracts describe retired or synthetic Programs used by
+    proof development, not the production guest image.  Keep them out of
+    `routineRegistry`: a production row must identify a theorem about the
+    linked symbol at its deployed entry.  Offline witnesses remain explicit
+    and axiom-audited here, so separating their scope does not hide them from
+    the trusted-base check.
+-/
+
+def offlineRoutine (symbol : String) (tier : ProofTier) (proofRef : Option String)
+    (gate : String := "") (notes : String := "") : RoutineEntry :=
+  routine symbol tier proofRef gate notes
+
+def offlineRoutineRegistry : List RoutineEntry := [
+  -- #12300: strict LIST-cycle theorem over the retired 23-instruction model.
+  offlineRoutine "rlp_validate_payload" .conditional
+      (some "rlp_validate_payload_cps_under_shared")
+      (gate := "caller supplies the CPS contract `hshared` for the recursive "
+        ++ "shared arm; `cycleFuel_mutual_strong_induction` discharges the "
+        ++ "structural fuel family, but the instruction-level continuation "
+        ++ "is not yet derived from it. The surviving witness is explicitly "
+        ++ "offline: it quantifies over `rlpValidatePayloadOffline_prog` and "
+        ++ "the synthetic `rlpWalkNextNestedOfflineAddr`, whose 23-instruction "
+        ++ "Program is not byte-identical to the linked 21-instruction "
+        ++ "`rlpValidatePayload_prog`; this offline contract does not claim "
+        ++ "production-image correspondence. Re-proving that production-image "
+        ++ "contract is tracked by #12661")
+      (notes := "offline entry contract covers empty, precheck-failure, "
+        ++ "nested-failure and continuation tails under the explicit shared-arm "
+        ++ "contract; the terminal `NestedFuel.done` case models the exact "
+        ++ "cursor=end check"),
+]
+
+theorem offlineRoutineRegistry_all_witnessed :
+    offlineRoutineRegistry.all (fun e => e.proofRef.isSome) = true := by decide
+
 /-! ## Counts (kernel-checked) -/
 
 /-- Rows in the guest-routine registry. -/
@@ -4455,14 +4790,14 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 210 := by decide
+theorem routineCount_eq : routineCount = 226 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 162 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 44 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 50 := by decide
 set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 4 := by decide
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
@@ -4478,7 +4813,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 171 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -4923,6 +5258,13 @@ private noncomputable abbrev _amsterdam_blob_gas_price_abi_shell_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_abi_from_body
 private noncomputable abbrev _amsterdam_blob_gas_price_prog_eq_abiframe_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceAbiShell.amsterdam_blob_gas_price_prog_eq_abiFrameProg
+-- #12346: the excess=0 non-vacuity witness for the K70 `priceContract` seam.
+private noncomputable abbrev _priceContract_ex0_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.priceContract_ex0_inhabited
+-- #12851: the excess=0 non-vacuity witness for the `taylorPriceContract`
+-- discharge (same 8271-step machine proof, model-tied output bytes).
+private noncomputable abbrev _taylor_price_contract_excess0_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPricePriceContractWitness.taylor_price_contract_excess0_inhabited
 -- #12851 body: the first four body-window contracts for
 -- `amsterdam_blob_gas_price_u256`.
 private noncomputable abbrev _amsterdam_blob_gas_price_setup_witness :=
@@ -4954,6 +5296,20 @@ private noncomputable abbrev _amsterdam_blob_gas_price_tail_copyarm_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceBody7Spec.tail_copyarm
 private noncomputable abbrev _amsterdam_blob_gas_price_entry_witness :=
   @EvmAsm.Codegen.AmsterdamBlobGasPriceTaylorTie.taylor_price_entry_inhabited
+-- #13030: the full Taylor-round CPS body is consumed by the round-composition
+-- proofs and must be included independently of the enclosing tie row.
+private noncomputable abbrev _amsterdam_blob_gas_price_taylor_round_witness :=
+  @EvmAsm.Codegen.AmsterdamBlobGasPriceBody14Spec.taylor_round
+-- #12849: K70's closed status-0 under-target arm, plus the gate's explicit
+-- inhabitant and negative control.  The whole-routine price-dependent arms
+-- remain open; keeping all three terms in the ledger prevents the conditional
+-- row from looking like an unconstrained K70 proof.
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_arm_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_admits_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_admits
+private noncomputable abbrev _header_validate_excess_blob_gas_status0_gate_refutable_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.status0ArmGate_refutable
 -- #10780 item 1, at every width. `long2_first_length_byte_ne_zero` is the `lenlen = 2`
 -- instance and is stated over the literal shift `len >>> 8`, so it says nothing at any
 -- other width; this is the property itself, over `u64ByteLen`. Witnessed because the
@@ -5511,6 +5867,13 @@ private noncomputable abbrev _u256_eq_routine_witness :=
 -- #12244: the two u256 BE members lifted/anchored to flat triples this pass.
 private noncomputable abbrev _u256_add_be_routine_witness :=
   @EvmAsm.Codegen.U256BeFlat.u256AddBeFlat_spec
+-- #12319: the FIRST-OPERAND-ALIASED (`a0 = a2`) contract over the SAME
+-- `u256_add_be` text. No Routines ROW: `u256_add_be` already has one, and this
+-- is a second contract on that routine rather than a second routine. Witnessed
+-- anyway so `check-axioms` covers the module (same pattern as the
+-- `_erh_hash_one_*` phase witnesses above).
+private noncomputable abbrev _u256_add_be_a_inplace_witness :=
+  @EvmAsm.Codegen.U256AddBeAInPlaceSAsm.u256AddBeAInPlaceFlat_spec
 private noncomputable abbrev _u256_is_zero_routine_witness :=
   @EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 private noncomputable abbrev _u256_from_u64_be_routine_witness :=
@@ -5558,6 +5921,19 @@ private noncomputable abbrev _k73_decr_entry_status_native_inhabited_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_entry_status_native_inhabited
 private noncomputable abbrev _k73_decr_route_adapter_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseRoute.k73_decr_route_adapter_inhabited
+private noncomputable abbrev _k73_incr_route_adapter_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute.k73_incr_route_adapter_inhabited
+-- #12979: closed K74 wrapper-level witness.  The concrete inhabitant composes
+-- the Route-B K73 adapter with the wrapper and discharges union-code
+-- monotonicity at real linked ranges.
+private noncomputable abbrev _header_validate_base_fee_routine_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+-- #12346: concrete satisfiability witness for the K67 core contract's status-1
+-- arm: the number < 1 header route discharges `validateHeaderCoreContract` at a
+-- concrete instance (number=0 header whose canonical RLP decodes and SpecRef
+-- rejects with "block number < 1").
+private noncomputable abbrev _validateHeaderCore_status1_witness :=
+  @EvmAsm.Codegen.ValidateHeaderWhole.validateHeaderCoreContract_hcoreStatus1_inhabited
 -- #12244 ask 3: first ambient-lift harvest.
 private noncomputable abbrev _bnf_eq32_routine_witness :=
   @EvmAsm.Codegen.AmbientLifted.bnfEq32Flat_spec
@@ -5717,6 +6093,29 @@ private noncomputable abbrev _wcidx_cmp32_routine_witness :=
   @EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
 private noncomputable abbrev _widx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.widxRecordPtrEntry_spec
+-- #12990: the third widx sibling, after the x6/x31 reconciliation.
+private noncomputable abbrev _widx_swap_records_routine_witness :=
+  @EvmAsm.Codegen.Proofs.widxSwapRecordsEntry_spec
+-- #12988: the un-instantiated Fn.retSpecFlat adapter, instantiated.
+private noncomputable abbrev _call_frame_forward_gas_routine_witness :=
+  @EvmAsm.Codegen.CallFrameForwardGasSAsm.callFrameForwardGasFlat_spec
+-- #12988 tranche 2: the serializer twins' direct flat proofs.
+private noncomputable abbrev _bal_serializer_slot_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerSlotToLeFlat_spec
+-- #12989: the extract_deposit_data ok path (row witness) and the
+-- tranche-1 length-guard fail arm (kept swept alongside).
+private noncomputable abbrev _extract_deposit_data_routine_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_ok_spec
+private noncomputable abbrev _extract_deposit_data_fail_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataFailSpec.extractDepositData_lenFail_spec
+-- The ten mid-check rejection arms (#12989, final slice); the first and
+-- last sampled as swept witnesses (all ten share the compositional shape).
+private noncomputable abbrev _extract_deposit_data_reject1_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject1_spec
+private noncomputable abbrev _extract_deposit_data_reject10_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataOkSpec.extractDepositData_reject10_spec
+private noncomputable abbrev _bal_serializer_balance_to_le_routine_witness :=
+  @EvmAsm.Codegen.BalSerializerLeFlatEntry.balSerializerBalanceToLeFlat_spec
 -- The first `model-only` lift. ⚠️ Cites the FLAT `…Flat_spec`, not the structured
 -- `bncZero64Fn_spec` it is derived from.
 private noncomputable abbrev _bnc_zero64_routine_witness :=
@@ -5811,6 +6210,41 @@ private noncomputable abbrev _u256_min_routine_witness :=
 -- #12659 Stage 2: the linked priority body and gas-result entry witnesses.
 private noncomputable abbrev _priority_fee_per_gas_eip1559_body_routine_witness :=
   @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_body_spec
+-- #13068 Stage 2: the entry-anchored whole-routine contract (row witness).
+private noncomputable abbrev _priority_fee_per_gas_eip1559_routine_witness :=
+  @EvmAsm.Codegen.U256GasPricingSAsm.priority_fee_per_gas_eip1559_spec
+-- #13071: sg_validate_fixed_list at its linked entry.
+private noncomputable abbrev _sg_validate_fixed_list_routine_witness :=
+  @EvmAsm.Codegen.SgValidateFixedListSAsm.sgValidateFixedListFlat_spec
+-- #13089: the three remaining DCode leaves at their linked entries.
+private noncomputable abbrev _modexp_iszero_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
+private noncomputable abbrev _edd_be32_eq_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.eddBe32EqFlat_spec
+private noncomputable abbrev _edd_memcpy_routine_witness :=
+  @EvmAsm.Codegen.DCodeLeafFlatEntries.eddMemcpyFlat_spec
+-- #13091: the sixth u32le twin at its linked entry.
+private noncomputable abbrev _sg_load_u32le_routine_witness :=
+  @EvmAsm.Codegen.SgLoadU32leFlatEntry.sgLoadU32leFlat_spec
+-- #13090: sg_memcpy at its linked entry.
+private noncomputable abbrev _sg_memcpy_routine_witness :=
+  @EvmAsm.Codegen.SgMemcpyFlatEntry.sgMemcpyFlat_spec
+-- #13070 step 2: the unified extract_deposit_data contract (row witness);
+-- the twelve arm triples stay swept via the earlier abbrevs.
+private noncomputable abbrev _extract_deposit_data_unified_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_spec
+private noncomputable abbrev _extract_deposit_data_probe_witness :=
+  @EvmAsm.Codegen.ExtractDepositDataUnified.extractDepositData_probe_spec
+-- #13135: K70's price-free arms at the caller's argument shape; the
+-- original status-0 point witness stays swept alongside.
+private noncomputable abbrev _hvebg_under_target_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_under_target_spec_within
+private noncomputable abbrev _hvebg_overflow_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_overflow_spec_within
+private noncomputable abbrev _hvebg_status0_point_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_status0_arm_spec_within
+private noncomputable abbrev _hvebg_boundary_witness :=
+  @EvmAsm.Codegen.ValidateHeaderGasCorrespondence.header_validate_excess_blob_gas_boundary_spec_within
 private noncomputable abbrev _tx_gas_result_increments_routine_witness :=
   @EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 private noncomputable abbrev _blsg_lt_p_routine_witness :=
@@ -5850,6 +6284,16 @@ private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
 private noncomputable abbrev _block_access_list_hash_core_control_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+-- #13030: keep the envelope's positive instance, old-premise refutation and
+-- byte-level padding control on the generated axiom-audit surface.
+private noncomputable abbrev _keccak_envelope_region_sat_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_region_sat
+private noncomputable abbrev _keccak_envelope_exact_region_control_witness :=
+  @EvmAsm.Codegen.Proofs.exactRegion_false_on_nonzero_tail
+private noncomputable abbrev _keccak_envelope_sat_exact_control_witness :=
+  @EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
+private noncomputable abbrev _keccak_envelope_padding_control_witness :=
+  @EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
@@ -5884,13 +6328,16 @@ private noncomputable abbrev _zkvm_sha256_full_block_loop_witness :=
 -- #11578 rescope: execution_requests_hash validation-accept prefix.
 private noncomputable abbrev _execution_requests_hash_routine_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashWrap.execution_requests_hash_validation_accept
--- #12011 hash-half: erh_hash_one empty+nonempty tops under residual h_sha.
--- No Routines ROW yet (whole erh/rhv still open); witnesses still required so
--- check-axioms covers these modules (same pattern as #12018 phase witnesses).
+-- #12011/#13069 hash-half: `erh_hash_one` empty+nonempty tops under residual
+-- `h_sha`; the linked symbol is now rowed conditionally, and both forms stay
+-- witnessed so check-axioms covers the complete partial surface.
 private noncomputable abbrev _erh_hash_one_empty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneTop.erh_hash_one_spec_within_empty
 private noncomputable abbrev _erh_hash_one_nonempty_witness :=
   @EvmAsm.Codegen.ExecutionRequestsHashHashOneNonemptyTop.erh_hash_one_spec_within_nonempty
+-- #13069: witness-code lookup's empty-section machine top, now rowed below.
+private noncomputable abbrev _witness_codes_lookup_by_hash_routine_witness :=
+  @EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
 -- #12206: `assemble_execution_requests` whole routine (imported above —
 -- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
 private noncomputable abbrev _assemble_execution_requests_routine_witness :=
@@ -5945,6 +6392,13 @@ private noncomputable abbrev _requests_hash_verify_rhv_hash_gate_witness :=
 -- #12038 / #12324: K145 `tx_signing_hash` short-domain whole-routine triple.
 private noncomputable abbrev _tx_signing_hash_routine_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
+-- #12427: K146's prefix/suffix static-view consequences.  They remain
+-- conditional on the caller-owned input-zone bound `hinput_hi`; this is not a
+-- whole-routine K146 witness and no routine registry row is added here.
+private noncomputable abbrev _tx_signing_hash_legacy_prefix_layout_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
+private noncomputable abbrev _tx_signing_hash_legacy_suffix_layout_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
@@ -6005,6 +6459,10 @@ private noncomputable abbrev _witness_lookup_by_hash_enabled_one_hit_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.witness_lookup_by_hash_spec_within_enabled_one_hit
 private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_gen_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit_gen
+private noncomputable abbrev _witness_lookup_by_hash_indexed_empty_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedEmpty.witness_lookup_by_hash_indexed_spec_within_empty
+private noncomputable abbrev _witness_lookup_by_hash_indexed_one_hit_witness :=
+  @EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit
 private noncomputable abbrev _witness_lookup_by_hash_hit_cells_distinct_witness :=
   @EvmAsm.Codegen.WitnessLookupByHashSpec.hit_cells_distinct
 private noncomputable abbrev _witness_lookup_by_hash_legacy_empty_witness :=

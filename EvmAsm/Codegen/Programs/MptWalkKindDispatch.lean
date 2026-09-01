@@ -11,6 +11,14 @@
 
   This file lands the four arm-entry triples. Kind post PRESERVES x18..x21
   (path ptr/len) as concrete values for hop arms.
+
+  The first callWithin is at prog index 47 (`GuestAddrs.mpt_walk + 188`):
+  `mpt_node_kind_spec_within` (#11964, `.proven`) starts at the kind JAL with
+  ABI already set (`x10/x11` = node pointer/length).  The root
+  `witness_lookup_by_hash` remains a SEPARATE residual; this module does not
+  claim it.  The call adapter factors saved `ra` out of `regsAt kindFrame` so
+  `callWithin_spec` does not duplicate x1, and the kind post preserves the path
+  registers x18..x21 as concrete values for the hop arms.
 -/
 
 import EvmAsm.Codegen.Programs.MptWalkMachine

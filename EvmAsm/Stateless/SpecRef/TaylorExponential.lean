@@ -54,13 +54,24 @@ namespace EvmAsm.Stateless.SpecRef
 
 def taylorDenominator : Nat := 11684671
 
+/-! Keep the concrete denominator available to downstream bridges without
+    requiring them to unfold this module's definition across the boundary. -/
+theorem taylorDenominator_eq : taylorDenominator = 11684671 := by
+  rfl
+
 def taylorResultBound : Nat := 2 ^ 256
+
+theorem taylorResultBound_eq : taylorResultBound = 2 ^ 256 := by
+  rfl
 
 def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
 
 def taylorWord384Bound : Nat := 2 ^ 384
 
 def taylorWord64Bound : Nat := 2 ^ 64
+
+theorem taylorWord64Bound_eq : taylorWord64Bound = 2 ^ 64 := by
+  rfl
 
 def taylorNatAux (num denominator : Nat) : Nat → Nat → Nat → Nat
   | i, acc, output =>
@@ -97,6 +108,18 @@ decreasing_by
 
 def taylorExpNat (factor numerator denominator : Nat) : Nat :=
   taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator
+
+/-! This interface lemma keeps the defining equation available to downstream
+    modules without exposing the implementation body of `taylorExpNat`. -/
+theorem taylorExpNat_eq_aux (factor numerator denominator : Nat) :
+    taylorExpNat factor numerator denominator =
+      taylorNatAux numerator denominator 1 (factor * denominator) 0 / denominator := by
+  rfl
+
+theorem taylorNatAux_zero (num denominator i output : Nat) :
+    taylorNatAux num denominator i 0 output = output := by
+  rw [taylorNatAux.eq_1]
+  simp
 
 theorem taylorNatAux_output_le (num denominator i acc output : Nat) :
     output ≤ taylorNatAux num denominator i acc output := by
@@ -269,7 +292,10 @@ the full U64 domain it found a maximum of 495 nonzero states, attained at
 `4033036207587913316` in state `i = 9`.  The latter is the domain maximum from
 the monotone fixed-state prefix analysis; U64_MAX reaches only `i = 8` and has
 359 bits.  These are sizing measurements, while the exactness claims below
-remain kernel-checked theorems.
+remain kernel-checked theorems.  This guard order belongs to the bounded model:
+the linked K70 loop has no per-iteration output-bound check and checks 256-bit
+width only after its final division.  See #12850 for the complete
+model-versus-emitted comparison.
 -/
 
 theorem taylor384Aux_some_of_nat_lt

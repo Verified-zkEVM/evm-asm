@@ -36,6 +36,7 @@ Usage:
                              [--filter SUB] [--verify-input-parity]
                              [--verify-execution-spec-input]
                              [--verify-run-stateless-guest]
+                             [--selection-stats FILE]
 
 ``--filter`` keeps only stateless blocks whose fixture relative path or
 per-block EEST test label contains the given substring.  ``--skip`` drops the
@@ -54,6 +55,10 @@ the Python execution-specs stateless input path used by ``run_stateless_guest``.
 ``run_stateless_guest`` on that same blob and requires the fixture's
 ``statelessOutputBytes`` to match; this is useful only when fixtures were
 generated from the same execution-specs checkout.
+``--selection-stats`` writes a JSON record containing the number of matching
+block rows before ``--skip``/``--limit`` and the number emitted.  It is written
+by default below ``--out-dir`` so callers cannot mistake the post-cap manifest
+size for the filter denominator.
 """
 from __future__ import annotations
 
@@ -101,6 +106,38 @@ def stateless_input_block_gas_limit(blob: bytes) -> int:
     if len(blob) < end:
         raise ValueError(f"statelessInputBytes too short for gas limit: {len(blob)}")
     return int.from_bytes(blob[off:end], "little")
+
+
+def write_selection_stats(
+    path: Path,
+    *,
+    filter_text: str,
+    matched: int,
+    skipped: int,
+    emitted: int,
+    limit: int,
+    truncated: bool,
+) -> None:
+    """Write the pre-cap selection denominator and post-cap run size.
+
+    The manifest intentionally contains only emitted rows, so its length cannot
+    tell a caller whether a filter matched more rows than ``--limit``.  Keep
+    this metadata separate from the manifest and replace it atomically: a
+    partially-written summary must never look like a complete selection.
+    """
+    payload = {
+        "schema": "selection-stats-v1",
+        "filter": filter_text,
+        "matched": matched,
+        "skipped": skipped,
+        "run": emitted,
+        "limit": limit,
+        "truncated": truncated,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(json.dumps(payload, sort_keys=True) + "\n")
+    tmp.replace(path)
 
 
 # A uniform draw must SPAN the corpus. This is asserted in the script rather
@@ -226,6 +263,12 @@ def main() -> int:
     ap.add_argument("--fixtures-dir", required=True, type=Path)
     ap.add_argument("--out-dir", required=True, type=Path)
     ap.add_argument("--manifest", type=Path, default=None)
+    ap.add_argument(
+        "--selection-stats",
+        type=Path,
+        default=None,
+        help="write pre-cap match/run counts (default: OUT_DIR/selection-stats.json)",
+    )
     ap.add_argument("--skip", type=int, default=0, help="skip first N selected invocations")
     ap.add_argument("--limit", type=int, default=0, help="cap invocations (0 = no cap)")
     ap.add_argument(
@@ -274,6 +317,11 @@ def main() -> int:
     out_dir: Path = args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = args.manifest or (out_dir / "manifest.tsv")
+    selection_stats_path = args.selection_stats or (out_dir / "selection-stats.json")
+    matched_count = 0
+    skipped_count = 0
+    emitted_count = 0
+    truncated = False
     try:
         decode_spec_input = (
             load_execution_specs_input_decoder()
@@ -387,6 +435,12 @@ def main() -> int:
                         continue
                     candidates.append((label, case_id, ib, ob, gas_limit, relpath))
 
+            matched_count = len(candidates)
+            skipped_count = min(args.skip, matched_count)
+            truncated = bool(
+                args.limit and matched_count > args.skip + args.limit
+            )
+
             if args.limit == 0 and args.skip == 0:
                 # `--all --random` selects every row already; avoid creating a
                 # needless complete permutation merely to change run order.
@@ -411,12 +465,27 @@ def main() -> int:
             for label, case_id, ib, ob, gas_limit, relpath in sampled[args.skip:]:
                 if not write_block(label, case_id, ib, ob, gas_limit, relpath):
                     return 1
-            if args.limit and len(candidates) > args.skip + args.limit:
+            emitted_count = n
+            if truncated:
                 print(
                     f"==> limit {args.limit} reached; sampled blocks uniformly "
                     f"without replacement from {len(candidates)} candidates",
                     file=sys.stderr,
                 )
+            write_selection_stats(
+                selection_stats_path,
+                filter_text=args.filter,
+                matched=matched_count,
+                skipped=skipped_count,
+                emitted=emitted_count,
+                limit=args.limit,
+                truncated=truncated,
+            )
+            print(
+                f"selection: matched={matched_count} skipped={skipped_count} "
+                f"run={emitted_count} limit={args.limit} "
+                f"truncated={'true' if truncated else 'false'}"
+            )
             print(f"wrote {n} input(s) + manifest {manifest_path}")
             return 0
 
@@ -425,22 +494,39 @@ def main() -> int:
             for label, case_id, ib, ob, gas_limit in iter_blocks(fp, relpath):
                 if args.filter and args.filter not in relpath and args.filter not in label:
                     continue
+                matched_count += 1
                 if selected < args.skip:
                     selected += 1
+                    skipped_count += 1
                     continue
                 selected += 1
                 if args.limit and n >= args.limit:
-                    print(
-                        f"==> limit {args.limit} reached; stopping "
-                        f"(more fixtures available -- truncated)",
-                        file=sys.stderr,
-                    )
-                    mf.flush()
-                    print(f"wrote {n} input(s) + manifest {manifest_path}")
-                    return 0
+                    truncated = True
+                    continue
                 if not write_block(label, case_id, ib, ob, gas_limit, relpath):
                     return 1
 
+    emitted_count = n
+    write_selection_stats(
+        selection_stats_path,
+        filter_text=args.filter,
+        matched=matched_count,
+        skipped=skipped_count,
+        emitted=emitted_count,
+        limit=args.limit,
+        truncated=truncated,
+    )
+    if truncated:
+        print(
+            f"==> limit {args.limit} reached; stopping "
+            f"(more fixtures available -- truncated)",
+            file=sys.stderr,
+        )
+    print(
+        f"selection: matched={matched_count} skipped={skipped_count} "
+        f"run={emitted_count} limit={args.limit} "
+        f"truncated={'true' if truncated else 'false'}"
+    )
     print(f"wrote {n} input(s) + manifest {manifest_path}")
     return 0
 

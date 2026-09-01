@@ -92,9 +92,11 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # GH #12204 adds `h_KECCAK256`, the first dispatcher opcode handler with a
 # Program view (+648 covered bytes / +1 linked entry): 132628 / 475 ->
 # 133276 / 476, remeasured with `--write-floor`.
-EXPECTED_COVERED_BYTES_FLOOR = 133276
+# GH #13096 retires the 96-byte linked sender probe, leaving the current
+# floor at 133184 covered bytes / 475 converted entries.
+EXPECTED_COVERED_BYTES_FLOOR = 133184
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 476
+EXPECTED_CONVERTED_COUNT_FLOOR = 475
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that

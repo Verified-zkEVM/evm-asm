@@ -47,11 +47,11 @@ by `.SD .x2 …` saves and ends with matching `.LD`s, `.ADDI .x2 .x2 (N)`,
 
 - the routine is **large** (≳ 40–50 instructions): the `abi_frame` wrapper
   hits elaboration limits around the 84-instruction scale
-  (`ParentHeaderFrame.lean` keeps an explicit `abiFrame_spec` application
+  (the former `ParentHeaderFrame.lean` kept an explicit `abiFrame_spec` application
   for this reason — that form needs fluency);
 - the body has **multiple exits / branch reconvergence** (status codes,
   early-outs) — the unified-disjunctive-post technique
-  (`ParentHeaderFrame.phmwCore_spec`) is not mechanical;
+  (the former `ParentHeaderFrame.phmwCore_spec`) is not mechanical;
 - the loop is **not** a plain countdown over one register decremented by 1
   per iteration (novel shapes need a new loop lemma);
 - any load/store in the body is **misaligned** in the verified model
@@ -399,7 +399,7 @@ makes the proof about the actual guest bytes.
 - **Re-emit drop-in** (tier D): if the emitted code cannot be verified
   as-is (misaligned access, early-exit loop shape, …), the routine is
   re-emitted in verifiable form. That changes guest bytes, and requires
-  the full discipline from PR #9975 (`ParentHeaderFrame.lean`): byte-tie
+  the full discipline from PR #9975 (the former `ParentHeaderFrame.lean`): byte-tie
   to the NEW bytes, `scripts/gen-symbol-addresses.py --build`,
   `scripts/check-region-map.sh`, `scripts/check-asm-to-program.sh`
   (fixture update), and **ziskemu/EEST A/B parity vs the old bytes** —

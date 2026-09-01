@@ -24,7 +24,7 @@
   conjunct (ommers / post-merge); not used here.
 -/
 
-import EvmAsm.Codegen.Programs.ValidateHeaderCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.HeadersKeccak
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 

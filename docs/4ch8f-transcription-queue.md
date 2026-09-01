@@ -68,7 +68,7 @@ exactly what its specification told it to find. Everything in §2 stands on
 evidence that predates it.
 
 **A signal scoring zero is not a broken signal.** The residual scanner reads
-119 `Residual`-named declarations today and 1
+120 `Residual`-named declarations today and 1
 of them name an unconverted routine. When that second figure is 0 it is a
 result, not a bug: every named discharge owner in the tree
 (`witnessLookupResidualNote`, `zkvmSha256ResidualNote`, `hpDecodeResidualNote`,
@@ -82,14 +82,14 @@ says are blocking. Routines whose only signal is call-site popularity are the
 tail (§5), reported as a count and a top-N rather than dressed up as ranked
 work.
 
-## 2. The queue (top 25 of 30)
+## 2. The queue (top 25 of 33)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
 | 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
@@ -202,9 +202,9 @@ How the routine's text reaches the image — the transcribability question that
 | shape | count |
 |---|---:|
 | `handler-spec` | 88 |
-| `label-string` | 231 |
+| `label-string` | 230 |
 | `not-authored` | 101 |
-| `register` | 13 |
+| `register` | 14 |
 
 * `label-string` — an emitted label literal `"<sym>:\n"` (or `"<sym>:"`) exists
   in an `EvmAsm/**` Lean file; the enclosing `def` is recorded in the
@@ -253,7 +253,7 @@ routine as authored-and-ready when what exists is a two-token placeholder.
 
 ## 5. The popularity tail
 
-199 unconverted routines have call sites but are named by no obligation,
+196 unconverted routines have call sites but are named by no obligation,
 residual, issue or gate; 204 have no signal at all. These are **not**
 ranked work: a heavily-called routine that nothing is waiting on is still
 nothing anyone is waiting on. Top 25 by call count, as a watchlist:
@@ -281,10 +281,10 @@ nothing anyone is waiting on. Top 25 by call count, as a watchlist:
 | `mpt_bounded_encode_extension` | 11 | label-string | 276 |
 | `evm_storage_access_charge_key` | 11 | label-string | 460 |
 | `sg_validate_fixed_list` | 10 | register | 36 |
-| `edd_be32_eq` | 10 | register | 92 |
 | `mpt_bounded_node_ref` | 10 | label-string | 176 |
 | `keccak_init` | 9 | label-string | 28 |
 | `bytecode_is_self_contained` | 8 | label-string | 72 |
+| `mpt_bounded_decode_frame_payload` | 8 | label-string | 176 |
 
 ## 6. What this queue CANNOT see
 
@@ -326,18 +326,18 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 909 | 909 |
-| converted **and linked** | 476 | 476 |
+| `.text` symbols | 908 | 908 |
+| converted **and linked** | 475 | 475 |
 | unconverted | 433 | 433 |
 | unconverted bytes | 211868 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 563 conversion rows, of
-which 87 have no entry symbol in the linker-facts table
+`scripts/asm-fixtures/MANIFEST.tsv` has 560 conversion rows, of
+which 85 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 563 as "converted symbols" is the easy error here.
+Quoting 560 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -352,19 +352,19 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 58192 B of 211868 B unconverted
+Named-set cost: 58620 B of 211868 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.
 
-## 8. Full named table (30 rows)
+## 8. Full named table (33 rows)
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
 | 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
-| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 188 | register | 212 |
+| 4 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
 | 5 | `h_BALANCE` | 100 | obl 5 | handler-spec | 680 |
 | 6 | `h_LOG0` | 100 | obl 5 | handler-spec | 756 |
 | 7 | `h_EXTCODESIZE` | 100 | obl 5 | handler-spec | 776 |
@@ -389,5 +389,8 @@ bytes.
 | 26 | `rlp_content_to_u64` | 52 | gate 2; calls 11 | register | 72 |
 | 27 | `rlp_content_to_u256_be` | 43 | #11341; calls 9 | register | 104 |
 | 28 | `destroy_storage` | 31 | #11921; calls 3 | label-string | 400 |
-| 29 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
-| 30 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |
+| 29 | `edd_memcpy` | 21 | gate 1; calls 3 | register | 32 |
+| 30 | `edd_be32_eq` | 21 | gate 1; calls 3 | register | 92 |
+| 31 | `extract_deposit_data` | 21 | gate 1; calls 3 | register | 304 |
+| 32 | `block_state_root` | 17 | gate 1; calls 1 | label-string | 1592 |
+| 33 | `h_SUB` | 15 | gate 1 | handler-spec | 168 |

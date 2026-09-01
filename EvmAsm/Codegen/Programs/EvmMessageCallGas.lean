@@ -16,6 +16,10 @@ meta import EvmAsm.Codegen.Layout
 meta import EvmAsm.Codegen.Emit
 meta import EvmAsm.Rv64.Program
 meta import EvmAsm.Codegen.Programs.CallExtraGas
+public import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.GuestAddrs
 
 @[expose] public section
 
@@ -58,7 +62,7 @@ def messageCallGas_prog : Program :=
     .MV .x28 .x13,
     .MV .x29 .x14,
     .ADD .x30 .x28 .x29,
-    .BLTU .x30 .x28 (80 : BitVec 13),
+    .BLTU .x30 .x28 (brOff 2147483752 2147483672),
     .LI .x31 (0 : Word),
     .BEQ .x5 .x0 (12 : BitVec 13),
     .LUI .x31 (1 : BitVec 20),
@@ -160,6 +164,7 @@ theorem callExtraGasFunction_eq_prog :
     callExtraGasFunction = "call_extra_gas:\n" ++ emitProgram callExtraGas_prog := rfl
 
 #guard callExtraGasFunction.startsWith "call_extra_gas:\n"
+#guard callExtraGas_prog.length = 10
 /-- `zisk_call_extra_gas`: focused probe covering the four (is_cold,
     value_nonzero) cases.
     Output:

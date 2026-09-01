@@ -18,6 +18,8 @@ import EvmAsm.Rv64.SAsm.FnFlat
 import EvmAsm.Rv64.SAsm.FramePort
 import EvmAsm.Rv64.SAsm.Tactic
 
+set_option maxRecDepth 8000
+
 namespace EvmAsm.Codegen
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Rv64.SAsm.Stmt
@@ -222,15 +224,56 @@ def u256DivU64BeFn (srcPtr outPtr b : Word)
   post := u256DivU64BePost srcPtr outPtr b srcBytes orig
   body := u256DivU64BeBody srcPtr outPtr b srcBytes orig
 
+/-- A layout parameter changes the absolute anchors, but not the relative
+    branch/jump displacements used by this routine. -/
+private theorem u256DivU64Be_prog_of_layout_independent (L : GuestLayout) :
+    u256DivU64Be_prog_of L = u256DivU64Be_prog_of (.zero) := by
+  have h₁ : brOff (L.u256_div_u64_be + 116) (L.u256_div_u64_be + 12) =
+      (104 : BitVec 13) := by
+    unfold brOff
+    rw [Nat.cast_add, Nat.cast_add]
+    norm_num
+    decide
+  have h₂ : brOff (L.u256_div_u64_be + 100) (L.u256_div_u64_be + 32) =
+      (68 : BitVec 13) := by
+    unfold brOff
+    rw [Nat.cast_add, Nat.cast_add]
+    norm_num
+    decide
+  have h₃ : jalOff (L.u256_div_u64_be + 32) (L.u256_div_u64_be + 96) =
+      (-64 : BitVec 21) := by
+    unfold jalOff
+    rw [Nat.cast_add, Nat.cast_add]
+    norm_num
+    decide
+  have h₄ : jalOff (L.u256_div_u64_be + 8) (L.u256_div_u64_be + 112) =
+      (-104 : BitVec 21) := by
+    unfold jalOff
+    rw [Nat.cast_add, Nat.cast_add]
+    norm_num
+    decide
+  unfold u256DivU64Be_prog_of
+  rw [h₁, h₂, h₃, h₄]
+  simp [GuestLayout.zero, brOff, jalOff]
+
 /-- Layout-independence interlock: the body flattens to `u256DivU64Be_prog_of
     L` for an ARBITRARY layout `L`, so the body cannot reference the layout.
-    (`rfl` closes it; a future layout reference would make it fail.) -/
+    The preceding displacement lemma supplies the arithmetic cancellation. -/
 theorem u256DivU64BeBody_flatten (L : GuestLayout) :
     (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++ [Instr.JALR .x0 .x1 (0 : BitVec 12)]
       = u256DivU64Be_prog_of L := by
-  change (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++
-      [Instr.JALR .x0 .x1 (0 : BitVec 12)] = u256DivU64Be_prog_of (.zero)
+  rw [u256DivU64Be_prog_of_layout_independent]
   decide
+
+private theorem u256DivU64BeFn_programRet_eq
+    (srcPtr outPtr b : Word) (srcBytes orig : List (BitVec 8)) :
+    (u256DivU64BeFn srcPtr outPtr b srcBytes orig).programRet
+        (GuestAddrs.u256_div_u64_be : Word) = u256DivU64Be_prog := by
+  change (u256DivU64BeBody 0 0 1 [] []).flatten 0 ++
+      [Instr.JALR .x0 .x1 (0 : BitVec 12)] =
+        u256DivU64Be_prog_of guestLayout
+  rw [u256DivU64BeBody_flatten guestLayout,
+    u256DivU64Be_prog_of_layout_independent]
 
 #guard (u256DivU64BeBody 0 0 1 [] []).flatten 0 =
   (u256DivU64BeBody 0 0 1 [] []).flatten 0x80000000
@@ -1202,8 +1245,7 @@ theorem u256DivU64BeFlat_spec (ret srcPtr outPtr b : Word)
       exact fun h hx => by
         refine sepConj_mono_right (sepConj_mono_right (sepConj_mono_right ?_)) h hx
         exact regAtomsOf_to_regOwns (fun r => rf' r) u256DivU64BeScratch)
-  rw [show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).programRet
-      (GuestAddrs.u256_div_u64_be : Word) = u256DivU64Be_prog from rfl] at had
+  rw [u256DivU64BeFn_programRet_eq srcPtr outPtr b srcBytes orig] at had
   rw [show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).region =
       Region.empty from rfl,
     show (u256DivU64BeFn srcPtr outPtr b srcBytes orig).rw.base = outPtr

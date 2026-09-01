@@ -35,10 +35,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout (main, for cycles-history + scripts)
+      - name: Checkout (main, for scripts)
         uses: actions/checkout@v4
 
-      - name: Gather benchmark-history + cycles-history into an export bundle
+      - name: Gather benchmark-history + cycles-history status into an export bundle
         id: gather
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -59,12 +59,31 @@ jobs:
             echo "(no benchmark-history branch yet)"
           fi
 
-          # 2. cycles-history.jsonl (ziskemu cycle datapoints; may be sparse
-          #    until the ziskemu live-parse is wired — R-F1/D8).
-          if [ -f cycles-history.jsonl ]; then
-            cp cycles-history.jsonl export-bundle/cycles-history.jsonl
+          # 2. cycles-history orphan branch (Spike consumed-step datapoints).
+          # The producer writes the checkout-local file while a run is active,
+          # but that path is gitignored. The orphan branch is the durable
+          # source, so a clean main checkout cannot accidentally export an
+          # empty file and call it history.
+          cycles_history_status="missing"
+          cycles_history_reason="cycles-history orphan branch is unavailable"
+          cycles_history_contents='["benchmark-history.jsonl"]'
+          if git ls-remote --exit-code --heads origin cycles-history >/dev/null 2>&1; then
+            git fetch --depth=1 origin cycles-history
+            if git show FETCH_HEAD:cycles-history.jsonl > export-bundle/cycles-history.jsonl 2>/dev/null; then
+              cycles_history_status="present"
+              cycles_history_reason="cycles-history.jsonl fetched from the cycles-history orphan branch"
+              cycles_history_contents='["benchmark-history.jsonl", "cycles-history.jsonl"]'
+            else
+              cycles_history_reason="cycles-history branch exists but has no cycles-history.jsonl"
+            fi
           else
-            : > export-bundle/cycles-history.jsonl
+            echo "(no cycles-history branch yet)"
+          fi
+
+          # Keep the status explicit; do not create a zero-byte cycles file
+          # when the branch or its data file is missing.
+          if [ "$cycles_history_status" != "present" ]; then
+            rm -f export-bundle/cycles-history.jsonl
           fi
 
           # 3. a manifest describing the bundle + the performance!=conformance caveat
@@ -73,7 +92,8 @@ jobs:
             echo "  \"generated\": \"${ts}\","
             echo "  \"source_repo\": \"${GITHUB_REPOSITORY}\","
             echo "  \"source_commit\": \"${GITHUB_SHA}\","
-            echo "  \"contents\": [\"benchmark-history.jsonl\", \"cycles-history.jsonl\"],"
+            echo "  \"contents\": ${cycles_history_contents},"
+            echo "  \"cycles_history\": {\"status\": \"${cycles_history_status}\", \"reason\": \"${cycles_history_reason}\"},"
             echo "  \"note\": \"Performance/cost trend only. NOT a conformance or verification signal (R-F3).\""
             echo "}"
           } > export-bundle/manifest.json

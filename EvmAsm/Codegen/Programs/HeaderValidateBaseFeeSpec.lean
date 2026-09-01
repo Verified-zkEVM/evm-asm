@@ -7,11 +7,13 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecCore
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeSpec
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.HeaderBaseFeeSpec
+open EvmAsm.Codegen.HeaderValidateBaseFeeCompositionIncreaseRoute
 
 /-! The shared epilogue is kept separate so the two status paths can use it
     with their different link values (`H+40` and `H+60`). -/
@@ -224,13 +226,29 @@ theorem cpsBranchWithin_merge_two_bounds_same_cr
 
 The K73 callee triple remains the wrapper's production seam.  The equality
 call is discharged locally from the verified `u256EqBody` adapter; its code
-subsumption and concrete 32-byte region premises are explicit static inputs. -/
+subsumption and concrete 32-byte region premises are explicit static inputs.
+
+The `hk73` ambient is the increase route's REAL caller-owned seam, stated
+asymmetrically: the pre-ambient is `k73_incr_env` (the mul frame slots, the
+accumulator window, the callee-saved registers), the post-ambient is
+`k73_incr_outj` (the route's saved call values, the product image, the
+restored registers).  This is a CORRECTION, not a restriction: the multiply
+frame and accumulator are caller-owned resources at this seam
+(`HeaderBaseFeeWholeSpec.lean`, docstring above `k73_increase_mul_spec_within`),
+no stage of the wrapper or the route establishes them, and separation logic
+cannot drop owned atoms from the route's post — the previous
+`k74FlatFrame` spelling quietly assumed a callee that cleans up its junk,
+which understates what the machine provides.  The pre/post asymmetry mirrors
+the callee contract's own arity (`k73IncreaseMulCalleePre` pins `f0..f5`;
+`k73IncreaseMulCalleePost` does not — pinned pre values are what the caller
+supplies, absence from the post is licence to clobber). -/
 
 theorem header_validate_base_fee_spec_within
     {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 old18 v19 v20 : Word)
-    (parentBytes expectedBytes headerBytes : List (BitVec 8)) (G : Assertion)
+    (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (parentBytes expectedBytes headerBytes accBytes : List (BitVec 8))
+    (G : Assertion)
     (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
@@ -246,21 +264,28 @@ theorem header_validate_base_fee_spec_within
     (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
       ((.x1 ↦ᵣ (H + 40)) **
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8 (k74FlatFrame G))
+          parentBytes expectedBytes headerBytes raIn old8
+          (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
       ((.x1 ↦ᵣ (H + 40)) **
         k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
-          gasUsed gasLimit parentPtr parentBytes headerBytes (k74FlatFrame G)))
+          gasUsed gasLimit parentPtr parentBytes headerBytes
+          (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G)))
     (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
     cpsTripleWithin
       (27 + n73 +
         (U256EqSAsm.u256EqBody headerPtr Expected headerBytes
           (hvbfWrittenImage gasLimit gasUsed parentBytes)).steps) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-        v9 old18 v19 v20 parentBytes expectedBytes headerBytes (k74FlatFrame G))
+        v9 old18 v19 v20 parentBytes expectedBytes headerBytes
+        (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
       (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
         gasLimit gasUsed parentPtr
-        parentBytes headerBytes (k74FlatFrame G)) := by
-  let F : Assertion := k74FlatFrame G
+        parentBytes headerBytes
+        (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G))
+      := by
+  let Fenv : Assertion := k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G
+  let F : Assertion :=
+    k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G
   let W : List (BitVec 8) := hvbfWrittenImage gasLimit gasUsed parentBytes
   let nEq : Nat :=
     (U256EqSAsm.u256EqBody headerPtr Expected headerBytes W).steps
@@ -273,18 +298,18 @@ theorem header_validate_base_fee_spec_within
   have hk73' := header_validate_base_fee_k73_call_gen_spec_within
     (cr := cr) (calleeCode := k73Code) (n := n73)
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-    v9 old18 v19 v20 parentBytes expectedBytes headerBytes F hspH hspK
-    (by dsimp [F, k74FlatFrame]; pcf; exact hF) hcode
+    v9 old18 v19 v20 parentBytes expectedBytes headerBytes Fenv hspH hspK
+    (by dsimp [Fenv, k73_incr_env]; pcf; exact hF) hcode
     (k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
       gasUsed gasLimit parentPtr parentBytes headerBytes F)
     hk73Mono hk73
   have hcall : cpsTripleWithin (10 + n73) H (H + 40) cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
-        v9 old18 v19 v20 parentBytes expectedBytes headerBytes F)
+        v9 old18 v19 v20 parentBytes expectedBytes headerBytes Fenv)
       ((.x1 ↦ᵣ (H + 40)) **
         k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
           gasUsed gasLimit parentPtr parentBytes headerBytes F) := by
-    simpa only [F] using hk73'
+    simpa only [Fenv, F] using hk73'
 
   have hmem10 : ∀ a i,
       CodeReq.singleton (H + 40) (.BNE .x10 .x0 (40 : BitVec 13)) a = some i →
@@ -376,7 +401,7 @@ theorem header_validate_base_fee_spec_within
   have h20Full := hvbfEpilogueScratchOwn (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
+    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
   have hFailPin : cpsTripleWithin 5 (H + 80) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -441,7 +466,7 @@ theorem header_validate_base_fee_spec_within
     have h20FullScratch := hvbfEpilogueScratchOwn (cr := cr)
       sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
       spK v9 old18 v18 v19 v20 parentPtr parentBytes scratchBytes headerBytes F
-      hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
+      hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       unfold hvbfEpiPreScratch at hp
       xperm_hyp hp) h20Scratch h20FullScratch
@@ -619,8 +644,13 @@ theorem header_validate_base_fee_spec_within
       (by rw [hvbf_length]; decide) rfl (by rw [hvbf_length]; decide) a i hi
   have heq0 := header_validate_base_fee_eq_call_spec_within (cr := cr)
     spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
-    parentBytes W headerBytes G hG hHeaderWf hwfW
+    parentBytes W headerBytes
+    (k73_incr_outj_tail spK parentPtr gasUsed (gasLimit >>> 1) parentBytes
+      accBytes G)
+    (by dsimp [k73_incr_outj_tail]; pcf; exact hG) hHeaderWf hwfW
     hHeaderLen hlenW hDisj heqMono
+  rw [← k73_incr_outj_out_eq spK parentPtr gasUsed (gasLimit >>> 1)
+    parentBytes accBytes G] at heq0
   have heqFramedRaw := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) (by
       simpa [F, nEq] using heq0)
@@ -813,7 +843,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi1 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (1 : Word) Expected gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
+    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
   have hThenPin : cpsTripleWithin 6 (H + 72) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -886,7 +916,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi0 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (0 : Word) Expected gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k74FlatFrame]; pcf; exact hF)
+    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
   have hElsePin : cpsTripleWithin 6 (H + 64) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -997,5 +1027,125 @@ theorem header_validate_base_fee_spec_within
   have hAll := cpsTripleWithin_seq_same_cr hcall hMergeRB
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
   simpa only [F, W, k74FlatFrame, hs] using hAll
+
+/-! The K74 wrapper combines the base-fee producer, the K73 callee family,
+    and the equality callee.  The latter two code requirements are linked at
+    disjoint image ranges.  Keep these facts public: the closed witness in
+    `HeaderValidateBaseFeeSpecRefWitness` supplies them to the wrapper rather
+    than reproving the address arithmetic at each use site. -/
+
+private theorem k74_unionAll_some_mem {crs : List CodeReq} {a : Word} {i : Instr}
+    (h : CodeReq.unionAll crs a = some i) :
+    ∃ cr ∈ crs, cr a = some i := by
+  induction crs with
+  | nil => simp [CodeReq.unionAll, CodeReq.empty] at h
+  | cons cr rest ih =>
+    simp only [CodeReq.unionAll_cons, CodeReq.union] at h
+    cases hc : cr a with
+    | some j => exact ⟨cr, by simp, by simpa [hc] using h⟩
+    | none =>
+      have h' : CodeReq.unionAll rest a = some i := by simpa [hc] using h
+      obtain ⟨cr', hmem, hcr'⟩ := ih h'
+      exact ⟨cr', by simp [hmem], hcr'⟩
+
+private theorem k74_hvbf_disjoint_ofProg (base : Word) (prog : List Instr)
+    (hboundHvbf : H.toNat + 4 * hvbfProg.length ≤ 2 ^ 64)
+    (hboundOther : base.toNat + 4 * prog.length ≤ 2 ^ 64)
+    (hsep : H.toNat + 4 * hvbfProg.length ≤ base.toNat ∨
+      base.toNat + 4 * prog.length ≤ H.toNat) :
+    hvbfCode.Disjoint (CodeReq.ofProg base prog) := by
+  unfold hvbfCode hvbfProg
+  apply CodeReq.Disjoint.ofProg_ranges
+  · exact hboundHvbf
+  · exact hboundOther
+  · exact hsep
+
+private theorem k74_u256eq_disjoint_ofProg (base : Word) (prog : List Instr)
+    (hboundOther : base.toNat + 4 * prog.length ≤ 2 ^ 64)
+    (hboundEq : EqK.toNat + 4 * EvmAsm.Codegen.u256Eq_prog.length ≤ 2 ^ 64)
+    (hsep : base.toNat + 4 * prog.length ≤ EqK.toNat ∨
+      EqK.toNat + 4 * EvmAsm.Codegen.u256Eq_prog.length ≤ base.toNat) :
+    (CodeReq.ofProg base prog).Disjoint u256EqCode := by
+  unfold u256EqCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · exact hboundOther
+  · exact hboundEq
+  · exact hsep
+
+theorem k74_hvbf_whole_disjoint {a : Word} {i j : Instr}
+    (hhvbf : hvbfCode a = some i) (hwhole : wholeCode a = some j) : False := by
+  have h_k73 : hvbfCode.Disjoint k73Code := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_mul : hvbfCode.Disjoint mulCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_div : hvbfCode.Disjoint divCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_zero : hvbfCode.Disjoint isZeroCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_from : hvbfCode.Disjoint fromU64Code := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_add : hvbfCode.Disjoint addCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have h_sub : hvbfCode.Disjoint subCode := by
+    apply k74_hvbf_disjoint_ofProg <;> decide
+  have hmem : ∃ cr ∈ [k73Code, mulCode, divCode, isZeroCode, fromU64Code,
+      addCode, subCode], cr a = some j := by
+    exact k74_unionAll_some_mem (crs := [k73Code, mulCode, divCode, isZeroCode,
+      fromU64Code, addCode, subCode]) (by simpa [wholeCode] using hwhole)
+  rcases hmem with ⟨cr, hcr, hhit⟩
+  simp at hcr
+  have no_conflict {cr' : CodeReq} (hd : hvbfCode.Disjoint cr')
+      (hhit' : cr' a = some j) : False := by
+    rcases hd a with hnone | hnone
+    · rw [hhvbf] at hnone
+      simp at hnone
+    · rw [hhit'] at hnone
+      simp at hnone
+  rcases hcr with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact no_conflict h_k73 hhit
+  · exact no_conflict h_mul hhit
+  · exact no_conflict h_div hhit
+  · exact no_conflict h_zero hhit
+  · exact no_conflict h_from hhit
+  · exact no_conflict h_add hhit
+  · exact no_conflict h_sub hhit
+
+theorem k74_whole_u256eq_disjoint {a : Word} {i j : Instr}
+    (hwhole : wholeCode a = some i) (heq : u256EqCode a = some j) : False := by
+  have h_k73 : k73Code.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_mul : mulCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_div : divCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_zero : isZeroCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_from : fromU64Code.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_add : addCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have h_sub : subCode.Disjoint u256EqCode := by
+    apply k74_u256eq_disjoint_ofProg <;> decide
+  have hmem : ∃ cr ∈ [k73Code, mulCode, divCode, isZeroCode, fromU64Code,
+      addCode, subCode], cr a = some i := by
+    exact k74_unionAll_some_mem (crs := [k73Code, mulCode, divCode, isZeroCode,
+      fromU64Code, addCode, subCode]) (by simpa [wholeCode] using hwhole)
+  rcases hmem with ⟨cr, hcr, hhit⟩
+  simp at hcr
+  have no_conflict {cr' : CodeReq} (hd : cr'.Disjoint u256EqCode)
+      (hhit' : cr' a = some i) : False := by
+    rcases hd a with hnone | hnone
+    · rw [hhit'] at hnone
+      simp at hnone
+    · rw [heq] at hnone
+      simp at hnone
+  rcases hcr with rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact no_conflict h_k73 hhit
+  · exact no_conflict h_mul hhit
+  · exact no_conflict h_div hhit
+  · exact no_conflict h_zero hhit
+  · exact no_conflict h_from hhit
+  · exact no_conflict h_add hhit
+  · exact no_conflict h_sub hhit
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeSpec
