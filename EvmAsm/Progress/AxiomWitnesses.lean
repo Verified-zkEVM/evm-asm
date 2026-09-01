@@ -638,6 +638,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
