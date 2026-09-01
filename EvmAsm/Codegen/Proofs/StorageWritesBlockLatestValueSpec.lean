@@ -373,8 +373,12 @@ theorem storageWritesBlockLatestValueCapacityRefusalFlat_spec
     `a4 = 0` capacity, callee-saves `9`/`10`/`11`, `a0 = 20` on entry.  The
     post is fully concrete: `a0` reads back `2` (the refusal status, NOT its
     entry value `20`), `s0`/`s1`/`s2` are back at `9`/`10`/`11`, `sp` is back
-    at `0x30000000`, and the four frame slots hold `ra`, `9`, `10`, `11`. -/
-example (ra : Word) :
+    at `0x30000000`, and the four frame slots hold `ra`, `9`, `10`, `11`.
+
+    ⭐ NAMED rather than an anonymous `example`, and registered as its own
+    witness abbrev in `Progress/Routines.lean`, so this control is INSIDE the
+    axiom gate (#12857) rather than mentioned only in the row's prose. -/
+theorem swblvCapacityRefusal_numeric_instance (ra : Word) :
     cpsTripleWithin 14 (GuestAddrs.storage_writes_block_latest_value : Word)
       (ra &&& ~~~(1 : Word))
       (CodeReq.ofProg (GuestAddrs.storage_writes_block_latest_value : Word)
@@ -416,8 +420,11 @@ example (ra : Word) :
     3. The three status arms live at three DISTINCT addresses
        (`+ 288` for `a0 = 0`, `+ 296` for `a0 = 2` — this one — and the
        in-scan `a0 = 1` at `+ 280`), so "the refusal arm" is a real selection
-       among arms and not the routine's only exit. -/
-example :
+       among arms and not the routine's only exit.
+
+    ⭐ NAMED and registered as a witness abbrev, so the control is inside the
+    axiom gate (#12857). -/
+theorem swblvCapacityRefusal_gate_reachable :
     BitVec.ult (0 : Word) (1 : Word)
     ∧ ¬ BitVec.ult (16384 : Word) (0 : Word)
     ∧ ¬ BitVec.ult (16384 : Word) (16384 : Word)
@@ -435,8 +442,11 @@ example :
     vacuously true.  The routine's `Program` length is also pinned here
     (`82 * 4 = 328`), the `prog.length * 4 == hi − lo` cross-check that keeps
     the `CodeReq.ofProg` extent honest against
-    `scripts/asm-fixtures/symbol-addresses.tsv`. -/
-example :
+    `scripts/asm-fixtures/symbol-addresses.tsv`.
+
+    ⭐ NAMED and registered as a witness abbrev, so the control is inside the
+    axiom gate (#12857). -/
+theorem swblvCapacityRefusal_precondition_satisfiable :
     isValidDwordAccess (0x2fffffe0 : Word) = true ∧
     isValidDwordAccess (0x2fffffe8 : Word) = true ∧
     isValidDwordAccess (0x2ffffff0 : Word) = true ∧
@@ -449,5 +459,8 @@ example :
 /-! ## Axiom audit — classical-only. -/
 
 #print axioms storageWritesBlockLatestValueCapacityRefusalFlat_spec
+#print axioms swblvCapacityRefusal_numeric_instance
+#print axioms swblvCapacityRefusal_gate_reachable
+#print axioms swblvCapacityRefusal_precondition_satisfiable
 
 end EvmAsm.Codegen.Proofs
