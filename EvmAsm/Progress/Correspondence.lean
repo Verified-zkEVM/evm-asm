@@ -1212,7 +1212,12 @@ other end of the range — 11 fields, prefix 3, a MANDATORY `to : Address` rathe
 `Option`, a nested blob-hash list, and a 68-byte payload so the outer header is LONG \
 (`f8 47`, `hdrLen = 2`) where the 2930 witness is short. Two controls rather than one \
 because four arms are proved and a single witness leaves open whether the other three \
-are vacuous instances of it. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
+are vacuous instances of it. ⚠️ To be exact: TWO of the four arms are witnessed, not \
+four. `_1559` and `_7702` are not separately witnessed — they are the INTERMEDIATE \
+arms, at arity 9 and 10 between the witnessed 8 and 11, and each shares its `to` \
+representation with one of the two that are (`_1559` the `Option` with `_2930`, `_7702` \
+the mandatory `Address` with `_4844`). So the pair brackets them rather than covering \
+them, and a reader should not take four proved arms for four inhabited ones. CONTROLS: `tsh_specRef_target_false_on_wrong_prefix` (same field \
 count, prefix 2 ⇒ `none`) and `tsh_specRef_target_false_on_wrong_arity` (same prefix, \
 9 fields ⇒ `none`) show the selector is load-bearing in both coordinates; \
 `tsh_specRef_pre155_arm_unreachable` is the third and is the exclusion in (i). \
