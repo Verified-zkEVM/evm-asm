@@ -5623,14 +5623,18 @@ private noncomputable abbrev _tx_signing_hash_hdrgate_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 private noncomputable abbrev _tx_signing_hash_longarm_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
--- #12038: the SpecRef leg. The correspondence theorem itself, its closed
--- positive control (the residual bundle is satisfiable), and the three
--- negative controls that make the selector a real restriction rather than a
--- formality — including the exclusion that keeps `signing_hash_pre155` out.
+-- #12038: the SpecRef leg. The correspondence theorem itself, TWO closed
+-- positive controls (the residual bundle is satisfiable at both ends of the
+-- range — `_2930` short-header/8-field and `_4844` long-header/11-field, so
+-- the four proved arms are not vacuous instances of one another), and the
+-- three negative controls that make the selector a real restriction rather
+-- than a formality — including the exclusion keeping `signing_hash_pre155` out.
 private noncomputable abbrev _tx_signing_hash_specref_correspondence_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_specRef_correspondence
 private noncomputable abbrev _tx_signing_hash_specref_nonvacuous_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+private noncomputable abbrev _tx_signing_hash_specref_nonvacuous_4844_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous_4844
 private noncomputable abbrev _tx_signing_hash_specref_prefix_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_prefix
 private noncomputable abbrev _tx_signing_hash_specref_arity_control_witness :=
