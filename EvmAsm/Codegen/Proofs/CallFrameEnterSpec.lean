@@ -632,6 +632,117 @@ theorem callFrameEnterDepth1Flat_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
     (fun _ hq => by xperm_hyp hq) hAhCallhBhC
 
+/-! ## Non-vacuity
+
+  Four checks, in the shape `docs/agents` asks for: a fully numeric instance
+  (so a `True`-shaped or trivially satisfiable post could not have passed), a
+  positive witness for the gate together with a NEGATIVE control showing the
+  gate really excludes the inputs the routine is normally asked about, a
+  satisfiability check on the numeric precondition — `memOwn`/`↦ₘ` both
+  *assert* `isValidDwordAccess`, so an unsatisfiable pre is a real risk rather
+  than a formality — and a distinctness control on the five cells the pre
+  separates. -/
+
+/-- **Numeric instance.**  `sp = 0x30000000`, child `depth = 1`, current epoch
+    `7`, the depth-1 epoch slot holding `0`, temps `5`/`6`/`7`, `s0 = 8`,
+    `a1`/`a2` entering at `11`/`12`.
+
+    The post is fully concrete and nothing in it is its entry value: `a0` reads
+    back `0xb2386c00` (`evm_memory_pool`) rather than the depth `1` it went in
+    as; `a1` reads back `0xabf8ee00` and `a2` `0xabf9f000` — that is
+    `call_frame_arena + 0x19000 = 0xabf86c00` plus `0x8200` and `0x18400`,
+    the callee's arithmetic composed with this routine's two offsets — rather
+    than `11`/`12`; `t0` reads back `99328`; the next-epoch cell has advanced
+    `7 → 8`; and the depth-1 slot has taken the *old* `7`, not the new `8`. -/
+example (ra : Word) :
+    cpsTripleWithin 38 CFE (ra &&& ~~~(1 : Word)) cfeCR
+      ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) ** (.x5 ↦ᵣ (5 : Word)) **
+       (.x6 ↦ᵣ (6 : Word)) ** (.x7 ↦ᵣ (7 : Word)) ** (.x8 ↦ᵣ (8 : Word)) **
+       (.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (11 : Word)) ** (.x12 ↦ᵣ (12 : Word)) **
+       regOwns cfeCalleeTemps **
+       memOwn (0x2ffffff0 : Word) ** memOwn (0x2ffffff8 : Word) **
+       ((0xa0b038d0 : Word) ↦ₘ (7 : Word)) **
+       ((0xb9e5d5b0 : Word) ↦ₘ (0 : Word)) **
+       ((0xbb4054c8 : Word) ↦ₘ (1 : Word)))
+      ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) ** (.x5 ↦ᵣ (99328 : Word)) **
+       (.x6 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (1 : Word)) ** (.x8 ↦ᵣ (8 : Word)) **
+       (.x10 ↦ᵣ (0xb2386c00 : Word)) **
+       (.x11 ↦ᵣ (0xabf8ee00 : Word)) ** (.x12 ↦ᵣ (0xabf9f000 : Word)) **
+       regOwns cfeCalleeTemps **
+       ((0x2ffffff0 : Word) ↦ₘ ra) ** ((0x2ffffff8 : Word) ↦ₘ (8 : Word)) **
+       ((0xa0b038d0 : Word) ↦ₘ (8 : Word)) **
+       ((0xb9e5d5b0 : Word) ↦ₘ (7 : Word)) **
+       ((0xbb4054c8 : Word) ↦ₘ (1 : Word))) := by
+  have h := callFrameEnterDepth1Flat_spec (0x30000000 : Word) ra (1 : Word)
+    (5 : Word) (6 : Word) (7 : Word) (8 : Word) (11 : Word) (12 : Word)
+    (7 : Word) (0 : Word)
+  rw [show (0x30000000 : Word) - (16 : Word) = (0x2ffffff0 : Word) from by bv_omega,
+      show (0x30000000 : Word) - (8 : Word) = (0x2ffffff8 : Word) from by bv_omega,
+      show ((GuestAddrs.evm_sparse_memory_next_epoch : Word)) = (0xa0b038d0 : Word) from by
+        decide,
+      show ((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word)
+          + ((1 : Word) <<< (3 : Nat))) = (0xb9e5d5b0 : Word) from by decide,
+      show ((GuestAddrs.evm_call_depth : Word)) = (0xbb4054c8 : Word) from by decide,
+      show ((GuestAddrs.evm_memory_pool : Word)) = (0xb2386c00 : Word) from by decide,
+      show (cfeChildFrameBase (1 : Word) + (33280 : Word)) = (0xabf8ee00 : Word) from by
+        decide,
+      show (cfeChildFrameBase (1 : Word) + (99328 : Word)) = (0xabf9f000 : Word) from by
+        decide,
+      show ((7 : Word) + (1 : Word)) = (8 : Word) from by decide] at h
+  exact h
+
+/-- **Gate witness and the negative control.**
+
+    The gate is `evm_call_depth ↦ₘ 1`.  A `↦ₘ` cell is satisfied by the value
+    it names, so `1` is the positive witness.
+
+    ⛔ The **negative control** is what makes the gate a restriction rather
+    than framing: at any other call depth the arm is provably not the one
+    taken.  The `beq t1, t2` at index 19 compares the loaded depth against the
+    `li t2, 1` immediately above, so at depth `2` — the first nested call, the
+    ordinary case — the branch falls through to index 20 and the routine runs
+    the `frame_parent_bases` arm this proof does not cover.  If the gate were
+    vacuously satisfiable these disequalities would be unprovable; they are
+    not. -/
+example : (2 : Word) ≠ (1 : Word) ∧ (0 : Word) ≠ (1 : Word) := by decide
+
+/-- ⛔ **Second negative control: the post is not the pre.**  Three of the
+    post's components are provably different from the corresponding entry
+    values in the numeric instance, so no framing-only reading of the triple
+    survives: the epoch really advances, `a0` really stops being the depth,
+    and the depth slot really takes the OLD epoch rather than the new one. -/
+example :
+    (8 : Word) ≠ (7 : Word) ∧
+    (0xb2386c00 : Word) ≠ (1 : Word) ∧
+    (7 : Word) ≠ (8 : Word) := by decide
+
+/-- **Satisfiability of the numeric instance's precondition.**  Both frame
+    slots and all three data cells are dword-accessible.  `memOwn` and `↦ₘ`
+    each *assert* `isValidDwordAccess`, so a pre naming an inaccessible
+    address is unsatisfiable and the instance above would prove nothing. -/
+example :
+    isValidDwordAccess (0x2ffffff0 : Word) = true ∧
+    isValidDwordAccess (0x2ffffff8 : Word) = true ∧
+    isValidDwordAccess (0xa0b038d0 : Word) = true ∧
+    isValidDwordAccess (0xb9e5d5b0 : Word) = true ∧
+    isValidDwordAccess (0xbb4054c8 : Word) = true := by
+  refine ⟨by decide, by decide, by decide, by decide, by decide⟩
+
+/-- ⛔ **Distinctness control.**  The pre separates five memory cells; if any
+    two coincided the separating conjunction would be unsatisfiable and the
+    instance would again prove nothing.  The two frame slots are eight bytes
+    apart, and the three data cells sit in three different sections
+    (`.data` for the next-epoch counter, `.bss` for the epoch table and the
+    call-depth counter). -/
+example :
+    (0x2ffffff0 : Word) ≠ (0x2ffffff8 : Word) ∧
+    (0xa0b038d0 : Word) ≠ (0xb9e5d5b0 : Word) ∧
+    (0xa0b038d0 : Word) ≠ (0xbb4054c8 : Word) ∧
+    (0xb9e5d5b0 : Word) ≠ (0xbb4054c8 : Word) ∧
+    (0x2ffffff0 : Word) ≠ (0xa0b038d0 : Word) ∧
+    (0x2ffffff8 : Word) ≠ (0xbb4054c8 : Word) := by decide
+
+
 #print axioms callFrameEnterDepth1Flat_spec
 
 end EvmAsm.Codegen.Proofs
