@@ -184,7 +184,13 @@ text by `dispatchLoopLabeledFunction_eq_prog` (`rfl`) composed with \
 `emitRuntimeDispatcherLoop_split`, so the loop is no longer a raw String. The \
 per-opcode gas debit is likewise now visible in that Program — the \
 `opcode_gas_costs` load, the `env+568` compare, the `sub`/`sd`, and the \
-`.exit_outofgas` branch (table modelled at `Proofs/OpcodeTables.lean`). What \
+out-of-gas exit branch (table modelled at `Proofs/OpcodeTables.lean`). ⚠️ The \
+exit label is deliberately NOT spelled in this cell: \
+`scripts/transcription_queue.py` reads every guest symbol named in a \
+`blockedBy` as DEMANDED work at +100 per obligation, so spelling it here would \
+rank a 500-byte exit path nobody is blocked on near the top of the \
+transcription queue. Name symbols here only when they ARE the remaining work. \
+What \
 remains is NOT transcription: `dispatchLoop_prog` has no `GuestImageEntries` \
 pairing, so there is no `CodeReq.ofProg` at its linked entry to hang a triple \
 on, and the dispatch-step lemma still wants that plus the handler-side seam. \
