@@ -330,6 +330,53 @@ let-bindings. If both fail, fall through to **Pure-Nat Sub-Lemmas** (next
 section) — extracting a focused helper sidesteps the let-binding issue
 entirely by passing concrete `Nat` values across the call boundary.
 
+## `bv_omega` and Relocation Hypotheses: the Shared-RHS Blowup
+
+`bv_omega` expands to `simp only [bitvec_to_nat] at * <;> omega`, so the `at *`
+drags **every** local hypothesis into `omega`'s constraint set — including the
+`laHi`/`laLo`/`brOff` relocation hypotheses that a machine-triple body proof
+carries. Those unfold to `BitVec.ofInt`/`setWidth`/`<<<`/`signExtend` chains,
+which `omega` has to model bit-exactly.
+
+**Carrying reloc hypotheses is not, by itself, expensive.** Measured across the
+write-map family (2026-09-01, issue #13202): eight spec files call `bv_omega`
+inline under reloc hypotheses — six of their body specs hold two or three `la`
+hypotheses at once, and one file makes 52 such calls — and every file
+elaborates in 2–9 s, of which `bv_omega` accounts for under 2 s. What costs in
+those files is `runBlock` interpretation, not `omega`. Do not strip relocs from
+a context on suspicion alone.
+
+**What is expensive is two reloc hypotheses equated to the _same_ variable:**
+
+```lean
+(hla0 : base + (32 : Word)  + ⋯ laHi sym (entry + 32)  ⋯ = p)
+(hla1 : base + (276 : Word) + ⋯ laHi sym (entry + 276) ⋯ = p)   -- same `p`
+```
+
+`omega` must now reconcile the two relocation blobs *with each other*, rather
+than using each one to define a fresh variable, and it does not come back. An
+MWE with exactly this shape and the trivial goal `(sp − 64) + 8 = sp − 56`
+spends **162 s** inside `omega`; the same pair bound to distinct variables
+`p`, `q` costs milliseconds, as does either hypothesis alone. In
+`writeSetsRestoreFrame_empty_body_spec` a single inline `bv_omega` under such
+a pair cost **132 s** and blew the default budget; `clear`ing *either one* of
+the two hypotheses brought the whole file back to 3.1 s.
+
+**Rule.** Two `la` round-trips to the same symbol are normal — a routine that
+re-materialises a pointer after a branch has exactly two — and binding both to
+one pointer variable is the natural statement. When you do, keep `bv_omega`
+away from them: either
+
+* hoist the offset identities to **file-scope lemmas**, where the context is
+  one or two `Word`s (the shape used in
+  `EvmAsm/Codegen/Proofs/WriteSetsRestoreFrameSpec.lean`), or
+* `clear` the reloc hypotheses inside the `by` block that calls `bv_omega`.
+
+A budget timeout in a machine-triple body proof should be checked against this
+shape *before* it is read as genuine proof difficulty. As of #13202 this is the
+only declaration in the tree with the triggering shape, and no entry in
+`scripts/approved-heartbeat-overrides.txt` is attributable to it.
+
 ## Pure-Nat Sub-Lemmas for omega/maxRecDepth Avoidance
 
 When a proof in a theorem with **deep let-chains and many opaque

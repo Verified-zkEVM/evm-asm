@@ -166,6 +166,7 @@ import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
 import EvmAsm.Codegen.Proofs.HandlerSpecs
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Codegen.Proofs.RegistryInvariants
+import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
 import EvmAsm.Codegen.Proofs.TopComposition
 import EvmAsm.Codegen.Proofs.AmbientFreeFlatTriples
 import EvmAsm.Codegen.Proofs.AmbientLiftedFlatTriples
