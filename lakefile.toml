@@ -116,3 +116,13 @@ name = "footsweep"
 srcDir = "scripts"
 root = "FootSweep"
 supportInterpreter = true
+
+# Advisory elaborated-assertion footprint census for GH #12740: possible
+# duplicate register/cell/byte-region occupancy inside one sepConj tree.
+# Complements satsweep (satisfiability witnesses) and footsweep (code/contact
+# footprint); opaque or data-driven leaves are reported as unaudited.
+[[lean_exe]]
+name = "regionsweep"
+srcDir = "scripts"
+root = "RegionSweep"
+supportInterpreter = true

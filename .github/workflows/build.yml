@@ -282,7 +282,7 @@ jobs:
       # These executables are not defaultTargets. Build them before launching
       # their independent checks concurrently, avoiding concurrent Lake writes.
       - name: Build CI executables
-        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep satsweep footsweep
+        run: lake build codegen progress-report arith-diff-check correspondence-check axiomsweep satsweep footsweep regionsweep
 
       # Replays the committed oracle corpora against their Lean models — the
       # evidence behind the verdicts in docs/*-spec-correspondence.md and the
@@ -369,6 +369,26 @@ jobs:
           lake exe footsweep --out gen-out/footsweep-report.json || status=$?
           if [ "$status" -ne 0 ]; then
             echo "::error::footsweep infrastructure failure (exit $status) — not a census verdict"
+            exit "$status"
+          fi
+
+      # #12740: elaborated assertion footprint census.  This is the Tier-B
+      # complement to SatSweep (kernel witnesses) and FootSweep (code/contact
+      # footprint): it reports possible duplicate occupancy inside a single
+      # sepConj component and marks opaque/data-driven leaves unaudited.
+      # Four structural controls must fire before the report is trusted;
+      # findings remain advisory because Assertion is intentionally opaque.
+      - name: Region ownership sweep (report-only)
+        run: |
+          status=0
+          lake exe regionsweep --self-test || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::regionsweep self-test failure (exit $status) — census not trustworthy"
+            exit "$status"
+          fi
+          lake exe regionsweep --out gen-out/regionsweep-report.json || status=$?
+          if [ "$status" -ne 0 ]; then
+            echo "::error::regionsweep infrastructure failure (exit $status) — not a census verdict"
             exit "$status"
           fi
 
