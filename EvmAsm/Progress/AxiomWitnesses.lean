@@ -636,6 +636,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
+
+#print axioms EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
+
+#print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
@@ -687,6 +693,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+
+#print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within_arena_slice
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_sha256_spec_within
 
