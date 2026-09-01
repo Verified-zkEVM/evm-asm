@@ -413,6 +413,9 @@ import EvmAsm.Codegen.Proofs.AccountWriteRecordSpec
 -- `storageWritesBlockUpsertAppendFlat_spec` (first-row append).
 import EvmAsm.Codegen.Proofs.AccountWritesLookupCurrentSpec
 import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
+-- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
+-- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
+import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
@@ -5058,6 +5061,68 @@ def routineRegistry : List RoutineEntry := [
         ++ "intermediate is written `STORAGE_WRITES_AREA + 1600`, never as a "
         ++ "bare in-range literal (GH #12586). Lives in "
         ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean`"),
+  -- #11921: the write-map READER that is NOT a leaf — its `jal ra,
+  -- account_read_record` is unconditional, so the union CodeReq is forced and
+  -- the already-landed callee triple is REUSED rather than re-proved.
+  routine "account_writes_latest_balance" .conditional
+      (some "accountWritesLatestBalanceAbsentFlat_spec")
+      (gate := "THREE input-domain gates. (1) `hsuppress : "
+        ++ "runtime_tx_account_read_suppress ≠ 0` — the CALLEE's own gate, "
+        ++ "inherited verbatim from `accountReadRecordSuppressedFlat_spec` "
+        ++ "rather than discharged, so `account_read_record`'s unsuppressed "
+        ++ "arm is outside this triple too. (2) `tx_account_writes_count = 0` "
+        ++ "— the transaction tier is empty, so the scan's `bgeu t3, t1` at "
+        ++ "instruction index 15 is taken with ZERO iterations. (3) "
+        ++ "`account_writes_count = 0` — the block tier likewise at index 43. "
+        ++ "The arms excluded are both hits (indices 16..35 and 44..63) and "
+        ++ "the balance-copy tail at indices 64..73 where the four dwords at "
+        ++ "`+32 .. +56` reach the caller's out-pointer and `a0` becomes 1. "
+        ++ "coverRef: the three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWritesLatestBalanceSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, suppression flag 1, both "
+        ++ "counts 0, temps `1..7`, `s0 = 8`, `s1 = 9`, argument registers "
+        ++ "`20`/`21`, with `a0` read back as 0 rather than 20 and all ten "
+        ++ "frame slots read back concretely), NEGATIVE controls "
+        ++ "(`¬((0 : Word) ≠ 0)` — provably FALSE, so read logging ENABLED, "
+        ++ "the ordinary case, is genuinely excluded; `¬¬(0 <ᵤ 1)` — a tier "
+        ++ "holding one row likewise) plus distinct-address checks for the "
+        ++ "`a0 = 0` answer vs the balance-copy tail and for the union's two "
+        ++ "entries, and an `isValidDwordAccess`-plus-disjointness "
+        ++ "satisfiability check over both frames and all three globals")
+      (notes := "`cpsTripleWithin 51` at "
+        ++ "`GuestAddrs.account_writes_latest_balance`, exit `ra &&& ~~~1`, "
+        ++ "over `awlbCR`. ⭐ The CodeReq is a UNION and it is FORCED more "
+        ++ "plainly than for `storage_write_record` / `account_write_record`: "
+        ++ "for those two, \"no arm both terminates at `ret` and stays inside "
+        ++ "its own bytes\" took an argument about which arms reach which "
+        ++ "`jal`; here the `jal ra, account_read_record` at instruction index "
+        ++ "7 is UNCONDITIONAL and sits above every branch, so EVERY path "
+        ++ "leaves the routine's own bytes immediately and a single "
+        ++ "`CodeReq.ofProg` states nothing at all. `awlbCR` pairs "
+        ++ "`accountWritesLatestBalance_prog` at its `GuestImageEntries` entry "
+        ++ "with `accountReadRecord_prog` at its own. ⭐ The callee contract "
+        ++ "is REUSED, not re-proved: `accountReadRecordSuppressedFlat_spec` "
+        ++ "already states `account_read_record`'s suppressed arm as a "
+        ++ "whole-routine triple, and it lines up with this call site exactly "
+        ++ "— it preserves `ra`, `sp`, `a0` and `t0`-`t6`, so the caller's "
+        ++ "out-pointer and scan state survive by the frame rule. No second "
+        ++ "copy is added and `check-duplicate-decls.py` stays at its pinned "
+        ++ "9. What the post says: `a0 = 0` (no tier claims this account's "
+        ++ "balance), and — the load-bearing clause — the caller's `a1` "
+        ++ "out-buffer is NOT written, stated by not naming it anywhere, which "
+        ++ "the universally quantified `pcFree` frame turns into a "
+        ++ "whole-routine no-write guarantee. `ra`, `s0`, `s1`, `sp` and "
+        ++ "`t4`-`t6` come back intact. ⚠️ `t0`-`t3` are CLOBBERED and the "
+        ++ "post states it: the block-tier count pointer, 0, "
+        ++ "`ACCOUNT_WRITES_AREA`, 0. Register discipline read from the "
+        ++ "EPILOGUE rather than a docstring (#13182 is why): indices 75..77 "
+        ++ "reload exactly the `ra`/`s0`/`s1` triple indices 1..3 spilled, so "
+        ++ "this routine does NOT reproduce `account_write_record`'s "
+        ++ "spilled-but-never-reloaded asymmetry. `Nodup` does not arise — a "
+        ++ "READER constructs no row sequence, and on the both-tiers-empty arm "
+        ++ "there is no matching row for uniqueness to be about. No "
+        ++ "Correspondence row: this arm ties to no spec-side VALUE. Lives in "
+        ++ "`Codegen/Proofs/AccountWritesLatestBalanceSpec.lean`"),
   -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
   -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
   -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
@@ -5161,12 +5226,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 235 := by decide
+theorem routineCount_eq : routineCount = 236 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 176 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 56 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 57 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5184,7 +5249,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 195 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 196 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6942,6 +7007,8 @@ private noncomputable abbrev _account_writes_lookup_current_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
 private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
+private noncomputable abbrev _account_writes_latest_balance_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
 
 -- #12851: the machine restoring-division fold is tied to the pure K70 model.
 -- The signed-zero and complementary-comparison representation changes are
