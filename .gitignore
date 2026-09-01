@@ -20,8 +20,11 @@ PROGRESS.md
 
 # Cockpit snapshot for docs/index.html. Same conflict class as PROGRESS.md:
 # regenerate with `scripts/progress-cockpit.sh --write`; CI publishes it to
-# GitHub Pages rather than committing the counts.
+# GitHub Pages rather than committing the counts. snapshot.js is the same
+# payload as a script (so `open docs/index.html` works; browsers block
+# file:// fetch of .json).
 docs/cockpit/snapshot.json
+docs/cockpit/snapshot.js
 
 # ziskemu cycle datapoints appended by scripts/cycles-append.sh (D8; persistence
 # to an orphan branch is deferred with the ziskemu live-parse — see the script)

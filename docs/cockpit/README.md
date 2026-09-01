@@ -16,8 +16,9 @@ snapshot live in this directory so `docs/` does not accumulate cockpit files.
 | `docs/index.html` | Pages homepage (count-free) |
 | `docs/.nojekyll` | disable Jekyll if Pages is pointed at `/docs` |
 | `docs/cockpit/cockpit.css` | styles |
-| `docs/cockpit/cockpit.js` | fetch + render |
+| `docs/cockpit/cockpit.js` | load snapshot + render |
 | `docs/cockpit/snapshot.json` | **not committed** — generated |
+| `docs/cockpit/snapshot.js` | **not committed** — same payload as a script |
 
 Counts are generated on demand. Committing them would recreate the #12683
 `PROGRESS.md` merge-conflict class.
@@ -26,11 +27,12 @@ Counts are generated on demand. Committing them would recreate the #12683
 
 ```bash
 scripts/progress-cockpit.sh --write
-cd docs && python3 -m http.server 8080
+open docs/index.html
 ```
 
-Then open <http://localhost:8080/>. Serve from `docs/` so `index.html` can
-resolve `./cockpit/…`.
+`open` uses `file://`. That works because the snapshot is also written as
+`snapshot.js` (browsers block `fetch()` of local JSON — HTTP status 0).
+A static server from `docs/` still works: `python3 -m http.server 8080`.
 
 ## How it stays fresh
 
@@ -39,9 +41,10 @@ regenerate `DRIFT.md` with `scripts/drift-report.sh --write` when those
 rows change). Merge to `main`; `.github/workflows/progress-cockpit.yml`
 rebuilds the snapshot and deploys Pages.
 
-One-time repo setting (admin): **Pages source = GitHub Actions**. Until that
-is enabled, the deploy job fails; the generator and local preview still work.
+One-time repo setting (admin): **Pages source = GitHub Actions**.
 
-The fallback setting “Deploy from branch `main`, folder `/docs`” also serves
-`docs/index.html` as `/`, but would publish every other file under `docs/`
-as well — prefer the Actions artifact (cockpit files only).
+“Deploy from branch `main`, folder `/docs`” serves the committed HTML but
+**not** the snapshot (gitignored), so the live page sticks on “Snapshot not
+available”. The Actions job can still go green; GitHub keeps serving `/docs`
+until the source is switched. The Actions artifact is cockpit files only
+and includes the generated snapshot.

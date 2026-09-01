@@ -56,6 +56,7 @@ jobs:
           set -euo pipefail
           scripts/progress-cockpit.sh --write docs/cockpit/snapshot.json
           test -s docs/cockpit/snapshot.json
+          test -s docs/cockpit/snapshot.js
 
       - name: Assemble Pages artifact
         run: |
@@ -64,7 +65,7 @@ jobs:
           cp docs/index.html _site/index.html
           cp docs/.nojekyll _site/.nojekyll
           cp docs/cockpit/cockpit.css docs/cockpit/cockpit.js docs/cockpit/README.md \
-            docs/cockpit/snapshot.json _site/cockpit/
+            docs/cockpit/snapshot.json docs/cockpit/snapshot.js _site/cockpit/
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
