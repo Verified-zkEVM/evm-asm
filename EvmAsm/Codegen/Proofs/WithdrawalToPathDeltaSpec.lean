@@ -46,7 +46,7 @@
     routine's frame with its two-way post collapsed onto the failure disjunct.
 
   ⛔ **The whole-routine triple is NOT closed**, so this file registers no row.
-  The obstruction is in `xperm`/`seqFrame`, not in the routine; it is written
+  The obstruction is in `xperm`/`seqFrame`, not in the routine (#13207); it is written
   up in full in the "The whole-routine triple is NOT closed here" section at the
   bottom, together with what the next attempt should do.  Every declaration
   here is `#print axioms`-audited and carries the classical three only.
@@ -608,7 +608,7 @@ theorem wtpdDecodeFailStep
 
         segment A  ;;  the gated call  ;;  segment B  ;;  segment C
 
-    and the obstruction is in `seqFrame`/`xperm`, not in the routine.
+    and the obstruction is in `seqFrame`/`xperm`, not in the routine (#13207).
 
     `xperm_hyp h` expands to `exact (congrFun (show _ = _ by xperm) _).mp h`
     (`riscv-zkvm/…/Tactics/XSimp.lean:34`), and `xperm` has to *find* the
