@@ -613,7 +613,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
