@@ -638,6 +638,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
@@ -693,6 +695,8 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
 #print axioms EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
 
