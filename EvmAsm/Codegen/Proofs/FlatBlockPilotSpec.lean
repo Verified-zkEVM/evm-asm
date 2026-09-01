@@ -722,12 +722,15 @@ example : GuestAddrs.withdrawal_request_predeploy_addr ≠
 
   ⚠️ **`scripts/callee-composition-queue.py` grades both at in-degree
   `0 / 0`, and that must not be read as dead code.**  Both are called by
-  `block_verdict_state_root` (`jal ra, derive_builder_deposit_requests`
-  in the `.Lc1_bd_call` arm of `Codegen/Programs/BlockVerdictStateRoot.lean`,
-  and the builder-exit arm below it).  That caller is still emitted as
-  assembly TEXT rather than a `Program`, so it contributes no edge to the
-  Program-level call graph the queue measures.  The in-degree column
-  counts converted callers only.
+  `block_state_root` — `jal ra, derive_builder_deposit_requests` in the
+  `.Lc1_bd_call` arm of `blockStateRootFunction`
+  (`Codegen/Programs/BlockVerdictStateRoot.lean`), and the builder-exit
+  arm below it.  That caller is linked (`0x80013830` in
+  `scripts/asm-fixtures/symbol-addresses.tsv`) but is still emitted as
+  assembly TEXT: it has no `Program`, no `GuestAddrs` constant and no
+  `scripts/asm-fixtures/*.s` entry, so BOTH of the queue's graphs — the
+  image graph and the fixture graph — miss the edge.  The `0 / 0` here is
+  the absence of a converted caller, not the absence of a caller.
 
   As in §6-7 the contract composes NOTHING from `stage_system_call`: it
   stops at the transfer, so it inherits none of that routine's

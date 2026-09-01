@@ -3797,11 +3797,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "`deriveBuilderDepositRequests_hla_false_off_base`, where the "
         ++ "`hla` linking hypothesis is provably FALSE one instruction off "
         ++ "the linked base. ⚠️ `scripts/callee-composition-queue.py` grades "
-        ++ "this at in-degree 0, which is NOT dead code: "
-        ++ "`block_verdict_state_root` jals it (the `.Lc1_bd_call` arm of "
-        ++ "`Codegen/Programs/BlockVerdictStateRoot.lean`), but that caller is "
-        ++ "still emitted as assembly TEXT and so contributes no edge to the "
-        ++ "Program-level call graph the queue measures"),
+        ++ "this at in-degree 0, which is NOT dead code: `block_state_root` "
+        ++ "jals it (the `.Lc1_bd_call` arm of `blockStateRootFunction` in "
+        ++ "`Codegen/Programs/BlockVerdictStateRoot.lean`). That caller is "
+        ++ "LINKED — 0x80013830 in `scripts/asm-fixtures/symbol-addresses.tsv` "
+        ++ "— but still emitted as assembly TEXT, with no `Program`, no "
+        ++ "`GuestAddrs` constant and no `.s` fixture, so BOTH of the queue's "
+        ++ "graphs miss the edge"),
   routine "derive_builder_exit_requests" .proven
       (some "deriveBuilderExitRequestsFlat_spec")
       (notes := "⚠️ TAIL-TRANSFER contract, 7 steps, exit "
@@ -3811,7 +3813,7 @@ def routineRegistry : List RoutineEntry := [
         ++ "shared negative control `deriveBuilderRequests_addr_control`. "
         ++ "⚠️ TWO caveats specific to this row. (1) Same in-degree-0 artefact "
         ++ "as the deposit adapter: the builder-exit arm of "
-        ++ "`block_verdict_state_root` calls it from assembly text. (2) This "
+        ++ "`block_state_root` calls it from assembly text. (2) This "
         ++ "routine is laid out IMMEDIATELY BEFORE `stage_system_call`, so its "
         ++ "tail-jump target equals its own fallthrough address "
         ++ "(`GuestAddrs.stage_system_call = GuestAddrs."
