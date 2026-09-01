@@ -688,6 +688,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
 
+#print axioms EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.wcidxCmp32Entry_spec
