@@ -6294,6 +6294,19 @@ private noncomputable abbrev _keccak_envelope_sat_exact_control_witness :=
   @EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
 private noncomputable abbrev _keccak_envelope_padding_control_witness :=
   @EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
+-- #13014: the arena-slice seam — the caller's whole buffer in the pre, an
+-- interior slice hashed — plus the concrete caller buffer whose bytes after the
+-- hashed slice are nonzero and the refutation of the exactly-sized input
+-- resource on it.  Forced here so the axiom gate audits the seam together with
+-- its satisfying instance and negative control.
+private noncomputable abbrev _keccak_arena_slice_seam_witness :=
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within_arena_slice
+private noncomputable abbrev _keccak_arena_hyps_hold_witness :=
+  @EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
+private noncomputable abbrev _keccak_arena_exact_region_control_witness :=
+  @EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
+private noncomputable abbrev _keccak_arena_consumer_call_witness :=
+  @EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
