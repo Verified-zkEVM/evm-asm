@@ -948,6 +948,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldAddModPSAsm.secfAddModP_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
