@@ -17,6 +17,8 @@
 #   * .github/workflows/progress-history.yml (nightly) renders to a temp
 #     path and feeds scripts/progress-snapshot.sh;
 #   * humans run `--write` and read the local file.
+# The visual sibling is `scripts/progress-cockpit.sh` → GitHub Pages
+# (`docs/index.html`); same Lean registries, JSON rather than markdown.
 #
 # TODO(#12683): step 3 of the removal is posting this render as a nightly
 # GitHub Discussion. Not implemented — the Discussion category is not yet

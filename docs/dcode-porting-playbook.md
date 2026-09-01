@@ -186,6 +186,8 @@ done.  If it is a GNU-as string with labels:
   concrete layouts.
 - Add the module to `EvmAsm.lean`; move the routine in `PLAN.md`'s
   ledger; update `docs/sasm-deriv.md` only if a new shape landed.
+  If you changed a Progress registry, regenerate `DRIFT.md` only —
+  do not edit the cockpit HTML; merge to `main` republishes it.
 - `lake build` (zero warnings — fix `unusedVariables`/`unusedSimpArgs`),
   `scripts/check-forbidden-tactics.sh`, `scripts/check-layering.sh`.
 - One PR per port (or shape+port), stacked on the current DCode branch;
