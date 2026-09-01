@@ -671,6 +671,46 @@ theorem storageWriteRecord_segC_body_spec
   runBlock R0 R1 R2 R3 R4 R5 R6 R7 R8 R9 R10 R11 R12 R13 R14 R15 R16 R17 R18 R19 R20
     R21 R22
 
+/-- `storage_writes_undo_push`'s journal-full arm on the linked layout: entry
+    AND `CodeReq` are both at `GuestAddrs.storage_writes_undo_push`, which is
+    the `GuestImageEntries.lean:399` pairing itself — a whole-routine claim in
+    the `scripts/proof-frontier.py --shape` sense.  The three `la` round-trips
+    and the `bgeu` displacement resolve by `decide` on the linked layout. -/
+theorem storageWritesUndoPushFullFlat_spec
+    (sp2 retA undoCount ovfTx ovfBlk w5 w6 w7 w10 w28 w29 w30 w31 : Word)
+    (hfull : ¬ BitVec.ult undoCount (167652 : Word)) :
+    cpsTripleWithin 30 (GuestAddrs.storage_writes_undo_push : Word)
+      (retA &&& ~~~(1 : Word))
+      (CodeReq.ofProg (GuestAddrs.storage_writes_undo_push : Word)
+        storageWritesUndoPush_prog)
+      ((.x1 ↦ᵣ retA) ** (.x2 ↦ᵣ sp2) ** (.x10 ↦ᵣ w10) **
+       (.x5 ↦ᵣ w5) ** (.x6 ↦ᵣ w6) ** (.x7 ↦ᵣ w7) **
+       (.x28 ↦ᵣ w28) ** (.x29 ↦ᵣ w29) ** (.x30 ↦ᵣ w30) ** (.x31 ↦ᵣ w31) **
+       memOwn (sp2 - (64 : Word)) ** memOwn (sp2 - (56 : Word)) **
+       memOwn (sp2 - (48 : Word)) ** memOwn (sp2 - (40 : Word)) **
+       memOwn (sp2 - (32 : Word)) ** memOwn (sp2 - (24 : Word)) **
+       memOwn (sp2 - (16 : Word)) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ undoCount) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ ovfTx) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ ovfBlk))
+      ((.x1 ↦ᵣ retA) ** (.x2 ↦ᵣ sp2) ** (.x10 ↦ᵣ (1 : Word)) **
+       (.x5 ↦ᵣ w5) ** (.x6 ↦ᵣ w6) ** (.x7 ↦ᵣ w7) **
+       (.x28 ↦ᵣ w28) ** (.x29 ↦ᵣ w29) ** (.x30 ↦ᵣ w30) ** (.x31 ↦ᵣ w31) **
+       ((sp2 - (64 : Word)) ↦ₘ w5) ** ((sp2 - (56 : Word)) ↦ₘ w6) **
+       ((sp2 - (48 : Word)) ↦ₘ w7) ** ((sp2 - (40 : Word)) ↦ₘ w28) **
+       ((sp2 - (32 : Word)) ↦ₘ w29) ** ((sp2 - (24 : Word)) ↦ₘ w30) **
+       ((sp2 - (16 : Word)) ↦ₘ w31) **
+       ((GuestAddrs.storage_writes_undo_count : Word) ↦ₘ undoCount) **
+       ((GuestAddrs.tx_storage_writes_overflow : Word) ↦ₘ (1 : Word)) **
+       ((GuestAddrs.storage_writes_overflow : Word) ↦ₘ (1 : Word))) :=
+  storageWritesUndoPush_full_body_spec (GuestAddrs.storage_writes_undo_push : Word)
+    sp2 retA
+    (GuestAddrs.storage_writes_undo_count : Word)
+    (GuestAddrs.tx_storage_writes_overflow : Word)
+    (GuestAddrs.storage_writes_overflow : Word)
+    undoCount ovfTx ovfBlk w5 w6 w7 w10 w28 w29 w30 w31
+    (by decide) (by decide) (by decide) (by decide) hfull
+
 /-! ## The deployed (anchored) whole-routine contract -/
 
 /-- The routine's linked entry. -/
@@ -688,8 +728,8 @@ abbrev SWUP : Word := (GuestAddrs.storage_writes_undo_push : Word)
     append arm) or, after 5588 iterations, into `.Lswr_overflow`.  So a
     whole-routine triple must range over the callee's bytes too. -/
 def swrCR : CodeReq :=
-  (CodeReq.ofProg SWR storageWriteRecord_prog).union
-    (CodeReq.ofProg SWUP storageWritesUndoPush_prog)
+  (CodeReq.ofProg (GuestAddrs.storage_write_record : Word) storageWriteRecord_prog).union
+    (CodeReq.ofProg (GuestAddrs.storage_writes_undo_push : Word) storageWritesUndoPush_prog)
 
 theorem swr_disj_undoPush :
     (CodeReq.ofProg SWR storageWriteRecord_prog).Disjoint
@@ -1025,6 +1065,7 @@ example :
 /-! ## Axiom audit — classical-only. -/
 
 #print axioms storageWritesUndoPush_full_body_spec
+#print axioms storageWritesUndoPushFullFlat_spec
 #print axioms storageWriteRecordFailClosedFlat_spec
 
 end EvmAsm.Codegen.Proofs
