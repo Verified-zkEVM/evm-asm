@@ -43,17 +43,17 @@ open EvmAsm.Codegen.U256SubBeSAsm
 open EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract
 
 /-! The fixed decrease-route leftovers are declared before the junction casts
-    that use them.  The outer K73 post owns the remaining registers; this token
-    is only the K74-owned callee-saved set, multiply frame and accumulator. -/
+    that use them.  The outer K73 post owns the remaining registers; the four
+    callee-saved registers are carried by the K74 flat frame, not claimed as a
+    K73 clobber. -/
 def k73_decr_outj (wspK _headerPtr parentPtr _v9 _old18 _v19 _v20 gasUsed
     target : Word) (parentBytes : List (BitVec 8)) (F : Assertion) : Assertion :=
-  regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
-    EvmAsm.Codegen.U256MulU64Be.frameSlots
+  EvmAsm.Codegen.U256MulU64Be.frameSlots
       (wspK + signExtend12 (-48 : BitVec 12)) (K73 + 92)
       parentPtr Expected target (target - gasUsed) (0 : Word) **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 parentBytes (target - gasUsed)) **
-    F
+    k74FlatFrame F
 
 /-- The subtract's written bytes at `Expected`: the base minus the twice-
     halved accumulator image.  Defined as one token (body identical to the
@@ -328,7 +328,7 @@ private theorem k73_decr_sub_return_routeB_succ
         (k73_decr_outj wspK headerPtr parentPtr v9 old18 v19 v20 gasUsed target
           parentBytes Frest))) := by
     dsimp only [k73PostOwn, tailRest, tailRestCore, k73_decr_piggyback,
-      k73_decr_outj]
+      k73_decr_outj, k74FlatFrame]
     simp only [u256SubBeInPlaceScratch, regOwns_cons, regOwns_nil,
       sepConj_emp_right']
     xperm_cert_eq
@@ -423,7 +423,7 @@ private theorem k73_decr_sub_return_routeB_fail
         (k73_decr_outj wspK headerPtr parentPtr v9 old18 v19 v20 gasUsed target
           parentBytes Frest))) := by
     dsimp only [k73FailurePost, tailRest, tailRestScratch, tailRestCore,
-      k73_decr_piggyback, k73_decr_outj]
+      k73_decr_piggyback, k73_decr_outj, k74FlatFrame]
     simp only [u256SubBeInPlaceScratch, regOwns_cons, regOwns_nil,
       sepConj_emp_right']
     xperm_cert_eq
@@ -735,8 +735,7 @@ def k73_decr_env (wspK : Word) (f0 f1 f2 f3 f4 f5 : Word)
   EvmAsm.Codegen.U256MulU64Be.frameSlots
       (wspK + signExtend12 (-48 : BitVec 12)) f0 f1 f2 f3 f4 f5 **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase accWin **
-    regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
-    F
+    k74FlatFrame F
 
 /-! The decrease route's four callee-saved registers are part of the
     subtract scratch ownership, but the K74 wrapper exposes them as its flat
@@ -875,7 +874,7 @@ private theorem k73_decr_mulfail_arm_unify
         (k73_decr_outj wspK headerPtr parentPtr v9 old18 v19 v20 gasUsed target
           parentBytes F) := by
     dsimp only [k73_decr_mulfail_mid_prefix, k73FailurePost,
-      tailRestScratch, tailRestCore, k73_decr_outj]
+      tailRestScratch, tailRestCore, k73_decr_outj, k74FlatFrame]
     simp only [u256SubBeInPlaceScratch, regOwns_cons, regOwns_nil,
       sepConj_emp_right']
     xperm_cert_eq
@@ -1029,7 +1028,9 @@ theorem k73_decr_route_adapter {cr : CodeReq}
           (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
             k73_decr_piggyback spH old8 headerPtr headerBytes F)) := by
     dsimp only [k73HeadPre, k73PreRest]
-    dsimp only [k73_decr_env, k73_decr_ghole, k73_decr_piggyback]
+    dsimp only [k73_decr_env, k73_decr_ghole, k73_decr_piggyback,
+      k74FlatFrame]
+    simp only [regOwns_cons, regOwns_nil, sepConj_emp_right']
     xperm
   refine cpsTripleWithin_weaken (fun s hp => hpreEq ▸ hp) (fun s hq => ?_) htriC
   rcases hq with hm | hs0

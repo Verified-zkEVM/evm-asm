@@ -125,7 +125,7 @@ theorem k73_zero_machine_bytes_eq_written
     unsatisfiable. -/
 
 def k73_zero_env (F : Assertion) : Assertion :=
-  regOwns [.x14, .x15, .x16, .x17] ** F
+  k74FlatFrame F
 
 def k73_zero_outj (F : Assertion) : Assertion :=
   k74FlatFrame F
@@ -538,7 +538,7 @@ theorem k73_zero_route_adapter {cr : CodeReq}
             headerPtr v9 old18 v19 (0 : Word) v20 parentBytes expectedBytes Fenv) =
           (((.x13 : Reg) ↦ᵣ Expected) ** DPreRest) := by
       dsimp only [DPreRest, FdivFull, Fdiv, Fenv, Ftail0, k73_zero_env,
-        k73HeadPost]
+        k74FlatFrame, k73HeadPost]
       simp only [regOwns_cons, regOwns_nil,
         sepConj_emp_right']
       xperm
@@ -560,7 +560,8 @@ theorem k73_zero_route_adapter {cr : CodeReq}
             parentBytes expectedBytes headerBytes (H + 40) old8 (k73_zero_env F)) =
         k73HeadPre spH spK (H + 40) gasLimit gasUsed parentPtr Expected
           headerPtr v9 old18 v19 v20 parentBytes expectedBytes Fenv := by
-      dsimp only [k73HeadPre, k73PreRest, Fenv, Ftail0, k73_zero_env]
+      dsimp only [k73HeadPre, k73PreRest, Fenv, Ftail0, k73_zero_env,
+        k74FlatFrame]
       simp only [regOwns_cons, regOwns_nil, sepConj_emp_right']
       xperm
     refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun s hq => ?_) hprefixC
