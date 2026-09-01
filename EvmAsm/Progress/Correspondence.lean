@@ -59,9 +59,14 @@
   writes `a + b` on unbounded `Uint`; the 32-byte big-endian *window* is a guest
   representation choice, so there is no reference function to grade against. The
   agreement content these routines do have is already stated in the registry
-  that owns that claim — the numeric bridges `beBytesToNat_u256AddBeBytes`,
-  `beBytesToNat_u256SubBeBytes`, `beBytesToNat_u256FromU64Bytes` and
-  `beBytesToNat_mulOutput`, witnessed from `Progress/Routines.lean`. Per #12526 a
+  that owns that claim: the `.proven` rows `u256AddBeFlat_spec`,
+  `u256SubBeFlat_spec` and `u256FromU64BeFlat_spec` are the artifacts witnessed
+  from `Progress/Routines.lean`, and the numeric bridges they rest on are stated
+  in `Codegen/Proofs/U256BeFlatTriples.lean` (`beBytesToNat_u256AddBeBytes`,
+  `beBytesToNat_u256SubBeBytes`, `beBytesToNat_u256FromU64Bytes`) and
+  `Codegen/Programs/U256MulU64Be/Arith.lean` (`beBytesToNat_mulOutput`), and
+  consumed at `HeaderValidateBaseFeeCompositionIncreaseRoute.lean:156,247`.
+  Per #12526 a
   correspondence row is a *distinct* claim from a machine triple; restating those
   bridges here would blur that line in the direction that makes this registry
   mean less. One carve-out is left open rather than denied: `u256_from_u64_be`
