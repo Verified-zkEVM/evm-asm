@@ -112,6 +112,7 @@ import EvmAsm.Codegen.Proofs.HandleFocusReal
 import EvmAsm.Codegen.Proofs.HandlerHandles
 import EvmAsm.Codegen.Proofs.MptWitnessIndexSpec
 import EvmAsm.Codegen.Proofs.WitnessCodeLookupSpec
+import EvmAsm.Codegen.Proofs.WithdrawalToPathDeltaSpec
 import EvmAsm.Codegen.Programs.WcidxSwapRecordsSAsm
 import EvmAsm.Codegen.Programs.BalSerializerLeSAsm
 import EvmAsm.Codegen.Programs.SgValidateFixedListSAsm
