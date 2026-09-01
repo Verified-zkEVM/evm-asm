@@ -1,0 +1,84 @@
+name: Progress Cockpit Pages
+
+# Publish the visual progress cockpit to GitHub Pages. The HTML/CSS/JS are
+# committed and count-free; this job generates docs/cockpit/snapshot.json from
+# the kernel-checked registries and deploys the cockpit files only (not the
+# rest of docs/). Same #12683 rule as PROGRESS.md: do not commit the snapshot.
+#
+# One-time repo setting: Pages source = GitHub Actions.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: progress-cockpit-pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # KEEP IN SYNC with build.yml / progress-history.yml (#12798).
+      - name: Restore dependency cache (.lake/packages)
+        id: deps-cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake/packages
+          key: lake-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      - name: Restore lake build cache
+        uses: actions/cache/restore@v5
+        with:
+          path: .lake/build
+          key: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}-${{ github.sha }}
+          restore-keys: lake-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('lean-toolchain') }}-${{ hashFiles('lake-manifest.json') }}
+
+      - uses: leanprover/lean-action@v1
+        with:
+          use-mathlib-cache: ${{ steps.deps-cache.outputs.cache-hit != 'true' }}
+          use-github-cache: false
+          lake-package-directory: .
+          build: "false"
+
+      - name: Render cockpit snapshot
+        run: |
+          set -euo pipefail
+          scripts/progress-cockpit.sh --write docs/cockpit/snapshot.json
+          test -s docs/cockpit/snapshot.json
+          test -s docs/cockpit/snapshot.js
+
+      - name: Assemble Pages artifact
+        run: |
+          set -euo pipefail
+          mkdir -p _site/cockpit
+          cp docs/index.html _site/index.html
+          cp docs/.nojekyll _site/.nojekyll
+          cp docs/cockpit/cockpit.css docs/cockpit/cockpit.js docs/cockpit/README.md \
+            docs/cockpit/snapshot.json docs/cockpit/snapshot.js _site/cockpit/
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
