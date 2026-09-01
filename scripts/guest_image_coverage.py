@@ -125,7 +125,12 @@ def write_floor_constants(covered_bytes: int, n_conv: int) -> None:
 
 
 def lean_camel(entry: str) -> str:
-    """symbol label -> Lean camelCase stem (mirrors asm_to_program.py lean_camel)."""
+    """symbol label -> Lean camelCase stem (mirrors asm_to_program.py lean_camel).
+
+    GH #13173: `ga_name` first — a Lean identifier cannot start with the dot of
+    a GNU-as local code label.
+    """
+    entry = ga_name(entry)
     parts = entry.split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 

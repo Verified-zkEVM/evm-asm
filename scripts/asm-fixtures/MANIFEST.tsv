@@ -559,4 +559,4 @@ writeSetsRestoreFrameFunction	EvmAsm/Codegen/Programs/StorageWriteMap.lean
 zkvmKeccak256Function	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmKeccak256SegmentsFunction	EvmAsm/Codegen/Programs/HashBridge.lean
 zkvmSha256Function	EvmAsm/Codegen/Programs/HashBridge.lean
-dispatchLoopLabeledFunction	EvmAsm/Codegen/Dispatch.lean
+dispatchLoopBodyFunction	EvmAsm/Codegen/Dispatch.lean
