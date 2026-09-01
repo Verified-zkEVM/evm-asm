@@ -356,6 +356,69 @@ theorem callFrameEnter_segC_body_spec
   have T11 := EvmAsm.Evm64.ret_spec_within' (base + (160 : Word)) ra
   runBlock T0 T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 T11
 
+/-- Segment B with `t0`/`t1`/`t2` surrendered rather than valued — the shape
+    the callee hands back.  All three are written before they are read, so
+    ownership is all the block needs. -/
+theorem callFrameEnter_segB_own_spec
+    (base fb y8 callDepthPtr : Word)
+    (hlaCD : base + (60 : Word) +
+        (((laHi GuestAddrs.evm_call_depth
+            (GuestAddrs.call_frame_enter + 60)).zeroExtend 32 <<< 12).signExtend 64) +
+        signExtend12 (laLo GuestAddrs.evm_call_depth
+          (GuestAddrs.call_frame_enter + 60)) = callDepthPtr)
+    (hbr : signExtend13 (40 : BitVec 13) = (40 : Word)) :
+    cpsTripleWithin 6 (base + (56 : Word)) (base + (116 : Word))
+      (CodeReq.ofProg base callFrameEnter_prog)
+      ((.x8 ↦ᵣ y8) ** (.x10 ↦ᵣ fb) ** (callDepthPtr ↦ₘ (1 : Word)) **
+       regOwns [(.x5 : Reg), .x6, .x7])
+      ((.x5 ↦ᵣ callDepthPtr) ** (.x6 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (1 : Word)) **
+       (.x8 ↦ᵣ fb) ** (.x10 ↦ᵣ fb) ** (callDepthPtr ↦ₘ (1 : Word))) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns [(.x5 : Reg), .x6, .x7] (by decide)
+      (P := (.x8 ↦ᵣ y8) ** (.x10 ↦ᵣ fb) ** (callDepthPtr ↦ₘ (1 : Word)))
+      (fun vf => ?_))
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right'] at hp
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (callFrameEnter_segB_body_spec base fb (vf .x5) (vf .x6) (vf .x7) y8 callDepthPtr
+      hlaCD hbr)
+
+/-- Segment C with `a1`/`a2` surrendered rather than valued — the shape the
+    callee hands back.  Both are written by the two `add`s before anything
+    reads them. -/
+theorem callFrameEnter_segC_own_spec
+    (base sp ra link fb v8 z5 z10 poolPtr : Word)
+    (hlaMP : base + (116 : Word) +
+        (((laHi GuestAddrs.evm_memory_pool
+            (GuestAddrs.call_frame_enter + 116)).zeroExtend 32 <<< 12).signExtend 64) +
+        signExtend12 (laLo GuestAddrs.evm_memory_pool
+          (GuestAddrs.call_frame_enter + 116)) = poolPtr) :
+    cpsTripleWithin 12 (base + (116 : Word)) (ra &&& ~~~(1 : Word))
+      (CodeReq.ofProg base callFrameEnter_prog)
+      ((.x1 ↦ᵣ link) ** (.x2 ↦ᵣ (sp - (16 : Word))) ** (.x5 ↦ᵣ z5) **
+       (.x8 ↦ᵣ fb) ** (.x10 ↦ᵣ z10) **
+       ((sp - (16 : Word)) ↦ₘ ra) ** ((sp - (8 : Word)) ↦ₘ v8) **
+       regOwns [(.x11 : Reg), .x12])
+      ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ (99328 : Word)) **
+       (.x8 ↦ᵣ v8) ** (.x10 ↦ᵣ poolPtr) **
+       (.x11 ↦ᵣ (fb + (33280 : Word))) ** (.x12 ↦ᵣ (fb + (99328 : Word))) **
+       ((sp - (16 : Word)) ↦ₘ ra) ** ((sp - (8 : Word)) ↦ₘ v8)) := by
+  refine cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp) (fun _ hq => hq)
+    (cpsTripleWithin_peel_regOwns [(.x11 : Reg), .x12] (by decide)
+      (P := (.x1 ↦ᵣ link) ** (.x2 ↦ᵣ (sp - (16 : Word))) ** (.x5 ↦ᵣ z5) **
+        (.x8 ↦ᵣ fb) ** (.x10 ↦ᵣ z10) **
+        ((sp - (16 : Word)) ↦ₘ ra) ** ((sp - (8 : Word)) ↦ₘ v8))
+      (fun vf => ?_))
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by
+      simp only [regAtomsOf_cons, regAtomsOf_nil, sepConj_emp_right'] at hp
+      xperm_hyp hp)
+    (fun _ hq => hq)
+    (callFrameEnter_segC_body_spec base sp ra link fb v8 z5 z10 (vf .x11) (vf .x12)
+      poolPtr hlaMP)
+
 /-! ## The deployed (anchored) whole-routine contract -/
 
 /-- The routine's linked entry. -/
@@ -392,6 +455,45 @@ theorem cfeProg_sub_cfeCR :
     back as `regOwns`. -/
 def cfeCalleeTemps : List Reg :=
   [.x13, .x14, .x15, .x16, .x17, .x28, .x29, .x30, .x31]
+
+/-- The frame-arena address `frame_base` returns for a child depth — the
+    callee's arithmetic, named once so the composed post can quote it. -/
+abbrev cfeChildFrameBase (depth : Word) : Word :=
+  (GuestAddrs.call_frame_arena : Word) + depth * (0x19000 : Word)
+
+/-- The register hand-over into `frame_base`: the five registers this routine
+    is holding values in at the call site (`t0`-`t2`, `a1`, `a2`) plus the nine
+    it never touches make up exactly `fbRest`, the callee's owned set.
+
+    Handing a valued register to a contract that only asks for ownership is a
+    strengthening of the pre, so it is sound in this direction and this
+    direction only — the post cannot hand the values back. -/
+theorem cfe_atoms_to_fbRest (ret depth a5 a6 a7 a11 a12 : Word) :
+    ∀ h,
+      (((.x1 : Reg) ↦ᵣ ret) **
+        (((.x10 : Reg) ↦ᵣ depth) ** ((.x5 : Reg) ↦ᵣ a5) ** ((.x6 : Reg) ↦ᵣ a6) **
+         ((.x7 : Reg) ↦ᵣ a7) ** ((.x11 : Reg) ↦ᵣ a11) ** ((.x12 : Reg) ↦ᵣ a12) **
+         regOwns cfeCalleeTemps)) h →
+      (((.x10 : Reg) ↦ᵣ depth) ** ((.x1 : Reg) ↦ᵣ ret) **
+        regOwns CallFrameBaseSAsm.fbRest) h := by
+  intro h hp
+  simp only [cfeCalleeTemps, regOwns_cons, regOwns_nil, sepConj_emp_right'] at hp
+  have hp2 : (((.x10 : Reg) ↦ᵣ depth) ** ((.x1 : Reg) ↦ᵣ ret) **
+      ((.x5 : Reg) ↦ᵣ a5) ** ((.x6 : Reg) ↦ᵣ a6) ** ((.x7 : Reg) ↦ᵣ a7) **
+      regOwn (.x28 : Reg) ** regOwn (.x29 : Reg) ** regOwn (.x30 : Reg) **
+      regOwn (.x31 : Reg) ** ((.x11 : Reg) ↦ᵣ a11) ** ((.x12 : Reg) ↦ᵣ a12) **
+      regOwn (.x13 : Reg) ** regOwn (.x14 : Reg) ** regOwn (.x15 : Reg) **
+      regOwn (.x16 : Reg) ** regOwn (.x17 : Reg)) h := by xperm_hyp hp
+  simp only [CallFrameBaseSAsm.fbRest, regOwns_cons, regOwns_nil, sepConj_emp_right']
+  exact sepConj_mono_right (sepConj_mono_right
+    (sepConj_mono (regIs_implies_regOwn _)
+      (sepConj_mono (regIs_implies_regOwn _)
+        (sepConj_mono (regIs_implies_regOwn _)
+          (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+            (sepConj_mono_right
+              (sepConj_mono (regIs_implies_regOwn _)
+                (sepConj_mono (regIs_implies_regOwn _) (fun _ hx => hx)))))))))))
+    h hp2
 
 /-- Call-site adapter for the `jal ra, frame_base` at instruction index 13
     (`CFE + 52`) — the unconditional frame-arena query. -/
@@ -467,45 +569,69 @@ theorem callFrameEnterDepth1Flat_spec
       ((.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) ** (.x5 ↦ᵣ (99328 : Word)) **
        (.x6 ↦ᵣ (1 : Word)) ** (.x7 ↦ᵣ (1 : Word)) ** (.x8 ↦ᵣ v8) **
        (.x10 ↦ᵣ (GuestAddrs.evm_memory_pool : Word)) **
-       (.x11 ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + depth * (0x19000 : Word)
-          + (33280 : Word))) **
-       (.x12 ↦ᵣ ((GuestAddrs.call_frame_arena : Word) + depth * (0x19000 : Word)
-          + (99328 : Word))) **
+       (.x11 ↦ᵣ (cfeChildFrameBase depth + (33280 : Word))) **
+       (.x12 ↦ᵣ (cfeChildFrameBase depth + (99328 : Word))) **
        regOwns cfeCalleeTemps **
        ((sp - (16 : Word)) ↦ₘ ra) ** ((sp - (8 : Word)) ↦ₘ v8) **
        ((GuestAddrs.evm_sparse_memory_next_epoch : Word) ↦ₘ (epoch + (1 : Word))) **
        (((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) + (depth <<< (3 : Nat)))
           ↦ₘ epoch) **
        ((GuestAddrs.evm_call_depth : Word) ↦ₘ (1 : Word))) := by
-  -- the frame-arena address `frame_base` returns for this depth
-  set fb : Word := (GuestAddrs.call_frame_arena : Word) + depth * (0x19000 : Word)
-    with hfb
   -- segment A: prologue, epoch bump, per-depth epoch stamp
   have hA := cpsTripleWithin_extend_code cfeProg_sub_cfeCR
     (callFrameEnter_segA_body_spec CFE sp ra v5 v6 v7 v8 depth
       (GuestAddrs.evm_sparse_memory_next_epoch : Word)
       (GuestAddrs.evm_sparse_memory_epoch_by_depth : Word) epoch oldSlot
       (by decide) (by decide))
+  -- everything the callee and segments B..C touch that segment A does not
   have hA := cpsTripleWithin_frameR
     ((.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwns cfeCalleeTemps **
      ((GuestAddrs.evm_call_depth : Word) ↦ₘ (1 : Word)))
     (by
       dsimp [cfeCalleeTemps]
       pcf) hA
-  -- the callee, reused: `frame_base` on its 6-step register-only contract
+  -- the callee, reused rather than re-proved: `frame_base`'s 6-step
+  -- register-only contract, with the five valued registers this routine holds
+  -- at the call site weakened into the ownership the callee asks for
   have hU0 := CallFrameBaseSAsm.frameBase_spec depth (CFE + (52 : Word) + 4) (by decide)
   have hU : cpsTripleWithin 6 FB ((CFE + (52 : Word) + 4) &&& ~~~(1 : Word))
       (CodeReq.ofProg FB frameBase_prog)
       ((.x1 ↦ᵣ (CFE + (52 : Word) + 4)) **
-        ((.x10 ↦ᵣ depth) ** regOwns CallFrameBaseSAsm.fbRest))
-      ((.x1 ↦ᵣ (CFE + (52 : Word) + 4)) **
-        ((.x10 ↦ᵣ fb) ** regOwns CallFrameBaseSAsm.fbRest)) :=
-    cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => by rw [hfb]; xperm_hyp hq) hU0
+        ((.x10 ↦ᵣ depth) **
+         (.x5 ↦ᵣ ((GuestAddrs.evm_sparse_memory_epoch_by_depth : Word)
+            + (depth <<< (3 : Nat)))) **
+         (.x6 ↦ᵣ epoch) ** (.x7 ↦ᵣ (depth <<< (3 : Nat))) **
+         (.x11 ↦ᵣ v11) ** (.x12 ↦ᵣ v12) ** regOwns cfeCalleeTemps))
+      ((.x1 ↦ᵣ (CFE + (52 : Word) + 4)) ** (.x10 ↦ᵣ cfeChildFrameBase depth) **
+        regOwns [(.x5 : Reg), .x6, .x7] ** regOwns [(.x11 : Reg), .x12] **
+        regOwns cfeCalleeTemps) :=
+    cpsTripleWithin_weaken
+      (cfe_atoms_to_fbRest (CFE + (52 : Word) + 4) depth _ epoch _ v11 v12)
+      (fun _ hq => by
+        simp only [cfeCalleeTemps, CallFrameBaseSAsm.fbRest, regOwns_cons, regOwns_nil,
+          sepConj_emp_right'] at hq ⊢
+        xperm_hyp hq)
+      hU0
   have hCall := cfe_callSite13 (n := 6) ra
     (by
-      dsimp [CallFrameBaseSAsm.fbRest]
+      dsimp [cfeCalleeTemps]
       pcf) hU
-  sorry
+  rw [show CFE + (52 : Word) + 4 = CFE + (56 : Word) from by bv_omega] at hCall
+  -- segment B: the call-depth discrimination, taken under the gate
+  have hB := cpsTripleWithin_extend_code cfeProg_sub_cfeCR
+    (callFrameEnter_segB_own_spec CFE (cfeChildFrameBase depth) v8
+      (GuestAddrs.evm_call_depth : Word) (by decide) (by decide))
+  -- segment C: the pool base, the two frame offsets and the epilogue
+  have hC := cpsTripleWithin_extend_code cfeProg_sub_cfeCR
+    (callFrameEnter_segC_own_spec CFE sp ra (CFE + (56 : Word))
+      (cfeChildFrameBase depth) v8 (GuestAddrs.evm_call_depth : Word)
+      (cfeChildFrameBase depth) (GuestAddrs.evm_memory_pool : Word) (by decide))
+  seqFrame hA hCall
+  seqFrame hAhCall hB
+  seqFrame hAhCallhB hC
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) hAhCallhBhC
+
+#print axioms callFrameEnterDepth1Flat_spec
 
 end EvmAsm.Codegen.Proofs
