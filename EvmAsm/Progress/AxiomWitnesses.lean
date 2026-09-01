@@ -746,6 +746,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.writeSetsRestoreFrameEmptyFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_gate_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_numeric_instance
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_precondition_satisfiable
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within

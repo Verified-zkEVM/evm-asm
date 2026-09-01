@@ -418,6 +418,9 @@ import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
 -- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
 -- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
 import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
+-- #12127: `writeSetsRestoreFrameEmptyFlat_spec` — the frame-revert routine's
+-- nothing-to-undo arm, the first spec of any shape for that symbol.
+import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
 -- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
 -- itself has no `Program`, so this is the granularity at which the read path
 -- is statable.
@@ -5012,6 +5015,61 @@ def routineRegistry : List RoutineEntry := [
         ++ "`absent` (no spec of any shape), and its being unwitnessed is why "
         ++ "`storage_write_record` did not appear in the startable frontier "
         ++ "at all. Lives in `Codegen/Proofs/StorageWriteRecordSpec.lean`"),
+  -- #12127: the frame-revert side of the same journal — the arm where the
+  -- frame journalled nothing, so the revert is a pure cursor reset.
+  routine "write_sets_restore_frame" .conditional
+      (some "writeSetsRestoreFrameEmptyFlat_spec")
+      (gate := "ONE input-domain gate, a genuine restriction rather than "
+        ++ "framing: `¬ a0 <ᵤ storage_writes_undo_count` — the caller's "
+        ++ "undo-journal mark is at or above the current cursor, i.e. the "
+        ++ "frame being reverted journalled NOTHING, so the `bgeu a0, t1` at "
+        ++ "instruction index 18 (`base + 72`) is TAKEN and the backwards "
+        ++ "replay loop runs zero iterations. Everything the loop does is "
+        ++ "excluded: the `wasAbsent = 0` value write-back (indices 22..33), "
+        ++ "the `wasAbsent = 1` count decrement (indices 40..46) and the "
+        ++ "`wasAbsent = 2` 128-byte row re-materialisation (indices 47..68). "
+        ++ "coverRef: `wsrfEmpty_numeric_instance`, "
+        ++ "`wsrfEmpty_gate_reachable` and "
+        ++ "`wsrfEmpty_precondition_satisfiable` at the end of "
+        ++ "`Codegen/Proofs/WriteSetsRestoreFrameSpec.lean`, each registered "
+        ++ "individually in the axiom gate (#12857) — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, cursor 0, mark 0, temps `1..7`, all "
+        ++ "seven spill slots read back numerically), a NEGATIVE control "
+        ++ "(`¬¬(0 <ᵤ 1)` — a single journalled record is provably OUTSIDE "
+        ++ "the arm, and that is the ordinary case the routine exists to "
+        ++ "serve; also `¬¬(5 <ᵤ 200000)`), and an `isValidDwordAccess` "
+        ++ "satisfiability check on all seven frame slots and the global")
+      (notes := "`cpsTripleWithin 31` at "
+        ++ "`GuestAddrs.write_sets_restore_frame`, exit `ra &&& ~~~1`, over "
+        ++ "`CodeReq.ofProg … writeSetsRestoreFrame_prog` — the "
+        ++ "`GuestImageEntries.lean:400` pairing itself, so entry AND CodeReq "
+        ++ "are both at the anchor. ⭐ No union is needed here, and that is a "
+        ++ "property of the routine rather than of the arm: the Program "
+        ++ "contains no `JAL x1` at all — every jump is a local `JAL x0` and "
+        ++ "the only `JALR` is the `x0`-linked `ret`. Path `0..18 ;; 69..80`: "
+        ++ "prologue (`sp -= 64`, spill `t0`-`t6`) ;; `la t0, "
+        ++ "storage_writes_undo_count` ;; `ld t1` ;; the two arena-base "
+        ++ "immediate materialisations, which the proof ties to "
+        ++ "`STORAGE_WRITES_UNDO_AREA` and `TX_STORAGE_WRITES_AREA` rather "
+        ++ "than to literals ;; the `bgeu` TAKEN ;; re-`la` the cursor ;; `sd "
+        ++ "a0` ;; epilogue. What the post says: the cursor ends holding the "
+        ++ "mark, `sp` and all seven prologue-saved temporaries come back "
+        ++ "intact, `a0` and `ra` are untouched. Because `cpsTripleWithin` "
+        ++ "quantifies over a `pcFree` frame, the post ALSO says — for free, "
+        ++ "by not naming them — that nothing is written to "
+        ++ "`TX_STORAGE_WRITES_AREA`, to `tx_storage_writes_count`, or to the "
+        ++ "journal arena: a frame that wrote nothing cannot corrupt its "
+        ++ "parent's write map on revert. Base verified against the linked "
+        ++ "image, not inferred: `nm` puts the symbol at `0x80021198` (equal "
+        ++ "to `GuestAddrs`) with the next symbol at `0x800212dc`, so the "
+        ++ "extent is 324 B = `writeSetsRestoreFrame_prog.length * 4`, and "
+        ++ "`llvm-objdump` confirms the index-18 `bgeu` targets `+0x114` = "
+        ++ "index 69. ⚠️ No Correspondence row: this arm ties to no spec-side "
+        ++ "VALUE (the tie to the proven upsert model needs the replay loop), "
+        ++ "so a correspondence verdict would overstate it. Before this row "
+        ++ "the frontier census listed this symbol as `absent` — no spec of "
+        ++ "any shape. Lives in "
+        ++ "`Codegen/Proofs/WriteSetsRestoreFrameSpec.lean`"),
   -- #11921 row 1: the ACCOUNT writer's fail-closed arm, and its callee — the
   -- account-side analogue of the two storage rows immediately above.
   routine "account_write_record" .conditional
@@ -5459,12 +5517,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 240 := by decide
+theorem routineCount_eq : routineCount = 241 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 58 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 59 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5482,7 +5540,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 200 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 201 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7290,6 +7348,17 @@ private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 private noncomputable abbrev _account_writes_latest_balance_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+-- #12127: the frame-revert routine's nothing-to-undo arm, plus its THREE cover
+-- theorems. The covers are registered individually and deliberately (#12857):
+-- a non-vacuity control that lives only in a row's prose is outside the gate.
+private noncomputable abbrev _write_sets_restore_frame_routine_witness :=
+  @EvmAsm.Codegen.Proofs.writeSetsRestoreFrameEmptyFlat_spec
+private noncomputable abbrev _wsrf_numeric_instance_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_numeric_instance
+private noncomputable abbrev _wsrf_gate_reachable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_gate_reachable
+private noncomputable abbrev _wsrf_precondition_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_precondition_satisfiable
 -- #11654: SLOAD's tier-2 read routine, plus its THREE cover theorems. The
 -- covers are registered individually and deliberately (#12857): a non-vacuity
 -- control that lives only in a row's prose is outside the axiom gate.
