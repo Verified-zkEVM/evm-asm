@@ -107,5 +107,9 @@ Failures acceptable only if identical on both legs.
 
 1. Update `docs/agents/top-theorem-ledger.md` if your routine completes a row.
 2. Update PLAN.md (one line in the SAsm/Stateless section).
-3. `bd close <bead>` only after the PR lands on main (AGENTS.md closure rules).
-4. PR: small (one routine or two), body ends with the standard footer.
+3. If you changed `EvmAsm/Progress/**`, regenerate `DRIFT.md` with
+   `scripts/drift-report.sh --write`. Do **not** edit the progress cockpit
+   (`docs/index.html`); merge to `main` republishes
+   https://verified-zkevm.github.io/evm-asm/.
+4. `bd close <bead>` only after the PR lands on main (AGENTS.md closure rules).
+5. PR: small (one routine or two), body ends with the standard footer.

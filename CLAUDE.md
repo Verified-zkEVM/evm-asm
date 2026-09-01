@@ -10,6 +10,9 @@ Read PLAN.md at the start of each session. Keep it updated as you work:
 - **Discovered new sub-tasks or blockers**: Add them to the relevant phase
 - **Added new infrastructure**: Update the Infrastructure section
 - **Before committing**: Check if PLAN.md needs updates for the work in this session
+- **Progress cockpit** (`docs/index.html`): not a PLAN.md-class hand update.
+  Counts are generated (`scripts/progress-cockpit.sh`) and published by CI
+  on merge to `main`. Do not copy registry numbers into the HTML.
 
 ## Proof-first (DCode) ports
 

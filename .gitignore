@@ -18,6 +18,11 @@ __pycache__/
 # regenerates it into a temp path and snapshots the counts.
 PROGRESS.md
 
+# Cockpit snapshot for docs/index.html. Same conflict class as PROGRESS.md:
+# regenerate with `scripts/progress-cockpit.sh --write`; CI publishes it to
+# GitHub Pages rather than committing the counts.
+docs/cockpit/snapshot.json
+
 # ziskemu cycle datapoints appended by scripts/cycles-append.sh (D8; persistence
 # to an orphan branch is deferred with the ziskemu live-parse — see the script)
 cycles-history.jsonl

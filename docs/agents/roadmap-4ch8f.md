@@ -212,5 +212,6 @@ description) with what you learn.
 | memory layout / regions | `EvmAsm/Codegen/RegionMap.lean`, `docs/4ch8f-region-map.md`; call-frame aliasing soundness: `Codegen/CallFramePhase.lean` + `docs/4ch8f-callframe-audit.md` (open caveats: beads `.72`/`.73`) |
 | SL state-assertion vocabulary (memory/account/storage/MPT/witness arenas) | `EvmAsm/Evm64/{StateAssertions,StorageAssertions,MptAssertions,WitnessAssertions}.lean`, `EvmAsm/Stateless/State/AccountAssertions.lean` |
 | assertions ↔ abstract-spec refinement map | `docs/4ch8f-slstate-specref-correspondence.md` (bead tree `4ch8f.75.*`) |
+| progress cockpit (live) | https://verified-zkevm.github.io/evm-asm/ (`docs/index.html`; notes in `docs/cockpit/README.md`). CI-published; do not hand-edit counts |
 | spec ground truth | `EvmAsm/Stateless/SpecRef/`, `tests-zkevm@v0.4.0` tag |
 | conformance harness | `scripts/codegen-eest-stateless-check.sh` (§3) |

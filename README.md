@@ -506,15 +506,23 @@ dashboard rendered from a kernel-checked registry (`EvmAsm/Progress.lean`) by
 [`scripts/progress-report.sh`](scripts/progress-report.sh).
 
 <a id="progress-dashboard"></a>
-**Progress dashboard.** The dashboard is a *generated artifact and is not
-committed* — a generated file in the tree conflicted on every concurrent PR
-that regenerated it (#12683). To read it:
+**Progress dashboard.** Two generated views of the same kernel-checked
+registries:
+
+- **Visual cockpit** (GitHub Pages):
+  [https://verified-zkevm.github.io/evm-asm/](https://verified-zkevm.github.io/evm-asm/)
+  — `docs/index.html` plus assets in `docs/cockpit/`. Counts are **not**
+  committed (#12683); CI republishes `snapshot.json` on every push to
+  `main`. Local preview:
+  `scripts/progress-cockpit.sh --write` then `python3 -m http.server` from
+  `docs/`. See [`docs/cockpit/README.md`](docs/cockpit/README.md).
+- **Markdown report** (also not committed):
 
 ```bash
 scripts/progress-report.sh --write   # renders ./PROGRESS.md (gitignored)
 ```
 
-A nightly workflow regenerates it and appends the counts to the
+A nightly workflow regenerates the markdown and appends the counts to the
 `progress-history` orphan branch (`.github/workflows/progress-history.yml`);
 publishing that render as a GitHub Discussion is planned (#12683). The
 committed sibling render, which *is* drift-gated in CI, is
