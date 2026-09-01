@@ -1109,6 +1109,200 @@ private theorem secfAddModPBody_spec
       xperm_hyp hq) h123
 
 
+/-- The epilogue: reload the six callee-saved registers from `+108`, pop the
+    48-byte frame, and `ret` through the restored `ra`.  Unlike the
+    `secf_sub_mod_p` precedent the body leaves `ra` at a *known* value (the
+    return address of the `secf_reduce_once` call), so no ownership peel is
+    needed here. -/
+private theorem secfAddModPRestore_spec
+    (sp0 ret xPtr yPtr dst s0 s1 s2 s3 s4 : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (halign : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin (secfAddModPFrame.length + 1 + 1)
+      (GuestAddrs.secf_add_mod_p + 108 : Word) ret secfAddModPCr
+      (((.x2 : Reg) ↦ᵣ (sp0 + signExtend12 (-48 : BitVec 12))) **
+        frameSlotsSaved secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12))
+          (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+        ((.x18 : Reg) ↦ᵣ dst) **
+        ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x20 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig) **
+        ((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 104 : Word)) **
+        secfAddModPCallerPost xPtr yPtr dst
+          (sp0 + signExtend12 (-48 : BitVec 12)) xs ys outOrig tmpOrig ** A)
+      (((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        frameSlotsSaved secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12))
+          (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        secfAddModPCallerPost xPtr yPtr dst
+          (sp0 + signExtend12 (-48 : BitVec 12)) xs ys outOrig tmpOrig ** A) := by
+  set newSp := sp0 + signExtend12 (-48 : BitVec 12) with hnewSp
+  have hload0 := loadSeq_spec secfAddModPFrame newSp
+    (secfAddModPVals ret s0 s1 s2 s3 s4)
+    (secfAddModPVals (GuestAddrs.secf_add_mod_p + 104 : Word) xPtr yPtr dst
+      (GuestAddrs.secf_tmp0 : Word)
+      (U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig))
+    (GuestAddrs.secf_add_mod_p + 108 : Word) (by decide) (by decide)
+  have hload := liftCode (cr' := secfAddModPCr) hload0
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 108 : Word) +
+      BitVec.ofNat 64 (4 * secfAddModPFrame.length) =
+      (GuestAddrs.secf_add_mod_p + 132 : Word) from by decide] at hload
+  have hloadF := cpsTripleWithin_frameR
+    (secfAddModPCallerPost xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A)
+    (by unfold secfAddModPCallerPost; pcf; exact hA) hload
+  have hdealloc0 := addi_spec_gen_same_within .x2 newSp (48 : BitVec 12)
+    (GuestAddrs.secf_add_mod_p + 132 : Word) (by decide)
+  rw [show newSp + signExtend12 (48 : BitVec 12) = sp0 from by
+      rw [hnewSp]
+      exact sext_frameRestore sp0 (-48 : BitVec 12) (48 : BitVec 12) (by decide)]
+    at hdealloc0
+  have hdealloc := liftCode (cr' := secfAddModPCr) hdealloc0
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 132 : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 136 : Word) from by decide] at hdealloc
+  have hdeallocF := cpsTripleWithin_frameR
+    (regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) **
+      frameSlotsSaved secfAddModPFrame newSp
+        (secfAddModPVals ret s0 s1 s2 s3 s4) **
+      secfAddModPCallerPost xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A)
+    (by unfold secfAddModPCallerPost; pcf; exact hA) hdealloc
+  have hret0 := EvmAsm.Evm64.ret_spec_within'
+    (GuestAddrs.secf_add_mod_p + 136 : Word) ret
+  rw [halign] at hret0
+  have hret := liftCode (cr' := secfAddModPCr) hret0
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  have hretF := cpsTripleWithin_frameR
+    (((.x2 : Reg) ↦ᵣ sp0) **
+      regsAt [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
+        (secfAddModPVals ret s0 s1 s2 s3 s4) **
+      frameSlotsSaved secfAddModPFrame newSp
+        (secfAddModPVals ret s0 s1 s2 s3 s4) **
+      secfAddModPCallerPost xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A)
+    (by unfold secfAddModPCallerPost; pcf; exact hA) hret
+  have hReg : regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) =
+      (((.x1 : Reg) ↦ᵣ ret) **
+        regsAt [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
+          (secfAddModPVals ret s0 s1 s2 s3 s4)) := by
+    simp only [secfAddModPFrame, regsAt, secfAddModPVals, List.foldr_cons,
+      List.foldr_nil, sepConj_emp_right']
+  have hRegV : regsAt secfAddModPFrame
+      (secfAddModPVals (GuestAddrs.secf_add_mod_p + 104 : Word) xPtr yPtr dst
+        (GuestAddrs.secf_tmp0 : Word)
+        (U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig)) =
+      (((.x1 : Reg) ↦ᵣ (GuestAddrs.secf_add_mod_p + 104 : Word)) **
+        ((.x8 : Reg) ↦ᵣ xPtr) ** ((.x9 : Reg) ↦ᵣ yPtr) **
+        ((.x18 : Reg) ↦ᵣ dst) **
+        ((.x19 : Reg) ↦ᵣ (GuestAddrs.secf_tmp0 : Word)) **
+        ((.x20 : Reg) ↦ᵣ U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig)) := by
+    simp only [secfAddModPFrame, regsAt, secfAddModPVals, List.foldr_cons,
+      List.foldr_nil, sepConj_emp_right']
+  have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hloadF hdeallocF
+  rw [hReg] at h12
+  have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    h12 hretF
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h123
+  · rw [hRegV]; xperm_hyp hp
+  · rw [hReg]; xperm_hyp hq
+
+
+/-- **Whole-routine byte-identical specification for `secf_add_mod_p`.**
+
+    The proof is pinned to the emitted image by `secfAddModP_prog_eq`: the
+    routine is exactly the 48-byte, six-slot ABI frame wrapped around
+    `secfAddModPBody`, and every segment above is discharged against that
+    instruction list.
+
+    The post is *operational*, stating the exact branch semantics of the
+    emitted code rather than a field-arithmetic identity: the output buffer
+    receives `reduce_once` of `addModPTmpBytes`, which is the wrapping 256-bit
+    big-endian sum when it does not carry and that sum with `C = 2^256 mod p`
+    added back in when it does.  The numeric bridge
+    (`beBytesToNat out = (beBytesToNat xs + beBytesToNat ys) % p` under
+    `xs, ys < p`) is **not** proved here and is named as the residual. -/
+theorem secfAddModP_spec (sp0 ret xPtr yPtr dst s0 s1 s2 s3 s4 : Word)
+    (xs ys outOrig tmpOrig : List (BitVec 8)) (A : Assertion) (hA : A.pcFree)
+    (hrwTmp : RwRegion.wf ⟨(GuestAddrs.secf_tmp0 : Word), 32⟩)
+    (hroX : Region.wf ⟨xPtr, xs⟩) (hroY : Region.wf ⟨yPtr, ys⟩)
+    (hroC : Region.wf ⟨(GuestAddrs.secp256k1_c_be : Word),
+      Secp256k1FieldSubModPSAsm.secp256k1CBytes⟩)
+    (hrwDst : RwRegion.wf ⟨dst, 32⟩)
+    (hlenX : xs.length = 32) (hlenY : ys.length = 32)
+    (hlenTmp : tmpOrig.length = 32) (hlenOut : outOrig.length = 32)
+    (hovX : xPtr.toNat + 32 < 2 ^ 64) (hovY : yPtr.toNat + 32 < 2 ^ 64)
+    (hovDst : dst.toNat + 32 < 2 ^ 64)
+    (hdX : xPtr.toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ xPtr.toNat)
+    (hdY : yPtr.toNat + 32 ≤ GuestAddrs.secf_tmp0 ∨
+      GuestAddrs.secf_tmp0 + 32 ≤ yPtr.toNat)
+    (hdTmpDst : (GuestAddrs.secf_tmp0 : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secf_tmp0 : Word).toNat)
+    (hdPDst : (GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ dst.toNat ∨
+      dst.toNat + 32 ≤ (GuestAddrs.secp256k1_p_be : Word).toNat)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret) :
+    cpsTripleWithin
+      (1 + secfAddModPFrame.length +
+        secfAddModPBodySteps xPtr yPtr dst xs ys outOrig tmpOrig +
+        (secfAddModPFrame.length + 1 + 1))
+      (GuestAddrs.secf_add_mod_p : Word) ret secfAddModPCr
+      (((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        frameSlotsOwn secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12)) **
+        secfAddModPCallerPre xPtr yPtr dst (sp0 + signExtend12 (-48 : BitVec 12))
+          xs ys outOrig tmpOrig ** A)
+      (((.x2 : Reg) ↦ᵣ sp0) **
+        regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        frameSlotsSaved secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12))
+          (secfAddModPVals ret s0 s1 s2 s3 s4) **
+        secfAddModPCallerPost xPtr yPtr dst
+          (sp0 + signExtend12 (-48 : BitVec 12)) xs ys outOrig tmpOrig ** A) := by
+  have halloc0 := addi_spec_gen_same_within .x2 sp0 (-48 : BitVec 12)
+    (GuestAddrs.secf_add_mod_p : Word) (by decide)
+  have halloc := liftCode (cr' := secfAddModPCr) halloc0
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p : Word) + 4 =
+      (GuestAddrs.secf_add_mod_p + 4 : Word) from by decide] at halloc
+  have hallocF := cpsTripleWithin_frameR
+    (regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) **
+      frameSlotsOwn secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12)) **
+      secfAddModPCallerPre xPtr yPtr dst (sp0 + signExtend12 (-48 : BitVec 12))
+        xs ys outOrig tmpOrig ** A)
+    (by unfold secfAddModPCallerPre; pcf; exact hA) halloc
+  have hstore0 := storeSeq_spec secfAddModPFrame
+    (sp0 + signExtend12 (-48 : BitVec 12))
+    (secfAddModPVals ret s0 s1 s2 s3 s4)
+    (GuestAddrs.secf_add_mod_p + 4 : Word) (by decide)
+  have hstore := liftCode (cr' := secfAddModPCr) hstore0
+    (by unfold secfAddModPCr secfReduceOnceCr; code_mem)
+  rw [show (GuestAddrs.secf_add_mod_p + 4 : Word) +
+      BitVec.ofNat 64 (4 * secfAddModPFrame.length) =
+      (GuestAddrs.secf_add_mod_p + 28 : Word) from by decide] at hstore
+  have hstoreF := cpsTripleWithin_frameR
+    (secfAddModPCallerPre xPtr yPtr dst (sp0 + signExtend12 (-48 : BitVec 12))
+      xs ys outOrig tmpOrig ** A)
+    (by unfold secfAddModPCallerPre; pcf; exact hA) hstore
+  have hbody0 := secfAddModPBody_spec (sp0 + signExtend12 (-48 : BitVec 12))
+    xPtr yPtr dst ret s0 s1 s2 s3 s4
+    xs ys outOrig tmpOrig A hA hrwTmp hroX hroY hroC hrwDst hlenX hlenY
+    hlenTmp hlenOut hovX hovY hovDst hdX hdY hdTmpDst hdPDst
+  have hbodyF := cpsTripleWithin_frameR
+    (frameSlotsSaved secfAddModPFrame (sp0 + signExtend12 (-48 : BitVec 12))
+      (secfAddModPVals ret s0 s1 s2 s3 s4)) (by pcf) hbody0
+  have htail := secfAddModPRestore_spec sp0 ret xPtr yPtr dst s0 s1 s2 s3 s4
+    xs ys outOrig tmpOrig A hA halignRet
+  have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hallocF hstoreF
+  have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
+      simp only [secfAddModPFrame, regsAt, secfAddModPVals, List.foldr_cons,
+        List.foldr_nil, sepConj_emp_right'] at hp ⊢
+      xperm_hyp hp) h12 hbodyF
+  have h1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    h123 htail
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) h1234
+
+
 end Secp256k1FieldAddModPSAsm
 
 end EvmAsm.Codegen
