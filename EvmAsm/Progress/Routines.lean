@@ -404,6 +404,10 @@ import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
 -- `storageWritesUndoPushFullFlat_spec` — the storage writer's fail-closed
 -- arm and the undo-journal push it rejects on.
 import EvmAsm.Codegen.Proofs.StorageWriteRecordSpec
+-- #11921: `accountWriteRecordFailClosedFlat_spec` /
+-- `accountWritesUndoPushFullFlat_spec` — the account writer's fail-closed
+-- arm and the undo-journal push it rejects on.
+import EvmAsm.Codegen.Proofs.AccountWriteRecordSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
@@ -4850,6 +4854,92 @@ def routineRegistry : List RoutineEntry := [
         ++ "`absent` (no spec of any shape), and its being unwitnessed is why "
         ++ "`storage_write_record` did not appear in the startable frontier "
         ++ "at all. Lives in `Codegen/Proofs/StorageWriteRecordSpec.lean`"),
+  -- #11921 row 1: the ACCOUNT writer's fail-closed arm, and its callee — the
+  -- account-side analogue of the two storage rows immediately above.
+  routine "account_write_record" .conditional
+      (some "accountWriteRecordFailClosedFlat_spec")
+      (gate := "TWO input-domain gates, both genuine restrictions rather than "
+        ++ "framing. (1) `tx_account_writes_count = 0` — the transaction's "
+        ++ "account-write map is EMPTY, i.e. this is the transaction's first "
+        ++ "account write, so the scan's `bgeu t4, t1` at instruction index 24 "
+        ++ "is taken with ZERO iterations and no loop invariant is claimed. "
+        ++ "(2) `¬ account_writes_undo_count <ᵤ 163840` — the undo journal is "
+        ++ "FULL at `accountWritesUndoCapacity`, so `account_writes_undo_push` "
+        ++ "refuses and the caller takes its reject arm at index 56. The arms "
+        ++ "excluded are the hit arm (indices 25..50), the append arm's "
+        ++ "zero-fill and masked field overlay (indices 57..126) and the "
+        ++ "16384-iteration `.Lawr_overflow` arm; none of them is claimed "
+        ++ "here. coverRef: the three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean` — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, undo cursor 200000, both flags 0, "
+        ++ "temps `1..7` and argument registers `20..27`, all twenty-three "
+        ++ "spill slots read back numerically), NEGATIVE controls "
+        ++ "(`¬¬(0 <ᵤ 163840)` — an empty undo journal is provably outside the "
+        ++ "arm; `¬¬(0 <ᵤ 1)` — a non-empty account map likewise), and an "
+        ++ "`isValidDwordAccess` satisfiability check on all twenty-three "
+        ++ "frame slots and four globals")
+      (notes := "`cpsTripleWithin 77` at `GuestAddrs.account_write_record`, "
+        ++ "exit `ra &&& ~~~1`, over `awrCR`. ⭐ The CodeReq is a UNION and "
+        ++ "that is FORCED, exactly as for `storage_write_record`: "
+        ++ "`account_write_record` has NO arm that both terminates at `ret` "
+        ++ "and stays inside its own bytes — every terminating path either "
+        ++ "runs the index-24 scan for `tx_account_writes_count` iterations "
+        ++ "or reaches a `jal ra, account_writes_undo_push` (index 40 hit "
+        ++ "arm, index 55 append arm), and the one call-free exit "
+        ++ "`.Lawr_overflow` is reachable only after 16384 scan iterations. "
+        ++ "So `awrCR` pairs `accountWriteRecord_prog` at its "
+        ++ "`GuestImageEntries` entry (`:401`) with "
+        ++ "`accountWritesUndoPush_prog` at its own (`:417`) — the `bansfCR` "
+        ++ "shape, still anchored at `GuestAddrs.account_write_record` for "
+        ++ "`proof-frontier.py --shape`. What the post says: both sticky "
+        ++ "overflow flags latch to 1, `tx_account_writes_count` stays 0, "
+        ++ "`account_writes_undo_count` is NOT advanced, `sp` plus `t0`-`t6` "
+        ++ "and `ra` come back intact. Because `cpsTripleWithin` quantifies "
+        ++ "over a `pcFree` frame, it ALSO says — for free, by not naming "
+        ++ "them — that nothing is written to `TX_ACCOUNT_WRITES_AREA` or to "
+        ++ "the account undo-journal arena. ⚠️ The post is NOT a full "
+        ++ "callee-saves claim and says so: the prologue spills `a0`-`a7` "
+        ++ "(indices 9..16) but the epilogue (indices 134..141) reloads only "
+        ++ "`t0`-`t6` and `ra` on EVERY arm, so `a0 = 1`, `a5 = 0`, `a6 = 1` "
+        ++ "are carried through as clobbers. The storage twin DOES reload "
+        ++ "`a0`, so this is an asymmetry, and it contradicts "
+        ++ "`AccountWriteMap.lean`'s docstring claim that the forwarded "
+        ++ "argument registers are \"saved and restored\". ⚠️ No "
+        ++ "Correspondence row: this arm ties to no spec-side VALUE (the tie "
+        ++ "to `accountWriteUpsert` needs the append arm and the scan "
+        ++ "invariant), so a correspondence verdict would overstate it. "
+        ++ "`Nodup` is neither proven nor assumed here — a fail-closed arm "
+        ++ "writes no row, and uniqueness is already the hypothesis-free "
+        ++ "model theorem `accountWriteUpsert_rowsMap` (#11938). Lives in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`"),
+  routine "account_writes_undo_push" .conditional
+      (some "accountWritesUndoPushFullFlat_spec")
+      (gate := "`¬ account_writes_undo_count <ᵤ 163840` — the journal-full "
+        ++ "arm only (the sole capacity `bgeu t1, t2` at instruction index "
+        ++ "12, TAKEN). The excluded arms are the two the fall-through at "
+        ++ "index 13 reaches: `wasAbsent ≠ 0` (append, no payload) and "
+        ++ "`wasAbsent = 0` (the thirteen-dword superseded-field copy at "
+        ++ "indices 21..49). coverRef: the same three `example`s in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`; the positive "
+        ++ "witness is `¬ 200000 <ᵤ 163840` and the negative control "
+        ++ "`¬¬(0 <ᵤ 163840)`")
+      (notes := "`cpsTripleWithin 29` at "
+        ++ "`GuestAddrs.account_writes_undo_push` over `CodeReq.ofProg … "
+        ++ "accountWritesUndoPush_prog` — the `GuestImageEntries.lean:417` "
+        ++ "pairing itself, so entry AND CodeReq are both at the anchor. Path "
+        ++ "`0..12 ;; 56..71`: prologue (`sp -= 64`, spill `t0`-`t6`) ;; "
+        ++ "`la t0, account_writes_undo_count` ;; `ld t1` ;; the "
+        ++ "`accountWritesUndoCapacity` = 163840 `bgeu` TAKEN ;; `li a0, 1` "
+        ++ ";; latch both sticky flags ;; epilogue. ⭐ The load-bearing "
+        ++ "clause is what the post does NOT contain: the journal cursor is "
+        ++ "unchanged and no record address is named, so the frame rule says "
+        ++ "the journal arena is untouched — a refused push mutates nothing, "
+        ++ "which is what lets callers reject instead of mutating without a "
+        ++ "rollback record. Before this row the frontier census listed this "
+        ++ "symbol as `absent` (no spec of any shape), and its being "
+        ++ "unwitnessed is why `account_write_record` did not appear in the "
+        ++ "startable frontier at all. Lives in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`"),
   -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
   -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
   -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
@@ -4953,12 +5043,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 231 := by decide
+theorem routineCount_eq : routineCount = 233 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 176 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 52 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 54 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -4976,7 +5066,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 191 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 193 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6724,6 +6814,11 @@ private noncomputable abbrev _storage_write_record_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
 private noncomputable abbrev _storage_writes_undo_push_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
+-- #11921: the account writer's fail-closed arm and the undo push it rejects on.
+private noncomputable abbrev _account_write_record_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
+private noncomputable abbrev _account_writes_undo_push_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
 
 -- #12851: the machine restoring-division fold is tied to the pure K70 model.
 -- The signed-zero and complementary-comparison representation changes are
