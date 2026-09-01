@@ -37,8 +37,26 @@
 
   #12204 step 3 (this file): **`dispatchLoop_prog` now exists** — sixteen
   instructions, mechanically converted from `dispatchLoopLabeledFunction` and
-  tied to the shipped dispatcher text by `dispatchLoopLabeledFunction_eq_prog`
+  tied to the shipped dispatcher text by `dispatchLoopFunction_eq_prog`
   (`rfl`) composed with `emitRuntimeDispatcherLoop_split`.
+
+  ## The loop HEAD and the loop BODY are different addresses (GH #13173)
+
+  ⛔ `.dispatch_loop` is the head. `emitRuntimeDispatcherLoop` puts
+  `emitDispatchLoopCodeSizeStopGuard` between that label and the body, so in the
+  shipped (`depthAwareStop := true`) image the sixteen body instructions begin
+  **348 bytes later**, at `.dispatch_loop_body`. Every `j .dispatch_loop` still
+  re-enters at the head, so the guard runs once per iteration — the two labels
+  are both real and neither is redundant.
+
+  `dispatchLoop_prog` was originally anchored at `GuestAddrs.dispatch_loop` and
+  was therefore wrong by 348 bytes in three immediates. It was invisible because
+  those three sites are exactly the `dispatchLoop_relocs` sites, which
+  `emitProgramR` renders symbolically: the `rfl` drift guard cannot see a PC
+  base, and the converter's `asm_cmp` assembles the body standalone *at whatever
+  label it is handed*. Only a `GuestImageEntries` row, resolved against the
+  linked symbol table by `scripts/check-guest-image-program-bytes.py`, measures
+  the base — and there was no row.
 
   ⚠️ Do not re-derive the blockers this docstring used to list; all three are
   closed and each cost someone a rebuild of work that existed:
@@ -54,8 +72,13 @@
     guard in the caller (`emitDispatchLoopCodeSizeStopGuard`), so
     `dispatchLoopFunction` is already constant, which is all the converter asks.
 
-  Still open on this issue: `dispatchLoop_prog` has no `GuestImageEntries`
-  pairing, so no triple is attachable to it yet.
+  #13173: the pairing is done. `.dispatch_loop_body` is emitted as a real (local,
+  zero-byte) label at the guard's fall-through in both `depthAwareStop` arms, so
+  the body has a linker symbol of its own; `dispatchLoopLabeledFunction` is a
+  MANIFEST row against that label, and `guestImageEntries` carries
+  `(GuestAddrs.dispatch_loop_body, dispatchLoop_prog)`. A `CodeReq.ofProg` at
+  that address is therefore part of `guestImageCodeReq`, and
+  `guestImage_block_sub` lifts any triple stated over it into the image.
 -/
 
 import EvmAsm.Codegen.Emit
@@ -294,6 +317,25 @@ def stackOverflowGuardAsm : String :=
     adds a symtab entry — but do re-run `scripts/check-region-map.sh`, which
     diffs a freshly linked ELF against the committed snapshot. -/
 def dispatchResumeLabel : String := ".dispatch_resume"
+
+/-- Entry label of the dispatcher loop **body** — the sixteen instructions
+    `dispatchLoopFunction` emits, i.e. `dispatchLoop_prog`.
+
+    ⚠️ This is deliberately NOT `.dispatch_loop`.  `.dispatch_loop` is the loop
+    *head*: `emitRuntimeDispatcherLoop` places
+    `emitDispatchLoopCodeSizeStopGuard` between that label and the body, so the
+    body starts 348 bytes later in the shipped image (12 in the
+    `depthAwareStop := false` arm) and the head address is the wrong PC base for
+    the body's PC-relative immediates.  Every `j .dispatch_loop` still re-enters
+    at the head, so the guard runs once per iteration; this label only *names*
+    the byte where the body begins, and emits nothing.
+
+    Its purpose is registration: `GuestImageEntries` rows are resolved by ELF
+    symbol name (`scripts/check-guest-image-program-bytes.py` looks the row's
+    entry up in the linked symbol table), so an interior slice of a larger
+    routine can only be registered by giving that slice a name in the emitted
+    text.  See `dispatchLoop_prog`. -/
+def dispatchLoopBodyLabel : String := ".dispatch_loop_body"
 
 /-- Common `process_message` body-entry seam.  The root path reaches this label
     after transaction-only preparation and its global stack/memory bootstrap;
@@ -1172,9 +1214,11 @@ def emitDispatchLoopCodeSizeStopGuard (depthAwareStop : Bool := false) : String 
     "  li a2, 0\n" ++
     "  jal ra, frame_return\n" ++
     "  j .dispatch_loop\n" ++
-    "1:\n"
+    "1:\n" ++
+    dispatchLoopBodyLabel ++ ":\n"
   else
-    "  bgeu x5, x6, .exit_label\n"
+    "  bgeu x5, x6, .exit_label\n" ++
+    dispatchLoopBodyLabel ++ ":\n"
 
 def emitDispatcherPrologue : String :=
   "  la sp, lp64_sp_top\n" ++     -- M16: LP64 stack ptr for ECALL-bridge helpers
@@ -3168,7 +3212,13 @@ def emitRuntimeDispatcherCallableSetup : String :=
     between them and the body. Carrying a label into `dispatchLoopFunction`
     would therefore have to carry the guard too — and the guard is
     `depthAwareStop`-dependent, while the converter only scans constant
-    `def …Function : String :=` defs. See `dispatchLoopFunction`. -/
+    `def …Function : String :=` defs. See `dispatchLoopFunction`.
+
+    ⚠️ **`.dispatch_loop` is therefore NOT the body's address.** The guard sits
+    between this label and `dispatchLoopFunction`; the body's own label is
+    `.dispatch_loop_body`, emitted at the guard's fall-through. Anything that
+    needs the PC base of the sixteen body instructions must use that one (GH
+    #13173). -/
 def dispatchLoopEntryAsm : String :=
   "  mv x10, x21\n" ++
   "  la x12, evm_stack_top\n" ++
@@ -3197,13 +3247,18 @@ def dispatchLoopEntryAsm : String :=
 
     * as extracted here (no leading label) — `first line is not a label`.  Still
       true, and by design: the entry label lives in `dispatchLoopEntryAsm`;
-    * prefixed with `.dispatch_loop:` alone — **converts**, `n=16 reloc=3
+    * prefixed with `.dispatch_loop_body:` alone — **converts**, `n=16 reloc=3
       asm_cmp=IDENTICAL (64 vs 64 bytes)`.  That prefix is
       `dispatchLoopLabeledFunction` below, and its Program is
       `dispatchLoop_prog`;
-    * prefixed with both labels — `secondary non-.L label '.dispatch_loop':
-      multi-entry bundle … (MULTI-ENTRY-BUNDLE)`.  Still true, and why the
-      labelled target carries exactly one label.
+    * prefixed with both labels — `secondary non-.L label: multi-entry bundle …
+      (MULTI-ENTRY-BUNDLE)`.  Still true, and why the labelled target carries
+      exactly one label.
+
+    ⚠️ `asm_cmp=IDENTICAL` is byte identity of the converter's OWN standalone
+    assembly, placed at whatever label it was handed.  It says nothing about
+    whether that label is where the body actually lives in the image — the
+    original conversion used `.dispatch_loop`, and was 348 bytes off (GH #13173).
 
     ⛔ This docstring previously recorded the middle verdict as `unresolved
     branch/jump target '.exit_outofgas'` and concluded that step 3 "will
@@ -3235,32 +3290,10 @@ def dispatchLoopFunction : String :=
   -- below hold by `rfl` instead of regenerating this literal.
   "  jalr x1, 0(x7)\n"
 
-/-- **#12204 step 3: the conversion target for `dispatchLoop_prog`.**
-
-    `dispatchLoopFunction` is the loop body only — the entry labels live in
-    `dispatchLoopEntryAsm`, because `asm_to_program.py` refuses a bundle with two
-    consecutive non-`.L` labels (MULTI-ENTRY-BUNDLE).  This def supplies the ONE
-    label the converter needs and nothing else, so it is definitionally
-    `".dispatch_loop:\n" ++ dispatchLoopFunction`: no character of emitted guest
-    text is duplicated here or moved.
-
-    It is a **constant** `def … : String`, which is what makes step 3 possible —
-    the converter scans constant defs only, and the `depthAwareStop`-parameterised
-    guard sits in the caller (`emitDispatchLoopCodeSizeStopGuard`), never in the
-    body.  The warning in `dispatchLoopFunction`'s docstring that step 3 "will
-    additionally need the loop specialised per `depthAwareStop` arm" was written
-    while step 1 was the blocker; the step-5 factoring already removed the need.
-
-    ⛔ This is NOT emitted into any image.  `emitRuntimeDispatcherLoop` remains
-    the only producer of dispatcher text, and it concatenates
-    `dispatchLoopFunction`, not this.  `dispatchLoopLabeledFunction_eq_prog`
-    below pins the two together so they cannot drift. -/
-def dispatchLoopLabeledFunction : String :=
-  ".dispatch_loop:\n" ++ dispatchLoopFunction
-
-/-- **`dispatchLoop_prog` (#12204 step 3).**  The shipped dispatcher loop as a
-    `Program`, mechanically converted by `scripts/asm_to_program.py` from
-    `dispatchLoopLabeledFunction`.
+/-- **`dispatchLoop_prog` (#12204 step 3, rebased in #13173).**  The shipped
+    dispatcher loop body as a `Program`, mechanically converted by
+    `scripts/asm_to_program.py` from
+    `scripts/asm-fixtures/dispatchLoopLabeledFunction.s`.
 
     Sixteen instructions: opcode fetch, the M30 static-gas charge with its
     out-of-gas exit, and the indirect dispatch through `opcode_handlers`.
@@ -3268,21 +3301,37 @@ def dispatchLoopLabeledFunction : String :=
     The `la` targets and the cross-`jal` carry CONCRETE guest-linked immediates
     (`laHi`/`laLo`/`jalOff` over `GuestAddrs`) — the verification view.  The
     emitted image text keeps them symbolic via `emitProgramR` and
-    `dispatchLoop_relocs`, so every image relocates for itself. -/
+    `dispatchLoop_relocs`, so every image relocates for itself.
+
+    ⚠️ **The PC base is `GuestAddrs.dispatch_loop_body`, NOT
+    `GuestAddrs.dispatch_loop`, and that is load-bearing.**  `.dispatch_loop` is
+    the loop *head*; `emitRuntimeDispatcherLoop` places
+    `emitDispatchLoopCodeSizeStopGuard` between the head label and this body, so
+    in the shipped image the body begins 348 bytes after `.dispatch_loop`
+    (0x800307d8 vs 0x8003067c — read them from `GuestAddrs`, not from these
+    digits).  Based at the head, indices 3, 8 and 12 came out 348 bytes wrong and
+    the Program matched the image at no address at all.  Nothing caught it:
+    `emitProgramR` renders exactly those three sites SYMBOLICALLY through
+    `dispatchLoop_relocs`, so `dispatchLoopLabeledFunction_eq_prog` is blind to
+    the base, and `asm_cmp` only ever compared the converter's own standalone
+    assembly *placed at the label it was given*.  The gate that does see it is
+    `scripts/check-guest-image-program-bytes.py`, which resolves the
+    `GuestImageEntries` row's entry in the linked symbol table — and it could not
+    see this Program until #13173 registered it. -/
 def dispatchLoop_prog : Program :=
   [ .LBU .x5 .x10 (0 : BitVec 12),
     .SLLI .x5 .x5 (3 : BitVec 6),
-    .AUIPC .x6 (laHi GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop + 8)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop + 8)),
+    .AUIPC .x6 (laHi GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop_body + 8)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop_body + 8)),
     .ADD .x6 .x6 .x5,
     .LD .x6 .x6 (0 : BitVec 12),
     .LD .x7 .x20 (568 : BitVec 12),
     .BGEU .x7 .x6 (8 : BitVec 13),
-    .JAL .x0 (jalOff GuestAddrs.exit_outofgas (GuestAddrs.dispatch_loop + 32)),
+    .JAL .x0 (jalOff GuestAddrs.exit_outofgas (GuestAddrs.dispatch_loop_body + 32)),
     .SUB .x7 .x7 .x6,
     .SD .x20 .x7 (568 : BitVec 12),
-    .AUIPC .x6 (laHi GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop + 44)),
-    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop + 44)),
+    .AUIPC .x6 (laHi GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop_body + 44)),
+    .ADDI .x6 .x6 (laLo GuestAddrs.opcode_handlers (GuestAddrs.dispatch_loop_body + 44)),
     .ADD .x6 .x6 .x5,
     .LD .x7 .x6 (0 : BitVec 12),
     .JALR .x1 .x7 (0 : BitVec 12) ]
@@ -3301,37 +3350,83 @@ def dispatchLoop_relocs : RelocTable :=
     (7, .br .bltu .x7 .x6 ".exit_outofgas"),
     (11, .la .x6 "opcode_handlers") ]
 
+/-- **The manifest conversion target for `dispatchLoop_prog`** (row
+    `dispatchLoopLabeledFunction` in `scripts/asm-fixtures/MANIFEST.tsv`, fixture
+    `scripts/asm-fixtures/dispatchLoopLabeledFunction.s`).
+
+    The label is `.dispatch_loop_body`, which is a REAL symbol of the linked
+    guest (`emitDispatchLoopCodeSizeStopGuard` emits it at the guard's
+    fall-through, in both `depthAwareStop` arms, emitting no bytes of its own).
+    That is what makes the row registrable: `GuestImageEntries` rows are resolved
+    by ELF symbol name, so an interior slice of a larger routine has to be named
+    in the emitted text before the image map can carry it.
+
+    ⛔ This def itself is NOT emitted into any image — `emitRuntimeDispatcherLoop`
+    concatenates `dispatchLoopFunction`, the hand-written source of the same
+    sixteen instructions.  `dispatchLoopFunction_eq_prog` below pins the two
+    together so they cannot drift. -/
+def dispatchLoopLabeledFunction : String :=
+  ".dispatch_loop_body:\n" ++ emitProgramR dispatchLoop_prog dispatchLoop_relocs
+
 -- The literal is a ~16-link `++` chain and `emitProgramR` folds over the
 -- Program, so whnf on both sides runs deeper than the default 512.  Raising the
 -- limit only lets the elaborator finish unfolding; the equality is still
 -- kernel-checked, and no forbidden tactic is involved.
 set_option maxRecDepth 4000 in
 /-- **Kernel-checked drift guard.**  The text the shipped dispatcher emits is
-    exactly `dispatchLoop_prog` rendered under its label, with the `la` and
-    symbolic-branch relocs kept symbolic.
+    exactly `dispatchLoop_prog` rendered, with the `la` and symbolic-branch
+    relocs kept symbolic.
 
-    ⭐ `dispatchLoopLabeledFunction` is definitionally
-    `".dispatch_loop:\n" ++ dispatchLoopFunction`, and `dispatchLoopFunction` is
-    pinned as a factor of `emitRuntimeDispatcherLoop` by
-    `emitRuntimeDispatcherLoop_split`.  So this `rfl` ties the Program to the
+    ⭐ `dispatchLoopFunction` is pinned as a factor of `emitRuntimeDispatcherLoop`
+    by `emitRuntimeDispatcherLoop_split`.  So this `rfl` ties the Program to the
     **shipped** dispatcher text rather than to a copy of it: a line spliced into
     the emitted loop without also landing in `dispatchLoop_prog` fails to
     compile.
 
     ⚠️ The trailing `++ "\n"` is not slack.  `emitProgramR` (via `joinLines`)
     omits the final newline, which is right for a def that IS the whole emitted
-    unit -- the shape every other `_eq_prog` in this file has.  This body is a
-    concatenation FACTOR of `emitRuntimeDispatcherLoop`, sitting between the
-    code-size stop guard and `emitDispatchResume`, so it must keep its own line
-    terminator.  Dropping it to make the statement prettier would change the
-    emitted dispatcher text. -/
+    unit.  `dispatchLoopFunction` is a concatenation FACTOR of
+    `emitRuntimeDispatcherLoop`, sitting between the code-size stop guard and
+    `emitDispatchResume`, so it must keep its own line terminator.  Dropping it
+    to make the statement prettier would change the emitted dispatcher text.
+
+    ⚠️ This statement is deliberately blind to the Program's PC base: all three
+    base-dependent immediates are exactly the three `dispatchLoop_relocs` sites,
+    which `emitProgramR` renders symbolically.  Do not read a green `rfl` here as
+    evidence that the Program is anchored at the right address — see the warning
+    on `dispatchLoop_prog`, and the `GuestImageEntries` row, which is what
+    actually checks that. -/
+theorem dispatchLoopFunction_eq_prog :
+    dispatchLoopFunction
+      = emitProgramR dispatchLoop_prog dispatchLoop_relocs ++ "\n" := rfl
+
+set_option maxRecDepth 4000 in
+/-- The manifest shape of the same fact, in the form
+    `scripts/asm_to_program.py` and `check-asm-to-program.sh` expect. -/
 theorem dispatchLoopLabeledFunction_eq_prog :
     dispatchLoopLabeledFunction
-      = ".dispatch_loop:\n" ++ emitProgramR dispatchLoop_prog dispatchLoop_relocs
-          ++ "\n" := rfl
+      = ".dispatch_loop_body:\n"
+          ++ emitProgramR dispatchLoop_prog dispatchLoop_relocs := rfl
 
-#guard dispatchLoopLabeledFunction.startsWith ".dispatch_loop:\n"
+#guard dispatchLoopLabeledFunction.startsWith ".dispatch_loop_body:\n"
 #guard dispatchLoop_prog.length = 16
+
+/-- Non-vacuity / anchoring control for the rebase (#13173).  The loop body is
+    the LAST factor of `emitRuntimeDispatcherLoop` before `emitDispatchResume`,
+    and `emitDispatchResume` opens with two label definitions (`.dispatch_resume`
+    and `.runtime_tx_child_message_entry`) that emit no bytes.  So the body's
+    entry address is forced to be exactly `4 * 16` bytes below `.dispatch_resume`
+    — a fact derived from two NAMED linker symbols, with no dependence on the
+    `depthAwareStop`-branched guard's size.
+
+    This is the negative control for the old base: `.dispatch_loop` does **not**
+    satisfy it (the guard sits in between), so the pre-#13173 anchoring is
+    refuted here rather than merely replaced. -/
+theorem dispatchLoopBody_abuts_dispatchResume :
+    GuestAddrs.dispatch_loop_body + 4 * dispatchLoop_prog.length
+      = GuestAddrs.dispatch_resume
+    ∧ GuestAddrs.dispatch_loop + 4 * dispatchLoop_prog.length
+        ≠ GuestAddrs.dispatch_resume := by decide
 
 
 

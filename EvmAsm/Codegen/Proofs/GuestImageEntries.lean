@@ -519,6 +519,7 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.tx_pubkey_public_key_matches, txPubkeyPublicKeyMatches_prog),
   (GuestAddrs.verify_public_keys_match_senders, verifyPublicKeysMatchSenders_prog),
   (GuestAddrs.block_verdict_chain_id_gate, blockVerdictChainIdGate_prog),
+  (GuestAddrs.dispatch_loop_body, dispatchLoop_prog),
   (GuestAddrs.balance_live_else_header_state_root, balanceLiveElseHeaderStateRoot_prog),
   (GuestAddrs.nonce_at_header_state_root, nonceAtHeaderStateRoot_prog),
   (GuestAddrs.account_exists_at_header_state_root, accountExistsAtHeaderStateRoot_prog),
@@ -658,6 +659,6 @@ def guestImageEntries : List (Nat × Program) := [
   (GuestAddrs.assemble_execution_requests, assembleExecutionRequests_prog),
   (GuestAddrs.requests_hash_verify, requestsHashVerify_prog) ]
 
-#guard guestImageEntries.length = 475
+#guard guestImageEntries.length = 476
 
 end EvmAsm.Codegen

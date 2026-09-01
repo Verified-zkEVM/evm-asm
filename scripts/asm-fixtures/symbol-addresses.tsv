@@ -508,6 +508,7 @@ stateless_guest	.runtime_tx_top_level_message_d0_done	0x8003053c	.text	LINK_DEPE
 stateless_guest	.runtime_tx_shared_message_body	0x8003054c	.text	LINK_DEPENDENT
 stateless_guest	.dispatch_loop	0x8003067c	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_message_entry	0x8003067c	.text	LINK_DEPENDENT
+stateless_guest	.dispatch_loop_body	0x800307d8	.text	LINK_DEPENDENT
 stateless_guest	.dispatch_resume	0x80030818	.text	LINK_DEPENDENT
 stateless_guest	.runtime_tx_child_message_entry	0x80030818	.text	LINK_DEPENDENT
 stateless_guest	balance_live_else_header_state_root	0x80030878	.text	LINK_DEPENDENT
