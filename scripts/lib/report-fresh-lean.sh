@@ -17,8 +17,8 @@
 #   LAKE_ARTIFACT_CACHE=false lake build "$WITNESS_MODULE"
 # before reading reports, and (a) does not suppress stderr, (b) treats a
 # zero-report output as a harness failure rather than an empty success.
-# This helper ports the same three mechanisms to the two lake-exe report
-# consumers (drift-report.sh, progress-report.sh).
+# This helper ports the same three mechanisms to the lake-exe report
+# consumers (drift-report.sh, progress-report.sh, progress-cockpit.sh).
 #
 # Usage:
 #   source scripts/lib/report-fresh-lean.sh
