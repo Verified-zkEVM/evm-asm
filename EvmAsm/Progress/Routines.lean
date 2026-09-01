@@ -416,8 +416,9 @@ import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
 -- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
 -- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
 import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
--- #11654: tier 2 of SLOAD's storage read path. `h_SLOAD` itself has no
--- `Program`, so this is the granularity at which the read path is statable.
+-- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
+-- itself has no `Program`, so this is the granularity at which the read path
+-- is statable.
 import EvmAsm.Codegen.Proofs.StorageWritesBlockLatestValueSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
@@ -5151,10 +5152,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "bare in-range literal (GH #12586). Lives in "
         ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean`"),
   -- #11654: SLOAD's read path, at the only granularity where it is statable.
-  -- `h_SLOAD` is an `OpcodeHandlerSpec` with `body := []` and raw `String`
-  -- preBody/tail — no `Program`, no `GuestImageEntries` pairing — so no
-  -- whole-handler triple exists to state. This is tier 2 of the funnel the
-  -- handler runs (`storagePrestateResolveAsm`, `Codegen/Programs/Storage.lean`).
+  -- The SLOAD dispatcher handler is an `OpcodeHandlerSpec` with `body := []`
+  -- and raw `String` preBody/tail — no `Program`, no `GuestImageEntries`
+  -- pairing — so no whole-handler triple exists to state. This is tier 2 of
+  -- the funnel that handler runs (`storagePrestateResolveAsm`,
+  -- `Codegen/Programs/Storage.lean`).
+  -- ⚠️ `transcription_queue.py` credits this row's SLOAD mentions to the
+  -- handler and moves it from queue rank 12 to 4 (score 100 -> 115, "gate 1"),
+  -- via the opcode-mnemonic alias. The literal `h_SLOAD` token is kept OUT of
+  -- the comment/gate/notes so the credit stays at ONE alias hit rather than
+  -- compounding; the remaining hit is left standing because it is TRUE — the
+  -- handler's unconvertibility is exactly why this row exists and why the
+  -- SLOAD opcode row is still `.execSpec`. `docs/transcription-queue.md` is
+  -- regenerated to match. This row's own gate is the capacity comparison, not
+  -- the handler.
   routine "storage_writes_block_latest_value" .conditional
       (some "storageWritesBlockLatestValueCapacityRefusalFlat_spec")
       (gate := "ONE input-domain gate: `BitVec.ult cap cnt` — the caller's "
