@@ -57,13 +57,20 @@
 
   ⚠️ `bytesRegion b bs` owns `⌈|bs|/8⌉` dwords and pins the last one to
   `packBytes` of a zero-PADDED tail, so a slab whose length is not a multiple of
-  8 would silently assert that the bytes between the slab's end and the next
-  dword boundary are `0x00` — an assumption about payload bytes the routine
-  never reads.  Rather than let that widen in silence, `h_slab8` states
-  `8 ∣ input.length` explicitly: with it the region covers whole dwords and
-  claims nothing whatever about anything past the slab.  It is a stated
-  restriction on which BAL sections this row covers, not a hidden one, and it is
-  what keeps this row clear of #13014 proper.
+  8 additionally asserts that the bytes between the slab's end and the next
+  dword boundary are `0x00` — a claim about payload bytes the routine never
+  reads.
+
+  ⭐ An earlier draft of this header proposed carrying `h_slab8 : 8 ∣ input.length`
+  on the whole-routine theorem to make that restriction explicit.  §14 does
+  **not** do so, and the reason is worth keeping: the proof never needs it, so
+  the hypothesis would only shrink the covered domain — it would understate the
+  theorem rather than document it.  The caveat is real but it is a *call-site*
+  property of `bytesRegion`, discharged by the caller choosing a dword-multiple
+  slab, and it is written into `block_access_list_hash_spec_within`'s docstring
+  instead.  Callers with a nonzero post-slab tail cannot produce the resource
+  (that is #13014's mechanism, witnessed by `exactRegion_false_on_nonzero_tail`);
+  they are not covered, and equally they are not silently assumed away.
 -/
 import EvmAsm.Codegen.Programs.BlockAccessListHashBahOffset
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
@@ -1176,25 +1183,194 @@ theorem keccakFrameRegs_flat (v8 v9 v18 v20 : Word) :
         ((.x20 : Reg) ↦ᵣ v20) ** empAssertion) := rfl
 
 theorem coreStack_flat (sp0 : Word) :
-    stackFree (sp0 + signExtend12 (-16 : BitVec 12)) 4 =
+    stackFree (sp0 - BitVec.ofNat 64 16) 4 =
       (memOwn (sp0 - BitVec.ofNat 64 48) ** memOwn (sp0 - BitVec.ofNat 64 40) **
         memOwn (sp0 - BitVec.ofNat 64 32) ** memOwn (sp0 - BitVec.ofNat 64 24) **
         empAssertion) := by
-  show (memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 4)) **
-      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 3)) **
-      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 2)) **
-      memOwn ((sp0 + signExtend12 (-16 : BitVec 12)) - BitVec.ofNat 64 (8 * 1)) **
+  show (memOwn ((sp0 - BitVec.ofNat 64 16) - BitVec.ofNat 64 (8 * 4)) **
+      memOwn ((sp0 - BitVec.ofNat 64 16) - BitVec.ofNat 64 (8 * 3)) **
+      memOwn ((sp0 - BitVec.ofNat 64 16) - BitVec.ofNat 64 (8 * 2)) **
+      memOwn ((sp0 - BitVec.ofNat 64 16) - BitVec.ofNat 64 (8 * 1)) **
       empAssertion) = _
-  rw [show signExtend12 (-16 : BitVec 12) = (-16 : Word) from by decide,
-    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 4) = sp0 - BitVec.ofNat 64 48 from by bv_omega,
-    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 3) = sp0 - BitVec.ofNat 64 40 from by bv_omega,
-    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 2) = sp0 - BitVec.ofNat 64 32 from by bv_omega,
-    show sp0 + (-16 : Word) - BitVec.ofNat 64 (8 * 1) = sp0 - BitVec.ofNat 64 24 from by bv_omega]
+  rw [show sp0 - BitVec.ofNat 64 16 - BitVec.ofNat 64 (8 * 4)
+        = sp0 - BitVec.ofNat 64 48 from by bv_omega,
+    show sp0 - BitVec.ofNat 64 16 - BitVec.ofNat 64 (8 * 3)
+        = sp0 - BitVec.ofNat 64 40 from by bv_omega,
+    show sp0 - BitVec.ofNat 64 16 - BitVec.ofNat 64 (8 * 2)
+        = sp0 - BitVec.ofNat 64 32 from by bv_omega,
+    show sp0 - BitVec.ofNat 64 16 - BitVec.ofNat 64 (8 * 1)
+        = sp0 - BitVec.ofNat 64 24 from by bv_omega]
 
+/-- The core's `ra` spill cell, in the wrapper's `sp0 - k` spelling. -/
 theorem coreRa_addr (sp0 : Word) :
     sp0 + signExtend12 (-16 : BitVec 12) = sp0 - BitVec.ofNat 64 16 := by
   rw [show signExtend12 (-16 : BitVec 12) = (-16 : Word) from by decide]
   bv_omega
+
+/-- The core's ambient: everything the wrapper still owns that `zkvm_keccak256`
+    never reads — the `bal_start` spill cell, the SSZ header region, the one
+    frame slot below the core's window, and the caller's own ambient. -/
+abbrev coreAmb (sp0 b v18 : Word) (hdr : List (BitVec 8)) (A : Assertion) : Assertion :=
+  (balStartLoc ↦ₘ balStart b hdr) ** bytesRegion b hdr **
+    ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) ** A
+
+/-- The body's frame: what rides untouched from the wrapper's caller into the
+    core's precondition. -/
+abbrev coreCarried (outPtr v20 : Word) (b : Word) (hdr input os : List (BitVec 8))
+    (A : Assertion) : Assertion :=
+  ((.x20 : Reg) ↦ᵣ v20) ** regOwns coreFreeTemps **
+    bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state) os **
+    bytesRegion (balStart b hdr) input **
+    bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) ** A
+
+set_option maxRecDepth 16000 in
+/-- **Whole-routine contract for `block_access_list_hash`** (#12318).
+
+    31 instructions at `GuestAddrs.block_access_list_hash`, composed against
+    `bah_u32le` (twice) and `block_access_list_hash_core` (tail-called), which
+    in turn carries `zkvm_keccak256`.  The `CodeReq` is `allCode`, the union of
+    the four `CodeReq.ofProg`s at their linked guest addresses.
+
+    **The exit is `ret`, not an address inside this routine.**  Instruction 30
+    is `JAL x0, block_access_list_hash_core` executed after the epilogue has
+    restored `ra` and popped the frame, so the core returns directly to our
+    caller and the postcondition is the core's postcondition verbatim.
+
+    `h_len` is the one semantic bridge: it says the extent the SSZ navigation
+    computes (`bal_end - bal_start`) is the length of the slab the caller
+    presents.
+
+    ⚠️ There is deliberately **no** `8 ∣ input.length` hypothesis, despite what
+    this module's header anticipated.  The proof does not need one, so imposing
+    it would only shrink the covered domain — an understatement of what is
+    actually proved.  The dword-tail caveat it was meant to record is a property
+    of `bytesRegion` at the *call site*, not an assumption of this theorem: when
+    `8 ∤ input.length` the atom `bytesRegion (balStart b hdr) input` additionally
+    pins the buffer bytes between the slab's end and the next dword boundary to
+    `0x00`, so a caller with a nonzero tail there simply cannot produce the
+    resource (this is #13014's mechanism, and `exactRegion_false_on_nonzero_tail`
+    in `HashBridgeKeccakEnvelope` is the kernel-checked witness that it bites).
+    Such callers are not covered; they are also not silently assumed away. -/
+theorem block_access_list_hash_spec_within
+    (sp0 ret b outPtr : Word) (hdr input os : List (BitVec 8)) (N rem : Nat)
+    (v5 v6 v8 v9 v12 v18 v20 : Word)
+    (A : Assertion) (hA : A.pcFree)
+    (h_align : b.toNat % 8 = 0)
+    (h_fit : 592 ≤ hdr.length)
+    (h_over : b.toNat + 591 < 2 ^ 64)
+    (h_valid : ∀ k, k < hdr.length →
+      isValidByteAccess (b + BitVec.ofNat 64 k) = true)
+    (h_len : balEnd b hdr - balStart b hdr = BitVec.ofNat 64 input.length)
+    (halign_ret : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : input.length = keccakAbsorbStep * N + rem)
+    (hrem_le : rem ≤ 135)
+    (hos : os.length = 200)
+    (halign_zk : (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat % 8 = 0)
+    (hover : (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + 200 < 2 ^ 64)
+    (hNbound : keccakAbsorbStep * N + rem < 2 ^ 63)
+    (hrem64 : rem < 2 ^ 64)
+    (hb8i : (keccakAbsorbCursor (balStart b hdr) N).toNat % 8 = 0)
+    (hovers : ∀ n, n < rem →
+      (BitVec.ofNat 64 GuestAddrs.zk3_state).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hoveri : ∀ n, n < rem →
+      (keccakAbsorbCursor (balStart b hdr) N).toNat + (rem - (n + 1)) < 2 ^ 64)
+    (hvalids : ∀ n, n < rem →
+      isValidByteAccess
+        (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidi : ∀ n, n < rem →
+      isValidByteAccess
+        (keccakAbsorbCursor (balStart b hdr) N + BitVec.ofNat 64 (rem - (n + 1))) = true)
+    (hvalidRem : isValidByteAccess
+      (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 rem) = true)
+    (hvalid135 : isValidByteAccess
+      (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 135) = true)
+    (hvalidMem : ∀ j, j < 200 →
+      isValidMemAddr
+        (BitVec.ofNat 64 GuestAddrs.zk3_state + BitVec.ofNat 64 j) = true) :
+    cpsTripleWithin (54 + 1 + (6 + (5 + keccakBodyFuel N rem + 6))) (At 0) ret allCode
+      ((((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((.x10 : Reg) ↦ᵣ b) ** ((.x11 : Reg) ↦ᵣ outPtr) ** ((.x12 : Reg) ↦ᵣ v12) **
+        ((.x8 : Reg) ↦ᵣ v8) ** ((.x9 : Reg) ↦ᵣ v9) ** ((.x18 : Reg) ↦ᵣ v18) **
+        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+        ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ balStart b hdr) **
+        ((.x30 : Reg) ↦ᵣ balEnd b hdr) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        stackFree sp0 6 ** memOwn balStartLoc ** bytesRegion b hdr) **
+        coreCarried outPtr v20 b hdr input os A)
+      (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
+        ((sp0 + signExtend12 (-16 : BitVec 12)) ↦ₘ ret) **
+        frameSlotsSaved keccakFrame
+          (sp0 + signExtend12 (-16 : BitVec 12) + signExtend12 (-32 : BitVec 12))
+          (keccakEntryVals v8 v9 v18 v20) **
+        regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+        keccakCallerPost (balStart b hdr) outPtr input N rem
+          (coreAmb sp0 b v18 hdr A)) := by
+  have hAmbPc : (coreAmb sp0 b v18 hdr A).pcFree := by pcf_b
+  have hRpc : (coreCarried outPtr v20 b hdr input os A **
+      memOwn (sp0 - BitVec.ofNat 64 48) **
+      memOwn (sp0 - BitVec.ofNat 64 40)).pcFree := by pcf_b
+  have hbody := body_spec sp0 ret b outPtr hdr v5 v6 v8 v9 v12 v18
+    (execP b) (balStart b hdr) (balEnd b hdr)
+    (coreCarried outPtr v20 b hdr input os A **
+      memOwn (sp0 - BitVec.ofNat 64 48) **
+      memOwn (sp0 - BitVec.ofNat 64 40)) hRpc h_align h_fit h_over h_valid
+  have hcore := cpsTripleWithin_extend_code coreMem
+    (BlockAccessListHashCoreSpec.block_access_list_hash_core_spec_within
+      sp0 ret (balStart b hdr) outPtr input N rem v8 v9 v18 v20
+      (execP b) (balStart b hdr) os (coreAmb sp0 b v18 hdr A) hAmbPc
+      halign_ret hlen hrem_le hos halign_zk hover hNbound hrem64 hb8i
+      hovers hoveri hvalids hvalidi hvalidRem hvalid135 hvalidMem)
+  have hjump := tail_jump_spec
+    (((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
+      memOwn (sp0 + signExtend12 (-16 : BitVec 12)) **
+      stackFree (sp0 + signExtend12 (-16 : BitVec 12)) 4 **
+      regsAt keccakFrame (keccakEntryVals v8 v9 v18 v20) **
+      keccakCallerPre (balStart b hdr) (BitVec.ofNat 64 input.length) outPtr
+        (execP b) (balStart b hdr) os input (List.replicate 32 (0 : BitVec 8))
+        (coreAmb sp0 b v18 hdr A))
+    (pcFree_sepConj pcFree_regIs (pcFree_sepConj pcFree_regIs
+      (pcFree_sepConj pcFree_memOwn (pcFree_sepConj (pcFree_stackFree _ _)
+        (pcFree_sepConj (pcFree_regsAt _ _)
+          (keccakCallerPre_pcFree _ _ _ _ _ _ _ _ _ hAmbPc))))))
+  have c1 := cpsTripleWithin_seq_perm_same_cr (fun h hq => ?_) hbody hjump
+  · have c2 := cpsTripleWithin_seq_perm_same_cr (fun _ hq => hq) c1 hcore
+    exact cpsTripleWithin_weaken
+      (fun _ hp => by rw [stackFree6_split] at hp; xcancel_struct hp)
+      (fun _ hq => hq) c2
+  -- The hand-off: `body_spec`'s post, permuted and weakened into the core's pre.
+  rw [h_len] at hq
+  simp only [coreCarried, regOwns, sepConj_emp_right'] at hq
+  have hq1 : (((.x5 : Reg) ↦ᵣ balStartLoc) **
+      (((.x30 : Reg) ↦ᵣ balEnd b hdr) **
+        (((sp0 - BitVec.ofNat 64 32) ↦ₘ ret) **
+          (((sp0 - BitVec.ofNat 64 24) ↦ₘ v8) **
+            (((sp0 - BitVec.ofNat 64 16) ↦ₘ v9) **
+              (((.x10 : Reg) ↦ᵣ balStart b hdr) **
+                ((.x11 : Reg) ↦ᵣ BitVec.ofNat 64 input.length) **
+                ((.x12 : Reg) ↦ᵣ outPtr) ** ((.x9 : Reg) ↦ᵣ v9) **
+                ((.x18 : Reg) ↦ᵣ v18) ** regOwn .x6 **
+                ((.x28 : Reg) ↦ᵣ execP b) ** ((.x29 : Reg) ↦ᵣ balStart b hdr) **
+                ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+                (balStartLoc ↦ₘ balStart b hdr) ** bytesRegion b hdr **
+                ((.x2 : Reg) ↦ᵣ sp0) ** ((.x1 : Reg) ↦ᵣ ret) **
+                ((.x8 : Reg) ↦ᵣ v8) **
+                ((sp0 - BitVec.ofNat 64 8) ↦ₘ v18) **
+                ((.x20 : Reg) ↦ᵣ v20) **
+                regOwn .x7 ** regOwn .x13 ** regOwn .x14 ** regOwn .x15 **
+                regOwn .x16 ** regOwn .x17 ** regOwn .x31 **
+                memOwn (sp0 - BitVec.ofNat 64 48) **
+                memOwn (sp0 - BitVec.ofNat 64 40) **
+                bytesRegion (BitVec.ofNat 64 GuestAddrs.zk3_state) os **
+                bytesRegion (balStart b hdr) input **
+                bytesRegion outPtr (List.replicate 32 (0 : BitVec 8)) ** A)))))) h := by
+    xperm_hyp hq
+  have hq2 := sepConj_mono (regIs_implies_regOwn .x5)
+    (sepConj_mono (regIs_implies_regOwn .x30)
+      (sepConj_mono memIs_implies_memOwn
+        (sepConj_mono memIs_implies_memOwn
+          (sepConj_mono memIs_implies_memOwn (fun _ hh => hh))))) h hq1
+  simp only [keccakCallerPre, keccakFrameRegs_flat, coreRa_addr, coreStack_flat,
+    coreAmb, coreFreeTemps_split, sepConj_emp_right']
+  xperm_hyp hq2
 
 -- #13030 temporary module-floor audit.  Kept until the row lands.
 #print axioms body_spec
