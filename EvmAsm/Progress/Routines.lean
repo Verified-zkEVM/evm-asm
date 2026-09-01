@@ -7504,6 +7504,10 @@ private noncomputable abbrev _wsrf_precondition_satisfiable_cover_witness :=
 -- write-map reader's absent arm.
 private noncomputable abbrev _runtime_same_block_delegation_code_routine_witness :=
   @EvmAsm.Codegen.Proofs.runtimeSameBlockDelegationCodeMissFlat_spec
+-- #12318 composition lane: the frame-descent helper, over `frame_base`'s
+-- register-only contract.
+private noncomputable abbrev _call_frame_enter_routine_witness :=
+  @EvmAsm.Codegen.Proofs.callFrameEnterDepth1Flat_spec
 -- #11654: SLOAD's tier-2 read routine, plus its THREE cover theorems. The
 -- covers are registered individually and deliberately (#12857): a non-vacuity
 -- control that lives only in a row's prose is outside the axiom gate.
