@@ -1088,6 +1088,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longHdr_domain_nonvacuous
 
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_pre155_arm_unreachable
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_arity
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_prefix
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_specRef_correspondence
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 
 #print axioms EvmAsm.Codegen.TxTypeDispatchSpec.txTypeDispatch_spec_within

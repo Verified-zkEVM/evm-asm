@@ -4539,7 +4539,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "at 0xc4). "
         ++ "Empty-len fail (`a1 = 0`) is a SEPARATE slice "
         ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry "
-        ++ "row. ⚠️ Does NOT claim SpecRef `signing_hash_*`"),
+        ++ "row. ⚠️ The CITED theorem does not claim SpecRef "
+        ++ "`signing_hash_*`: its post is the operational KSS digest "
+        ++ "`keccak256 (kssMsg segs)`. The SpecRef claim is a SEPARATE theorem "
+        ++ "in the same file, `tx_signing_hash_specRef_correspondence`, which "
+        ++ "rewrites ONLY the success arm's digest to "
+        ++ "`SpecRef.Transactions.signing_hash_*` under one named decoder "
+        ++ "residual (`h_decoder_payload`) and is graded in "
+        ++ "`Progress/Correspondence.lean` (tx family). It reaches FOUR of the "
+        ++ "six: `_2930`, `_1559`, `_4844`, `_7702`. NOT `signing_hash_pre155` "
+        ++ "— the selector's `.legacy` arm is PROVABLY unreachable under this "
+        ++ "routine's own `hnzType` (`tsh_specRef_pre155_arm_unreachable`) — "
+        ++ "and NOT `signing_hash_155`, which is K146 "
+        ++ "`tx_signing_hash_legacy_eip155`, still without a whole-routine "
+        ++ "triple (#12038)"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
@@ -5610,6 +5623,20 @@ private noncomputable abbrev _tx_signing_hash_hdrgate_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 private noncomputable abbrev _tx_signing_hash_longarm_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
+-- #12038: the SpecRef leg. The correspondence theorem itself, its closed
+-- positive control (the residual bundle is satisfiable), and the three
+-- negative controls that make the selector a real restriction rather than a
+-- formality — including the exclusion that keeps `signing_hash_pre155` out.
+private noncomputable abbrev _tx_signing_hash_specref_correspondence_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_specRef_correspondence
+private noncomputable abbrev _tx_signing_hash_specref_nonvacuous_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+private noncomputable abbrev _tx_signing_hash_specref_prefix_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_prefix
+private noncomputable abbrev _tx_signing_hash_specref_arity_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_arity
+private noncomputable abbrev _tx_signing_hash_specref_pre155_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_pre155_arm_unreachable
 -- #12776: the `notlist` gate is UNESTABLISHABLE by either routine that
 -- `validate_header_rlp_pair` calls, and these five decide it over the concrete
 -- programs rather than asserting it in prose. The arity checker performs no
