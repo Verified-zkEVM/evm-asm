@@ -339,10 +339,12 @@ carries. Those unfold to `BitVec.ofInt`/`setWidth`/`<<<`/`signExtend` chains,
 which `omega` has to model bit-exactly.
 
 **Carrying reloc hypotheses is not, by itself, expensive.** Measured across the
-write-map family (2026-09-01, issue #13202): six body specs hold two or three
-`la` hypotheses at once and call `bv_omega` dozens of times per file, and each
-file elaborates in 2–9 s, of which `bv_omega` accounts for under 2 s. Do not
-strip relocs from a context on suspicion alone.
+write-map family (2026-09-01, issue #13202): eight spec files call `bv_omega`
+inline under reloc hypotheses — six of their body specs hold two or three `la`
+hypotheses at once, and one file makes 52 such calls — and every file
+elaborates in 2–9 s, of which `bv_omega` accounts for under 2 s. What costs in
+those files is `runBlock` interpretation, not `omega`. Do not strip relocs from
+a context on suspicion alone.
 
 **What is expensive is two reloc hypotheses equated to the _same_ variable:**
 
