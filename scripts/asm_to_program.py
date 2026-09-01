@@ -1220,7 +1220,16 @@ def assemble_cmp(orig_asm, emitted_asm, entry_addr=None, externals=None):
 # --------------------------------------------------------------------------- #
 def lean_camel(entry):
     # entry label like rlp_walk_init -> rlpWalkInit
-    parts=entry.split('_')
+    #
+    # GH #13173: strip a leading dot FIRST.  Every caller builds a Lean
+    # identifier out of this (`<camel>_prog`), and a Lean identifier cannot
+    # start with a dot — a raw GNU-as local code label such as
+    # `.dispatch_loop_body` produced `.dispatchLoopBody_prog`, which Lean parses
+    # as DOT-NOTATION and reports as `Unknown constant List.dispatchLoopBody_prog`.
+    # Same mangling `ga_name` applies for `GuestAddrs`, and the identity on the
+    # ~1400 global symbols, which is why it went unnoticed until an entry symbol
+    # was a local label.
+    parts=ga_name(entry).split('_')
     return parts[0]+''.join(p.capitalize() for p in parts[1:])
 
 def layout_leaf_path(path, root="", fname=None):
@@ -1965,14 +1974,19 @@ def _collect_guest_addr_syms():
         'rlp_recursive_decode_items',
         'rlp_recursive_decode_read_be',
         'rlp_recursive_decode_frame',
-        # GH #12204 step 3: dispatchLoop_prog is hand-maintained in Dispatch.lean
-        # (not an asm-fixture manifest entry), so its four referenced symbols are
-        # not discovered by the manifest scan.  `.dispatch_loop` and
-        # `.exit_outofgas` are GNU-as LOCAL code labels, so they are pinned by
-        # their RAW dot-prefixed spelling (this set is matched against the
+        # GH #12204 step 3 / #13173: `dispatchLoopBody_prog` IS a manifest entry
+        # now (`dispatchLoopBodyFunction`, entry `.dispatch_loop_body`), so its
+        # `la`/branch targets are discovered by the manifest scan.  These two are
+        # kept pinned anyway because they are named from Lean by hand and not by
+        # any fixture: `.dispatch_loop` is the loop HEAD (the body sits 348 bytes
+        # into it, behind the code-size stop guard) and is cited by
+        # `dispatchLoopBody_abuts_dispatchResume` as the negative control for the
+        # body's PC base.  Both are GNU-as LOCAL code labels, so they are pinned
+        # by their RAW dot-prefixed spelling (this set is matched against the
         # address table); `gen_guest_addrs` emits them under `ga_name`, i.e. as
         # `GuestAddrs.dispatch_loop` / `GuestAddrs.exit_outofgas`.
         '.dispatch_loop',
+        '.dispatch_resume',
         '.exit_outofgas',
         'opcode_gas_costs',
         'opcode_handlers',

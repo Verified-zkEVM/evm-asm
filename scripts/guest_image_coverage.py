@@ -32,7 +32,7 @@ import re
 import sys
 from collections import defaultdict
 
-from asm_to_program import layout_leaf_path
+from asm_to_program import ga_name, layout_leaf_path
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
@@ -94,9 +94,9 @@ _GA_DEF = re.compile(r"^def (\w+) : Nat := (0x[0-9a-fA-F]+)$", re.M)
 # 133276 / 476, remeasured with `--write-floor`.
 # GH #13096 retires the 96-byte linked sender probe, leaving the current
 # floor at 133184 covered bytes / 475 converted entries.
-EXPECTED_COVERED_BYTES_FLOOR = 133184
+EXPECTED_COVERED_BYTES_FLOOR = 133248
 # Linked converted entry count floor (guestImageEntries.length #guard twin).
-EXPECTED_CONVERTED_COUNT_FLOOR = 475
+EXPECTED_CONVERTED_COUNT_FLOOR = 476
 # Max live−floor before the exceed path hard-fails (#12138).
 # Window of unnoticed revert this accepts: up to this many covered bytes /
 # converted entries can land without `--write-floor` and a later drop that
@@ -125,7 +125,12 @@ def write_floor_constants(covered_bytes: int, n_conv: int) -> None:
 
 
 def lean_camel(entry: str) -> str:
-    """symbol label -> Lean camelCase stem (mirrors asm_to_program.py lean_camel)."""
+    """symbol label -> Lean camelCase stem (mirrors asm_to_program.py lean_camel).
+
+    GH #13173: `ga_name` first — a Lean identifier cannot start with the dot of
+    a GNU-as local code label.
+    """
+    entry = ga_name(entry)
     parts = entry.split("_")
     return parts[0] + "".join(p.capitalize() for p in parts[1:])
 
@@ -314,7 +319,16 @@ def emit_entries_lean(linked, files):
           "/-- The linked converted functions of the guest image, ascending by",
           "    entry address: `(GuestAddrs.<entry>, <entry>_prog)`. -/",
           "def guestImageEntries : List (Nat × Program) := ["]
-    rows = [f"  (GuestAddrs.{e}, {p})" for e, p, _ in linked]
+    # GH #13173: `ga_name` drops the leading dot of a GNU-as LOCAL code label,
+    # because a dot cannot start a Lean identifier.  `gen_guest_addrs` emits its
+    # constants under that mangling, so a row must reference them the same way —
+    # a raw dot-prefixed entry renders as `GuestAddrs..dispatch_loop_body`, which
+    # is not a Lean identifier AND is silently skipped by the plain-identifier
+    # ROW_RE parsers in check-manifest-guestimage.py /
+    # check-guest-image-program-bytes.py.  Invisible on the ~1400 global symbols,
+    # where `ga_name` is the identity; it appears the moment a routine's ENTRY is
+    # a local label.  Same class as `asm_to_program.dotentry_self_test`.
+    rows = [f"  (GuestAddrs.{ga_name(e)}, {p})" for e, p, _ in linked]
     L.append(",\n".join(rows) + " ]")
     L += ["", f"#guard guestImageEntries.length = {len(linked)}", "",
           "end EvmAsm.Codegen", ""]
@@ -404,12 +418,14 @@ def check_declared_starts(syms, text_end, converted) -> int:
     for entry in linked:
         actual = addr_of[entry]
         prog, prog_bytes, _ = converted[entry]
-        if entry not in guest_addrs:
+        # GH #13173: GuestAddrs defs are keyed by the `ga_name`-mangled symbol.
+        ga = ga_name(entry)
+        if ga not in guest_addrs:
             failures.append(
                 f"DECLARED_MISSING entry={entry} actual=0x{actual:x} "
                 f"prog={prog} — GuestAddrs has no def for linked converted symbol")
             continue
-        declared = guest_addrs[entry]
+        declared = guest_addrs[ga]
         if declared != actual:
             delta = declared - actual
             sign = "+" if delta >= 0 else "-"

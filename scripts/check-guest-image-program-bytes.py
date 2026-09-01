@@ -228,10 +228,27 @@ def compare(
     failures: list[str] = []
     for entry, _prog in rows:
         expected_bytes = expected[entry]
-        if entry not in elf_symbols:
+        # GH #13173: a GuestImageEntries row spells the `ga_name`-MANGLED symbol
+        # (`ga_name` drops the leading dot of a GNU-as local code label, because
+        # a dot cannot start a Lean identifier), while the ELF symbol table
+        # carries the raw name.  On the ~1400 global symbols the two coincide;
+        # for a local code label such as `.dispatch_loop_body` they do not, and
+        # the unmangled lookup reported "no linked ELF symbol" for a row whose
+        # bytes are right there.  Refuse rather than guess if BOTH spellings are
+        # defined at different addresses.
+        dotted = "." + entry
+        if entry in elf_symbols and dotted in elf_symbols \
+                and elf_symbols[entry] != elf_symbols[dotted]:
+            failures.append(
+                f"{entry}: ambiguous — both {entry!r} and {dotted!r} are defined "
+                f"in the linked ELF at different addresses"
+            )
+            continue
+        sym = entry if entry in elf_symbols else dotted
+        if sym not in elf_symbols:
             failures.append(f"{entry}: GuestImageEntries row has no linked ELF symbol")
             continue
-        actual_start = elf_symbols[entry] - text_base
+        actual_start = elf_symbols[sym] - text_base
         if actual_start < 0 or actual_start + len(expected_bytes) > len(elf_binary):
             failures.append(
                 f"{entry}: linked slice outside .text (offset={actual_start} "

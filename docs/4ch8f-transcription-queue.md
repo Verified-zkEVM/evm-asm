@@ -327,18 +327,18 @@ spots. In rough order of how much they matter:
 
 | figure | here | `docs/4ch8f-guest-image-coverage.md` |
 |---|---:|---:|
-| `.text` symbols | 908 | 908 |
-| converted **and linked** | 475 | 475 |
+| `.text` symbols | 909 | 909 |
+| converted **and linked** | 476 | 476 |
 | unconverted | 433 | 433 |
-| unconverted bytes | 211868 | see below |
+| unconverted bytes | 211804 | see below |
 
 Both sides come from the same loader, so they agree by construction. Two
 figures need care. First, **converted-and-linked is not the manifest total**:
-`scripts/asm-fixtures/MANIFEST.tsv` has 560 conversion rows, of
+`scripts/asm-fixtures/MANIFEST.tsv` has 561 conversion rows, of
 which 85 have no entry symbol in the linker-facts table
 (converted but not linked — gas helpers etc. awaiting wiring). Those are not
 `.text` symbols, are not in `guestImageEntries`, and are **not** queue rows.
-Quoting 560 as "converted symbols" is the easy error here.
+Quoting 561 as "converted symbols" is the easy error here.
 
 Second, the guest-image doc reports **gap ranges**, of
 which there is one more than there are unconverted symbols — the extra is the
@@ -353,7 +353,7 @@ prologues and unlinked helpers), while this one counts **linked `.text`
 symbols**. A single symbol can have several Function defs and a Function def
 need not be linked, so neither total bounds the other.
 
-Named-set cost: 58904 B of 211868 B unconverted
+Named-set cost: 58904 B of 211804 B unconverted
 — i.e. the routines anything is demonstrably waiting on are a small fraction of
 the unconverted mass, which is the point of ranking by demand rather than by
 bytes.

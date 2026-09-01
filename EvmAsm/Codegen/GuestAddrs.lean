@@ -670,6 +670,7 @@ def derive_builder_exit_requests : Nat := 0x800536b8
 def derive_consolidation_requests : Nat := 0x80053680
 def derive_withdrawal_requests : Nat := 0x80053664
 def dispatch_loop : Nat := 0x8003067c
+def dispatch_loop_body : Nat := 0x800307d8
 def dispatch_resume : Nat := 0x80030818
 def dispatcher_capture_exec_state_gas : Nat := 0x8002b17c
 def dispatcher_capture_exec_state_gas_differential : Nat := 0x8002b1a0

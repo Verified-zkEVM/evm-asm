@@ -105,6 +105,72 @@ theorem guestImage_block_sub :
   CodeReq.ofProg_sub_ofEntries_of_extentsOk guestImageEntries_extentsOk
     (by decide)
 
+/-! ### The dispatcher loop body (GH #13173)
+
+    The image map carries an INTERIOR slice of a larger, unconverted routine:
+    `.dispatch_loop_body` is the sixteen-instruction fetch/charge/dispatch body
+    of `emitRuntimeDispatcherLoop`, sitting 348 bytes inside the loop head
+    `.dispatch_loop` (behind the `depthAwareStop` code-size stop guard) and ending
+    exactly at `.dispatch_resume`.
+
+    ⭐ Why that is sound here, and not the #13011/#13014 hazard.  That hazard is a
+    contract owning one exactly-sized `bytesRegion` whose size is not a multiple
+    of the access stride, so the region assertion silently claims the trailing
+    bytes are zero (keccak's 20-byte region under an 8-byte stride: 8 ∤ 20).
+    `CodeReq.ofProg` has no such tail: it is instruction-INDEXED with a 4-byte
+    stride, and 4 ∣ 64 exactly for sixteen instructions, so the row constrains
+    the 64 bytes `[.dispatch_loop_body, .dispatch_resume)` and asserts nothing
+    whatever about the 348 guard bytes before it or the resume block after it.
+    Whole-image disjointness is not assumed either — the interior row is inside
+    the one kernel-checked `guestImageEntries_extentsOk` `decide` above.
+
+    Post-link, `scripts/check-guest-image-program-bytes.py` measures this row
+    against the linked ELF like any other. -/
+theorem dispatchLoopBody_mem_guestImageEntries :
+    (GuestAddrs.dispatch_loop_body, dispatchLoopBody_prog) ∈ guestImageEntries := by
+  decide
+
+/-- The dispatch-step anchor that did not exist before #13173: the loop body's
+    `ofProg` block is subsumed by `guestImageCodeReq`, so a `cpsTripleWithin`
+    stated over `dispatchLoopBody_prog` at its linked entry lifts into the image
+    through `cpsTripleWithin_extend_code`. -/
+theorem dispatchLoopBody_block_sub :
+    ∀ a i,
+      CodeReq.ofProg (BitVec.ofNat 64 GuestAddrs.dispatch_loop_body)
+          dispatchLoopBody_prog a = some i →
+        guestImageCodeReq a = some i :=
+  guestImage_block_sub _ dispatchLoopBody_mem_guestImageEntries
+
+/-- **Non-vacuity for the row above.**  `cpsTripleWithin_needs_entry_code`
+    (`TopComposition.lean`) makes a phase whose entry has `cr entry = none`
+    UNSATISFIABLE — false rather than weak.  So the useful content of the pairing
+    is not membership but this: the image `CodeReq` actually RESOLVES at the loop
+    body's entry, to the body's first instruction.
+
+    The negative control is the pre-#13173 anchor: the same statement at
+    `GuestAddrs.dispatch_loop` is refuted below. -/
+theorem dispatchLoopBody_entry_pinned :
+    guestImageCodeReq (BitVec.ofNat 64 GuestAddrs.dispatch_loop_body)
+      = some (.LBU .x5 .x10 (0 : BitVec 12)) :=
+  dispatchLoopBody_block_sub _ _ (CodeReq.ofProg_lookup_zero _ _ _)
+
+set_option maxRecDepth 8000 in
+/-- **Negative control for `dispatchLoopBody_entry_pinned`, and the refutation of
+    the pre-#13173 anchoring.**  The same statement at the loop HEAD is FALSE:
+    `guestImageCodeReq` does not answer with the body's first instruction at
+    `GuestAddrs.dispatch_loop`, because the shipped image has 348 bytes of
+    code-size stop guard there.  That is exactly what a row
+    `(GuestAddrs.dispatch_loop, dispatchLoopBody_prog)` would have asserted, so
+    this is not a decoration: it is the reason the Program had to be rebased
+    rather than simply registered where it stood.
+
+    Kernel-checked over the whole 476-entry image map, so it also witnesses that
+    `guestImageCodeReq` is not degenerately constant. -/
+theorem dispatchLoop_head_not_pinned_to_body :
+    guestImageCodeReq (BitVec.ofNat 64 GuestAddrs.dispatch_loop)
+      ≠ some (.LBU .x5 .x10 (0 : BitVec 12)) := by
+  decide
+
 /-! ## 2. The `GuestFraming` bundle -/
 
 /-- Havoc ownership of one region of the map. -/
