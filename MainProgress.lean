@@ -4,14 +4,18 @@
   Entry point for `lake exe progress-report`. With no argument it prints the
   registry-driven sections of the progress dashboard to stdout; with the
   argument `drift` it prints the body of the TCB / "what is NOT proven" ledger
-  `DRIFT.md`. The shell wrappers (`scripts/progress-report.sh`,
-  `scripts/drift-report.sh`) compose this with grep-derived sections and a
+  `DRIFT.md`; with `cockpit` it prints the deterministic JSON body consumed by
+  `scripts/progress-cockpit.sh` and the GitHub Pages viewer (`docs/index.html`).
+  The shell wrappers (`scripts/progress-report.sh`, `scripts/drift-report.sh`,
+  `scripts/progress-cockpit.sh`) compose this with grep-derived sections and a
   snapshot banner.
 
   Only the `drift` render is committed (`DRIFT.md`, drift-gated by
-  `scripts/check-drift.sh`). The progress render is generated on demand by
-  `scripts/progress-report.sh --write` and is NOT in the tree (#12683) — a
-  generated file there conflicted on every concurrent PR.
+  `scripts/check-drift.sh`). The progress markdown and cockpit JSON are
+  generated on demand and are NOT in the tree (#12683) — a generated file
+  there conflicted on every concurrent PR. The cockpit viewer HTML is
+  committed (count-free); CI stamps `docs/cockpit/snapshot.json` and
+  publishes it to GitHub Pages.
 -/
 
 import EvmAsm.Progress
@@ -385,9 +389,130 @@ semantics only; **no RV64 subroutine is proven to produce the EVM result**:
   `check-forbidden-tactics.sh`).
 "
 
+/-! ## Cockpit JSON (GitHub Pages)
+
+    Deterministic — no date/SHA. `scripts/progress-cockpit.sh` stamps those
+    around this body. Pretty-printed so `report_fresh_lean`'s short-output
+    guard (10 lines) cannot mistake a one-line object for a broken tool. -/
+
+private def jsonEscapeChar (c : Char) : String :=
+  match c with
+  | '\\' => "\\\\"
+  | '"'  => "\\\""
+  | '\n' => "\\n"
+  | '\r' => "\\r"
+  | '\t' => "\\t"
+  | c =>
+    if c.toNat < 32 then
+      let hex := Nat.toDigits 16 c.toNat
+      let pad := List.replicate (4 - hex.length) '0'
+      "\\u" ++ String.ofList (pad ++ hex)
+    else
+      String.singleton c
+
+private def jsonEscape (s : String) : String :=
+  s.foldl (fun acc c => acc ++ jsonEscapeChar c) ""
+
+private def jsonStr (s : String) : String := s!"\"{jsonEscape s}\""
+
+private def jsonOptStr : Option String → String
+  | none => "null"
+  | some s => jsonStr s
+
+private def jsonTier : ProofTier → String
+  | .proven      => "\"proven\""
+  | .conditional => "\"conditional\""
+  | .partly      => "\"partly\""
+  | .execSpec    => "\"execSpec\""
+  | .notStarted  => "\"notStarted\""
+
+private def jsonStatus : ObligationStatus → String
+  | .done       => "\"done\""
+  | .blocked    => "\"blocked\""
+  | .notStarted => "\"notStarted\""
+
+private def jsonBlocker : Blocker → String
+  | .opcode m => "{\"kind\":\"opcode\",\"label\":" ++ jsonStr m ++ "}"
+  | .infra l  => "{\"kind\":\"infra\",\"label\":" ++ jsonStr l ++ "}"
+
+private def jsonOpcode (e : OpcodeEntry) : String :=
+  "{\"name\":" ++ jsonStr e.name ++ ",\"tier\":" ++ jsonTier e.tier ++
+    ",\"notes\":" ++ jsonStr e.notes ++ "}"
+
+private def jsonObligation (o : Obligation) : String :=
+  let blockers :=
+    if o.blockedBy.isEmpty then "[]"
+    else "[" ++ String.intercalate "," (o.blockedBy.map jsonBlocker) ++ "]"
+  "{\"id\":" ++ toString o.id ++
+    ",\"name\":" ++ jsonStr o.name ++
+    ",\"status\":" ++ jsonStatus o.status ++
+    ",\"blockedBy\":" ++ blockers ++
+    ",\"note\":" ++ jsonStr o.note ++
+    ",\"auditedAt\":" ++ jsonOptStr o.auditedAt ++
+    ",\"witness\":" ++ jsonOptStr o.witness ++ "}"
+
+private def renderCockpit : String :=
+  let opcodeRows := String.intercalate ",\n    " (registry.map jsonOpcode)
+  let oblRows := String.intercalate ",\n    " (obligations.map jsonObligation)
+  let rProven := EvmAsm.Progress.routineCountTier .proven
+  let rCond := EvmAsm.Progress.routineCountTier .conditional
+  let rPartly := EvmAsm.Progress.routineCountTier .partly
+  let covered := EvmAsm.Progress.GuestImageCoverage.coveredBytes
+  let textB := EvmAsm.Progress.GuestImageCoverage.textBytes
+  let entries := EvmAsm.Progress.GuestImageCoverage.entryCount
+  let bp := EvmAsm.Progress.GuestImageCoverage.coverageBasisPoints
+  "{
+  \"opcodes\": [
+    " ++ opcodeRows ++ "
+  ],
+  \"opcodeCounts\": {
+    \"proven\": " ++ toString provenCount ++ ",
+    \"conditional\": " ++ toString conditionalCount ++ ",
+    \"partly\": " ++ toString partialCount ++ ",
+    \"execSpec\": " ++ toString execSpecCount ++ ",
+    \"notStarted\": " ++ toString EvmAsm.Progress.notStartedCount ++ ",
+    \"total\": " ++ toString totalEntries ++ "
+  },
+  \"routineCounts\": {
+    \"proven\": " ++ toString rProven ++ ",
+    \"conditional\": " ++ toString rCond ++ ",
+    \"partly\": " ++ toString rPartly ++ ",
+    \"total\": " ++ toString EvmAsm.Progress.routineCount ++ "
+  },
+  \"routineSymbols\": " ++ toString EvmAsm.Progress.routineSymbols.length ++ ",
+  \"imageCoverage\": {
+    \"coveredBytes\": " ++ toString covered ++ ",
+    \"textBytes\": " ++ toString textB ++ ",
+    \"entries\": " ++ toString entries ++ ",
+    \"coverageBasisPoints\": " ++ toString bp ++ "
+  },
+  \"obligationCounts\": {
+    \"done\": " ++ toString doneCount ++ ",
+    \"blocked\": " ++ toString blockedCount ++ ",
+    \"notStarted\": " ++ toString Obligations.notStartedCount ++ ",
+    \"total\": " ++ toString obligations.length ++ "
+  },
+  \"obligations\": [
+    " ++ oblRows ++ "
+  ],
+  \"correspondence\": {
+    \"agrees\": " ++ toString (countVerdict .agrees) ++ ",
+    \"domainRestricted\": " ++ toString (countVerdict .domainRestricted) ++ ",
+    \"stricter\": " ++ toString (countVerdict .stricter) ++ ",
+    \"looser\": " ++ toString (countVerdict .looser) ++ ",
+    \"noCounterpart\": " ++ toString (countVerdict .noCounterpart) ++ ",
+    \"unproven\": " ++ toString (countVerdict .unproven) ++ ",
+    \"portDefect\": " ++ toString EvmAsm.Progress.Correspondence.countPortDefect ++ ",
+    \"total\": " ++ toString EvmAsm.Progress.Correspondence.registry.length ++ "
+  }
+}
+"
+
 def main (args : List String) : IO Unit := do
   if args.contains "drift" then
     IO.println renderDrift
+  else if args.contains "cockpit" then
+    IO.println renderCockpit
   else
     IO.println renderObligations
     IO.println ""
