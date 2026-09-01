@@ -650,6 +650,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToFieldFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_alias_control
+
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
+
 #print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
@@ -681,6 +687,12 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.kssDigest_eq_specref_any
 
 #print axioms EvmAsm.Codegen.Proofs.kss_sample_witness_multi
+
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDbFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDb_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDb_transfer_control
 
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
 
