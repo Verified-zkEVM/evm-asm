@@ -200,7 +200,7 @@ theorem hash_one_sha_residual_discharge
         (jalOff GuestAddrs.zkvm_sha256 (GuestAddrs.erh_hash_one + 76))
         shaResidualFuel
         ((.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ lenW) **
-          (.x24 ↦ᵣ destPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x24 ↦ᵣ destPtr) **
           bytesRegion bodyPtr body **
           (newSp ↦ₘ (B1 + 4)) ** A)) :
     cpsTripleWithin (1 + shaResidualFuel) (B1 + 76) (B1 + 80) fullCodeHo
@@ -208,13 +208,13 @@ theorem hash_one_sha_residual_discharge
         shaCallEntry newSp Blob (BitVec.ofNat 64 (body.length + 1)) destPtr
           (hashOneBlob (typeByte typeW) body) outOld) **
         ((.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ lenW) **
-          (.x24 ↦ᵣ destPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x24 ↦ᵣ destPtr) **
           bytesRegion bodyPtr body **
           (newSp ↦ₘ (B1 + 4)) ** A))
       (((.x1 ↦ᵣ (B1 + 80)) **
         shaCallReturn newSp Blob destPtr (hashOneBlob (typeByte typeW) body)) **
         ((.x13 ↦ᵣ bodyPtr) ** (.x14 ↦ᵣ typeW) ** (.x26 ↦ᵣ lenW) **
-          (.x24 ↦ᵣ destPtr) ** (.x0 ↦ᵣ (0 : Word)) **
+          (.x24 ↦ᵣ destPtr) **
           bytesRegion bodyPtr body **
           (newSp ↦ₘ (B1 + 4)) ** A)) := by
   obtain ⟨_, _, _, _, _, _, hcall⟩ := h_sha
