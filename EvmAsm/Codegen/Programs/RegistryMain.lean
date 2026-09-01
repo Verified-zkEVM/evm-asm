@@ -68,7 +68,6 @@ import EvmAsm.Codegen.Programs.Bn254Pairing
 import EvmAsm.Codegen.Programs.Selfdestruct
 import EvmAsm.Codegen.Programs.SelfdestructDescriptors
 import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.Registry
 import EvmAsm.Codegen.Programs.IntrinsicGas
 import EvmAsm.Codegen.Programs.RlpRead

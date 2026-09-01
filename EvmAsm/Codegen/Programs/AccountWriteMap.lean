@@ -246,16 +246,24 @@ live writers `.Lawr_store` / `.Lawb_store` are twins and must stay field-identic
       a6 = component-valid mask (VALUES 1|2|4|8|16|32)
       a7 = execFlags word, valid when mask has EXEC_FLAGS (VALUE 16); ignored otherwise
       ra = return
-      no result register.
+      a0 = status on return (zero on success, nonzero on failure).
 
     Targets the TRANSACTION level, which is where the spec's assignment points.
     The block level is filled only by `account_writes_incorporate_tx`.
 
-    Clobbers nothing the caller can see: `t0`-`t6`, `ra` and the argument
-    registers it forwards are saved and restored, so this is safe to call from a
-    handler `preBody` holding live dispatcher state in caller-saved registers —
-    the same contract `storage_write_record` relies on to leave verified
-    Programs untouched.
+    The explicit save/restore set is `t0`-`t6` and `ra`.  The routine does not
+    write any `s` register (`x8`, `x9`, `x18`-`x27`), so those registers are
+    preserved by non-use.  The prologue also spills `a0`-`a7`, but those slots
+    are argument scratch: the routine reuses them as working arguments and the
+    epilogue reloads no `a` register.  Entry `a0`-`a7` therefore follow the
+    ordinary caller-saved convention; in particular, `a0` on return carries
+    this routine's status rather than the entry address pointer.  Callers must
+    not rely on an entry `a0`-`a7` value surviving this call.  The linked
+    callers either construct the arguments immediately before the call,
+    discard them, or save and restore their own live state; the
+    `account_write_touch_current` wrapper saves/restores its `a0`-`a6` inputs
+    around the nested call.  The storage twin has a different save/restore
+    set, so its calling convention must not be inferred from this one.
 
     Convention: real producers already provide canonical BE20, so the map and
     builder keep that form end-to-end. The unused older stack-word API had no

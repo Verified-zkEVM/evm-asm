@@ -78,6 +78,7 @@ import EvmAsm.Codegen.Proofs.U256IsZeroSpec
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsmSupport
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldAddModPSAsm
 -- #12244: `blsgLeToBeFlat_spec` — the OWN-`CodeReq` triple, in the routine's own
 -- module rather than either caller's stage file.
 import EvmAsm.Codegen.Programs.Bls12G1LeToBeSAsm
@@ -386,6 +387,8 @@ import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakEnvelope
 import EvmAsm.Codegen.Programs.BlockHashFromHeaderSpec
 import EvmAsm.Codegen.Programs.BlockAccessListHashCoreSpec
+-- #12318: the SSZ navigation wrapper that tail-calls the core above.
+import EvmAsm.Codegen.Programs.BlockAccessListHashSpec
 import EvmAsm.Codegen.Programs.SszWitnessStateSectionSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeFinal
 import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
@@ -399,6 +402,30 @@ import EvmAsm.Codegen.Programs.AddressFromPubkeySpec
 -- #12222: `accountReadRecordSuppressedFlat_spec` — the BAL read-half producer's
 -- suppressed arm, whole-routine at `GuestAddrs.account_read_record`.
 import EvmAsm.Codegen.Proofs.AccountReadRecordSpec
+-- #11921: `storageWriteRecordFailClosedFlat_spec` /
+-- `storageWritesUndoPushFullFlat_spec` — the storage writer's fail-closed
+-- arm and the undo-journal push it rejects on.
+import EvmAsm.Codegen.Proofs.StorageWriteRecordSpec
+-- #11921: `accountWriteRecordFailClosedFlat_spec` /
+-- `accountWritesUndoPushFullFlat_spec` — the account writer's fail-closed
+-- arm and the undo-journal push it rejects on.
+import EvmAsm.Codegen.Proofs.AccountWriteRecordSpec
+-- #11921 remainder: the two write-map LEAVES —
+-- `accountWritesLookupCurrentAbsentFlat_spec` (both tiers empty) and
+-- `storageWritesBlockUpsertAppendFlat_spec` (first-row append).
+import EvmAsm.Codegen.Proofs.AccountWritesLookupCurrentSpec
+import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
+-- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
+-- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
+import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
+-- #12127: `writeSetsRestoreFrameEmptyFlat_spec` — the frame-revert routine's
+-- nothing-to-undo arm, the first spec of any shape for that symbol.
+import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
+import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
+-- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
+-- itself has no `Program`, so this is the granularity at which the read path
+-- is statable.
+import EvmAsm.Codegen.Proofs.StorageWritesBlockLatestValueSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
@@ -2384,6 +2411,41 @@ def routineRegistry : List RoutineEntry := [
         ++ "separate from `Frame`, so the census missed it by more than one token "
         ++ "(#12568). Lives in "
         ++ "`Codegen/Programs/Secp256k1FieldReduceOnceNSAsm.lean`"),
+  -- #12319: the first CALLER of `secf_reduce_once` to be rowed, and the first
+  -- secp256k1 field routine whose triple sits at its REAL linked address.
+  -- ⚠️ Do not read the sibling `secf_sub_mod_p` as precedent for coverage: that
+  -- port is proved at the probe-only placeholder PC `secfSubModPPc = 0x80000000`
+  -- and is therefore NOT anchored to the deployed image, which is why it has no
+  -- row here. Extent cross-checked against the image, not the docstring:
+  -- `secfAddModP_prog.length * 4 = 35 * 4 = 140`, and `secf_mul_mod_p -
+  -- secf_add_mod_p = 0x8001f8d4 - 0x8001f848 = 140`.
+  routine "secf_add_mod_p" .proven (some "secfAddModP_spec")
+      (notes := "whole-routine ABI contract at `GuestAddrs.secf_add_mod_p` over "
+        ++ "`secfAddModPCr` — a SIX-way `ofProg` union: this routine, "
+        ++ "`u256_add_be`, and everything `secfReduceOnceCr` already carries "
+        ++ "(`secf_reduce_once`, `u256_lt_be`, `u256_sub_be`, `secf_copy32`), "
+        ++ "every leg at a REAL guest address and every callee itself rowed. "
+        ++ "Byte-transparency kernel-checked: `abiFrameProg (-48) 48 "
+        ++ "secfAddModPFrame secfAddModPBody = secfAddModP_prog := rfl`, and the "
+        ++ "35-instruction program is exactly the 140-byte image extent "
+        ++ "(`secf_mul_mod_p - secf_add_mod_p`). Both `u256_add_be` call shapes are "
+        ++ "inside the claim: the all-distinct one for `x + y → secf_tmp0`, and the "
+        ++ "`a0 = a2` ALIASED one for the carry fold-back of `C = 2^256 mod p` into "
+        ++ "the temporary in place. `sp` and all six callee-saved registers restored "
+        ++ "to ENTRY values. ⚠️ OPERATIONAL POST, not a numeric one: the output is "
+        ++ "`reduceOnceBytes (addModPTmpBytes xs ys tmpOrig) outOrig`, i.e. the exact "
+        ++ "branch semantics of the emitted code. The mod-p identity "
+        ++ "`beBytesToNat out = (beBytesToNat xs + beBytesToNat ys) % p` under "
+        ++ "`xs, ys < p` is a NAMED RESIDUAL and is NOT claimed by this row. "
+        ++ "⚠️ NOT total: same window-disjointness domain restriction as the "
+        ++ "`secf_reduce_once` row above, plus the caller must own the three "
+        ++ "`secfReduceOnceFrame` slots at `sp - 80` that the tail call pushes. "
+        ++ "Non-vacuity is witnessed in-module by "
+        ++ "`secfAddModP_sideConditions_satisfiable` (a concrete call site "
+        ++ "discharging every decidable hypothesis at once) and "
+        ++ "`secfAddModP_dstAliasesTmp0_excluded` (the negative control: aliasing "
+        ++ "the output onto `secf_tmp0` makes one hypothesis provably FALSE). "
+        ++ "Lives in `Codegen/Programs/Secp256k1FieldAddModPSAsm.lean`"),
   -- The SAME class, one curve over (#12244). `bnf_be_to_le` / `bnf_le_to_be` had
   -- flat contracts in BOTH callers (`…AddModPSAsmStage`, `…MulModPSAsmStage`) and
   -- nowhere else. Measured, not assumed: the two blocks were **byte-identical
@@ -3737,6 +3799,140 @@ def routineRegistry : List RoutineEntry := [
         ++ "`GuestAddrs.stage_system_call` — same shape and caveat as "
         ++ "`derive_withdrawal_requests`, different predeploy address. "
         ++ "In-degree 1: `derive_block_system_requests`"),
+  -- #12318 callee-composition lane. The two EIP-8282 builder adapters complete
+  -- the four-routine request-adapter family: byte-for-byte the same 7-insn
+  -- tail-transfer shape as the two rows above, different address constant.
+  -- Extents cross-checked against the linked layout rather than prose --
+  -- `scripts/asm-fixtures/symbol-addresses.tsv` puts the deposit adapter at
+  -- 0x8005369c, the exit adapter at 0x800536b8 and `stage_system_call` at
+  -- 0x800536d4, so each spans 28 bytes = the `#guard`ed `prog.length = 7` x 4.
+  routine "derive_builder_deposit_requests" .proven
+      (some "deriveBuilderDepositRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps: entry "
+        ++ "`GuestAddrs.derive_builder_deposit_requests`, EXIT "
+        ++ "`GuestAddrs.stage_system_call`; proves the four-argument shuffle "
+        ++ "(`a0 := &builder_deposit_contract_addr`, `a1..a4 := ` the incoming "
+        ++ "`a0..a3`) and the transfer, NOT the system call's effect. It "
+        ++ "composes NOTHING from `stage_system_call`, so it inherits none of "
+        ++ "that routine's `.conditional` gate. Non-vacuity: closed "
+        ++ "instantiation `deriveBuilderDepositRequests_sample_reachable` "
+        ++ "(`a0..a3 = 1,2,3,4`, fully numeric post) plus two negative "
+        ++ "controls — `deriveBuilderRequests_addr_control` (all four "
+        ++ "request-adapter address constants pairwise distinct, so no one of "
+        ++ "the four posts is satisfiable by another's) and "
+        ++ "`deriveBuilderDepositRequests_hla_false_off_base`, where the "
+        ++ "`hla` linking hypothesis is provably FALSE one instruction off "
+        ++ "the linked base. ⚠️ `scripts/callee-composition-queue.py` grades "
+        ++ "this at in-degree 0, which is NOT dead code: `block_state_root` "
+        ++ "jals it (the `.Lc1_bd_call` arm of `blockStateRootFunction` in "
+        ++ "`Codegen/Programs/BlockVerdictStateRoot.lean`). That caller is "
+        ++ "LINKED — 0x80013830 in `scripts/asm-fixtures/symbol-addresses.tsv` "
+        ++ "— but still emitted as assembly TEXT, with no `Program`, no "
+        ++ "`GuestAddrs` constant and no `.s` fixture, so BOTH of the queue's "
+        ++ "graphs miss the edge"),
+  routine "derive_builder_exit_requests" .proven
+      (some "deriveBuilderExitRequestsFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 7 steps, exit "
+        ++ "`GuestAddrs.stage_system_call` — same shape and caveat as "
+        ++ "`derive_builder_deposit_requests`, different contract address. "
+        ++ "Non-vacuity: `deriveBuilderExitRequests_sample_reachable` plus the "
+        ++ "shared negative control `deriveBuilderRequests_addr_control`. "
+        ++ "⚠️ TWO caveats specific to this row. (1) Same in-degree-0 artefact "
+        ++ "as the deposit adapter: the builder-exit arm of "
+        ++ "`block_state_root` calls it from assembly text. (2) This "
+        ++ "routine is laid out IMMEDIATELY BEFORE `stage_system_call`, so its "
+        ++ "tail-jump target equals its own fallthrough address "
+        ++ "(`GuestAddrs.stage_system_call = GuestAddrs."
+        ++ "derive_builder_exit_requests + 28`, recorded as an equality in "
+        ++ "`deriveBuilderRequests_addr_control`). The exit pc therefore "
+        ++ "distinguishes nothing for this row; it is the address-distinctness "
+        ++ "conjuncts, not the exit, that carry the control"),
+  -- #12245 flat-block close-out. These two are the LAST routines in the guest
+  -- image carrying the flat-block shape that issue asks about: zero conditional
+  -- branches, zero callees, no ZisK `CSRS`, no indirect jump, and unrowed.
+  -- Measured from `guestImageEntries` itself (475 pairs) rather than from
+  -- `shape-census.py`, whose 588 counts EMITTED `*Function : String` defs most
+  -- of which are not linked: 78 entries are branch-free, 60 of those are also
+  -- accelerator-free with no indirect jump, and 33 of those are pure flat
+  -- blocks (26 return-shaped + 7 tail-transfer). All but these two were already
+  -- rowed, so the shape is exhausted at 33 and the generator #12245 asks about
+  -- has nothing left to amortise over. Extents below are cross-checked against
+  -- the linked layout (`scripts/asm-fixtures/symbol-addresses.tsv`) rather than
+  -- taken from prose, with `prog.length * 4 == hi - lo`.
+  routine "bal_serializer_u64_to_field" .proven
+      (some "balSerializerU64ToFieldFlat_spec")
+      (notes := "FLAT-BLOCK contract, 6 steps, return-shaped (exit "
+        ++ "`ra &&& ~~~1`): widens the u64 in `a1` into the 32-byte "
+        ++ "LITTLE-ENDIAN scalar field at `a0` — the four 8-byte limbs at "
+        ++ "`a0`, `a0+8`, `a0+16`, `a0+24` end holding `a1, 0, 0, 0`, "
+        ++ "least-significant limb first — leaving every register unchanged. "
+        ++ "The purest instance of the shape in "
+        ++ "`Codegen/Proofs/FlatBlockPilotSpec.lean`: the routine carries NO "
+        ++ "relocation at all, so `balSerializerU64ToField_body_spec` has no "
+        ++ "linking hypothesis and the anchored form is a bare instantiation "
+        ++ "at `base := GuestAddrs.bal_serializer_u64_to_field` with nothing "
+        ++ "to discharge. ⚠️ The five stores hit only FOUR addresses: "
+        ++ "`sd zero, 0(a0)` and `sd a1, 0(a0)` alias, so limb 0's strongest "
+        ++ "post is `a1`, NOT the `0` an instruction-by-instruction reading "
+        ++ "would give — a contract written off the instruction list without "
+        ++ "tracking the aliasing would claim all four limbs zero and the u64 "
+        ++ "would vanish. Non-vacuity: "
+        ++ "`balSerializerU64ToField_sample_reachable`, a closed "
+        ++ "instantiation whose four limbs START at `0xffffffffffffffff` "
+        ++ "(chosen non-zero on purpose — from all-zero memory the four "
+        ++ "clearing stores would be indistinguishable from no-ops), plus the "
+        ++ "negative control `balSerializerU64ToField_alias_control`, which "
+        ++ "records the four limb offsets as pairwise distinct AND the fifth "
+        ++ "store's offset as provably EQUAL to the first's. Extent: "
+        ++ "0x800241c0, next `.text` symbol `bal_serializer_measure_reads` at "
+        ++ "0x800241d8 = 24 bytes = the `#guard`ed "
+        ++ "`balSerializerU64ToField_prog.length = 6` x 4; the pair "
+        ++ "`(GuestAddrs.bal_serializer_u64_to_field, "
+        ++ "balSerializerU64ToField_prog)` is in `guestImageEntries`, so the "
+        ++ "`CodeReq` is the deployed code. In-degree is real and large: "
+        ++ "counted from the emitted `.JAL .x1 (jalOff "
+        ++ "GuestAddrs.bal_serializer_u64_to_field ...)` sites in "
+        ++ "`Codegen/Programs/BalSerializer{,Tail}.lean`, and cross-checked "
+        ++ "against the 12 matching `(_, .jal .x1 "
+        ++ "\"bal_serializer_u64_to_field\")` reloc entries, EIGHT callers "
+        ++ "widen through it at TWELVE call sites — "
+        ++ "`bal_serializer_emit_nonce` (x4), `measure_nonce` (x2), and "
+        ++ "`emit_balance`, `emit_code`, `emit_storage`, `measure_balance`, "
+        ++ "`measure_code`, `measure_slot` (x1 each)"),
+  routine "mpt_delete_walk_db" .proven
+      (some "mptDeleteWalkDbFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 1 step: the entire routine is "
+        ++ "`j mpt_set_record_walk_db` (delete and set share an ABI and a "
+        ++ "stack layout, so the delete entry point is a pure rename of the "
+        ++ "set walker). Entry `GuestAddrs.mpt_delete_walk_db`, EXIT "
+        ++ "`GuestAddrs.mpt_set_record_walk_db`; proves that control "
+        ++ "transfers and that NOTHING changes. The free-`base` "
+        ++ "`mptDeleteWalkDb_body_spec` is parametric in an arbitrary "
+        ++ "`pcFree` `P` — nothing is written and no register is touched, so "
+        ++ "the strongest post IS the precondition — and takes the one "
+        ++ "linking hypothesis this routine's single `jal` relocation needs "
+        ++ "(`mptDeleteWalkDb_relocs = [(0, .jal .x0 "
+        ++ "\"mpt_set_record_walk_db\")]`), discharged by `decide` at the "
+        ++ "linked base. The anchored row instantiates `P` at the "
+        ++ "seven-argument walk ABI `a0..a6` plus `ra`. ⚠️ It composes "
+        ++ "NOTHING from `mpt_set_record_walk_db` and inherits NONE of that "
+        ++ "routine's status: this row says where control goes, not what the "
+        ++ "walk computes. Non-vacuity: `mptDeleteWalkDb_sample_reachable` "
+        ++ "(eight distinct concrete arguments, fully numeric pre and post) "
+        ++ "plus the negative control `mptDeleteWalkDb_transfer_control`, "
+        ++ "which records that the exit is NOT the fallthrough "
+        ++ "(`mpt_delete_walk_db + 4` is `mpt_extension_extract`), that the "
+        ++ "jump goes BACKWARDS (`mpt_set_record_walk_db` at 0x80006e10 is "
+        ++ "below `mpt_delete_walk_db` at 0x800073fc), and that the same "
+        ++ "`hjal` hypothesis is provably FALSE one instruction off the "
+        ++ "linked base — so the body spec genuinely constrains `base`. "
+        ++ "⚠️ That backward jump is why the pre-#12790 shape dump graded "
+        ++ "this ONE-INSTRUCTION body as containing a loop; a single "
+        ++ "instruction cannot. Extent: 0x800073fc, next `.text` symbol "
+        ++ "`mpt_extension_extract` at 0x80007400 = 4 bytes = the `#guard`ed "
+        ++ "`(mptDeleteWalkDb_prog_of .zero).length = 1` x 4; the pair "
+        ++ "`(GuestAddrs.mpt_delete_walk_db, mptDeleteWalkDb_prog)` is in "
+        ++ "`guestImageEntries`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -3985,6 +4181,51 @@ def routineRegistry : List RoutineEntry := [
         ++ "wrapper's ABI and the digest of WHATEVER bytes the caller supplies; "
         ++ "that those bytes are the serialised block access list is the "
         ++ "`bal_serializer_*` rung, not this one"),
+  -- #12318 callee-composition lane, the caller of the row above. 31
+  -- instructions, no branch: SSZ navigation, two `bah_u32le` calls, then a TAIL
+  -- CALL into `block_access_list_hash_core`. Because idx 30 is `JAL x0` executed
+  -- AFTER the epilogue has restored `ra` and popped the frame, control never
+  -- returns into this routine — the triple's exit is the caller's `ret` and the
+  -- post is the core's post verbatim.
+  routine "block_access_list_hash" .proven
+      (some "block_access_list_hash_spec_within")
+      (notes := "whole-routine `cpsTripleWithin (54 + 1 + (6 + (5 + "
+        ++ "keccakBodyFuel N rem + 6)))` at `GuestAddrs.block_access_list_hash` "
+        ++ "over `CodeReq.union` of the four linked images it may fetch from "
+        ++ "(this wrapper, `bah_u32le`, `block_access_list_hash_core`, "
+        ++ "`zkvm_keccak256`) — every leg a `guestImageEntries` pairing, so the "
+        ++ "union is still an image claim. `proof-frontier.py --shape` grades it "
+        ++ "`whole-routine`: entry and CodeReq both anchored at "
+        ++ "`GuestAddrs.block_access_list_hash`. Composed as `body_spec` (idx "
+        ++ "0..29, both `bah_u32le` calls discharged against the rowed "
+        ++ "`bah_u32le_offset_spec_within` — the offset form, because both u32 "
+        ++ "pointers are ≡ 4 mod 8) ▸ `tail_jump_spec` ▸ the rowed "
+        ++ "`block_access_list_hash_core_spec_within`; both callee contracts are "
+        ++ "USED, not assumed. `bal_start` crosses the second call in the `.bss` "
+        ++ "cell `bah_bal_start`, carried as OWNED rather than framed. "
+        ++ "Hypotheses are resource/ABI plus ONE semantic bridge, `h_len`: the "
+        ++ "navigated extent `bal_end - bal_start` is the length of the slab the "
+        ++ "caller presents. That is a statement about the payload's own offset "
+        ++ "fields, not an input-domain restriction on which BAL sections run, so "
+        ++ "the row stays `.proven`. Non-vacuity is a triple: coverRef "
+        ++ "`blockAccessListHash_precondition_reachable` (+ "
+        ++ "`blockAccessListHash_header_bytes_valid`) satisfies every "
+        ++ "payload-dependent hypothesis on a concrete 592-byte SSZ window with "
+        ++ "`bal_off = 596`, `vh_off = 680`, a nonempty 40-byte slab and the two "
+        ++ "regions geometrically disjoint; and TWO negative controls on the same "
+        ++ "base show the new conjuncts can fail — "
+        ++ "`blockAccessListHash_len_negative_control` (`vh_off` off by one → "
+        ++ "`h_len` FALSE) and `blockAccessListHash_align_negative_control` "
+        ++ "(`bal_off` off the ≡ 4 mod 8 residue → the keccak absorb-cursor "
+        ++ "alignment FALSE, which is #13014's mechanism seen from the side where "
+        ++ "it is satisfiable). ⚠️ SCOPE: this grades the navigation and the "
+        ++ "digest of whatever bytes sit at `bal_start`; that those bytes are the "
+        ++ "serialised block access list is the `bal_serializer_*` rung. ⚠️ There "
+        ++ "is deliberately no `8 ∣ input.length` premise — the proof does not "
+        ++ "need one and it would only understate the theorem; for a slab whose "
+        ++ "length is not a dword multiple the `bytesRegion` atom itself pins the "
+        ++ "post-slab bytes to 0x00, so such callers are uncovered rather than "
+        ++ "assumed away"),
   -- #12224. The sender-authentication leg: the second keccak-calling wrapper,
   -- and the first whose post is stated against `SpecRef` rather than the guest's
   -- own sponge model.
@@ -4353,7 +4594,20 @@ def routineRegistry : List RoutineEntry := [
         ++ "at 0xc4). "
         ++ "Empty-len fail (`a1 = 0`) is a SEPARATE slice "
         ++ "(`tx_signing_hash_spec_within_empty_len`), not a second registry "
-        ++ "row. ⚠️ Does NOT claim SpecRef `signing_hash_*`"),
+        ++ "row. ⚠️ The CITED theorem does not claim SpecRef "
+        ++ "`signing_hash_*`: its post is the operational KSS digest "
+        ++ "`keccak256 (kssMsg segs)`. The SpecRef claim is a SEPARATE theorem "
+        ++ "in the same file, `tx_signing_hash_specRef_correspondence`, which "
+        ++ "rewrites ONLY the success arm's digest to "
+        ++ "`SpecRef.Transactions.signing_hash_*` under one named decoder "
+        ++ "residual (`h_decoder_payload`) and is graded in "
+        ++ "`Progress/Correspondence.lean` (tx family). It reaches FOUR of the "
+        ++ "six: `_2930`, `_1559`, `_4844`, `_7702`. NOT `signing_hash_pre155` "
+        ++ "— the selector's `.legacy` arm is PROVABLY unreachable under this "
+        ++ "routine's own `hnzType` (`tsh_specRef_pre155_arm_unreachable`) — "
+        ++ "and NOT `signing_hash_155`, which is K146 "
+        ++ "`tx_signing_hash_legacy_eip155`, still without a whole-routine "
+        ++ "triple (#12038)"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
@@ -4687,6 +4941,480 @@ def routineRegistry : List RoutineEntry := [
         ++ "this arm ties to no spec-side VALUE, only to the absence of a "
         ++ "record, so a correspondence verdict would overstate it. Lives in "
         ++ "`Codegen/Proofs/AccountReadRecordSpec.lean`"),
+  -- #11921 rows 2/5: the storage writer's fail-closed arm, and its callee.
+  routine "storage_write_record" .conditional
+      (some "storageWriteRecordFailClosedFlat_spec")
+      (gate := "TWO input-domain gates, both genuine restrictions rather than "
+        ++ "framing. (1) `tx_storage_writes_count = 0` — the transaction's "
+        ++ "storage-write map is EMPTY, i.e. this is the transaction's first "
+        ++ "storage write, so the scan's `bgeu t4, t1` at instruction index 22 "
+        ++ "is taken with ZERO iterations and no loop invariant is claimed. "
+        ++ "(2) `¬ storage_writes_undo_count <ᵤ 167652` — the undo journal is "
+        ++ "FULL, so `storage_writes_undo_push` refuses and the caller takes "
+        ++ "its reject arm at index 78. The arms excluded are the hit arm "
+        ++ "(indices 23..68), the append arm's sixteen-dword row write "
+        ++ "(indices 79..122) and the 5588-iteration `.Lswr_overflow` arm; "
+        ++ "none of them is claimed here. coverRef: the three `example`s at "
+        ++ "the end of `Codegen/Proofs/StorageWriteRecordSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, undo cursor 200000, both "
+        ++ "flags 0, temps `1..7,11..13`, all twenty spill slots read back "
+        ++ "numerically), NEGATIVE controls (`¬¬(0 <ᵤ 167652)` — an empty undo "
+        ++ "journal is provably outside the arm; `¬¬(0 <ᵤ 1)` — a non-empty "
+        ++ "transaction map likewise), and an `isValidDwordAccess` "
+        ++ "satisfiability check on all twenty frame slots and four globals")
+      (notes := "`cpsTripleWithin 83` at `GuestAddrs.storage_write_record`, "
+        ++ "exit `ra &&& ~~~1`, over `swrCR`. ⭐ The CodeReq is a UNION and "
+        ++ "that is FORCED, not a convenience: `storage_write_record` has NO "
+        ++ "arm that both terminates at `ret` and stays inside its own bytes "
+        ++ "— every terminating path either runs the index-22 scan for "
+        ++ "`tx_storage_writes_count` iterations or reaches a `jal ra, "
+        ++ "storage_writes_undo_push` (index 65 hit arm, index 77 append "
+        ++ "arm), and the one call-free exit `.Lswr_overflow` is reachable "
+        ++ "only after 5588 scan iterations. So `swrCR` pairs "
+        ++ "`storageWriteRecord_prog` at its `GuestImageEntries` entry "
+        ++ "(`:395`) with `storageWritesUndoPush_prog` at its own (`:399`) — "
+        ++ "the `bansfCR` shape, still anchored at "
+        ++ "`GuestAddrs.storage_write_record` for `proof-frontier.py "
+        ++ "--shape`. What the post says: both sticky overflow flags latch to "
+        ++ "1, `tx_storage_writes_count` stays 0, `storage_writes_undo_count` "
+        ++ "is NOT advanced, `sp` and all thirteen prologue-saved registers "
+        ++ "come back intact. Because `cpsTripleWithin` quantifies over a "
+        ++ "`pcFree` frame, it ALSO says — for free, by not naming them — "
+        ++ "that nothing is written to `TX_STORAGE_WRITES_AREA` or the "
+        ++ "undo-journal arena. That is the spec-side content of the "
+        ++ "\"FAILS CLOSED — latches overflow and rejects\" claim "
+        ++ "`Codegen/RegionMap.lean:164` makes only in prose. ⚠️ No "
+        ++ "Correspondence row: this arm ties to no spec-side VALUE (the tie "
+        ++ "to `storageWriteUpsert`, "
+        ++ "`Stateless/State/StorageWriteUpsert.lean:142`, needs the append "
+        ++ "arm and the scan invariant), so a correspondence verdict would "
+        ++ "overstate it. Lives in "
+        ++ "`Codegen/Proofs/StorageWriteRecordSpec.lean`"),
+  routine "storage_writes_undo_push" .conditional
+      (some "storageWritesUndoPushFullFlat_spec")
+      (gate := "`¬ storage_writes_undo_count <ᵤ 167652` — the journal-full "
+        ++ "arm only (the sole `bgeu t1, t2` at instruction index 13, TAKEN). "
+        ++ "The excluded arms are the three the fall-through at index 14 "
+        ++ "reaches: `wasAbsent = 0` (32-byte prevValue copy), `wasAbsent = 1` "
+        ++ "(no payload) and `wasAbsent = 2` (the 128-byte row copy loop at "
+        ++ "indices 26..34). coverRef: the same three `example`s in "
+        ++ "`Codegen/Proofs/StorageWriteRecordSpec.lean`; the positive "
+        ++ "witness is `¬ 200000 <ᵤ 167652` and the negative control "
+        ++ "`¬¬(0 <ᵤ 167652)`")
+      (notes := "`cpsTripleWithin 30` at `GuestAddrs.storage_writes_undo_push` "
+        ++ "over `CodeReq.ofProg … storageWritesUndoPush_prog` — the "
+        ++ "`GuestImageEntries.lean:399` pairing itself, so entry AND CodeReq "
+        ++ "are both at the anchor. Path `0..13 ;; 47..62`: prologue (`sp -= "
+        ++ "64`, spill `t0`-`t6`) ;; `la t0, storage_writes_undo_count` ;; "
+        ++ "`ld t1` ;; the 167652 capacity `bgeu` TAKEN ;; `li a0, 1` ;; latch "
+        ++ "both sticky flags ;; epilogue. ⭐ The load-bearing clause is what "
+        ++ "the post does NOT contain: the journal cursor is unchanged and no "
+        ++ "record address is named, so the frame rule says the journal arena "
+        ++ "is untouched — a refused push mutates nothing, which is what lets "
+        ++ "callers reject instead of mutating without a rollback record. "
+        ++ "Before this row the frontier census listed this symbol as "
+        ++ "`absent` (no spec of any shape), and its being unwitnessed is why "
+        ++ "`storage_write_record` did not appear in the startable frontier "
+        ++ "at all. Lives in `Codegen/Proofs/StorageWriteRecordSpec.lean`"),
+  -- #12127: the frame-revert side of the same journal — the arm where the
+  -- frame journalled nothing, so the revert is a pure cursor reset.
+  routine "write_sets_restore_frame" .conditional
+      (some "writeSetsRestoreFrameEmptyFlat_spec")
+      (gate := "ONE input-domain gate, a genuine restriction rather than "
+        ++ "framing: `¬ a0 <ᵤ storage_writes_undo_count` — the caller's "
+        ++ "undo-journal mark is at or above the current cursor, i.e. the "
+        ++ "frame being reverted journalled NOTHING, so the `bgeu a0, t1` at "
+        ++ "instruction index 18 (`base + 72`) is TAKEN and the backwards "
+        ++ "replay loop runs zero iterations. Everything the loop does is "
+        ++ "excluded: the `wasAbsent = 0` value write-back (indices 22..33), "
+        ++ "the `wasAbsent = 1` count decrement (indices 40..46) and the "
+        ++ "`wasAbsent = 2` 128-byte row re-materialisation (indices 47..68). "
+        ++ "coverRef: `wsrfEmpty_numeric_instance`, "
+        ++ "`wsrfEmpty_gate_reachable` and "
+        ++ "`wsrfEmpty_precondition_satisfiable` at the end of "
+        ++ "`Codegen/Proofs/WriteSetsRestoreFrameSpec.lean`, each registered "
+        ++ "individually in the axiom gate (#12857) — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, cursor 0, mark 0, temps `1..7`, all "
+        ++ "seven spill slots read back numerically), a NEGATIVE control "
+        ++ "(`¬¬(0 <ᵤ 1)` — a single journalled record is provably OUTSIDE "
+        ++ "the arm, and that is the ordinary case the routine exists to "
+        ++ "serve; also `¬¬(5 <ᵤ 200000)`), and an `isValidDwordAccess` "
+        ++ "satisfiability check on all seven frame slots and the global")
+      (notes := "`cpsTripleWithin 31` at "
+        ++ "`GuestAddrs.write_sets_restore_frame`, exit `ra &&& ~~~1`, over "
+        ++ "`CodeReq.ofProg … writeSetsRestoreFrame_prog` — the "
+        ++ "`GuestImageEntries.lean:400` pairing itself, so entry AND CodeReq "
+        ++ "are both at the anchor. ⭐ No union is needed here, and that is a "
+        ++ "property of the routine rather than of the arm: the Program "
+        ++ "contains no `JAL x1` at all — every jump is a local `JAL x0` and "
+        ++ "the only `JALR` is the `x0`-linked `ret`. Path `0..18 ;; 69..80`: "
+        ++ "prologue (`sp -= 64`, spill `t0`-`t6`) ;; `la t0, "
+        ++ "storage_writes_undo_count` ;; `ld t1` ;; the two arena-base "
+        ++ "immediate materialisations, which the proof ties to "
+        ++ "`STORAGE_WRITES_UNDO_AREA` and `TX_STORAGE_WRITES_AREA` rather "
+        ++ "than to literals ;; the `bgeu` TAKEN ;; re-`la` the cursor ;; `sd "
+        ++ "a0` ;; epilogue. What the post says: the cursor ends holding the "
+        ++ "mark, `sp` and all seven prologue-saved temporaries come back "
+        ++ "intact, `a0` and `ra` are untouched. Because `cpsTripleWithin` "
+        ++ "quantifies over a `pcFree` frame, the post ALSO says — for free, "
+        ++ "by not naming them — that nothing is written to "
+        ++ "`TX_STORAGE_WRITES_AREA`, to `tx_storage_writes_count`, or to the "
+        ++ "journal arena: a frame that wrote nothing cannot corrupt its "
+        ++ "parent's write map on revert. Base verified against the linked "
+        ++ "image, not inferred: `nm` puts the symbol at `0x80021198` (equal "
+        ++ "to `GuestAddrs`) with the next symbol at `0x800212dc`, so the "
+        ++ "extent is 324 B = `writeSetsRestoreFrame_prog.length * 4`, and "
+        ++ "`llvm-objdump` confirms the index-18 `bgeu` targets `+0x114` = "
+        ++ "index 69. ⚠️ No Correspondence row: this arm ties to no spec-side "
+        ++ "VALUE (the tie to the proven upsert model needs the replay loop), "
+        ++ "so a correspondence verdict would overstate it. Before this row "
+        ++ "the frontier census listed this symbol as `absent` — no spec of "
+        ++ "any shape. Lives in "
+        ++ "`Codegen/Proofs/WriteSetsRestoreFrameSpec.lean`"),
+  -- #11921 row 1: the ACCOUNT writer's fail-closed arm, and its callee — the
+  -- account-side analogue of the two storage rows immediately above.
+  routine "account_write_record" .conditional
+      (some "accountWriteRecordFailClosedFlat_spec")
+      (gate := "TWO input-domain gates, both genuine restrictions rather than "
+        ++ "framing. (1) `tx_account_writes_count = 0` — the transaction's "
+        ++ "account-write map is EMPTY, i.e. this is the transaction's first "
+        ++ "account write, so the scan's `bgeu t4, t1` at instruction index 24 "
+        ++ "is taken with ZERO iterations and no loop invariant is claimed. "
+        ++ "(2) `¬ account_writes_undo_count <ᵤ 163840` — the undo journal is "
+        ++ "FULL at `accountWritesUndoCapacity`, so `account_writes_undo_push` "
+        ++ "refuses and the caller takes its reject arm at index 56. The arms "
+        ++ "excluded are the hit arm (indices 25..50), the append arm's "
+        ++ "zero-fill and masked field overlay (indices 57..126) and the "
+        ++ "16384-iteration `.Lawr_overflow` arm; none of them is claimed "
+        ++ "here. coverRef: the three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean` — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, undo cursor 200000, both flags 0, "
+        ++ "temps `1..7` and argument registers `20..27`, all twenty-three "
+        ++ "spill slots read back numerically), NEGATIVE controls "
+        ++ "(`¬¬(0 <ᵤ 163840)` — an empty undo journal is provably outside the "
+        ++ "arm; `¬¬(0 <ᵤ 1)` — a non-empty account map likewise), and an "
+        ++ "`isValidDwordAccess` satisfiability check on all twenty-three "
+        ++ "frame slots and four globals")
+      (notes := "`cpsTripleWithin 77` at `GuestAddrs.account_write_record`, "
+        ++ "exit `ra &&& ~~~1`, over `awrCR`. ⭐ The CodeReq is a UNION and "
+        ++ "that is FORCED, exactly as for `storage_write_record`: "
+        ++ "`account_write_record` has NO arm that both terminates at `ret` "
+        ++ "and stays inside its own bytes — every terminating path either "
+        ++ "runs the index-24 scan for `tx_account_writes_count` iterations "
+        ++ "or reaches a `jal ra, account_writes_undo_push` (index 40 hit "
+        ++ "arm, index 55 append arm), and the one call-free exit "
+        ++ "`.Lawr_overflow` is reachable only after 16384 scan iterations. "
+        ++ "So `awrCR` pairs `accountWriteRecord_prog` at its "
+        ++ "`GuestImageEntries` entry (`:401`) with "
+        ++ "`accountWritesUndoPush_prog` at its own (`:417`) — the `bansfCR` "
+        ++ "shape, still anchored at `GuestAddrs.account_write_record` for "
+        ++ "`proof-frontier.py --shape`. What the post says: both sticky "
+        ++ "overflow flags latch to 1, `tx_account_writes_count` stays 0, "
+        ++ "`account_writes_undo_count` is NOT advanced, `sp` plus `t0`-`t6` "
+        ++ "and `ra` come back intact. Because `cpsTripleWithin` quantifies "
+        ++ "over a `pcFree` frame, it ALSO says — for free, by not naming "
+        ++ "them — that nothing is written to `TX_ACCOUNT_WRITES_AREA` or to "
+        ++ "the account undo-journal arena. ⚠️ The post is NOT a full "
+        ++ "callee-saves claim and says so: the prologue spills `a0`-`a7` "
+        ++ "(indices 9..16) but the epilogue (indices 134..141) reloads only "
+        ++ "`t0`-`t6` and `ra` on EVERY arm, so `a0 = 1`, `a5 = 0`, `a6 = 1` "
+        ++ "are carried through as clobbers. The storage twin DOES reload "
+        ++ "`a0`, so this is an asymmetry, and it contradicts "
+        ++ "`AccountWriteMap.lean`'s docstring claim that the forwarded "
+        ++ "argument registers are \"saved and restored\". ⚠️ No "
+        ++ "Correspondence row: this arm ties to no spec-side VALUE (the tie "
+        ++ "to `accountWriteUpsert` needs the append arm and the scan "
+        ++ "invariant), so a correspondence verdict would overstate it. "
+        ++ "`Nodup` is neither proven nor assumed here — a fail-closed arm "
+        ++ "writes no row, and uniqueness is already the hypothesis-free "
+        ++ "model theorem `accountWriteUpsert_rowsMap` (#11938). Lives in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`"),
+  routine "account_writes_undo_push" .conditional
+      (some "accountWritesUndoPushFullFlat_spec")
+      (gate := "`¬ account_writes_undo_count <ᵤ 163840` — the journal-full "
+        ++ "arm only (the sole capacity `bgeu t1, t2` at instruction index "
+        ++ "12, TAKEN). The excluded arms are the two the fall-through at "
+        ++ "index 13 reaches: `wasAbsent ≠ 0` (append, no payload) and "
+        ++ "`wasAbsent = 0` (the thirteen-dword superseded-field copy at "
+        ++ "indices 21..49). coverRef: the same three `example`s in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`; the positive "
+        ++ "witness is `¬ 200000 <ᵤ 163840` and the negative control "
+        ++ "`¬¬(0 <ᵤ 163840)`")
+      (notes := "`cpsTripleWithin 29` at "
+        ++ "`GuestAddrs.account_writes_undo_push` over `CodeReq.ofProg … "
+        ++ "accountWritesUndoPush_prog` — the `GuestImageEntries.lean:417` "
+        ++ "pairing itself, so entry AND CodeReq are both at the anchor. Path "
+        ++ "`0..12 ;; 56..71`: prologue (`sp -= 64`, spill `t0`-`t6`) ;; "
+        ++ "`la t0, account_writes_undo_count` ;; `ld t1` ;; the "
+        ++ "`accountWritesUndoCapacity` = 163840 `bgeu` TAKEN ;; `li a0, 1` "
+        ++ ";; latch both sticky flags ;; epilogue. ⭐ The load-bearing "
+        ++ "clause is what the post does NOT contain: the journal cursor is "
+        ++ "unchanged and no record address is named, so the frame rule says "
+        ++ "the journal arena is untouched — a refused push mutates nothing, "
+        ++ "which is what lets callers reject instead of mutating without a "
+        ++ "rollback record. Before this row the frontier census listed this "
+        ++ "symbol as `absent` (no spec of any shape), and its being "
+        ++ "unwitnessed is why `account_write_record` did not appear in the "
+        ++ "startable frontier at all. Lives in "
+        ++ "`Codegen/Proofs/AccountWriteRecordSpec.lean`"),
+  -- #11921 remainder: the two write-map routines that are LEAVES. Both carry a
+  -- SINGLE `CodeReq.ofProg` rather than the two-program union the two writers
+  -- above needed — checked against the Program, not assumed from the family.
+  routine "account_writes_lookup_current" .conditional
+      (some "accountWritesLookupCurrentAbsentFlat_spec")
+      (gate := "TWO input-domain gates, both genuine restrictions rather than "
+        ++ "framing, and BOTH are needed. (1) `tx_account_writes_count = 0` — "
+        ++ "the transaction tier is empty, so the scan's `bgeu t3, t1` at "
+        ++ "instruction index 11 is taken with ZERO iterations. (2) "
+        ++ "`account_writes_count = 0` — the block tier is empty likewise, so "
+        ++ "the second scan's `bgeu t3, t1` at index 51 is taken with ZERO "
+        ++ "iterations; an empty transaction tier ALONE does not reach "
+        ++ "`.Lawlc_absent`. The arms excluded are both hits (indices 12..43 "
+        ++ "and 52..83) and the three non-zero answers `a0 = 1` / `2` / `3` at "
+        ++ "indices 82, 84 and 88; none of them is claimed here. coverRef: the "
+        ++ "three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWritesLookupCurrentSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, both counts 0, temps `1..4`, "
+        ++ "`s0 = 9`, argument registers `20..22`, with `a0`/`a1`/`a2` read "
+        ++ "back as 0 rather than their entry values), a NEGATIVE control "
+        ++ "(`¬¬(0 <ᵤ 1)` — provably FALSE, so a tier holding even ONE row is "
+        ++ "genuinely outside the arm) plus four distinct-address checks "
+        ++ "separating `.Lawlc_absent` from the three non-zero answers, and an "
+        ++ "`isValidDwordAccess` satisfiability check on both frame slots and "
+        ++ "both tier counters")
+      (notes := "`cpsTripleWithin 27` at "
+        ++ "`GuestAddrs.account_writes_lookup_current`, exit `ra &&& ~~~1`, "
+        ++ "over `CodeReq.ofProg … accountWritesLookupCurrent_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:409` pairing itself, so "
+        ++ "entry AND CodeReq are both at the anchor. ⭐ A SINGLE `ofProg`, "
+        ++ "NOT the two-program union `storage_write_record` and "
+        ++ "`account_write_record` were forced into — and the difference was "
+        ++ "checked against the Program rather than assumed from the family: "
+        ++ "`accountWritesLookupCurrent_prog` contains no `jal ra, …` at all, "
+        ++ "only `JAL .x0` internal jumps and the closing `jalr x0, 0(ra)`. It "
+        ++ "is a LEAF, so no callee contract is needed and none is assumed. "
+        ++ "⭐ Unlike the two fail-closed writer arms this is a FUNCTIONAL "
+        ++ "arm: `a0 = 0` is the answer the model gives for an address with no "
+        ++ "row in either tier, not a refusal. The post also restores `ra`, "
+        ++ "`s0` and `sp`, and — because `cpsTripleWithin` quantifies over a "
+        ++ "`pcFree` frame and neither arena is named — says for free that the "
+        ++ "routine writes nothing anywhere and does not even read "
+        ++ "`TX_ACCOUNT_WRITES_AREA` or `ACCOUNT_WRITES_AREA` on this arm. "
+        ++ "⚠️ `t0`-`t3` are CLOBBERED and the post states it rather than "
+        ++ "framing it away: they come back holding the block-tier count "
+        ++ "pointer, 0, `ACCOUNT_WRITES_AREA` and 0. That is correct under the "
+        ++ "RISC-V ABI (caller-saved) and, unlike #13182's finding about "
+        ++ "`account_write_record`, it matches what the epilogue actually "
+        ++ "does — indices 95..96 reload exactly the `ra`/`s0` pair indices "
+        ++ "1..2 saved. `Nodup` does not arise: a READER constructs no row "
+        ++ "sequence, and on the empty-tier arm there is no matching row for "
+        ++ "uniqueness to be about; the model theorem "
+        ++ "`accountWriteUpsert_rowsMap` (#11938) is consumed on a HIT arm, "
+        ++ "not here. No Correspondence row: this arm ties to no spec-side "
+        ++ "VALUE beyond `absent`. Lives in "
+        ++ "`Codegen/Proofs/AccountWritesLookupCurrentSpec.lean`"),
+  routine "storage_writes_block_upsert" .conditional
+      (some "storageWritesBlockUpsertAppendFlat_spec")
+      (gate := "TWO input-domain gates. (1) `storage_writes_count = 0` — the "
+        ++ "block's storage-write map is EMPTY, so the scan's `bgeu t4, t1` at "
+        ++ "instruction index 16 is taken with ZERO iterations and no loop "
+        ++ "invariant is claimed. (2) `a3 = 0` — a null baseline pointer, so "
+        ++ "the `beq a3, x0` at index 67 selects `.Lswbu_base_zero` (the "
+        ++ "four-dword zero fill at `+96 .. +120`) rather than the baseline "
+        ++ "copy at indices 68..75. The arms excluded are the HIT arm (indices "
+        ++ "17..45), the baseline-COPY arm, and `.Lswbu_overflow` at index 92, "
+        ++ "which is reachable only once the count has driven "
+        ++ "`blockStorageWritesCapacity` = 66666 scan iterations. coverRef: "
+        ++ "the three `example`s at the end of "
+        ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, three distinct 32-byte source "
+        ++ "blocks carrying `101..104` / `201..204` / `301..304`, temps "
+        ++ "`1..7`, with the sixteen row PRE-images left universally "
+        ++ "quantified precisely because the arm overwrites all of them), gate "
+        ++ "witnesses with a NEGATIVE control (`¬¬(0 <ᵤ 1)` — provably FALSE, "
+        ++ "so a map holding one row is genuinely outside the arm) plus "
+        ++ "`¬ 66666 <ᵤ 66666` for the capacity boundary, distinct addresses "
+        ++ "for `.Lswbu_base_zero` vs the copy arm, a "
+        ++ "`blockStorageWritesCapacity = 66666` pin, and an "
+        ++ "`isValidDwordAccess`-plus-disjointness satisfiability check")
+      (notes := "`cpsTripleWithin 63` at "
+        ++ "`GuestAddrs.storage_writes_block_upsert`, exit `ra &&& ~~~1`, over "
+        ++ "`CodeReq.ofProg … storageWritesBlockUpsert_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:396` pairing itself. ⭐ A "
+        ++ "SINGLE `ofProg`, NOT a union, and the difference was checked: this "
+        ++ "Program contains no `jal ra, …` — the block-level upsert pushes no "
+        ++ "undo record, which is exactly why it could be factored out of "
+        ++ "`storage_write_record`. It is a LEAF. ⭐ Unlike the two "
+        ++ "fail-closed writer arms this is a fully FUNCTIONAL triple, the "
+        ++ "first value-producing whole-routine claim in the #11921 family: "
+        ++ "the post says row 0 at `STORAGE_WRITES_AREA` receives the caller's "
+        ++ "four rowAddress dwords at `+0 .. +24`, four slotKey dwords at "
+        ++ "`+32 .. +56`, four value dwords at `+64 .. +88` and four ZEROES at "
+        ++ "`+96 .. +120`; `storage_writes_count` goes 0 → 1; and `sp`, `ra`, "
+        ++ "`a0`-`a3` and all seven spilled temporaries `t0`-`t6` come back "
+        ++ "intact. The `pcFree` frame then says for free that nothing outside "
+        ++ "those seventeen dwords is written — no other arena row, no "
+        ++ "overflow flag, no undo journal. ⚠️ Register discipline read from "
+        ++ "the EPILOGUE, not a docstring (#13182): indices 96..102 reload "
+        ++ "exactly the seven registers indices 1..7 spilled, so unlike "
+        ++ "`account_write_record` this IS an honest full-restoration claim. "
+        ++ "`Nodup` is neither proven nor assumed, and the reason is sharper "
+        ++ "than on the fail-closed arms: on an EMPTY map the appended row is "
+        ++ "the ONLY row, so distinctness is degenerate; it becomes a real "
+        ++ "obligation only where the scan can find a prior match, i.e. the "
+        ++ "hit arm, which is outside this triple. "
+        ++ "`storageWriteUpsert_nodup` is already hypothesis-free and is "
+        ++ "consumed there, not here. The arena base the code builds with a "
+        ++ "bare `lui 162 / addiw 1333 / slli 12 / addi -1600` chain is "
+        ++ "carried through the proof SYMBOLICALLY — the post-shift "
+        ++ "intermediate is written `STORAGE_WRITES_AREA + 1600`, never as a "
+        ++ "bare in-range literal (GH #12586). Lives in "
+        ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean`"),
+  -- #11654: SLOAD's read path, at the only granularity where it is statable.
+  -- The SLOAD dispatcher handler is an `OpcodeHandlerSpec` with `body := []`
+  -- and raw `String` preBody/tail — no `Program`, no `GuestImageEntries`
+  -- pairing — so no whole-handler triple exists to state. This is tier 2 of
+  -- the funnel that handler runs (`storagePrestateResolveAsm`,
+  -- `Codegen/Programs/Storage.lean`).
+  -- ⚠️ `transcription_queue.py` credits this row's SLOAD mentions to the
+  -- handler and moves it from queue rank 12 to 4 (score 100 -> 115, "gate 1"),
+  -- via the opcode-mnemonic alias. The literal `h_SLOAD` token is kept OUT of
+  -- the comment/gate/notes so the credit stays at ONE alias hit rather than
+  -- compounding; the remaining hit is left standing because it is TRUE — the
+  -- handler's unconvertibility is exactly why this row exists and why the
+  -- SLOAD opcode row is still `.execSpec`. `docs/4ch8f-transcription-queue.md` is
+  -- regenerated to match. This row's own gate is the capacity comparison, not
+  -- the handler.
+  routine "storage_writes_block_latest_value" .conditional
+      (some "storageWritesBlockLatestValueCapacityRefusalFlat_spec")
+      (gate := "ONE input-domain gate: `BitVec.ult cap cnt` — the caller's "
+        ++ "`a4` (map capacity) is STRICTLY below its `a3` (map row count), "
+        ++ "so the `bltu a4, a3` at instruction index 5 is taken to the "
+        ++ "`a0 = 2` status arm at index 74. Everything from index 6 on is "
+        ++ "excluded: the 20-byte recipient normalisation loop (indices "
+        ++ "15..21), the 32-byte big-endian slot-key reversal (indices "
+        ++ "25..31), the 128-byte row scan (indices 33..73), and the two "
+        ++ "functional answers `a0 = 1` (found — value copied from row offset "
+        ++ "64) and `a0 = 0` (no match). coverRef, all THREE cited BY NAME so "
+        ++ "each carries its own witness abbrev below and sits inside the "
+        ++ "axiom gate (#12857) rather than in this prose: "
+        ++ "`swblvCapacityRefusal_numeric_instance` (a fully numeric "
+        ++ "instance — `sp = 0x30000000`, one row claimed against zero "
+        ++ "capacity, callee-saves `9`/`10`/`11`, with `a0` read back as 2 "
+        ++ "rather than its entry value 20 and all four frame slots concrete), "
+        ++ "`swblvCapacityRefusal_gate_reachable` (the gate witness "
+        ++ "`0 <ᵤ 1` together with TWO negative controls that are provably "
+        ++ "FALSE — `¬(16384 <ᵤ 0)`, where 16384 is the capacity the "
+        ++ "routine's own focused ABI probe passes, so the well-formed call "
+        ++ "the guest actually makes falls through into the scan and is "
+        ++ "genuinely outside this arm; and `¬(16384 <ᵤ 16384)`, so a FULL "
+        ++ "map is not a refusal either and the gate is strict `<` on "
+        ++ "purpose — plus distinct addresses for the three status arms), and "
+        ++ "`swblvCapacityRefusal_precondition_satisfiable` (an "
+        ++ "`isValidDwordAccess`-plus-distinctness check on all four frame "
+        ++ "slots, with the `prog.length * 4 = 328` extent cross-check)")
+      (notes := "`cpsTripleWithin 14` at "
+        ++ "`GuestAddrs.storage_writes_block_latest_value`, exit "
+        ++ "`ra &&& ~~~1`, over `CodeReq.ofProg … "
+        ++ "storageWritesBlockLatestValue_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:391` pairing itself. ⭐ A "
+        ++ "SINGLE `ofProg`, NOT a union, and the difference was checked the "
+        ++ "same way `account_writes_lookup_current`'s was: this Program "
+        ++ "contains no `jal ra, …` — every `JAL` is a `JAL .x0` internal "
+        ++ "jump and the only register-indirect transfer is the closing "
+        ++ "`jalr x0, 0(ra)`. It is a LEAF. ⚠️ Granularity, stated plainly: "
+        ++ "this is the ROUTINE's contract, not SLOAD's. It does not claim "
+        ++ "the SLOAD opcode returns the right value, and the `SLOAD` opcode "
+        ++ "row stays `.execSpec` for that reason. What it does claim is a "
+        ++ "whole-routine contract for one arm of tier 2 of SLOAD's read "
+        ++ "funnel — the bounded reader for the canonical block-level "
+        ++ "`storage_writes` map (`BlockState.storage_writes`, "
+        ++ "`state_tracker.py:74`), the tier whose omission would return the "
+        ++ "PRE-BLOCK value wherever an earlier transaction in the block "
+        ++ "already wrote the slot. This is a FAIL-CLOSED arm, not a "
+        ++ "functional one: `a0 = 2` is a refusal. ⭐ Because `cpsTripleWithin` "
+        ++ "quantifies over an arbitrary `pcFree` frame and NO map arena, "
+        ++ "scratch buffer or out pointer is named in the pre or the post, "
+        ++ "the triple ALSO says for free that on this arm the routine writes "
+        ++ "nothing outside its own 32-byte frame and does not read the "
+        ++ "canonical map at all — which is the substance of the refusal: a "
+        ++ "mis-reported count yields a status, not a partial scan past the "
+        ++ "end of the map. ⚠️ Register discipline read from the EPILOGUE, "
+        ++ "not a docstring (#13182): indices 76..79 reload exactly the four "
+        ++ "registers indices 1..4 spilled (`ra`, `s0`, `s1`, `s2`), and `sp` "
+        ++ "is popped, so this IS an honest full-restoration claim; `a0` is "
+        ++ "the answer and is deliberately NOT restored. `a3`/`a4` are read "
+        ++ "and not written and come back unchanged. `Nodup` neither proven "
+        ++ "nor assumed, for the same reason as on "
+        ++ "`account_writes_lookup_current`: this is a READER, it constructs "
+        ++ "no row sequence, and on the refusal arm it inspects no row at "
+        ++ "all, so \"the first matching row is the right one\" is not a claim "
+        ++ "in either direction. Tying the scan to the already-proven "
+        ++ "`storageRowLookup` model (`Stateless/State/StorageReadPath.lean`) "
+        ++ "is the remaining half. Lives in "
+        ++ "`Codegen/Proofs/StorageWritesBlockLatestValueSpec.lean`"),
+  -- #11921: the write-map READER that is NOT a leaf — its `jal ra,
+  -- account_read_record` is unconditional, so the union CodeReq is forced and
+  -- the already-landed callee triple is REUSED rather than re-proved.
+  routine "account_writes_latest_balance" .conditional
+      (some "accountWritesLatestBalanceAbsentFlat_spec")
+      (gate := "THREE input-domain gates. (1) `hsuppress : "
+        ++ "runtime_tx_account_read_suppress ≠ 0` — the CALLEE's own gate, "
+        ++ "inherited verbatim from `accountReadRecordSuppressedFlat_spec` "
+        ++ "rather than discharged, so `account_read_record`'s unsuppressed "
+        ++ "arm is outside this triple too. (2) `tx_account_writes_count = 0` "
+        ++ "— the transaction tier is empty, so the scan's `bgeu t3, t1` at "
+        ++ "instruction index 15 is taken with ZERO iterations. (3) "
+        ++ "`account_writes_count = 0` — the block tier likewise at index 43. "
+        ++ "The arms excluded are both hits (indices 16..35 and 44..63) and "
+        ++ "the balance-copy tail at indices 64..73 where the four dwords at "
+        ++ "`+32 .. +56` reach the caller's out-pointer and `a0` becomes 1. "
+        ++ "coverRef: the three `example`s at the end of "
+        ++ "`Codegen/Proofs/AccountWritesLatestBalanceSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, suppression flag 1, both "
+        ++ "counts 0, temps `1..7`, `s0 = 8`, `s1 = 9`, argument registers "
+        ++ "`20`/`21`, with `a0` read back as 0 rather than 20 and all ten "
+        ++ "frame slots read back concretely), NEGATIVE controls "
+        ++ "(`¬((0 : Word) ≠ 0)` — provably FALSE, so read logging ENABLED, "
+        ++ "the ordinary case, is genuinely excluded; `¬¬(0 <ᵤ 1)` — a tier "
+        ++ "holding one row likewise) plus distinct-address checks for the "
+        ++ "`a0 = 0` answer vs the balance-copy tail and for the union's two "
+        ++ "entries, and an `isValidDwordAccess`-plus-disjointness "
+        ++ "satisfiability check over both frames and all three globals")
+      (notes := "`cpsTripleWithin 51` at "
+        ++ "`GuestAddrs.account_writes_latest_balance`, exit `ra &&& ~~~1`, "
+        ++ "over `awlbCR`. ⭐ The CodeReq is a UNION and it is FORCED more "
+        ++ "plainly than for `storage_write_record` / `account_write_record`: "
+        ++ "for those two, \"no arm both terminates at `ret` and stays inside "
+        ++ "its own bytes\" took an argument about which arms reach which "
+        ++ "`jal`; here the `jal ra, account_read_record` at instruction index "
+        ++ "7 is UNCONDITIONAL and sits above every branch, so EVERY path "
+        ++ "leaves the routine's own bytes immediately and a single "
+        ++ "`CodeReq.ofProg` states nothing at all. `awlbCR` pairs "
+        ++ "`accountWritesLatestBalance_prog` at its `GuestImageEntries` entry "
+        ++ "with `accountReadRecord_prog` at its own. ⭐ The callee contract "
+        ++ "is REUSED, not re-proved: `accountReadRecordSuppressedFlat_spec` "
+        ++ "already states `account_read_record`'s suppressed arm as a "
+        ++ "whole-routine triple, and it lines up with this call site exactly "
+        ++ "— it preserves `ra`, `sp`, `a0` and `t0`-`t6`, so the caller's "
+        ++ "out-pointer and scan state survive by the frame rule. No second "
+        ++ "copy is added and `check-duplicate-decls.py` stays at its pinned "
+        ++ "9. What the post says: `a0 = 0` (no tier claims this account's "
+        ++ "balance), and — the load-bearing clause — the caller's `a1` "
+        ++ "out-buffer is NOT written, stated by not naming it anywhere, which "
+        ++ "the universally quantified `pcFree` frame turns into a "
+        ++ "whole-routine no-write guarantee. `ra`, `s0`, `s1`, `sp` and "
+        ++ "`t4`-`t6` come back intact. ⚠️ `t0`-`t3` are CLOBBERED and the "
+        ++ "post states it: the block-tier count pointer, 0, "
+        ++ "`ACCOUNT_WRITES_AREA`, 0. Register discipline read from the "
+        ++ "EPILOGUE rather than a docstring (#13182 is why): indices 75..77 "
+        ++ "reload exactly the `ra`/`s0`/`s1` triple indices 1..3 spilled, so "
+        ++ "this routine does NOT reproduce `account_write_record`'s "
+        ++ "spilled-but-never-reloaded asymmetry. `Nodup` does not arise — a "
+        ++ "READER constructs no row sequence, and on the both-tiers-empty arm "
+        ++ "there is no matching row for uniqueness to be about. No "
+        ++ "Correspondence row: this arm ties to no spec-side VALUE. Lives in "
+        ++ "`Codegen/Proofs/AccountWritesLatestBalanceSpec.lean`"),
   -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
   -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
   -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
@@ -4736,7 +5464,94 @@ def routineRegistry : List RoutineEntry := [
         ++ "neither call site is proved here. Satisfiability is witnessed by use: the "
         ++ "specialization `eip8037TxStateGas_zero_out_spec_within` (`a0 = a1 = 0`, "
         ++ "hence `*out = 0`) is the form `tx_intrinsic_state_gas`'s success path "
-        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
+        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`"),
+  -- #12318 composition lane: the EIP-7702 same-block code helper, composed
+  -- over the write-map reader's already-landed absent arm.
+  routine "runtime_same_block_delegation_code" .conditional
+      (some "runtimeSameBlockDelegationCodeMissFlat_spec")
+      (gate := "TWO input-domain gates, and NEITHER is invented here — both "
+        ++ "are `accountWritesLookupCurrentAbsentFlat_spec`'s, inherited "
+        ++ "verbatim by composition. (1) `tx_account_writes_count = 0` — the "
+        ++ "transaction tier is empty; (2) `account_writes_count = 0` — the "
+        ++ "block tier is empty. Under both the callee answers ABSENT "
+        ++ "(`a0 = 0`), which makes this routine deterministic: `beq a0, 2` at "
+        ++ "index 8 falls through (`0 ≠ 2`) and `bne a0, 1` at index 10 is "
+        ++ "TAKEN (`0 ≠ 1`), so control reaches `.Lrsbd_miss` at index 40 and "
+        ++ "the answer is `a0 = 1`. Covered: 18 of the 47 instructions. The "
+        ++ "arms EXCLUDED are every one that reaches a write — the callee's "
+        ++ "three non-absent answers (`1` live code, `2` present-but-empty, "
+        ++ "`3` deleted), and with them the empty-code branch at index 13 "
+        ++ "(`beq s2, x0`, target `base + 128`), the 23-byte length check at "
+        ++ "indices 14..15, the `0xef 0x01 0x00` marker comparison at indices "
+        ++ "16..23 and BOTH store paths (24..31 for the marker hit, 32..39 for "
+        ++ "the empty hit); none is claimed. Because every `la` in the routine lives "
+        ++ "on an excluded path, this proof steps through no address "
+        ++ "materialisation at all. coverRef: the five checks at the end of "
+        ++ "`Codegen/Proofs/RuntimeSameBlockDelegationCodeSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, both counts 0, temps "
+        ++ "`5`/`6`/`7`/`28`, `s0`/`s1`/`s2` = `8`/`9`/`18`, argument "
+        ++ "registers `20`/`21`/`22`, with `a0` read back as 1 and `a1`/`a2` "
+        ++ "as 0 rather than their entry values), a gate NEGATIVE CONTROL "
+        ++ "(`(1 : Word) ≠ 0` — a tier holding even ONE row is provably "
+        ++ "outside the arm), a SECOND negative control on this routine's own "
+        ++ "discrimination (`0 ≠ 1 ∧ 0 ≠ 2 ∧ 0 ≠ 3`, the three answers the "
+        ++ "callee contract cannot yet produce, and which take three "
+        ++ "different paths), an `isValidDwordAccess` satisfiability check on "
+        ++ "all six frame slots and both tier counters, and a distinctness "
+        ++ "control separating the callee's two-slot frame from this "
+        ++ "routine's four")
+      (notes := "`cpsTripleWithin 45` at "
+        ++ "`GuestAddrs.runtime_same_block_delegation_code`, exit "
+        ++ "`ra &&& ~~~1`, over `rsbdCR`. ⭐ The `CodeReq` is a UNION and it is "
+        ++ "FORCED, more plainly than for the write-map writers: the "
+        ++ "`jal ra, account_writes_lookup_current` at instruction index 6 is "
+        ++ "UNCONDITIONAL and sits above every branch, so every path leaves "
+        ++ "the routine's own bytes and a single `ofProg` could state nothing "
+        ++ "at all. Both legs are `GuestImageEntries` pairings — `:528` for "
+        ++ "this routine, `:409` for the callee — so entry AND CodeReq are "
+        ++ "anchored at `GuestAddrs.runtime_same_block_delegation_code` and "
+        ++ "this grades whole-routine under `proof-frontier.py --shape`. "
+        ++ "⚠️ Written `CodeReq.union a b`, NOT `a.union b`: until #13196 the "
+        ++ "`--shape` resolver discarded any dotted token, so the dot-notation "
+        ++ "spelling of the same term hid the anchor inside the first leg and "
+        ++ "graded this `structured-only`. EXTENT: "
+        ++ "`scripts/asm-fixtures/symbol-addresses.tsv` places this symbol at "
+        ++ "`0x80031000` and the next `.text` symbol "
+        ++ "`has_code_or_nonce_at_header_state_root` at `0x800310bc`, so "
+        ++ "`0xbc = 188 = 47 * 4` cross-checks the Program module's "
+        ++ "`#guard runtimeSameBlockDelegationCode_prog.length = 47` — the "
+        ++ "proved program spans the whole linked symbol with nothing left "
+        ++ "over. ⭐ WHAT THE POST DOES NOT NAME is the load-bearing part: "
+        ++ "neither `rsbd_code_ptr` nor `rsbd_code_len` appears in the pre or "
+        ++ "the post, and because `cpsTripleWithin` quantifies over a `pcFree` "
+        ++ "frame that silence is a NO-WRITE guarantee over the whole routine "
+        ++ "— exactly the property the three callers rely on when they read "
+        ++ "`a0 = 1` and fall through to the ordinary code lookup. The routine "
+        ++ "reads no arena either, since the callee's absent arm does not. "
+        ++ "⭐ The callee contract is REUSED, not re-proved. ⚠️ `t0`-`t3` are "
+        ++ "CLOBBERED and the post states it rather than framing it away: "
+        ++ "`t0 = 1` from this routine's own `li t0, 1` at index 9 (the "
+        ++ "discriminator the taken `bne` compares against), and "
+        ++ "`t1`/`t2`/`t3` = `0`, `ACCOUNT_WRITES_AREA`, `0` from the callee. "
+        ++ "All four are caller-saved. `ra`, `s0`, `s1`, `s2` and `sp` are "
+        ++ "restored; `s1`/`s2` are in fact never written on this arm (the "
+        ++ "`mv s1, a1` / `mv s2, a2` at indices 11..12 sit AFTER the taken "
+        ++ "branch), and the post is stated from the epilogue reload, which "
+        ++ "agrees. The callee's two-slot frame at `sp - 56`/`sp - 48` sits "
+        ++ "BELOW this routine's four at `sp - 32 .. sp - 8`; the pre owns all "
+        ++ "six and they are disjoint. ⚠️ IN-DEGREE: the "
+        ++ "`callee-composition-queue.py` worklist grades this symbol "
+        ++ "`in-deg 0 / 0`, which reads as dead code and is WRONG — the "
+        ++ "#13175 class again. There are three real callers, every one a live "
+        ++ "opcode handler tail emitting a literal "
+        ++ "`jal ra, runtime_same_block_delegation_code`: "
+        ++ "`extcodehashWitnessTail` and `extcodesizeWitnessTail` "
+        ++ "(`Codegen/Programs/EvmAccountWitness.lean`) and "
+        ++ "`extcodecopyWitnessTail` (`Codegen/Programs/EvmExtcodecopy.lean`). "
+        ++ "All three are still unconverted asm text, so they contribute no "
+        ++ "edge to either call graph. No Correspondence row: this arm ties to "
+        ++ "no spec-side VALUE beyond `miss`. Lives in "
+        ++ "`Codegen/Proofs/RuntimeSameBlockDelegationCodeSpec.lean`"),
 ]
 
 /-! ## Offline routine contracts
@@ -4790,12 +5605,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 226 := by decide
+theorem routineCount_eq : routineCount = 242 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 173 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 50 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 60 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -4813,7 +5628,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 186 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 202 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5088,6 +5903,24 @@ private noncomputable abbrev _tx_signing_hash_hdrgate_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 private noncomputable abbrev _tx_signing_hash_longarm_control_witness :=
   @EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
+-- #12038: the SpecRef leg. The correspondence theorem itself, TWO closed
+-- positive controls (the residual bundle is satisfiable at both ends of the
+-- range — `_2930` short-header/8-field and `_4844` long-header/11-field, so
+-- the four proved arms are not vacuous instances of one another), and the
+-- three negative controls that make the selector a real restriction rather
+-- than a formality — including the exclusion keeping `signing_hash_pre155` out.
+private noncomputable abbrev _tx_signing_hash_specref_correspondence_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_specRef_correspondence
+private noncomputable abbrev _tx_signing_hash_specref_nonvacuous_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+private noncomputable abbrev _tx_signing_hash_specref_nonvacuous_4844_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous_4844
+private noncomputable abbrev _tx_signing_hash_specref_prefix_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_prefix
+private noncomputable abbrev _tx_signing_hash_specref_arity_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_arity
+private noncomputable abbrev _tx_signing_hash_specref_pre155_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_pre155_arm_unreachable
 -- #12776: the `notlist` gate is UNESTABLISHABLE by either routine that
 -- `validate_header_rlp_pair` calls, and these five decide it over the concrete
 -- programs rather than asserting it in prose. The arity checker performs no
@@ -6174,6 +7007,9 @@ private noncomputable abbrev _secf_reduce_once_n_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceNSAsm.secfReduceOnceNFrame_spec
 private noncomputable abbrev _secf_copy32_routine_witness :=
   @EvmAsm.Codegen.Secp256k1FieldReduceOnceSAsm.secfCopy32Direct_spec
+-- #12319: the first rowed CALLER of `secf_reduce_once`, at its real linked PC.
+private noncomputable abbrev _secf_add_mod_p_routine_witness :=
+  @EvmAsm.Codegen.Secp256k1FieldAddModPSAsm.secfAddModP_spec
 -- #12245 flat-block pilot: eight machine-level strongest-post contracts.
 private noncomputable abbrev _wcidx_record_ptr_routine_witness :=
   @EvmAsm.Codegen.Proofs.wcidxRecordPtrFlat_spec
@@ -6191,6 +7027,36 @@ private noncomputable abbrev _derive_withdrawal_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
 private noncomputable abbrev _derive_consolidation_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
+-- #12318: the two EIP-8282 builder adapters, plus the non-vacuity evidence
+-- their rows cite (#12857 — a control named only in prose is outside the gate).
+private noncomputable abbrev _derive_builder_deposit_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
+private noncomputable abbrev _derive_builder_deposit_requests_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_sample_reachable
+private noncomputable abbrev _derive_builder_deposit_requests_control_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderRequests_addr_control
+private noncomputable abbrev _derive_builder_deposit_requests_hla_control_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
+private noncomputable abbrev _derive_builder_exit_requests_routine_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderExitRequestsFlat_spec
+private noncomputable abbrev _derive_builder_exit_requests_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.deriveBuilderExitRequests_sample_reachable
+-- #12245 flat-block close-out: the last two flat-block routines, plus the
+-- non-vacuity evidence their rows cite. Cited BY NAME here rather than only in
+-- the row prose so the controls sit inside the axiom gate (#12857) — a control
+-- named only in prose is outside it.
+private noncomputable abbrev _bal_serializer_u64_to_field_routine_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToFieldFlat_spec
+private noncomputable abbrev _bal_serializer_u64_to_field_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
+private noncomputable abbrev _bal_serializer_u64_to_field_control_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToField_alias_control
+private noncomputable abbrev _mpt_delete_walk_db_routine_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDbFlat_spec
+private noncomputable abbrev _mpt_delete_walk_db_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDb_sample_reachable
+private noncomputable abbrev _mpt_delete_walk_db_control_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDb_transfer_control
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
@@ -6284,6 +7150,20 @@ private noncomputable abbrev _block_access_list_hash_core_reachable_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_reachable
 private noncomputable abbrev _block_access_list_hash_core_control_witness :=
   @EvmAsm.Codegen.BlockAccessListHashCoreSpec.blockAccessListHashCore_precondition_negative_control
+-- #12318: the SSZ navigation wrapper above the core.  The reachability term and
+-- BOTH negative controls are forced here, so the axiom gate audits the evidence
+-- that the navigated absorb-cursor alignment and the `h_len` bridge can each
+-- fail — not only the triple.
+private noncomputable abbrev _block_access_list_hash_routine_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.block_access_list_hash_spec_within
+private noncomputable abbrev _block_access_list_hash_reachable_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_precondition_reachable
+private noncomputable abbrev _block_access_list_hash_bytes_valid_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_header_bytes_valid
+private noncomputable abbrev _block_access_list_hash_len_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_len_negative_control
+private noncomputable abbrev _block_access_list_hash_align_control_witness :=
+  @EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_align_negative_control
 -- #13030: keep the envelope's positive instance, old-premise refutation and
 -- byte-level padding control on the generated axiom-audit surface.
 private noncomputable abbrev _keccak_envelope_region_sat_witness :=
@@ -6294,6 +7174,19 @@ private noncomputable abbrev _keccak_envelope_sat_exact_control_witness :=
   @EvmAsm.Codegen.Proofs.envelope_sat_and_exact_fails
 private noncomputable abbrev _keccak_envelope_padding_control_witness :=
   @EvmAsm.Codegen.Proofs.exact_region_zero_pads_but_envelope_does_not
+-- #13014: the arena-slice seam — the caller's whole buffer in the pre, an
+-- interior slice hashed — plus the concrete caller buffer whose bytes after the
+-- hashed slice are nonzero and the refutation of the exactly-sized input
+-- resource on it.  Forced here so the axiom gate audits the seam together with
+-- its satisfying instance and negative control.
+private noncomputable abbrev _keccak_arena_slice_seam_witness :=
+  @EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within_arena_slice
+private noncomputable abbrev _keccak_arena_hyps_hold_witness :=
+  @EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
+private noncomputable abbrev _keccak_arena_exact_region_control_witness :=
+  @EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
+private noncomputable abbrev _keccak_arena_consumer_call_witness :=
+  @EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 private noncomputable abbrev _address_from_pubkey_routine_witness :=
   @EvmAsm.Codegen.AddressFromPubkeySpec.addressFromPubkey_spec_within
 private noncomputable abbrev _blockhash_from_witness_headers_routine_witness :=
@@ -6526,6 +7419,49 @@ private noncomputable abbrev _p256_is_zero_n_routine_witness :=
 -- #12222: the BAL read-half producer's suppressed arm.
 private noncomputable abbrev _account_read_record_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
+-- #11921: the storage writer's fail-closed arm and the undo push it rejects on.
+private noncomputable abbrev _storage_write_record_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
+private noncomputable abbrev _storage_writes_undo_push_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
+-- #11921: the account writer's fail-closed arm and the undo push it rejects on.
+private noncomputable abbrev _account_write_record_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
+private noncomputable abbrev _account_writes_undo_push_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
+-- #11921 remainder: the two write-map leaves.
+private noncomputable abbrev _account_writes_lookup_current_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
+private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
+private noncomputable abbrev _account_writes_latest_balance_routine_witness :=
+  @EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+-- #12127: the frame-revert routine's nothing-to-undo arm, plus its THREE cover
+-- theorems. The covers are registered individually and deliberately (#12857):
+-- a non-vacuity control that lives only in a row's prose is outside the gate.
+private noncomputable abbrev _write_sets_restore_frame_routine_witness :=
+  @EvmAsm.Codegen.Proofs.writeSetsRestoreFrameEmptyFlat_spec
+private noncomputable abbrev _wsrf_numeric_instance_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_numeric_instance
+private noncomputable abbrev _wsrf_gate_reachable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_gate_reachable
+private noncomputable abbrev _wsrf_precondition_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.wsrfEmpty_precondition_satisfiable
+-- #12318 composition lane: the EIP-7702 same-block code helper, over the
+-- write-map reader's absent arm.
+private noncomputable abbrev _runtime_same_block_delegation_code_routine_witness :=
+  @EvmAsm.Codegen.Proofs.runtimeSameBlockDelegationCodeMissFlat_spec
+-- #11654: SLOAD's tier-2 read routine, plus its THREE cover theorems. The
+-- covers are registered individually and deliberately (#12857): a non-vacuity
+-- control that lives only in a row's prose is outside the axiom gate.
+private noncomputable abbrev _storage_writes_block_latest_value_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWritesBlockLatestValueCapacityRefusalFlat_spec
+private noncomputable abbrev _swblv_numeric_instance_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_numeric_instance
+private noncomputable abbrev _swblv_gate_reachable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_gate_reachable
+private noncomputable abbrev _swblv_precondition_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_precondition_satisfiable
 
 -- #12851: the machine restoring-division fold is tied to the pure K70 model.
 -- The signed-zero and complementary-comparison representation changes are

@@ -21,7 +21,8 @@
   * **tail-transfer-shaped** — the routine's last instruction is a
     `j <callee>`, so the exit pc is the *callee's entry*
     (`secf_square_mod_p`, `secf_square_mod_n`,
-    `derive_withdrawal_requests`, `derive_consolidation_requests`).
+    `derive_withdrawal_requests`, `derive_consolidation_requests`,
+    `derive_builder_deposit_requests`, `derive_builder_exit_requests`).
     A tail-transfer contract needs no callee spec: it states exactly the
     argument shuffle the wrapper performs and then hands control over,
     which is precisely the fact a caller must compose with the callee's
@@ -78,6 +79,8 @@ import EvmAsm.Codegen.Programs.ReadSetsPromote
 import EvmAsm.Codegen.Programs.Secp256k1Field
 import EvmAsm.Codegen.Programs.RlpWalk
 import EvmAsm.Codegen.Programs.SystemCallStaging
+import EvmAsm.Codegen.Programs.BalSerializer
+import EvmAsm.Codegen.Programs.MptDeleteWalkDb
 
 namespace EvmAsm.Codegen.Proofs
 
@@ -701,6 +704,472 @@ example : GuestAddrs.withdrawal_request_predeploy_addr ≠
     GuestAddrs.stage_system_call ≠ GuestAddrs.derive_consolidation_requests + 28 :=
   ⟨by decide, by decide, by decide⟩
 
+/-! ## 8-9. `derive_builder_deposit_requests` / `derive_builder_exit_requests`
+
+  The EIP-8282 builder deposit/exit adapters (#12318 callee-composition
+  lane).  Byte-for-byte the same seven-instruction shape as §6-7 — shift
+  `a0..a3` up into `a1..a4`, materialize the contract address into `a0`,
+  tail-jump to `stage_system_call` — with a different address constant,
+  so the same tail-transfer contract is the honest whole-routine claim.
+
+  **Extent, from the linked image and not from prose.**
+  `scripts/asm-fixtures/symbol-addresses.tsv` places
+  `derive_builder_deposit_requests` at `0x8005369c`,
+  `derive_builder_exit_requests` at `0x800536b8` and `stage_system_call`
+  at `0x800536d4`: 28 bytes each, which is `prog.length * 4` for the
+  `#guard`ed `prog.length = 7` in
+  `Codegen/Programs/SystemCallStaging.lean`.  Both
+  `(GuestAddrs.<sym>, <sym>_prog)` pairs are in `GuestImageEntries`, so
+  the `CodeReq` below is the deployed code and not a detached listing.
+
+  ⚠️ **`scripts/callee-composition-queue.py` grades both at in-degree
+  `0 / 0`, and that must not be read as dead code.**  Both are called by
+  `block_state_root` — `jal ra, derive_builder_deposit_requests` in the
+  `.Lc1_bd_call` arm of `blockStateRootFunction`
+  (`Codegen/Programs/BlockVerdictStateRoot.lean`), and the builder-exit
+  arm below it.  That caller is linked (`0x80013830` in
+  `scripts/asm-fixtures/symbol-addresses.tsv`) but is still emitted as
+  assembly TEXT: it has no `Program`, no `GuestAddrs` constant and no
+  `scripts/asm-fixtures/*.s` entry, so BOTH of the queue's graphs — the
+  image graph and the fixture graph — miss the edge.  The `0 / 0` here is
+  the absence of a converted caller, not the absence of a caller.
+
+  As in §6-7 the contract composes NOTHING from `stage_system_call`: it
+  stops at the transfer, so it inherits none of that routine's
+  `.conditional` gate. -/
+
+/-- `derive_builder_deposit_requests` at a free `base`, with the `la` and
+    `jal` round-trips named: `a4:=a3, a3:=a2, a2:=a1, a1:=a0,
+    a0:=&builder_deposit_contract_addr`, then transfer. -/
+theorem deriveBuilderDepositRequests_body_spec
+    (base addr tgt a0 a1 a2 a3 v14 : Word)
+    (hla : base + (16 : Word) +
+        (((laHi GuestAddrs.builder_deposit_contract_addr
+            (GuestAddrs.derive_builder_deposit_requests + 16)).zeroExtend 32
+              <<< 12).signExtend 64) +
+        signExtend12 (laLo GuestAddrs.builder_deposit_contract_addr
+          (GuestAddrs.derive_builder_deposit_requests + 16)) = addr)
+    (hjal : base + (24 : Word) +
+        signExtend21 (jalOff GuestAddrs.stage_system_call
+          (GuestAddrs.derive_builder_deposit_requests + 24)) = tgt) :
+    cpsTripleWithin 7 base tgt
+      (CodeReq.ofProg base deriveBuilderDepositRequests_prog)
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ v14))
+      ((.x10 ↦ᵣ addr) ** (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) **
+       (.x14 ↦ᵣ a3)) := by
+  -- Rule 1 of the module header: present the code requirement as the
+  -- `singleton`-union chain before `runBlock`.
+  unfold deriveBuilderDepositRequests_prog
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_nil]
+  have M0 := mv_spec_gen_within .x14 .x13 a3 v14 base (by nofun)
+  have M1 := mv_spec_gen_within .x13 .x12 a2 a3 (base + (4 : Word)) (by nofun)
+  have M2 := mv_spec_gen_within .x12 .x11 a1 a2 (base + (8 : Word)) (by nofun)
+  have M3 := mv_spec_gen_within .x11 .x10 a0 a1 (base + (12 : Word)) (by nofun)
+  have AU := auipc_spec_gen_within .x10 a0
+    (laHi GuestAddrs.builder_deposit_contract_addr
+      (GuestAddrs.derive_builder_deposit_requests + 16)) (base + (16 : Word)) (by nofun)
+  have AD := addi_spec_gen_same_within .x10
+    ((base + (16 : Word)) +
+      (((laHi GuestAddrs.builder_deposit_contract_addr
+          (GuestAddrs.derive_builder_deposit_requests + 16)).zeroExtend 32 <<< 12).signExtend 64))
+    (laLo GuestAddrs.builder_deposit_contract_addr
+      (GuestAddrs.derive_builder_deposit_requests + 16)) (base + (20 : Word)) (by nofun)
+  rw [hla] at AD
+  have J := jal_x0_frame_within
+    ((.x10 ↦ᵣ addr) ** (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) ** (.x14 ↦ᵣ a3))
+    Assertion.PCFree.proof
+    (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_builder_deposit_requests + 24))
+    (base + (24 : Word))
+  rw [hjal] at J
+  runBlock M0 M1 M2 M3 AU AD J
+
+/-- `derive_builder_deposit_requests` deployed contract, anchored at the
+    guest image entry. -/
+theorem deriveBuilderDepositRequestsFlat_spec (a0 a1 a2 a3 v14 : Word) :
+    cpsTripleWithin 7 (GuestAddrs.derive_builder_deposit_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
+      (CodeReq.ofProg (GuestAddrs.derive_builder_deposit_requests : Word)
+        deriveBuilderDepositRequests_prog)
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ v14))
+      ((.x10 ↦ᵣ (GuestAddrs.builder_deposit_contract_addr : Word)) **
+       (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) ** (.x14 ↦ᵣ a3)) :=
+  deriveBuilderDepositRequests_body_spec
+    (GuestAddrs.derive_builder_deposit_requests : Word)
+    (GuestAddrs.builder_deposit_contract_addr : Word)
+    (GuestAddrs.stage_system_call : Word) a0 a1 a2 a3 v14 (by decide) (by decide)
+
+/-- `derive_builder_exit_requests` at a free `base` — the same shuffle with
+    the builder EXIT contract address. -/
+theorem deriveBuilderExitRequests_body_spec
+    (base addr tgt a0 a1 a2 a3 v14 : Word)
+    (hla : base + (16 : Word) +
+        (((laHi GuestAddrs.builder_exit_contract_addr
+            (GuestAddrs.derive_builder_exit_requests + 16)).zeroExtend 32
+              <<< 12).signExtend 64) +
+        signExtend12 (laLo GuestAddrs.builder_exit_contract_addr
+          (GuestAddrs.derive_builder_exit_requests + 16)) = addr)
+    (hjal : base + (24 : Word) +
+        signExtend21 (jalOff GuestAddrs.stage_system_call
+          (GuestAddrs.derive_builder_exit_requests + 24)) = tgt) :
+    cpsTripleWithin 7 base tgt
+      (CodeReq.ofProg base deriveBuilderExitRequests_prog)
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ v14))
+      ((.x10 ↦ᵣ addr) ** (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) **
+       (.x14 ↦ᵣ a3)) := by
+  -- Rule 1 of the module header: present the code requirement as the
+  -- `singleton`-union chain before `runBlock`.
+  unfold deriveBuilderExitRequests_prog
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_nil]
+  have M0 := mv_spec_gen_within .x14 .x13 a3 v14 base (by nofun)
+  have M1 := mv_spec_gen_within .x13 .x12 a2 a3 (base + (4 : Word)) (by nofun)
+  have M2 := mv_spec_gen_within .x12 .x11 a1 a2 (base + (8 : Word)) (by nofun)
+  have M3 := mv_spec_gen_within .x11 .x10 a0 a1 (base + (12 : Word)) (by nofun)
+  have AU := auipc_spec_gen_within .x10 a0
+    (laHi GuestAddrs.builder_exit_contract_addr
+      (GuestAddrs.derive_builder_exit_requests + 16)) (base + (16 : Word)) (by nofun)
+  have AD := addi_spec_gen_same_within .x10
+    ((base + (16 : Word)) +
+      (((laHi GuestAddrs.builder_exit_contract_addr
+          (GuestAddrs.derive_builder_exit_requests + 16)).zeroExtend 32 <<< 12).signExtend 64))
+    (laLo GuestAddrs.builder_exit_contract_addr
+      (GuestAddrs.derive_builder_exit_requests + 16)) (base + (20 : Word)) (by nofun)
+  rw [hla] at AD
+  have J := jal_x0_frame_within
+    ((.x10 ↦ᵣ addr) ** (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) ** (.x14 ↦ᵣ a3))
+    Assertion.PCFree.proof
+    (jalOff GuestAddrs.stage_system_call (GuestAddrs.derive_builder_exit_requests + 24))
+    (base + (24 : Word))
+  rw [hjal] at J
+  runBlock M0 M1 M2 M3 AU AD J
+
+/-- `derive_builder_exit_requests` deployed contract, anchored at the guest
+    image entry. -/
+theorem deriveBuilderExitRequestsFlat_spec (a0 a1 a2 a3 v14 : Word) :
+    cpsTripleWithin 7 (GuestAddrs.derive_builder_exit_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
+      (CodeReq.ofProg (GuestAddrs.derive_builder_exit_requests : Word)
+        deriveBuilderExitRequests_prog)
+      ((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ v14))
+      ((.x10 ↦ᵣ (GuestAddrs.builder_exit_contract_addr : Word)) **
+       (.x11 ↦ᵣ a0) ** (.x12 ↦ᵣ a1) ** (.x13 ↦ᵣ a2) ** (.x14 ↦ᵣ a3)) :=
+  deriveBuilderExitRequests_body_spec
+    (GuestAddrs.derive_builder_exit_requests : Word)
+    (GuestAddrs.builder_exit_contract_addr : Word)
+    (GuestAddrs.stage_system_call : Word) a0 a1 a2 a3 v14 (by decide) (by decide)
+
+/-- **Anti-vacuity witness** for §8: at `a0..a3 = 1,2,3,4` the post names the
+    builder deposit contract through `GuestAddrs.builder_deposit_contract_addr`,
+    leaves `a1..a4 = 1,2,3,4`, and exits at `GuestAddrs.stage_system_call`.
+    NAMED (not an anonymous `example`) so `Progress/Routines.lean` can witness
+    it and `check-nonvacuity-witnessed.py` sees the row's evidence inside the
+    axiom gate rather than in prose. -/
+theorem deriveBuilderDepositRequests_sample_reachable :
+    cpsTripleWithin 7 (GuestAddrs.derive_builder_deposit_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
+      (CodeReq.ofProg (GuestAddrs.derive_builder_deposit_requests : Word)
+        deriveBuilderDepositRequests_prog)
+      ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
+       (.x13 ↦ᵣ (4 : Word)) ** (.x14 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ (GuestAddrs.builder_deposit_contract_addr : Word)) **
+       (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+       (.x13 ↦ᵣ (3 : Word)) ** (.x14 ↦ᵣ (4 : Word))) := by
+  exact deriveBuilderDepositRequestsFlat_spec 1 2 3 4 0
+
+/-- **Anti-vacuity witness** for §9: the same shuffle with the builder EXIT
+    contract address named by `GuestAddrs.builder_exit_contract_addr`. -/
+theorem deriveBuilderExitRequests_sample_reachable :
+    cpsTripleWithin 7 (GuestAddrs.derive_builder_exit_requests : Word)
+      (GuestAddrs.stage_system_call : Word)
+      (CodeReq.ofProg (GuestAddrs.derive_builder_exit_requests : Word)
+        deriveBuilderExitRequests_prog)
+      ((.x10 ↦ᵣ (1 : Word)) ** (.x11 ↦ᵣ (2 : Word)) ** (.x12 ↦ᵣ (3 : Word)) **
+       (.x13 ↦ᵣ (4 : Word)) ** (.x14 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ (GuestAddrs.builder_exit_contract_addr : Word)) **
+       (.x11 ↦ᵣ (1 : Word)) ** (.x12 ↦ᵣ (2 : Word)) **
+       (.x13 ↦ᵣ (3 : Word)) ** (.x14 ↦ᵣ (4 : Word))) := by
+  exact deriveBuilderExitRequestsFlat_spec 1 2 3 4 0
+
+/-- **Negative control** for §8-9.  All FOUR request adapters materialize
+    PAIRWISE DISTINCT addresses into `a0` and land on the same
+    `stage_system_call` entry, so no one of the four posts is satisfiable by
+    any other's — a contract that had silently proved the wrong constant, or
+    that had been stated over the wrong sibling's `_prog`, could not have
+    passed.
+
+    ⚠️ The §6-7 control also asserted that the exit is not the routine's
+    fallthrough `<sym> + 28`.  That conjunct holds for the deposit adapter
+    (whose `j` skips OVER the exit adapter) but is **provably false** for
+    `derive_builder_exit_requests`: it is laid out immediately before
+    `stage_system_call`, so its tail jump targets exactly its own
+    fallthrough address.  The fact is recorded here as the equality it is
+    rather than dropped, because it is the one place a reader could
+    mistake a fallthrough for a proven transfer — for that row it is the
+    address-distinctness conjuncts above, not the exit address, that
+    carry the control. -/
+theorem deriveBuilderRequests_addr_control :
+    GuestAddrs.builder_deposit_contract_addr ≠ GuestAddrs.builder_exit_contract_addr ∧
+    GuestAddrs.builder_deposit_contract_addr ≠
+      GuestAddrs.withdrawal_request_predeploy_addr ∧
+    GuestAddrs.builder_deposit_contract_addr ≠
+      GuestAddrs.consolidation_request_predeploy_addr ∧
+    GuestAddrs.builder_exit_contract_addr ≠
+      GuestAddrs.withdrawal_request_predeploy_addr ∧
+    GuestAddrs.builder_exit_contract_addr ≠
+      GuestAddrs.consolidation_request_predeploy_addr ∧
+    GuestAddrs.stage_system_call ≠ GuestAddrs.derive_builder_deposit_requests + 28 ∧
+    GuestAddrs.derive_builder_deposit_requests + 28 = GuestAddrs.derive_builder_exit_requests ∧
+    GuestAddrs.stage_system_call = GuestAddrs.derive_builder_exit_requests + 28 :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-- **Negative control, hypothesis side.**  The linking hypotheses of the
+    `*_body_spec`s are not vacuously satisfiable: at the DEPLOYED base each is
+    discharged by `decide` above, but the SAME `hla` is provably FALSE when the
+    base is moved off the linked layout — here `base := GuestAddrs.`
+    `derive_builder_deposit_requests + 4`, one instruction along.  So
+    `deriveBuilderDepositRequests_body_spec` genuinely constrains `base`, and
+    an implementation of it that ignored the relocation round-trip would be
+    unsound. -/
+theorem deriveBuilderDepositRequests_hla_false_off_base :
+    ¬ ((GuestAddrs.derive_builder_deposit_requests : Word) + (4 : Word) + (16 : Word) +
+        (((laHi GuestAddrs.builder_deposit_contract_addr
+            (GuestAddrs.derive_builder_deposit_requests + 16)).zeroExtend 32
+              <<< 12).signExtend 64) +
+        signExtend12 (laLo GuestAddrs.builder_deposit_contract_addr
+          (GuestAddrs.derive_builder_deposit_requests + 16))
+      = (GuestAddrs.builder_deposit_contract_addr : Word)) := by decide
+
+/-! ## 10. `bal_serializer_u64_to_field` — widen a u64 into a 32-byte LE field
+
+  Six instructions, **no relocation of any kind**: four `sd zero` to clear
+  the 32-byte field, one `sd a1` to lay the u64 into the least-significant
+  limb, and `ret`.  It is the purest instance of the shape #12245 asks
+  about — the `*_body_spec` below carries NO linking hypothesis, so the
+  anchored form is a bare instantiation with nothing to `decide`.
+
+  **Extent, from the linked image and not from prose.**
+  `scripts/asm-fixtures/symbol-addresses.tsv` places
+  `bal_serializer_u64_to_field` at `0x800241c0` and the next `.text`
+  symbol `bal_serializer_measure_reads` at `0x800241d8`: 24 bytes, which
+  is `prog.length * 4` for the `#guard`ed `prog.length = 6` in
+  `Codegen/Programs/BalSerializer.lean`.  The pair
+  `(GuestAddrs.bal_serializer_u64_to_field, balSerializerU64ToField_prog)`
+  is in `guestImageEntries`, so the `CodeReq` is the deployed code.
+
+  ⚠️ **The first and the fifth store are to the SAME address.**  `sd zero,
+  0(a0)` clears limb 0 and `sd a1, 0(a0)` immediately overwrites it, so
+  the strongest post for that cell is `a1`, not `0` — the contract states
+  the final value and the intermediate `0` never appears.  A contract
+  written from the instruction list without tracking the aliasing would
+  claim all four limbs zero, and the u64 would vanish.
+
+  In-degree is real: `bal_serializer_emit_storage`, `emit_balance` and
+  `emit_nonce` (×4 call sites) all widen through this routine
+  (`Codegen/Programs/BalSerializerTail.lean`).  The LE limb order the post
+  states is the one that docstring's bug history turns on. -/
+
+/-- `bal_serializer_u64_to_field` at a free `base`.  No relocation, hence no
+    linking hypothesis: the four 8-byte limbs at `a0`, `a0+8`, `a0+16`,
+    `a0+24` end holding `a1, 0, 0, 0` — little-endian, least-significant
+    limb first — with every register unchanged and return through `ra`. -/
+theorem balSerializerU64ToField_body_spec
+    (base a0 a1 ra m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 6 base (ra &&& ~~~1)
+      (CodeReq.ofProg base balSerializerU64ToField_prog)
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) **
+       (a0 ↦ₘ m0) ** ((a0 + (8 : Word)) ↦ₘ m1) **
+       ((a0 + (16 : Word)) ↦ₘ m2) ** ((a0 + (24 : Word)) ↦ₘ m3))
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) **
+       (a0 ↦ₘ a1) ** ((a0 + (8 : Word)) ↦ₘ (0 : Word)) **
+       ((a0 + (16 : Word)) ↦ₘ (0 : Word)) **
+       ((a0 + (24 : Word)) ↦ₘ (0 : Word))) := by
+  -- Rule 1 of the module header: present the code requirement as the
+  -- `singleton`-union chain before `runBlock`.
+  unfold balSerializerU64ToField_prog
+  rw [CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_cons, CodeReq.ofProg_cons,
+    CodeReq.ofProg_nil]
+  have Z0 := sd_x0_spec_gen_within .x10 a0 m0 (0 : BitVec 12) base
+  rw [show a0 + signExtend12 (0 : BitVec 12) = a0 from by
+    rw [signExtend12_0]; exact BitVec.add_zero a0] at Z0
+  have Z1 := sd_x0_spec_gen_within .x10 a0 m1 (8 : BitVec 12) (base + (4 : Word))
+  rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide] at Z1
+  have Z2 := sd_x0_spec_gen_within .x10 a0 m2 (16 : BitVec 12) (base + (8 : Word))
+  rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide] at Z2
+  have Z3 := sd_x0_spec_gen_within .x10 a0 m3 (24 : BitVec 12) (base + (12 : Word))
+  rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide] at Z3
+  -- The aliasing step: limb 0 currently holds the `0` written by `Z0`.
+  have S := sd_spec_gen_within .x10 .x11 a0 a1 (0 : Word) (0 : BitVec 12)
+    (base + (16 : Word))
+  rw [show a0 + signExtend12 (0 : BitVec 12) = a0 from by
+    rw [signExtend12_0]; exact BitVec.add_zero a0] at S
+  have R := EvmAsm.Evm64.ret_spec_within' (base + (20 : Word)) ra
+  runBlock Z0 Z1 Z2 Z3 S R
+
+/-- `bal_serializer_u64_to_field` deployed contract, anchored at the guest
+    image entry.  There is no relocation to discharge, so this is the
+    `*_body_spec` at `base := GuestAddrs.bal_serializer_u64_to_field` and
+    nothing else. -/
+theorem balSerializerU64ToFieldFlat_spec (a0 a1 ra m0 m1 m2 m3 : Word) :
+    cpsTripleWithin 6 (GuestAddrs.bal_serializer_u64_to_field : Word) (ra &&& ~~~1)
+      (CodeReq.ofProg (GuestAddrs.bal_serializer_u64_to_field : Word)
+        balSerializerU64ToField_prog)
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) **
+       (a0 ↦ₘ m0) ** ((a0 + (8 : Word)) ↦ₘ m1) **
+       ((a0 + (16 : Word)) ↦ₘ m2) ** ((a0 + (24 : Word)) ↦ₘ m3))
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) **
+       (a0 ↦ₘ a1) ** ((a0 + (8 : Word)) ↦ₘ (0 : Word)) **
+       ((a0 + (16 : Word)) ↦ₘ (0 : Word)) **
+       ((a0 + (24 : Word)) ↦ₘ (0 : Word))) :=
+  balSerializerU64ToField_body_spec
+    (GuestAddrs.bal_serializer_u64_to_field : Word) a0 a1 ra m0 m1 m2 m3
+
+/-- **Anti-vacuity witness** for §10.  At `a1 = 0x0102030405060708` into a
+    field whose four limbs all start at `0xffffffffffffffff`, the post is
+    fully numeric: limb 0 carries the u64 and limbs 1-3 are cleared.  The
+    starting value is chosen NON-zero on purpose — with `m0..m3 = 0` the
+    four clearing stores would be indistinguishable from no-ops, and the
+    post would hold of a routine that did nothing to limbs 1-3.
+
+    NAMED (not an anonymous `example`) so `Progress/Routines.lean` can cite
+    it and `check-nonvacuity-witnessed.py` sees the row's evidence inside
+    the axiom gate rather than in prose. -/
+theorem balSerializerU64ToField_sample_reachable (ra : Word) :
+    cpsTripleWithin 6 (GuestAddrs.bal_serializer_u64_to_field : Word) (ra &&& ~~~1)
+      (CodeReq.ofProg (GuestAddrs.bal_serializer_u64_to_field : Word)
+        balSerializerU64ToField_prog)
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ (0xa2d00000 : Word)) **
+       (.x11 ↦ᵣ (0x0102030405060708 : Word)) **
+       ((0xa2d00000 : Word) ↦ₘ (0xffffffffffffffff : Word)) **
+       ((0xa2d00008 : Word) ↦ₘ (0xffffffffffffffff : Word)) **
+       ((0xa2d00010 : Word) ↦ₘ (0xffffffffffffffff : Word)) **
+       ((0xa2d00018 : Word) ↦ₘ (0xffffffffffffffff : Word)))
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ (0xa2d00000 : Word)) **
+       (.x11 ↦ᵣ (0x0102030405060708 : Word)) **
+       ((0xa2d00000 : Word) ↦ₘ (0x0102030405060708 : Word)) **
+       ((0xa2d00008 : Word) ↦ₘ (0 : Word)) **
+       ((0xa2d00010 : Word) ↦ₘ (0 : Word)) **
+       ((0xa2d00018 : Word) ↦ₘ (0 : Word))) := by
+  have h := balSerializerU64ToFieldFlat_spec (0xa2d00000 : Word)
+    (0x0102030405060708 : Word) ra
+    (0xffffffffffffffff : Word) (0xffffffffffffffff : Word)
+    (0xffffffffffffffff : Word) (0xffffffffffffffff : Word)
+  rw [show (0xa2d00000 : Word) + (8 : Word) = (0xa2d00008 : Word) from by decide,
+    show (0xa2d00000 : Word) + (16 : Word) = (0xa2d00010 : Word) from by decide,
+    show (0xa2d00000 : Word) + (24 : Word) = (0xa2d00018 : Word) from by decide] at h
+  exact h
+
+/-- **Negative control** for §10, on the aliasing that the contract turns on.
+    The five stores hit only FOUR distinct addresses: `0(a0)` is written
+    twice.  Recorded as the two facts it is — the four limb addresses are
+    pairwise distinct offsets, and the fifth store's address is provably
+    EQUAL to the first store's — because a contract that had missed the
+    aliasing would put `0` in limb 0 and still typecheck.  The `= 0`
+    conjunct is what makes limb 0's post `a1` rather than `0`. -/
+theorem balSerializerU64ToField_alias_control :
+    ((8 : Word) ≠ (0 : Word)) ∧ ((16 : Word) ≠ (0 : Word)) ∧
+    ((24 : Word) ≠ (0 : Word)) ∧ ((16 : Word) ≠ (8 : Word)) ∧
+    ((24 : Word) ≠ (8 : Word)) ∧ ((24 : Word) ≠ (16 : Word)) ∧
+    signExtend12 (0 : BitVec 12) = (0 : Word) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-! ## 11. `mpt_delete_walk_db` — the one-instruction tail transfer
+
+  The whole routine is `j mpt_set_record_walk_db`: delete and set share an
+  ABI and a stack layout, so the delete entry point is a pure rename of
+  the set walker.  One instruction, no branch, no `ret`, nothing written.
+
+  **Extent, from the linked image and not from prose.**
+  `scripts/asm-fixtures/symbol-addresses.tsv` places `mpt_delete_walk_db`
+  at `0x800073fc` and the next `.text` symbol `mpt_extension_extract` at
+  `0x80007400`: 4 bytes, which is `prog.length * 4` for the `#guard`ed
+  `(mptDeleteWalkDb_prog_of .zero).length = 1` in
+  `Codegen/Programs/MptDeleteWalkDbProg.lean`.  The pair
+  `(GuestAddrs.mpt_delete_walk_db, mptDeleteWalkDb_prog)` is in
+  `guestImageEntries`.
+
+  This is the routine whose one-instruction body was graded **loop-bearing**
+  by the shape dump before #12790 — a single instruction cannot contain a
+  loop, and it was that witness which exposed the missing extent conjunct
+  in the back-edge test.  Rowing it closes the loop on its own bug report.
+
+  Because nothing is written and no register is touched, the strongest post
+  is the precondition itself for an ARBITRARY `pcFree` frame — the contract
+  is parametric in `P`.  As in §6-9 it composes nothing from the callee: it
+  stops at the transfer, and inherits none of `mpt_set_record_walk_db`'s
+  own status. -/
+
+/-- `mpt_delete_walk_db` at a free `base`, with the `jal` round-trip named:
+    control moves to `tgt` and NOTHING else changes, for any `pcFree` `P`. -/
+theorem mptDeleteWalkDb_body_spec (base tgt : Word) (P : Assertion) (hP : P.pcFree)
+    (hjal : base +
+        signExtend21 (jalOff GuestAddrs.mpt_set_record_walk_db
+          (GuestAddrs.mpt_delete_walk_db + 0)) = tgt) :
+    cpsTripleWithin 1 base tgt
+      (CodeReq.ofProg base mptDeleteWalkDb_prog) P P := by
+  unfold mptDeleteWalkDb_prog mptDeleteWalkDb_prog_of
+  rw [CodeReq.ofProg_singleton]
+  have J := jal_x0_frame_within P hP
+    (jalOff guestLayout.mpt_set_record_walk_db (guestLayout.mpt_delete_walk_db + 0)) base
+  rw [show (guestLayout.mpt_set_record_walk_db) = GuestAddrs.mpt_set_record_walk_db from rfl,
+    show (guestLayout.mpt_delete_walk_db) = GuestAddrs.mpt_delete_walk_db from rfl] at J
+  rw [hjal] at J
+  exact J
+
+/-- `mpt_delete_walk_db` deployed contract, anchored at the guest image entry:
+    the tail jump lands exactly on `GuestAddrs.mpt_set_record_walk_db`, and the
+    seven-argument walk ABI (`a0..a6`) plus `ra` arrives there untouched. -/
+theorem mptDeleteWalkDbFlat_spec (ra a0 a1 a2 a3 a4 a5 a6 : Word) :
+    cpsTripleWithin 1 (GuestAddrs.mpt_delete_walk_db : Word)
+      (GuestAddrs.mpt_set_record_walk_db : Word)
+      (CodeReq.ofProg (GuestAddrs.mpt_delete_walk_db : Word) mptDeleteWalkDb_prog)
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) **
+       (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ a4) ** (.x15 ↦ᵣ a5) ** (.x16 ↦ᵣ a6))
+      ((.x1 ↦ᵣ ra) ** (.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) **
+       (.x13 ↦ᵣ a3) ** (.x14 ↦ᵣ a4) ** (.x15 ↦ᵣ a5) ** (.x16 ↦ᵣ a6)) :=
+  mptDeleteWalkDb_body_spec (GuestAddrs.mpt_delete_walk_db : Word)
+    (GuestAddrs.mpt_set_record_walk_db : Word) _ Assertion.PCFree.proof (by decide)
+
+/-- **Anti-vacuity witness** for §11: at eight distinct concrete argument
+    values the pre and post are fully numeric and the exit pc is the named
+    `GuestAddrs.mpt_set_record_walk_db`.  NAMED so `Progress/Routines.lean`
+    can cite it inside the axiom gate. -/
+theorem mptDeleteWalkDb_sample_reachable :
+    cpsTripleWithin 1 (GuestAddrs.mpt_delete_walk_db : Word)
+      (GuestAddrs.mpt_set_record_walk_db : Word)
+      (CodeReq.ofProg (GuestAddrs.mpt_delete_walk_db : Word) mptDeleteWalkDb_prog)
+      ((.x1 ↦ᵣ (1 : Word)) ** (.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+       (.x12 ↦ᵣ (4 : Word)) ** (.x13 ↦ᵣ (5 : Word)) ** (.x14 ↦ᵣ (6 : Word)) **
+       (.x15 ↦ᵣ (7 : Word)) ** (.x16 ↦ᵣ (8 : Word)))
+      ((.x1 ↦ᵣ (1 : Word)) ** (.x10 ↦ᵣ (2 : Word)) ** (.x11 ↦ᵣ (3 : Word)) **
+       (.x12 ↦ᵣ (4 : Word)) ** (.x13 ↦ᵣ (5 : Word)) ** (.x14 ↦ᵣ (6 : Word)) **
+       (.x15 ↦ᵣ (7 : Word)) ** (.x16 ↦ᵣ (8 : Word))) :=
+  mptDeleteWalkDbFlat_spec 1 2 3 4 5 6 7 8
+
+/-- **Negative control** for §11, on both halves of the transfer claim.
+
+    The exit address is the callee and NOT the routine's own fallthrough:
+    `mpt_delete_walk_db + 4` is `mpt_extension_extract`, a different
+    routine, and the jump goes backwards to `mpt_set_record_walk_db` at a
+    LOWER address — which is exactly why the pre-#12790 shape dump graded
+    this one-instruction body as containing a loop.  The strict inequality
+    below is that back-edge, recorded as the fact it is.
+
+    Hypothesis side: the SAME `hjal` is provably FALSE one instruction off
+    the linked base, so `mptDeleteWalkDb_body_spec` genuinely constrains
+    `base` and did not prove a transfer that holds everywhere. -/
+theorem mptDeleteWalkDb_transfer_control :
+    GuestAddrs.mpt_set_record_walk_db ≠ GuestAddrs.mpt_delete_walk_db + 4 ∧
+    GuestAddrs.mpt_set_record_walk_db < GuestAddrs.mpt_delete_walk_db ∧
+    ¬ ((GuestAddrs.mpt_delete_walk_db : Word) + (4 : Word) +
+        signExtend21 (jalOff GuestAddrs.mpt_set_record_walk_db
+          (GuestAddrs.mpt_delete_walk_db + 0))
+      = (GuestAddrs.mpt_set_record_walk_db : Word)) :=
+  ⟨by decide, by decide, by decide⟩
+
 /-! ## Axiom audit — every contract is classical-only. -/
 
 #print axioms wcidxRecordPtrFlat_spec
@@ -710,5 +1179,9 @@ example : GuestAddrs.withdrawal_request_predeploy_addr ≠
 #print axioms secfSquareModNFlat_spec
 #print axioms deriveWithdrawalRequestsFlat_spec
 #print axioms deriveConsolidationRequestsFlat_spec
+#print axioms deriveBuilderDepositRequestsFlat_spec
+#print axioms deriveBuilderExitRequestsFlat_spec
+#print axioms balSerializerU64ToFieldFlat_spec
+#print axioms mptDeleteWalkDbFlat_spec
 
 end EvmAsm.Codegen.Proofs

@@ -371,7 +371,12 @@ def _strip(tok):
     return re.sub(r"\s*:\s*Word\s*$", "", t).strip()
 
 
-_IDENT = re.compile(r"[A-Za-z_][\w'!?]*(?:\.[A-Za-z_][\w'!?]*)*")
+# A dotted path is matched WHOLE (`GuestAddrs.foo`, `wCr.union`), and the
+# negative lookbehind stops the scanner from re-matching a projection tail as a
+# bare name once dot-notation expansion has rewritten `wCr.union` into
+# `(...).union` -- otherwise a def happening to be called `union` would be
+# spliced in where Lean sees a field.
+_IDENT = re.compile(r"(?<![\w'!?.])[A-Za-z_][\w'!?]*(?:\.[A-Za-z_][\w'!?]*)*")
 
 
 def resolve_tok(tok, local, glob, ambig):
@@ -395,8 +400,26 @@ def resolve_tok(tok, local, glob, ambig):
         def sub(m):
             nonlocal changed
             name = m.group(0)
-            if "." in name:          # keep `GuestAddrs.foo` intact -- it IS the anchor
-                return name
+            head, dot, tail = name.partition(".")
+            if dot:
+                # `x.f` is Lean's generalised field notation whenever `x` is a
+                # name we know -- `wCr.union e` IS `CodeReq.union wCr e` (#13196).
+                # Resolve the HEAD in place and keep the projection, instead of
+                # discarding the whole token: dropping it hid the
+                # `CodeReq.ofProg (GuestAddrs.<sym>)` anchor living inside `wCr`
+                # and mis-graded an anchored whole-routine triple.  A head we do
+                # NOT know is a namespace (`GuestAddrs.foo`, `CodeReq.ofProg`) --
+                # left intact, because `GuestAddrs.<sym>` IS the anchor.
+                if head in ambig:
+                    unresolved.add(head)
+                    return name
+                body = local.get(head)
+                if body is None:
+                    body = glob.get(head)
+                if body is None or len(body) > 2000:
+                    return name
+                changed = True
+                return "(" + body + ")." + tail
             body = local.get(name)
             if body is None:
                 if name in ambig:
@@ -799,6 +822,67 @@ def run_self_test():
     check(shape(" (base r : Word) (hbase : base = GuestAddrs.synthetic_sym) : "
                 "cpsTripleWithin 5 base r (CodeReq.ofProg base p) P Q")
           == "whole-routine", "a hypothesis-pinned entry must resolve")
+
+    # 7. dot notation must not change the grade (#13196).  `wCr.union e` is
+    # Lean's generalised field notation for `CodeReq.union wCr e` -- the SAME
+    # term.  The resolver used to discard any token containing a '.', so it
+    # never looked inside `wCr`, never saw the anchor, and graded an anchored
+    # whole-routine triple as structured-only/needs-read.  A `CodeReq.union` is
+    # exactly what the #12318 composition lane emits, so the regression would
+    # land on the shapes being actively generated.  Assert BOTH spellings of the
+    # SAME term, and assert they agree -- an equality check alone would pass if
+    # the fix broke both.
+    union_local = {"wCr": "CodeReq.ofProg (GuestAddrs.synthetic_sym : Word) selfProg",
+                   "cCr": "CodeReq.ofProg (GuestAddrs.callee : Word) calleeProg"}
+    prefix_form = (" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                   "(CodeReq.union wCr cCr) P Q")
+    dotted_form = (" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                   "(wCr.union cCr) P Q")
+    s_prefix = shape(prefix_form, local=union_local)
+    s_dotted = shape(dotted_form, local=union_local)
+    check(s_prefix == "whole-routine",
+          "CodeReq.union spelling must grade whole-routine, got %s" % s_prefix)
+    check(s_dotted == "whole-routine",
+          "dot-notation spelling must grade whole-routine, got %s" % s_dotted)
+    check(s_prefix == s_dotted,
+          "the two spellings of one CodeReq graded differently (%s vs %s) -- #13196"
+          % (s_prefix, s_dotted))
+
+    # ...and the same agreement where the honest answer is NOT whole-routine.
+    # Without this, "make dotted heads resolve" could degenerate into "grade
+    # every union whole-routine", which is the failure mode --shape exists to
+    # prevent.  Here NEITHER leg is this symbol's, so both spellings must refuse.
+    foreign = {"aCr": "CodeReq.ofProg (GuestAddrs.other_a : Word) pa",
+               "bCr": "CodeReq.ofProg (GuestAddrs.other_b : Word) pb"}
+    n_prefix = shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                     "(CodeReq.union aCr bCr) P Q", local=foreign)
+    n_dotted = shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                     "(aCr.union bCr) P Q", local=foreign)
+    check(n_prefix == "needs-read" and n_dotted == "needs-read",
+          "a union of two FOREIGN legs must stay needs-read in both spellings "
+          "(got %s / %s)" % (n_prefix, n_dotted))
+    # a position-independent dotted union stays structured-only in both spellings.
+    pi = {"pCr": "CodeReq.ofProg base (selfProg base)"}
+    p_prefix = shape(" (base r : Word) : cpsTripleWithin 5 base r "
+                     "(CodeReq.union pCr pCr) P Q", local=pi)
+    p_dotted = shape(" (base r : Word) : cpsTripleWithin 5 base r "
+                     "(pCr.union pCr) P Q", local=pi)
+    check(p_prefix == "structured-only" and p_dotted == "structured-only",
+          "a position-independent union must stay structured-only in both "
+          "spellings (got %s / %s)" % (p_prefix, p_dotted))
+    # an AMBIGUOUS dotted head must still be refused, not guessed at -- the
+    # `ltPBase` trap, reached through a projection.
+    check(shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                "(ambigCr.union other) P Q", ambig={"ambigCr"}) == "needs-read",
+          "an ambiguous dotted HEAD must be refused, not guessed (#13196)")
+    # a namespace head is not a def: `GuestAddrs.<sym>` must survive untouched,
+    # even when a def of the same name as the projection exists.
+    check(shape(" (r : Word) : cpsTripleWithin 5 (GuestAddrs.synthetic_sym : Word) r "
+                "(CodeReq.ofProg (GuestAddrs.synthetic_sym : Word) p) P Q",
+                glob={"synthetic_sym": "(GuestAddrs.WRONG : Word)",
+                      "ofProg": "(GuestAddrs.WRONG : Word)"})
+          == "whole-routine",
+          "a namespaced anchor must not be rewritten by a same-named def (#13196)")
 
     if problems:
         for p in problems:

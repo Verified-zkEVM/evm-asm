@@ -1288,4 +1288,202 @@ theorem tx_signing_hash_specRef_correspondence
         exact Or.inr ⟨v11, v12, hfail⟩
   exact (sepConj_mono_right (sepConj_mono_right (sepConj_mono_right himpl))) hq hpost
 
+/-! ### Non-vacuity of the SpecRef correspondence (#12038)
+
+    `tx_signing_hash_specRef_correspondence` carries one named residual,
+    `h_decoder_payload`. A theorem with an unsatisfiable premise bundle proves
+    nothing, so below are two closed positive controls (the `_2930` and
+    `_4844` arms) and three negative controls showing the selector is a real
+    restriction. The registry note in `Progress/Correspondence.lean` carries
+    the full rationale and the port-fidelity clause table. -/
+
+/-- A non-degenerate EIP-2930 transaction: distinct nonce/gas-price/gas, a
+    real 20-byte `to`, nonzero value — no two encoded fields coincide. -/
+def tshSpecRefWitnessRec : AccessListTransaction :=
+  { chainId := 1, nonce := 1, gasPrice := 10, gas := 21000,
+    «to» := some (List.replicate 20 (0xDD : BitVec 8)),
+    value := 100, data := [], accessList := [], yParity := 0, r := 1, s := 2 }
+
+def tshSpecRefWitnessTx : Transaction := .accessList tshSpecRefWitnessRec
+
+/-- The 34-byte RLP list the caller hands K145 in `a0`. The type byte travels
+    separately in `a3`, so the first byte here is a LIST header, `0xe1`. -/
+def tshSpecRefWitnessInput : List (BitVec 8) :=
+  [0xe1, 0x01, 0x01, 0x0a, 0x82, 0x52, 0x08, 0x94] ++
+    List.replicate 20 (0xDD : BitVec 8) ++ [0x64, 0x80, 0xc0, 0x80, 0x01, 0x02]
+
+/-- The eight-field signing payload: `encode (.list (items.take 8))` less its
+    one-byte `0xde` list header. -/
+def tshSpecRefWitnessPayload : List (BitVec 8) :=
+  [0x01, 0x01, 0x0a, 0x82, 0x52, 0x08, 0x94] ++
+    List.replicate 20 (0xDD : BitVec 8) ++ [0x64, 0x80, 0xc0]
+
+theorem tshSpecRefWitness_item : txToRlpItem tshSpecRefWitnessTx =
+    .list [.bytes [0x01], .bytes [0x01], .bytes [0x0a], .bytes [0x52, 0x08],
+           .bytes (List.replicate 20 (0xDD : BitVec 8)), .bytes [0x64],
+           .bytes [], .list [], .bytes [], .bytes [0x01], .bytes [0x02]] := by
+  simp [tshSpecRefWitnessTx, tshSpecRefWitnessRec, txToRlpItem, scalarT, toItem,
+    EvmAsm.EL.RLP.Nat.toBytesBE]
+
+theorem tshSpecRefWitness_encode :
+    EvmAsm.EL.RLP.encode (txToRlpItem tshSpecRefWitnessTx) = tshSpecRefWitnessInput := by
+  rw [tshSpecRefWitness_item]; decide
+
+theorem tshSpecRefWitness_items : txSigningHashSpecRefItems tshSpecRefWitnessTx =
+    [.bytes [0x01], .bytes [0x01], .bytes [0x0a], .bytes [0x52, 0x08],
+     .bytes (List.replicate 20 (0xDD : BitVec 8)), .bytes [0x64],
+     .bytes [], .list [], .bytes [], .bytes [0x01], .bytes [0x02]] := by
+  rw [txSigningHashSpecRefItems, tshSpecRefWitness_item]
+
+theorem tshSpecRefWitness_hdrByte (h0 : 0 < tshSpecRefWitnessInput.length) :
+    tshHdrByte tshSpecRefWitnessInput h0 = (0xe1 : Word) := rfl
+
+/-- ⭐ **Positive control.** One closed instance satisfies both conjuncts of
+    `h_decoder_payload`, the `h_target` selector, `hge`, `hhdrLen`, the
+    `hpayload` slice equation and the nonzero `a2`/`a3` gates — so the
+    correspondence is not vacuous, and its digest is `signing_hash_2930`. -/
+theorem tsh_specRef_domain_nonvacuous
+    (h0 : 0 < tshSpecRefWitnessInput.length) :
+    ∃ nFields typePrefix hdrLen : Word,
+      ¬BitVec.ult (tshHdrByte tshSpecRefWitnessInput h0) (192 : Word) ∧
+      hdrLen = tshHdrLen tshSpecRefWitnessInput h0 ∧
+      nFields ≠ 0 ∧ typePrefix ≠ 0 ∧
+      (tshSpecRefWitnessInput.drop hdrLen.toNat).take tshSpecRefWitnessPayload.length
+        = tshSpecRefWitnessPayload ∧
+      (EvmAsm.EL.RLP.decodeFully tshSpecRefWitnessInput
+          = some (txToRlpItem tshSpecRefWitnessTx) ∧
+        EvmAsm.EL.RLP.encode
+            (.list ((txSigningHashSpecRefItems tshSpecRefWitnessTx).take nFields.toNat))
+          = rlpListPrefix tshSpecRefWitnessPayload.length ++ tshSpecRefWitnessPayload) ∧
+      txSigningHashSpecRefTarget tshSpecRefWitnessTx nFields typePrefix
+        = some (signing_hash_2930 tshSpecRefWitnessRec) := by
+  have hb := tshSpecRefWitness_hdrByte h0
+  refine ⟨BitVec.ofNat 64 8, 1, 1, ?_, ?_, ?_, ?_, ?_, ⟨?_, ?_⟩, ?_⟩
+  · rw [hb]; decide
+  · show (1 : Word) = tshHdrLenOf (tshHdrByte tshSpecRefWitnessInput h0)
+    rw [hb]; decide
+  · decide
+  · decide
+  · decide
+  · rw [tshSpecRefWitness_item]; decide
+  · rw [tshSpecRefWitness_items]; decide
+  · rfl
+
+/-! #### A second arm, structurally different. The control above inhabits the
+    `_2930` arm; four arms are proved, so one witness leaves open whether the
+    other three are vacuous. `_4844` settles it at the far end: 11 fields not
+    8, prefix 3 not 1, a MANDATORY `to : Address` rather than an `Option`, a
+    nested blob-hash list, and — its payload being 68 bytes — the **LONG**
+    outer header (`f8 47`, `hdrLen = 2`) where 2930 takes the short one. -/
+
+def tshSpecRefWitnessRec4844 : BlobTransaction :=
+  { chainId := 1, nonce := 2, maxPriorityFeePerGas := 3, maxFeePerGas := 400,
+    gas := 21000, «to» := List.replicate 20 (0xEE : BitVec 8), value := 5,
+    data := [], accessList := [], maxFeePerBlobGas := 6,
+    blobVersionedHashes := [List.replicate 32 (0x01 : BitVec 8)],
+    yParity := 0, r := 7, s := 8 }
+
+def tshSpecRefWitnessTx4844 : Transaction := .blob tshSpecRefWitnessRec4844
+
+/-- The eleven-field signing payload, 68 bytes: also the interior of the full
+    encoding, the three signature fields being appended after it. -/
+def tshSpecRefWitnessPayload4844 : List (BitVec 8) :=
+  [0x01, 0x02, 0x03, 0x82, 0x01, 0x90, 0x82, 0x52, 0x08, 0x94] ++
+    List.replicate 20 (0xEE : BitVec 8) ++
+    [0x05, 0x80, 0xc0, 0x06, 0xe1, 0xa0] ++ List.replicate 32 (0x01 : BitVec 8)
+
+/-- 73 bytes under a LONG outer header (`f8 47`), so `hdrLen = 2`. -/
+def tshSpecRefWitnessInput4844 : List (BitVec 8) :=
+  [0xf8, 0x47] ++ tshSpecRefWitnessPayload4844 ++ [0x80, 0x07, 0x08]
+
+theorem tshSpecRefWitness4844_item : txToRlpItem tshSpecRefWitnessTx4844 =
+    .list [.bytes [0x01], .bytes [0x02], .bytes [0x03], .bytes [0x01, 0x90],
+           .bytes [0x52, 0x08], .bytes (List.replicate 20 (0xEE : BitVec 8)),
+           .bytes [0x05], .bytes [], .list [], .bytes [0x06],
+           .list [.bytes (List.replicate 32 (0x01 : BitVec 8))],
+           .bytes [], .bytes [0x07], .bytes [0x08]] := by
+  simp [tshSpecRefWitnessTx4844, tshSpecRefWitnessRec4844, txToRlpItem, scalarT,
+    EvmAsm.EL.RLP.Nat.toBytesBE]
+
+theorem tshSpecRefWitness4844_items : txSigningHashSpecRefItems tshSpecRefWitnessTx4844 =
+    [.bytes [0x01], .bytes [0x02], .bytes [0x03], .bytes [0x01, 0x90],
+     .bytes [0x52, 0x08], .bytes (List.replicate 20 (0xEE : BitVec 8)),
+     .bytes [0x05], .bytes [], .list [], .bytes [0x06],
+     .list [.bytes (List.replicate 32 (0x01 : BitVec 8))],
+     .bytes [], .bytes [0x07], .bytes [0x08]] := by
+  rw [txSigningHashSpecRefItems, tshSpecRefWitness4844_item]
+
+theorem tshSpecRefWitness4844_hdrByte (h0 : 0 < tshSpecRefWitnessInput4844.length) :
+    tshHdrByte tshSpecRefWitnessInput4844 h0 = (0xf8 : Word) := rfl
+
+/-- Truncated payload, split off by the header bridge: the outer header is
+    LONG, so the equation goes through `encode_list_eq_prefix_append` rather
+    than reducing — `Nat.toBytesBE` is well-founded and `decide` cannot. -/
+theorem tshSpecRefWitness4844_encodeItems :
+    EvmAsm.EL.RLP.encode.encodeItems
+        ((txSigningHashSpecRefItems tshSpecRefWitnessTx4844).take
+          ((BitVec.ofNat 64 11 : Word)).toNat)
+      = tshSpecRefWitnessPayload4844 := by
+  rw [tshSpecRefWitness4844_items]; decide
+
+/-- ⭐ **Second positive control.** Same residual bundle as
+    `tsh_specRef_domain_nonvacuous`, on the `_4844` arm. Together the two show
+    the proved arms are inhabited across the arity/prefix range AND both
+    outer-header forms. -/
+theorem tsh_specRef_domain_nonvacuous_4844
+    (h0 : 0 < tshSpecRefWitnessInput4844.length) :
+    ∃ nFields typePrefix hdrLen : Word,
+      ¬BitVec.ult (tshHdrByte tshSpecRefWitnessInput4844 h0) (192 : Word) ∧
+      ¬BitVec.ult (tshHdrByte tshSpecRefWitnessInput4844 h0) (248 : Word) ∧
+      hdrLen = tshHdrLen tshSpecRefWitnessInput4844 h0 ∧ hdrLen = 2 ∧
+      nFields ≠ 0 ∧ typePrefix ≠ 0 ∧
+      (tshSpecRefWitnessInput4844.drop hdrLen.toNat).take
+          tshSpecRefWitnessPayload4844.length = tshSpecRefWitnessPayload4844 ∧
+      (EvmAsm.EL.RLP.decodeFully tshSpecRefWitnessInput4844
+          = some (txToRlpItem tshSpecRefWitnessTx4844) ∧
+        EvmAsm.EL.RLP.encode
+            (.list ((txSigningHashSpecRefItems tshSpecRefWitnessTx4844).take nFields.toNat))
+          = rlpListPrefix tshSpecRefWitnessPayload4844.length
+              ++ tshSpecRefWitnessPayload4844) ∧
+      txSigningHashSpecRefTarget tshSpecRefWitnessTx4844 nFields typePrefix
+        = some (signing_hash_4844 tshSpecRefWitnessRec4844) := by
+  have hb := tshSpecRefWitness4844_hdrByte h0
+  have hl : tshHdrLen tshSpecRefWitnessInput4844 h0 = (2 : Word) := by
+    show tshHdrLenOf (tshHdrByte tshSpecRefWitnessInput4844 h0) = (2 : Word)
+    rw [hb]; decide
+  refine ⟨BitVec.ofNat 64 11, 3, 2, ?_, ?_, hl.symm, rfl, ?_, ?_, ?_, ⟨?_, ?_⟩, ?_⟩
+  · rw [hb]; decide
+  · rw [hb]; decide
+  · decide
+  · decide
+  · decide
+  · rw [tshSpecRefWitness4844_item]; decide
+  · rw [encode_list_eq_prefix_append, tshSpecRefWitness4844_encodeItems]
+  · rfl
+
+/-- **Negative control 1.** The type prefix is load-bearing: at the same
+    field count, prefix `2` (EIP-1559) selects nothing for a 2930 transaction,
+    so `h_target` is provably FALSE there. -/
+theorem tsh_specRef_target_false_on_wrong_prefix :
+    txSigningHashSpecRefTarget tshSpecRefWitnessTx (BitVec.ofNat 64 8) (2 : Word) = none := by
+  simp [txSigningHashSpecRefTarget, tshSpecRefWitnessTx]
+
+/-- **Negative control 2.** The field count is load-bearing in the same way:
+    truncating to nine fields selects nothing for a 2930 transaction. -/
+theorem tsh_specRef_target_false_on_wrong_arity :
+    txSigningHashSpecRefTarget tshSpecRefWitnessTx (BitVec.ofNat 64 9) (1 : Word) = none := by
+  simp [txSigningHashSpecRefTarget, tshSpecRefWitnessTx]
+
+/-- **Negative control 3 — the exclusion, stated rather than implied.** The
+    correspondence carries `hnzType : a3 ≠ 0` and `h_typePrefix : typePrefix =
+    a3`, so the selector's `.legacy` arm is unreachable under its own
+    hypotheses. Hence it covers exactly FOUR of the six
+    `SpecRef.Transactions.signing_hash_*` and provably never
+    `signing_hash_pre155`; `signing_hash_155` is K146's. -/
+theorem tsh_specRef_pre155_arm_unreachable
+    (t : LegacyTransaction) (nFields typePrefix : Word) (hnz : typePrefix ≠ 0) :
+    txSigningHashSpecRefTarget (.legacy t) nFields typePrefix = none := by
+  simp only [txSigningHashSpecRefTarget, ite_eq_right_iff, and_imp]
+  exact fun _ h => absurd h hnz
+
 end EvmAsm.Codegen.TxSigningHashSpec

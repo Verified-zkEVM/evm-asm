@@ -196,6 +196,16 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.BlockAccessListHashSAsm.bahU32leFlat_spec
 
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_align_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_header_bytes_valid
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_len_negative_control
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.blockAccessListHash_precondition_reachable
+
+#print axioms EvmAsm.Codegen.BlockAccessListHashSpec.block_access_list_hash_spec_within
+
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_headerHash_within
 
 #print axioms EvmAsm.Codegen.BlockHashFromHeaderSpec.block_hash_from_header_spec_within
@@ -636,6 +646,38 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.accountReadRecordSuppressedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.accountWriteRecordFailClosedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.accountWritesLookupCurrentAbsentFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.accountWritesUndoPushFullFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.bacpArena_exact_region_unobtainable
+
+#print axioms EvmAsm.Codegen.Proofs.bacpArena_hyps_hold
+
+#print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
+
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToFieldFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_alias_control
+
+#print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_hla_false_off_base
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderDepositRequests_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderExitRequestsFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderExitRequests_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.deriveBuilderRequests_addr_control
+
 #print axioms EvmAsm.Codegen.Proofs.deriveConsolidationRequestsFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.deriveWithdrawalRequestsFlat_spec
@@ -656,7 +698,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.kss_sample_witness_multi
 
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDbFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDb_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.mptDeleteWalkDb_transfer_control
+
 #print axioms EvmAsm.Codegen.Proofs.readSetsDiscardTxFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.runtimeSameBlockDelegationCodeMissFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.secfSquareModNFlat_spec
 
@@ -669,6 +719,20 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.Proofs.sha256FullBlockPrefix_spec
 
 #print axioms EvmAsm.Codegen.Proofs.sha256SetupMoves_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWritesBlockLatestValueCapacityRefusalFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_gate_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_numeric_instance
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_precondition_satisfiable
 
 #print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 
@@ -684,9 +748,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.writeSetsDiscardTxFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.writeSetsRestoreFrameEmptyFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_gate_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_numeric_instance
+
+#print axioms EvmAsm.Codegen.Proofs.wsrfEmpty_precondition_satisfiable
+
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_segments_spec_within
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within
+
+#print axioms EvmAsm.Codegen.Proofs.zkvm_keccak256_spec_within_arena_slice
 
 #print axioms EvmAsm.Codegen.Proofs.zkvm_sha256_spec_within
 
@@ -948,6 +1022,8 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.RlpWalkNextStrictTie.strictW_of_rlpItemDecode_nonlist
 
+#print axioms EvmAsm.Codegen.Secp256k1FieldAddModPSAsm.secfAddModP_spec
+
 #print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfBeToLeFlatEntry_spec
 
 #print axioms EvmAsm.Codegen.Secp256k1FieldConvSAsm.secfLeToBeFlatEntry_spec
@@ -1039,6 +1115,18 @@ import EvmAsm.Progress.Correspondence
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longHdr_domain_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_domain_nonvacuous_4844
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_pre155_arm_unreachable
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_arity
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_specRef_target_false_on_wrong_prefix
+
+#print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_specRef_correspondence
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tx_signing_hash_spec_within
 

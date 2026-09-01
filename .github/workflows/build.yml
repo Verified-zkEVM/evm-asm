@@ -124,6 +124,21 @@ jobs:
           scripts/check-specref-citations.py --self-test
           scripts/check-specref-citations.py --strict
 
+      # #13196: `proof-frontier.py --shape` is the oracle this repo trusts OVER
+      # tier prose, so a silent false negative in its classifier is worse than
+      # no classifier -- it pushes a rowable routine into the "not rowable" pile
+      # with no signal. Its resolver used to discard any token containing a '.',
+      # which mis-graded `wCr.union e` (dot notation for `CodeReq.union wCr e`,
+      # the SAME term) as structured-only. `CodeReq.union` is exactly the shape
+      # the #12318 composition lane emits. The self-test now asserts both
+      # spellings grade identically, in the whole-routine case AND in the
+      # foreign-leg / position-independent / ambiguous cases, so neither a
+      # regression nor an over-correction ("grade every union whole-routine")
+      # can land quietly. Pure source parse, no build; the census itself is a
+      # report, not a gate, so only the classifier self-test is wired.
+      - name: Proof-frontier shape classifier self-test
+        run: python3 scripts/proof-frontier.py --self-test
+
       # #12931 fixed one gate that had been wired but unable to fail; this is
       # the companion that makes the class impossible to reintroduce. Pure
       # source scan over the workflows + scripts/, no build. Self-test first:

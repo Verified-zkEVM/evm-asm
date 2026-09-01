@@ -430,8 +430,12 @@ import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeSpec
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseZero
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionEqualDecrease
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionWitness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseZeroTest
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionRouteFamily
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeWitness
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.ValidateHeader
@@ -614,7 +618,6 @@ import EvmAsm.Codegen.Programs.BlockVerdictGasResultArena
 import EvmAsm.Codegen.Programs.BlockVerdictTxGasLimits
 import EvmAsm.Codegen.Programs.ReceiptList
 import EvmAsm.Codegen.Programs.StatelessGuestData
-import EvmAsm.Codegen.Programs.StatelessGuestEpilogue
 import EvmAsm.Codegen.Programs.RegistryNames
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsm
 import EvmAsm.Codegen.Programs.HpDecodeNibblesSAsmPaths
@@ -622,6 +625,7 @@ import EvmAsm.Codegen.Programs.HpDecodeCompactBridge
 import EvmAsm.Codegen.Programs.HpEncodeNibblesSAsm
 import EvmAsm.Codegen.Programs.NibblesCommonPrefixLenSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldSubModPSAsm
+import EvmAsm.Codegen.Programs.Secp256k1FieldAddModPSAsm
 import EvmAsm.Codegen.Programs.FrameSaveRegsSAsm
 import EvmAsm.Codegen.Programs.FrameLoadRegsSAsm
 import EvmAsm.Codegen.Programs.Secp256k1FieldReduceOnceNSAsm

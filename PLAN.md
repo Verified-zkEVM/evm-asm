@@ -137,6 +137,22 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13158 — last vacuous Div/Mod callable wrapper resolved, 2026-09-01)
+
+- ✅ The regionsweep-flagged `evm_div_callable_v1_spec_from_branch_noNop`
+  (pre carried both `regOwn .x1` inside `divScratchValuesCall` AND a
+  framed `(.x1 ↦ᵣ raVal)` — unsatisfiable) is REMOVED, not repaired:
+  the issue-prescribed NoX1 restatement does not close from
+  `evm_div_stack_spec_noNop`, whose post only *owns* `x1` (the `div128`
+  JALs clobber it), so the exact return atom the `cc_ret` step needs is
+  underivable (xperm record: `LHS: regOwn Reg.x1` vs
+  `RHS: Reg.x1 ↦ᵣ raVal`).  The surface is covered by the
+  hypothesis-style `…_from_noNop` wrappers (fixed in fa8475d4c) and the
+  self-contained `evm_div_callable_bzero_v1_*` zero-divisor instances.
+  Audited duplicate-occupancy pairs: 2 → 0.  Remaining census (57
+  partially-unaudited pairs: K73 Route-B adapters, MptWalk/SHA x0) is a
+  separate follow-up.
+
 ### Recent (#13135 — K70's price-free arms at the caller's shape, 2026-08-31)
 
 - ✅ **Three whole-routine ABI-frame triples** for
@@ -883,7 +899,7 @@ general-proof (degree-1 via `[τ]₁`) + real-fixture rows in
 | Terminating | SELFDESTRUCT (0xff) | 7 | 🟡 `.conditional` (`Terminating.evm_selfdestruct_stack_spec_resolved`, `EvmAsm/Evm64/Terminating/Selfdestruct{Program,Spec,HaltResolved}.lean`). Direct STOP clone with routing code 4 (`dispatchHaltRet 4` → `.exit_selfdestruct`): halt-triple sets `evm_halt_flag := 4`, points x1 at `.Ldispatch_resume`, rets to `resume &&& ~~~1`. The two `la`s are **resolved** via `la_resolve` (#10059) — only decidable `laInRange` remains per `la`. `.conditional` NOT `.proven` (unlike STOP/INVALID, whose dispatched handler IS just the halt tail, `body:=[]`) because SELFDESTRUCT's dispatched handler (`selfdestructTailAsm`) runs a substantial effects body — cold-access gas (+`.exit_outofgas`), new-account surcharge, EIP-6780 detection, balance transfer, EIP-7708 log, beneficiary record, CREATE-child return path — framed OUT as the documented residual (a larger residual than RETURN/REVERT's gas-only preBody). **Goal: `.proven`** via a future phase proving the effects body against `EL/SelfdestructEffects`. **conditionalCount 3→4, execSpecCount 15→14.** |
 | Transient storage | TSTORE (0x5d) | 35 | ✅ Proved (`Transient.evm_tstore_stack_spec_within`). Body-as-Program `evm_tstore` (byte-identical reorder of the inline `h_TSTORE` append; `#guard` pins emission). Witness: transient-log append `entries → entries ++ [⟨addr,slot,0,cur⟩]` via `storageLogIs_snoc`, length bump `env+464 := n+1`, 2-word pop. **provenCount 64→65.** Shape-setter for TLOAD (reverse scan). See "Transient store recipe" below. |
 | Transient storage | TLOAD (0x5c) | 47 | ✅ Proved (`Transient.evm_tload_stack_spec_within`). Body-as-Program `evm_tload` (byte-identical re-encoding of the inline `h_TLOAD` label-based scan: labels → PC-relative offsets, `li 0xa0830000` → its exact `lui/addiw/slli` GNU-as expansion so Program layout = machine layout; `#guard` pins emission, region map/ELF unchanged). Witness: reverse scan of the transient log, stack top := `transientLookup addrHash slotKey entries` in place (`x12` unchanged), budget `7 + 34n`; loop proved by snoc induction (`List.reverseRecOn`) over the unscanned prefix. **provenCount 65→66.** See "Transient load recipe" below. |
-| Persistent storage | SLOAD (0x54) | 47 | 🟡 `.conditional` stage-1 (`Storage.evm_sload_stack_spec_within`, `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean`). Structural clone of the proven TLOAD reverse scan on the **persistent** log (base `0xa0630000`, length cell `env+448`); body-as-Program `evm_sload`, byte-identical re-encoding (`li 0xa0630000` → `lui/addiw/slli 99`; `#guard` pins emission, region map/ELF unchanged). Witness: stack top := `persistentLookup addrHash slotKey entries` in place, budget `7 + 34n`. `.conditional` (not `.proven`) because miss→0 is EVM-sound only relative to the canonical `storage_writes` view — MPT-witness verification deferred to stage-2 (post-Phase-10). `coverRef := sload_precondition_reachable` (decide-checked hit-antecedent). **conditionalCount 0→1, execSpecCount 19→18; provenCount unchanged (66).** SSTORE is the append+original-scan sibling. |
+| Persistent storage | SLOAD (0x54) | 47 | ⛔ **`.execSpec` — regressed, and representation-blocked.** ⚠️ This row used to advertise `.conditional` stage-1 via `Storage.evm_sload_stack_spec_within` over a body-as-Program `evm_sload`. That is **stale**: #11596/#11595 retired the exec-log vocabulary and DELETED `EvmAsm/Evm64/Storage/Load{Program,LoopSpec,Spec}.lean` (45 theorems) along with the `Program`, so SLOAD is the one opcode whose coverage moved BACKWARD. It cannot simply be re-proved: `h_SLOAD` (`Codegen/Programs/Storage.lean`) is an `OpcodeHandlerSpec` with `body := []` and raw `String` preBody/tail — no `Program`, no `GuestImageEntries` pairing, 0 of 426 `MANIFEST.tsv` rows for any `h_*` handler — and `cpsTripleWithin` ranges over a `CodeReq` built from a `Program`, so **no whole-handler triple is statable**. The two read-path snippets spliced into it (`storageTxMapFindAsm "sload_live"`, `storagePrestateResolveAsm "sload"`) are label-prefix-parameterised `String`s with no symbol boundary, and the first also carries `la` plus a branch to the dispatcher-owned `.exit_outofgas`. ✅ What IS covered is the read path at **routine** granularity: `storage_writes_block_latest_value` (tier 2 of the resolve funnel, the canonical `BlockState.storage_writes` reader) is `.conditional` via `storageWritesBlockLatestValueCapacityRefusalFlat_spec` (#11654), alongside the write half (`storage_write_record`, `storage_writes_undo_push`, `storage_writes_block_upsert`). Restoring the OPCODE row needs a dispatcher/emitter design change shared across ~120 handlers, not per-routine proof effort. |
 | Memory copy | MCOPY (0x5e) | 21 | ✅ Proved (`Mcopy.evm_mcopy_stack_spec_within`, `EvmAsm/Evm64/Mcopy/{Program,Result,ForwardLoopSpec,BackwardLoopSpec,Spec}.lean`). First **memory→memory / overlap-aware** opcode and first **two-directional** loop proof. Body-as-Program `evm_mcopy` = byte-identical copy core of the `h_MCOPY` handler tail (verified against `riscv64-elf-as`+`objdump`; no `li`, so Program layout = machine layout by construction). TOTAL over all `(destOff,srcOff,len)`: two `BGEU` offset comparisons (sound on offsets since both pointers share base `x13`) dispatch to a **forward** low→high loop (`destOff≤srcOff ∨ srcOff+len≤destOff`) or a **backward** high→low loop (`srcOff<destOff<srcOff+len`), both proven — by countdown induction — to land on the same direction-independent `mcopyResult` (memmove: dst window ← ORIGINAL src slice). Crux vs CALLDATACOPY: src and dst are the SAME `evmMemoryIs` slab, so one evolving `memBytes` list is threaded with a per-direction *read-sees-original* invariant (`mcopy{Fwd,Bwd}Content_getElem_src`) instead of two `**`-disjoint regions. Budget `7·len+8`. Stack decode + gas/MSIZE/range-guard glue unverified per DRIFT (as CALLDATACOPY/CODECOPY). **provenCount 66→67, execSpecCount 18→17.** See "MCOPY memmove recipe" below. |
 | Env (copy) | RETURNDATACOPY (0x3e) | 6 | ✅ Proved (`ReturnData.evm_returndatacopy_stack_spec_within`, `EvmAsm/Evm64/ReturnData/{RevertProgram,RevertSpec,CopyProgram,CopyLoopSpec,CopySpec}.lean`). The stack-form guard prefix loads the three low stack limbs, materializes `evm_precompile_frame`, loads the return-data length, and proves both the success fall-through and invalid exits for `start+size` wrap, `start+size>retlen`, and the 256-byte frame cap. Copy core = byte-identical **bottom-tested `do..while`** loop of the `h_RETURNDATACOPY` handler (`lbu;sb;addi;addi;addi;bnez`, verified vs `riscv64-elf-as`), copying `size` in-bounds bytes from the frame source region (`frame+16+start`) into EVM memory `[destOff,destOff+size)`. Two disjoint regions (like CALLDATACOPY) but reuses the **Mcopy** destination model `mcopyFwdContent` + `cc_*` helpers. `size≥1` for the loop (size=0 is the handler `beqz` skip); gas/MSIZE bookkeeping remains `preBody` glue per DRIFT, as for CALLDATACOPY/CODECOPY. **provenCount 68, execSpecCount 14.** (Stacked on the MCOPY branch — reuses `Mcopy/{Result,ForwardLoopSpec}.lean`.) |
 
@@ -5395,6 +5411,20 @@ preserves both inputs and states the exact branch semantics: copy the wrapping
 BE subtraction on no borrow, otherwise subtract the encoded `2^256 - p`
 constant; the two call-site return-address values are joined before an explicit
 saved-register restore.
+`Secp256k1FieldAddModPSAsm.lean` verifies `secf_add_mod_p` byte-identically as
+an ABI-frame caller over `u256_add_be` (twice — once all-distinct, once with
+`a0 = a2` aliased for the carry fold-back) and `secf_reduce_once`.  Unlike the
+`secf_sub_mod_p` precedent, which is proved at the probe-only placeholder PC
+`secfSubModPPc = 0x80000000`, `secfAddModP_spec` is anchored at the real linked
+address `GuestAddrs.secf_add_mod_p` and covers the whole 140-byte routine
+(`secfAddModP_prog.length * 4 = 140`, matching `secf_mul_mod_p -
+secf_add_mod_p` in `scripts/asm-fixtures/symbol-addresses.tsv`).  The post is
+operational: the output buffer receives `reduceOnceBytes (addModPTmpBytes …)`,
+i.e. the wrapping BE sum when it does not carry and that sum with
+`C = 2^256 mod p` folded back in when it does, then one conditional subtraction
+of `p`.  The numeric bridge (`beBytesToNat out = (x + y) % p` for `x, y < p`)
+is a **named residual**, not absorbed; `secfAddModP_sideConditions_satisfiable`
+and `secfAddModP_dstAliasesTmp0_excluded` are the non-vacuity controls.
 `Secp256k1FieldReduceOnceNSAsm.lean` applies the same verified ABI-frame and
 shared-join architecture to the scalar-field mirror `secf_reduce_once_n`, with
 the group-order bytes at `secf_n_be`, exact conditional-subtraction bytes and

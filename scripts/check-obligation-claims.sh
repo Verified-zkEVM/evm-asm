@@ -265,9 +265,15 @@ for line in open(progress):
 # "... is simply inside the untranscribed dispatcher. Ranked in
 # `docs/4ch8f-transcription-queue.md`, `stage_system_call` has no machine post
 # yet, and the `execution_requests_hash` hash-half compose is still open."
-# The absence claim is about the DISPATCHER (`dispatchLoop_prog` genuinely does
-# not exist); the two converted symbols in the NEXT sentence carry entirely
-# different claims ("no machine post yet", "compose still open"), both true.
+# The absence claim was about the DISPATCHER; the two converted symbols in the
+# NEXT sentence carry entirely different claims ("no machine post yet", "compose
+# still open").
+#
+# ⚠️ The dispatcher half of that example is now HISTORICAL: #12204 step 3 landed
+# `dispatchLoop_prog`, and obligation 4's text was corrected to say so. The
+# sentence-scoping rule this comment justifies is unaffected — it is about the
+# WINDOW, not about which claim happened to be true. Kept as the worked example
+# because no shorter one exercises the boundary.
 # A window bled across the sentence boundary and reported both as stale.
 for oid, cell in rows:
     for sentence in re.split(r'(?<=[.;])\s+', cell):

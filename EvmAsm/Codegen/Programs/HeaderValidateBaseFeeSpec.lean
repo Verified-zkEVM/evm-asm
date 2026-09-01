@@ -243,16 +243,19 @@ the callee contract's own arity (`k73IncreaseMulCalleePre` pins `f0..f5`;
 `k73IncreaseMulCalleePost` does not — pinned pre values are what the caller
 supplies, absence from the post is licence to clobber). -/
 
-theorem header_validate_base_fee_spec_within
+theorem header_validate_base_fee_gen_spec_within
     {cr k73Code : CodeReq} {n73 : Nat}
     (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
-    (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
-    (parentBytes expectedBytes headerBytes accBytes : List (BitVec 8))
-    (G : Assertion)
+    (v9 old18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8))
+    (Fenv Ftail F : Assertion)
     (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
     (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
     (hret : raIn &&& ~~~(1 : Word) = raIn)
-    (hG : G.pcFree)
+    (hFenv : Fenv.pcFree)
+    (hFtail : Ftail.pcFree)
+    (hF : F.pcFree)
+    (hFflat : F = k74FlatFrame Ftail)
     (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
     (hExpectedWf : (Region.mk Expected expectedBytes).wf)
     (hHeaderLen : headerBytes.length = 32)
@@ -264,12 +267,11 @@ theorem header_validate_base_fee_spec_within
     (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
       ((.x1 ↦ᵣ (H + 40)) **
         k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
-          parentBytes expectedBytes headerBytes raIn old8
-          (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
+          parentBytes expectedBytes headerBytes raIn old8 Fenv)
       ((.x1 ↦ᵣ (H + 40)) **
         k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
           gasUsed gasLimit parentPtr parentBytes headerBytes
-          (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G)))
+          F))
     (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
     cpsTripleWithin
       (27 + n73 +
@@ -277,19 +279,15 @@ theorem header_validate_base_fee_spec_within
           (hvbfWrittenImage gasLimit gasUsed parentBytes)).steps) H raIn cr
       (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
         v9 old18 v19 v20 parentBytes expectedBytes headerBytes
-        (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
+        Fenv)
       (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
         gasLimit gasUsed parentPtr
         parentBytes headerBytes
-        (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G))
+        F)
       := by
-  let Fenv : Assertion := k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G
-  let F : Assertion :=
-    k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G
   let W : List (BitVec 8) := hvbfWrittenImage gasLimit gasUsed parentBytes
   let nEq : Nat :=
     (U256EqSAsm.u256EqBody headerPtr Expected headerBytes W).steps
-  have hF : G.pcFree := hG
   have hlenW : W.length = 32 :=
     hvbfWrittenImage_length gasLimit gasUsed parentBytes
   have hwfW : (Region.mk Expected W).wf :=
@@ -299,7 +297,7 @@ theorem header_validate_base_fee_spec_within
     (cr := cr) (calleeCode := k73Code) (n := n73)
     sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
     v9 old18 v19 v20 parentBytes expectedBytes headerBytes Fenv hspH hspK
-    (by dsimp [Fenv, k73_incr_env]; pcf; exact hF) hcode
+    hFenv hcode
     (k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
       gasUsed gasLimit parentPtr parentBytes headerBytes F)
     hk73Mono hk73
@@ -309,7 +307,7 @@ theorem header_validate_base_fee_spec_within
       ((.x1 ↦ᵣ (H + 40)) **
         k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 v18 v19 v20
           gasUsed gasLimit parentPtr parentBytes headerBytes F) := by
-    simpa only [Fenv, F] using hk73'
+    simpa only using hk73'
 
   have hmem10 : ∀ a i,
       CodeReq.singleton (H + 40) (.BNE .x10 .x0 (40 : BitVec 13)) a = some i →
@@ -401,7 +399,7 @@ theorem header_validate_base_fee_spec_within
   have h20Full := hvbfEpilogueScratchOwn (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
+    hspH hret hcode hF
   have hFailPin : cpsTripleWithin 5 (H + 80) raIn cr
       (hvbfDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -466,7 +464,7 @@ theorem header_validate_base_fee_spec_within
     have h20FullScratch := hvbfEpilogueScratchOwn (cr := cr)
       sp0 spH raIn old8 headerPtr (H + 40) (2 : Word) gasUsed gasUsed
       spK v9 old18 v18 v19 v20 parentPtr parentBytes scratchBytes headerBytes F
-      hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
+      hspH hret hcode hF
     have h := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by
       unfold hvbfEpiPreScratch at hp
       xperm_hyp hp) h20Scratch h20FullScratch
@@ -645,15 +643,13 @@ theorem header_validate_base_fee_spec_within
   have heq0 := header_validate_base_fee_eq_call_spec_within (cr := cr)
     spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
     parentBytes W headerBytes
-    (k73_incr_outj_tail spK parentPtr gasUsed (gasLimit >>> 1) parentBytes
-      accBytes G)
-    (by dsimp [k73_incr_outj_tail]; pcf; exact hG) hHeaderWf hwfW
+    Ftail
+    hFtail hHeaderWf hwfW
     hHeaderLen hlenW hDisj heqMono
-  rw [← k73_incr_outj_out_eq spK parentPtr gasUsed (gasLimit >>> 1)
-    parentBytes accBytes G] at heq0
+  rw [← hFflat] at heq0
   have heqFramedRaw := cpsTripleWithin_frameR
     ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr)) (by pcf) (by
-      simpa [F, nEq] using heq0)
+      simpa [nEq] using heq0)
   have heqFramed : cpsTripleWithin nEq EqK (H + 56 + 4) cr
       ((.x1 ↦ᵣ (H + 56 + 4)) **
         ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr) **
@@ -684,7 +680,7 @@ theorem header_validate_base_fee_spec_within
             eqPostOwn spH spK raIn old8 headerPtr v9 old18 v18 v19 v20 gasUsed parentPtr
               parentBytes W headerBytes F) **
           ((.x2 ↦ᵣ spH) ** (.x8 ↦ᵣ headerPtr))) := by
-      simpa only [nEq, F] using heqFramedRaw
+      simpa only [nEq] using heqFramedRaw
     refine cpsTripleWithin_weaken (fun _ hp => by
         unfold eqPre tailRest at hp ⊢
         xperm_hyp hp)
@@ -843,7 +839,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi1 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (1 : Word) Expected gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
+    hspH hret hcode hF
   have hThenPin : cpsTripleWithin 6 (H + 72) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -916,7 +912,7 @@ theorem header_validate_base_fee_spec_within
   have hEpi0 := hvbfEpilogue (cr := cr)
     sp0 spH raIn old8 headerPtr (H + 60) (0 : Word) Expected gasUsed
     spK v9 old18 v18 v19 v20 parentPtr parentBytes W headerBytes F
-    hspH hret hcode (by dsimp [F, k73_incr_outj]; pcf; exact hF)
+    hspH hret hcode hF
   have hElsePin : cpsTripleWithin 6 (H + 64) raIn cr
       (hvbfEqDispatchPost spH spK raIn old8 headerPtr gasUsed parentPtr
         v9 old18 v18 v19 v20 parentBytes W headerBytes F)
@@ -1026,7 +1022,77 @@ theorem header_validate_base_fee_spec_within
       exact ⟨k, by omega, s', hstep, hpc', hQR⟩
   have hAll := cpsTripleWithin_seq_same_cr hcall hMergeRB
   have hs : (10 + n73) + (17 + nEq) = 27 + n73 + nEq := by omega
-  simpa only [F, W, k74FlatFrame, hs] using hAll
+  simpa only [W, hs] using hAll
+
+/-! Compatibility wrapper for the original increase-route API.  The generic
+    composition above is the reusable K74 proof; this specialization keeps
+    existing consumers source-compatible while supplying its three ambient
+    assertions and the flat-frame permutation explicitly. -/
+theorem header_validate_base_fee_spec_within
+    {cr k73Code : CodeReq} {n73 : Nat}
+    (sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr : Word)
+    (v9 old18 v19 v20 f0 f1 f2 f3 f4 f5 : Word)
+    (parentBytes expectedBytes headerBytes accBytes : List (BitVec 8))
+    (G : Assertion)
+    (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (hG : G.pcFree)
+    (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
+    (hExpectedWf : (Region.mk Expected expectedBytes).wf)
+    (hHeaderLen : headerBytes.length = 32)
+    (hExpectedLen : expectedBytes.length = 32)
+    (hDisj : headerPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ headerPtr.toNat)
+    (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
+    (hk73Mono : ∀ a i, k73Code a = some i → cr a = some i)
+    (hk73 : cpsTripleWithin n73 K73 (H + 40) k73Code
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73PreRest spH spK headerPtr v9 old18 v19 v20 gasLimit gasUsed parentPtr
+          parentBytes expectedBytes headerBytes raIn old8
+          (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
+      ((.x1 ↦ᵣ (H + 40)) **
+        k73RouteBCallPost spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+          gasUsed gasLimit parentPtr parentBytes headerBytes
+          (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G)))
+    (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
+    cpsTripleWithin
+      (27 + n73 +
+        (U256EqSAsm.u256EqBody headerPtr Expected headerBytes
+          (hvbfWrittenImage gasLimit gasUsed parentBytes)).steps) H raIn cr
+      (hvbfPre sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+        v9 old18 v19 v20 parentBytes expectedBytes headerBytes
+        (k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G))
+      (hvbfFinalRouteB sp0 spH spK raIn old8 headerPtr v9 old18 (gasLimit >>> 1) v19 v20
+        gasLimit gasUsed parentPtr parentBytes headerBytes
+        (k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G)) := by
+  let Fenv : Assertion := k73_incr_env spK f0 f1 f2 f3 f4 f5 accBytes G
+  let Ftail : Assertion :=
+    k73_incr_outj_tail spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G
+  let F : Assertion :=
+    k73_incr_outj spK parentPtr gasUsed (gasLimit >>> 1) parentBytes accBytes G
+  have hFenv : Fenv.pcFree := by
+    dsimp [Fenv, k73_incr_env]
+    pcf
+    exact hG
+  have hFtail : Ftail.pcFree := by
+    dsimp [Ftail, k73_incr_outj_tail]
+    pcf
+    exact hG
+  have hF : F.pcFree := by
+    dsimp [F, k73_incr_outj]
+    pcf
+    exact hG
+  have hFflat : F = k74FlatFrame Ftail := by
+    dsimp [F, Ftail]
+    exact k73_incr_outj_out_eq spK parentPtr gasUsed (gasLimit >>> 1)
+      parentBytes accBytes G
+  exact header_validate_base_fee_gen_spec_within
+    (cr := cr) (k73Code := k73Code) (n73 := n73)
+    sp0 spH spK raIn old8 headerPtr gasLimit gasUsed parentPtr
+    v9 old18 v19 v20 parentBytes expectedBytes headerBytes Fenv Ftail F
+    hspH hspK hret hFenv hFtail hF hFflat hHeaderWf hExpectedWf
+    hHeaderLen hExpectedLen hDisj hcode hk73Mono hk73 heqMono
 
 /-! The K74 wrapper combines the base-fee producer, the K73 callee family,
     and the equality callee.  The latter two code requirements are linked at

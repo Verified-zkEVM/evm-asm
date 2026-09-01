@@ -50,6 +50,11 @@ callee-first order, against the separation-logic state-assertion vocabulary.
    `docs/porting-sp-frame-routines.md` (FramePort tactics, tiered recipe).
 4. What remains for the north star → `docs/agents/top-theorem-ledger.md`.
 5. Reviewing a PR → `docs/agents/review-playbook.md`.
+6. Live progress cockpit (GitHub Pages) →
+   https://verified-zkevm.github.io/evm-asm/ (`docs/index.html`). Do **not**
+   hand-edit counts into the HTML; there are none. Merge to `main`
+   republishes. If you changed a Progress registry, regenerate `DRIFT.md`
+   only (`scripts/drift-report.sh --write`).
 
 ## Build System
 
