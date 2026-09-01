@@ -422,6 +422,7 @@ import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
 -- nothing-to-undo arm, the first spec of any shape for that symbol.
 import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
 import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
+import EvmAsm.Codegen.Proofs.CallFrameEnterSpec
 -- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
 -- itself has no `Program`, so this is the granularity at which the read path
 -- is statable.
@@ -5552,6 +5553,58 @@ def routineRegistry : List RoutineEntry := [
         ++ "edge to either call graph. No Correspondence row: this arm ties to "
         ++ "no spec-side VALUE beyond `miss`. Lives in "
         ++ "`Codegen/Proofs/RuntimeSameBlockDelegationCodeSpec.lean`"),
+  -- #12318 composition lane: the frame-descent helper, composed over
+  -- `frame_base`'s 6-step register-only contract.
+  routine "call_frame_enter" .conditional
+      (some "callFrameEnterDepth1Flat_spec")
+      (gate := "ONE gate, and it is THIS ROUTINE'S OWN, not inherited — the callee contract "
+        ++ "`CallFrameBaseSAsm.frameBase_spec` is total. `evm_call_depth = 1`: the parent is the "
+        ++ "top-level frame. The `beq t1, t2` at index 19 compares the loaded `evm_call_depth` "
+        ++ "against the `li t2, 1` above it, so under the gate the branch is TAKEN and control "
+        ++ "jumps to index 29. Covered: indices 0..19 and 29..40, 32 of the 41 instructions. "
+        ++ "EXCLUDED is the `depth ≠ 1` arm at indices 20..28 — the `la t0, frame_parent_bases` "
+        ++ "pair, the `slli`/`add` index into it, the two `ld`s fetching the parent's base and "
+        ++ "frame pointer, the `ld t2, 488(t2)` reading the parent's MSIZE, the `add a0, t1, t2` "
+        ++ "forming `parentMemBase + parentMSIZE`, and the `j` rejoining at index 31; none is "
+        ++ "claimed. coverRef: the five checks at the end of "
+        ++ "`Codegen/Proofs/CallFrameEnterSpec.lean` — a fully numeric instance (`sp = "
+        ++ "0x30000000`, `depth = 1`, epoch `7`, depth slot `0`, temps `5`/`6`/`7`, `s0 = 8`, "
+        ++ "`a1`/`a2` entering `11`/`12`; `a0` reads back `0xb2386c00` not the depth `1`, `a1` "
+        ++ "`0xabf8ee00` and `a2` `0xabf9f000` not `11`/`12`, the next-epoch cell advances 7 → 8 "
+        ++ "and the depth slot takes the OLD 7), a gate NEGATIVE CONTROL (`(2 : Word) ≠ 1 ∧ "
+        ++ "(0 : Word) ≠ 1` — at any other depth the `beq` falls through to the UNCOVERED "
+        ++ "parent-MSIZE arm, so the gate restricts rather than frames), a second control that "
+        ++ "the post is not the pre (`8 ≠ 7`, `0xb2386c00 ≠ 1`, `7 ≠ 8`), an "
+        ++ "`isValidDwordAccess` satisfiability check on both frame slots and all three data "
+        ++ "cells, and a distinctness control on the five cells the pre separates")
+      (notes := "`cpsTripleWithin 38` at `GuestAddrs.call_frame_enter`, exit `ra &&& ~~~1`, over "
+        ++ "`cfeCR`. ⭐ The `CodeReq` UNION is FORCED: the `jal ra, frame_base` at index 13 is "
+        ++ "UNCONDITIONAL and sits ABOVE the routine's only branch (index 19), so every path "
+        ++ "leaves the routine's own bytes and a single `ofProg` could state nothing. Both legs "
+        ++ "are `GuestImageEntries` pairings (`:644` here, plus the `frame_base` pairing), so "
+        ++ "entry AND CodeReq are anchored at `GuestAddrs.call_frame_enter` and this grades "
+        ++ "whole-routine. ⚠️ Written `CodeReq.union a b`, NOT `a.union b`, per #13198. EXTENT: "
+        ++ "`symbol-addresses.tsv` places this symbol at `0x8003c76c` and the next `.text` "
+        ++ "symbol `call_frame_set_call_env` at `0x8003c810`, so `0xa4 = 164 = 41 * 4` "
+        ++ "cross-checks `#guard callFrameEnter_prog.length = 41`; the callee spans `0x8003c6ec` "
+        ++ "to `frame_depth_push` at `0x8003c704`, `0x18 = 24 = 6 * 4`, matching "
+        ++ "`frameBase_spec`'s 6-step bound. ⭐ The callee contract is REUSED, not re-proved. "
+        ++ "EFFECTS, named rather than framed: `evm_sparse_memory_next_epoch` advances `epoch` → "
+        ++ "`epoch + 1`, and `evm_sparse_memory_epoch_by_depth + 8 * depth` takes the OLD "
+        ++ "`epoch` — the ordering the two `sd`s at indices 7 and 12 implement. RETURNS `a0 = "
+        ++ "evm_memory_pool` (at depth 1 the child's memory base IS the pool base), `a1 = "
+        ++ "frame_base(depth) + 0x8200` and `a2 = frame_base(depth) + 0x18400`. ⭐ WHAT THE POST "
+        ++ "DOES NOT NAME: `frame_parent_bases` is in neither pre nor post, and the `pcFree` "
+        ++ "frame turns that silence into a NO-TOUCH guarantee over the covered path — precisely "
+        ++ "the difference from the excluded arm. ⚠️ `t0`/`t1`/`t2` are CLOBBERED and the post "
+        ++ "says so (`t0 = 99328`, the `0x18400` constant; `t1 = t2 = 1`). `ra`, `sp`, `s0` are "
+        ++ "restored. `a3`-`a7` and `t3`-`t6` go in as `regOwns cfeCalleeTemps` and come back as "
+        ++ "`regOwns`: `frameBase_spec` owns them and returns no information, so neither does "
+        ++ "this; nothing in this routine's own 41 instructions touches them. The hand-over is "
+        ++ "`cfe_atoms_to_fbRest`, weakening the five VALUED registers held at the call site "
+        ++ "into ownership — sound in that direction only, which is why the post cannot hand the "
+        ++ "values back. No Correspondence row: this arm ties to no spec-side VALUE. Lives in "
+        ++ "`Codegen/Proofs/CallFrameEnterSpec.lean`"),
 ]
 
 /-! ## Offline routine contracts
@@ -5605,12 +5658,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 242 := by decide
+theorem routineCount_eq : routineCount = 243 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 60 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5628,7 +5681,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 202 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 203 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
