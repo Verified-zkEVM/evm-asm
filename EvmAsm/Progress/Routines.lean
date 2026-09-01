@@ -3879,9 +3879,16 @@ def routineRegistry : List RoutineEntry := [
         ++ "`balSerializerU64ToField_prog.length = 6` x 4; the pair "
         ++ "`(GuestAddrs.bal_serializer_u64_to_field, "
         ++ "balSerializerU64ToField_prog)` is in `guestImageEntries`, so the "
-        ++ "`CodeReq` is the deployed code. In-degree is real — "
-        ++ "`bal_serializer_emit_storage`, `emit_balance` and `emit_nonce` "
-        ++ "(4 call sites) all widen through it"),
+        ++ "`CodeReq` is the deployed code. In-degree is real and large: "
+        ++ "counted from the emitted `.JAL .x1 (jalOff "
+        ++ "GuestAddrs.bal_serializer_u64_to_field ...)` sites in "
+        ++ "`Codegen/Programs/BalSerializer{,Tail}.lean`, and cross-checked "
+        ++ "against the 12 matching `(_, .jal .x1 "
+        ++ "\"bal_serializer_u64_to_field\")` reloc entries, EIGHT callers "
+        ++ "widen through it at TWELVE call sites — "
+        ++ "`bal_serializer_emit_nonce` (x4), `measure_nonce` (x2), and "
+        ++ "`emit_balance`, `emit_code`, `emit_storage`, `measure_balance`, "
+        ++ "`measure_code`, `measure_slot` (x1 each)"),
   routine "mpt_delete_walk_db" .proven
       (some "mptDeleteWalkDbFlat_spec")
       (notes := "⚠️ TAIL-TRANSFER contract, 1 step: the entire routine is "
