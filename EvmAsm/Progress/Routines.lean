@@ -3837,6 +3837,85 @@ def routineRegistry : List RoutineEntry := [
         ++ "`deriveBuilderRequests_addr_control`). The exit pc therefore "
         ++ "distinguishes nothing for this row; it is the address-distinctness "
         ++ "conjuncts, not the exit, that carry the control"),
+  -- #12245 flat-block close-out. These two are the LAST routines in the guest
+  -- image carrying the flat-block shape that issue asks about: zero conditional
+  -- branches, zero callees, no ZisK `CSRS`, no indirect jump, and unrowed.
+  -- Measured from `guestImageEntries` itself (475 pairs) rather than from
+  -- `shape-census.py`, whose 588 counts EMITTED `*Function : String` defs most
+  -- of which are not linked: 78 entries are branch-free, 60 of those are also
+  -- accelerator-free with no indirect jump, and 33 of those are pure flat
+  -- blocks (26 return-shaped + 7 tail-transfer). All but these two were already
+  -- rowed, so the shape is exhausted at 33 and the generator #12245 asks about
+  -- has nothing left to amortise over. Extents below are cross-checked against
+  -- the linked layout (`scripts/asm-fixtures/symbol-addresses.tsv`) rather than
+  -- taken from prose, with `prog.length * 4 == hi - lo`.
+  routine "bal_serializer_u64_to_field" .proven
+      (some "balSerializerU64ToFieldFlat_spec")
+      (notes := "FLAT-BLOCK contract, 6 steps, return-shaped (exit "
+        ++ "`ra &&& ~~~1`): widens the u64 in `a1` into the 32-byte "
+        ++ "LITTLE-ENDIAN scalar field at `a0` — the four 8-byte limbs at "
+        ++ "`a0`, `a0+8`, `a0+16`, `a0+24` end holding `a1, 0, 0, 0`, "
+        ++ "least-significant limb first — leaving every register unchanged. "
+        ++ "The purest instance of the shape in "
+        ++ "`Codegen/Proofs/FlatBlockPilotSpec.lean`: the routine carries NO "
+        ++ "relocation at all, so `balSerializerU64ToField_body_spec` has no "
+        ++ "linking hypothesis and the anchored form is a bare instantiation "
+        ++ "at `base := GuestAddrs.bal_serializer_u64_to_field` with nothing "
+        ++ "to discharge. ⚠️ The five stores hit only FOUR addresses: "
+        ++ "`sd zero, 0(a0)` and `sd a1, 0(a0)` alias, so limb 0's strongest "
+        ++ "post is `a1`, NOT the `0` an instruction-by-instruction reading "
+        ++ "would give — a contract written off the instruction list without "
+        ++ "tracking the aliasing would claim all four limbs zero and the u64 "
+        ++ "would vanish. Non-vacuity: "
+        ++ "`balSerializerU64ToField_sample_reachable`, a closed "
+        ++ "instantiation whose four limbs START at `0xffffffffffffffff` "
+        ++ "(chosen non-zero on purpose — from all-zero memory the four "
+        ++ "clearing stores would be indistinguishable from no-ops), plus the "
+        ++ "negative control `balSerializerU64ToField_alias_control`, which "
+        ++ "records the four limb offsets as pairwise distinct AND the fifth "
+        ++ "store's offset as provably EQUAL to the first's. Extent: "
+        ++ "0x800241c0, next `.text` symbol `bal_serializer_measure_reads` at "
+        ++ "0x800241d8 = 24 bytes = the `#guard`ed "
+        ++ "`balSerializerU64ToField_prog.length = 6` x 4; the pair "
+        ++ "`(GuestAddrs.bal_serializer_u64_to_field, "
+        ++ "balSerializerU64ToField_prog)` is in `guestImageEntries`, so the "
+        ++ "`CodeReq` is the deployed code. In-degree is real — "
+        ++ "`bal_serializer_emit_storage`, `emit_balance` and `emit_nonce` "
+        ++ "(4 call sites) all widen through it"),
+  routine "mpt_delete_walk_db" .proven
+      (some "mptDeleteWalkDbFlat_spec")
+      (notes := "⚠️ TAIL-TRANSFER contract, 1 step: the entire routine is "
+        ++ "`j mpt_set_record_walk_db` (delete and set share an ABI and a "
+        ++ "stack layout, so the delete entry point is a pure rename of the "
+        ++ "set walker). Entry `GuestAddrs.mpt_delete_walk_db`, EXIT "
+        ++ "`GuestAddrs.mpt_set_record_walk_db`; proves that control "
+        ++ "transfers and that NOTHING changes. The free-`base` "
+        ++ "`mptDeleteWalkDb_body_spec` is parametric in an arbitrary "
+        ++ "`pcFree` `P` — nothing is written and no register is touched, so "
+        ++ "the strongest post IS the precondition — and takes the one "
+        ++ "linking hypothesis this routine's single `jal` relocation needs "
+        ++ "(`mptDeleteWalkDb_relocs = [(0, .jal .x0 "
+        ++ "\"mpt_set_record_walk_db\")]`), discharged by `decide` at the "
+        ++ "linked base. The anchored row instantiates `P` at the "
+        ++ "seven-argument walk ABI `a0..a6` plus `ra`. ⚠️ It composes "
+        ++ "NOTHING from `mpt_set_record_walk_db` and inherits NONE of that "
+        ++ "routine's status: this row says where control goes, not what the "
+        ++ "walk computes. Non-vacuity: `mptDeleteWalkDb_sample_reachable` "
+        ++ "(eight distinct concrete arguments, fully numeric pre and post) "
+        ++ "plus the negative control `mptDeleteWalkDb_transfer_control`, "
+        ++ "which records that the exit is NOT the fallthrough "
+        ++ "(`mpt_delete_walk_db + 4` is `mpt_extension_extract`), that the "
+        ++ "jump goes BACKWARDS (`mpt_set_record_walk_db` at 0x80006e10 is "
+        ++ "below `mpt_delete_walk_db` at 0x800073fc), and that the same "
+        ++ "`hjal` hypothesis is provably FALSE one instruction off the "
+        ++ "linked base — so the body spec genuinely constrains `base`. "
+        ++ "⚠️ That backward jump is why the pre-#12790 shape dump graded "
+        ++ "this ONE-INSTRUCTION body as containing a loop; a single "
+        ++ "instruction cannot. Extent: 0x800073fc, next `.text` symbol "
+        ++ "`mpt_extension_extract` at 0x80007400 = 4 bytes = the `#guard`ed "
+        ++ "`(mptDeleteWalkDb_prog_of .zero).length = 1` x 4; the pair "
+        ++ "`(GuestAddrs.mpt_delete_walk_db, mptDeleteWalkDb_prog)` is in "
+        ++ "`guestImageEntries`"),
   -- #12226 harvest. These seven were sitting in `registry-coverage-allow.txt` as
   -- tier B ("structured SAsm spec only; needs Fn.retSpecFlat first"). That label
   -- came from a theorem-NAME heuristic: `check-registry-coverage.py` grades tier A
@@ -5226,10 +5305,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 236 := by decide
+theorem routineCount_eq : routineCount = 238 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 176 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 178 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 57 := by decide
 set_option maxRecDepth 16000 in
@@ -5249,7 +5328,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 196 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 198 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -6644,6 +6723,22 @@ private noncomputable abbrev _derive_builder_exit_requests_routine_witness :=
   @EvmAsm.Codegen.Proofs.deriveBuilderExitRequestsFlat_spec
 private noncomputable abbrev _derive_builder_exit_requests_reachable_witness :=
   @EvmAsm.Codegen.Proofs.deriveBuilderExitRequests_sample_reachable
+-- #12245 flat-block close-out: the last two flat-block routines, plus the
+-- non-vacuity evidence their rows cite. Cited BY NAME here rather than only in
+-- the row prose so the controls sit inside the axiom gate (#12857) — a control
+-- named only in prose is outside it.
+private noncomputable abbrev _bal_serializer_u64_to_field_routine_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToFieldFlat_spec
+private noncomputable abbrev _bal_serializer_u64_to_field_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
+private noncomputable abbrev _bal_serializer_u64_to_field_control_witness :=
+  @EvmAsm.Codegen.Proofs.balSerializerU64ToField_alias_control
+private noncomputable abbrev _mpt_delete_walk_db_routine_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDbFlat_spec
+private noncomputable abbrev _mpt_delete_walk_db_reachable_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDb_sample_reachable
+private noncomputable abbrev _mpt_delete_walk_db_control_witness :=
+  @EvmAsm.Codegen.Proofs.mptDeleteWalkDb_transfer_control
 -- #12226 harvest: seven flat triples the `_spec_within`/`Flat_spec` suffix
 -- heuristic graded tier B. Unwitnessed by `check-axioms.sh` until now.
 private noncomputable abbrev _bloom_eq_routine_witness :=
