@@ -858,8 +858,11 @@ theorem deriveBuilderExitRequestsFlat_spec (a0 a1 a2 a3 v14 : Word) :
 
 /-- **Anti-vacuity witness** for §8: at `a0..a3 = 1,2,3,4` the post names the
     builder deposit contract through `GuestAddrs.builder_deposit_contract_addr`,
-    leaves `a1..a4 = 1,2,3,4`, and exits at `GuestAddrs.stage_system_call`. -/
-example :
+    leaves `a1..a4 = 1,2,3,4`, and exits at `GuestAddrs.stage_system_call`.
+    NAMED (not an anonymous `example`) so `Progress/Routines.lean` can witness
+    it and `check-nonvacuity-witnessed.py` sees the row's evidence inside the
+    axiom gate rather than in prose. -/
+theorem deriveBuilderDepositRequests_sample_reachable :
     cpsTripleWithin 7 (GuestAddrs.derive_builder_deposit_requests : Word)
       (GuestAddrs.stage_system_call : Word)
       (CodeReq.ofProg (GuestAddrs.derive_builder_deposit_requests : Word)
@@ -873,7 +876,7 @@ example :
 
 /-- **Anti-vacuity witness** for §9: the same shuffle with the builder EXIT
     contract address named by `GuestAddrs.builder_exit_contract_addr`. -/
-example :
+theorem deriveBuilderExitRequests_sample_reachable :
     cpsTripleWithin 7 (GuestAddrs.derive_builder_exit_requests : Word)
       (GuestAddrs.stage_system_call : Word)
       (CodeReq.ofProg (GuestAddrs.derive_builder_exit_requests : Word)
@@ -902,7 +905,7 @@ example :
     mistake a fallthrough for a proven transfer — for that row it is the
     address-distinctness conjuncts above, not the exit address, that
     carry the control. -/
-example :
+theorem deriveBuilderRequests_addr_control :
     GuestAddrs.builder_deposit_contract_addr ≠ GuestAddrs.builder_exit_contract_addr ∧
     GuestAddrs.builder_deposit_contract_addr ≠
       GuestAddrs.withdrawal_request_predeploy_addr ∧
@@ -925,7 +928,7 @@ example :
     `deriveBuilderDepositRequests_body_spec` genuinely constrains `base`, and
     an implementation of it that ignored the relocation round-trip would be
     unsound. -/
-example :
+theorem deriveBuilderDepositRequests_hla_false_off_base :
     ¬ ((GuestAddrs.derive_builder_deposit_requests : Word) + (4 : Word) + (16 : Word) +
         (((laHi GuestAddrs.builder_deposit_contract_addr
             (GuestAddrs.derive_builder_deposit_requests + 16)).zeroExtend 32
