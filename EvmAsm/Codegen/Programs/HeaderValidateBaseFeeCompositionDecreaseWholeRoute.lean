@@ -287,7 +287,7 @@ def k73_decr_img2 (baseBytes : List (BitVec 8)) (delta : Word)
     mid-body `.x2 ↦ spH` fact is extracted from the multiply epilogue window
     by `k73_decr_mulfail_twinfeed` instead. -/
 def k73_decr_ghole (_spH : Word) (G : Assertion) : Assertion :=
-  regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 ** regOwn .x20 ** G
+  G
 
 /-- Memory-visible leftovers of any multiply-stage outcome: the scratch-frame
     dwords, the output window, and the overflow core (whose `x5/x6/x28`
@@ -335,9 +335,7 @@ private theorem k73_decr_mulfail_twinfeed
         regOwn .x10 **
         (U256MulU64Be.mulTailExtra basePtr deltaV outPtr baseBytes **
           k73_decr_mulfail_win spH deltaV target basePtr outPtr
-            baseBytes outWin **
-          (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-            regOwn .x20 ** Grest))) s := by
+            baseBytes outWin ** Grest)) s := by
   have hsp48 :
       (spH + signExtend12 (-48 : BitVec 12)) + signExtend12 (48 : BitVec 12) =
         spH := by
@@ -361,8 +359,7 @@ private theorem k73_decr_mulfail_twinfeed
                 bytesRegion outPtr (k73_decr_img2 baseBytes deltaV outWin) **
                 k73MulOverflowCoreNoStatus
                   (k73_decr_img1 baseBytes deltaV) k) u) **
-            (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-              regOwn .x20 ** Grest ** regOwn .x10))) s := by
+            (Grest ** regOwn .x10))) s := by
     xperm_hyp hp
   have hpE :
       ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
@@ -376,8 +373,7 @@ private theorem k73_decr_mulfail_twinfeed
                       (k73_decr_img2 baseBytes deltaV outWin) **
                     k73MulOverflowCoreNoStatus
                       (k73_decr_img1 baseBytes deltaV) k) **
-                  (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-                    regOwn .x20 ** Grest ** regOwn .x10)) u))) s :=
+                  (Grest ** regOwn .x10)) u))) s :=
     sepConj_mono_right
       (fun h' hq => (sepConj_exists_left h').mp hq) s hpW
   obtain ⟨k, hk⟩ := sepConj_exists_right s hpE
@@ -400,8 +396,7 @@ private theorem k73_decr_mulfail_twinfeed
                     (k73_decr_img2 baseBytes deltaV outWin) **
                   k73MulOverflowCoreNoStatus
                     (k73_decr_img1 baseBytes deltaV) k)) **
-              (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-                regOwn .x20 ** Grest)))) s := by
+              Grest))) s := by
     have hEq :
         ((((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
               frameSlotsSaved k73Frame spH
@@ -417,8 +412,7 @@ private theorem k73_decr_mulfail_twinfeed
                       (k73_decr_img2 baseBytes deltaV outWin) **
                     k73MulOverflowCoreNoStatus
                       (k73_decr_img1 baseBytes deltaV) k)) **
-              (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-                regOwn .x20 ** (Grest ** regOwn .x10)))) =
+              (Grest ** regOwn .x10))) =
         (((.x0 : Reg) ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ (K73 + 92)) **
             frameSlotsSaved k73Frame spH
               (k73Saved raIn v8 v9 v18 v19 v20) **
@@ -433,8 +427,7 @@ private theorem k73_decr_mulfail_twinfeed
                       (k73_decr_img2 baseBytes deltaV outWin) **
                     k73MulOverflowCoreNoStatus
                       (k73_decr_img1 baseBytes deltaV) k)) **
-                (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-                  regOwn .x20 ** Grest)))) := by
+                Grest))) := by
       xperm_cert_eq
     exact hEq ▸ hk
   -- Re-wrap the fixed-`k` window existentially: single-layer rebuilds, each
@@ -510,7 +503,6 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
         regOwn .x10) := by
   have hGH :
       ((k73_decr_ghole spH Grest)).pcFree := by
-    pcf
     exact hG
   have hciii := k73_decrease_entry_status_native_discharged
     sp0 spH raIn gasLimit gasUsed target basePtr outPtr
@@ -593,9 +585,7 @@ theorem k73_decr_mulfail_entry_to_return_spec_within
 private theorem k73_decr_ghole_env_eq (spH : Word) (G : Assertion) :
     (k73_decr_ghole spH
         (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** G)) =
-      (regOwns [.x14, .x15, .x16, .x17] **
-        (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-          regOwn .x20 ** G)) := by
+      (regOwns [.x14, .x15, .x16, .x17] ** G) := by
   simp only [k73_decr_ghole, regOwns_cons, regOwns_nil, sepConj_emp_right']
   xperm_cert_eq
 
@@ -634,8 +624,7 @@ def k73_decr_sub_return_post
       basePtr outPtr target (target - gasUsed) (0 : Word) **
     bytesRegion EvmAsm.Codegen.U256MulU64Be.accBase
       (k73_decr_img1 baseBytes (target - gasUsed)) **
-    (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-      regOwn .x20 ** Genv)
+    Genv
 
 /-- Multiply-overflow failure post (the taken exit of the mul-status branch,
     routed through the shared failure epilogue). -/
@@ -752,10 +741,7 @@ theorem k73_decrease_route_machine_spec_within
       (regOwn .x14 ** regOwn .x15 ** regOwn .x16 ** regOwn .x17 ** Genv).pcFree := by
     pcf
     exact hG
-  have hHp :
-      (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-        regOwn .x20 ** Genv).pcFree := by
-    pcf
+  have hHp : Genv.pcFree := by
     exact hG
   have hlenI2 :
       (k73_decr_img2 baseBytes (target - gasUsed) outWin).length = 32 :=
@@ -764,8 +750,7 @@ theorem k73_decrease_route_machine_spec_within
     sp0 spH raIn basePtr outPtr target gasUsed v8 v9 v18 v19 v20
     baseBytes (k73_decr_img1 baseBytes (target - gasUsed))
       (k73_decr_img2 baseBytes (target - gasUsed) outWin)
-    (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-      regOwn .x20 ** Genv)
+    Genv
     hHp hrw hroBase hlenA hlenI2 hoverA hoverOut hdisj htargetPos
     hszDiv1 hszDiv2 hszSub hspF hret
   have hperm : ∀ h : PartialState,
@@ -782,9 +767,7 @@ theorem k73_decrease_route_machine_spec_within
           (target - gasUsed) v8 v9 v18 v19 v20 baseBytes
           (k73_decr_img1 baseBytes (target - gasUsed))
           (k73_decr_img2 baseBytes (target - gasUsed) outWin)
-          (regOwns [.x14, .x15, .x16, .x17] **
-            (regOwn .x8 ** regOwn .x9 ** regOwn .x18 ** regOwn .x19 **
-              regOwn .x20 ** Genv)) ** regOwn .x10) h := by
+          (regOwns [.x14, .x15, .x16, .x17] ** Genv) ** regOwn .x10) h := by
     intro h hp
     rw [k73_decr_ghole_env_eq] at hp
     exact hp

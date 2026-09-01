@@ -10,6 +10,7 @@
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpec
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionEqualRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRouteB
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseZero
 
 namespace EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualDecrease
 
@@ -238,5 +239,101 @@ theorem header_validate_base_fee_decrease_route_spec_within
     hspH hspK hret hFenv hFtail hF hFflat hHeaderWf hExpectedWf
     hHeaderLen hExpectedLen hDisj hcode (fun _ _ h => h) hk73 heqMono
   simpa only [Fenv, F] using hgen
+
+/-! The zero-gas decrease route is the target-positive fall-through after the
+    K73 target-zero guard.  Its adapter has no multiply ambient: the only
+    route-local frame is the K74 flat-frame ownership carried by `Ftail`.
+    `htargetPos` is deliberately an explicit caller fact here.  At the real
+    `check_gas_limit` fall-through it is the pure fact produced from the
+    machine's zero status; this theorem does not replace that producer with a
+    fresh hypothesis hidden in a local proof. -/
+
+theorem header_validate_base_fee_zero_decrease_route_spec_within
+    {cr : CodeReq}
+    (sp0 spH spK old8 headerPtr gasLimit parentPtr : Word)
+    (v9 old18 v19 v20 : Word)
+    (parentBytes expectedBytes headerBytes : List (BitVec 8))
+    (Ftail : Assertion)
+    (hspH : spH = sp0 + signExtend12 (-16 : BitVec 12))
+    (hspK : spK = spH + signExtend12 (-56 : BitVec 12))
+    (hret : ((H + 40 : Word) &&& ~~~(1 : Word)) = H + 40)
+    (htargetPos : 0 < (gasLimit >>> 1).toNat)
+    (hFtail : Ftail.pcFree)
+    (hHeaderWf : (Region.mk headerPtr headerBytes).wf)
+    (hExpectedWf : (Region.mk Expected expectedBytes).wf)
+    (hHeaderLen : headerBytes.length = 32)
+    (hExpectedLen : expectedBytes.length = 32)
+    (hsrc : parentBytes.length = 32)
+    (hHeaderDisj : headerPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ headerPtr.toNat)
+    (hParentDisj : parentPtr.toNat + 32 ≤ Expected.toNat ∨
+      Expected.toNat + 32 ≤ parentPtr.toNat)
+    (hroBase : Region.wf ⟨parentPtr, parentBytes⟩)
+    (hrw : RwRegion.wf ⟨Expected, 32⟩)
+    (hovBase : parentPtr.toNat + 32 < 2 ^ 64)
+    (hovExpected : Expected.toNat + 32 < 2 ^ 64)
+    (hszDiv : 4 *
+      ((u256DivU64BeFn parentPtr Expected 8 parentBytes expectedBytes).body.size + 1)
+        ≤ 2 ^ 64)
+    (hszSub : 4 *
+      ((u256SubBeInPlaceFn parentPtr Expected parentBytes
+        (u256DivU64BeQuotBytes parentBytes expectedBytes 8)).body.size + 1)
+        ≤ 2 ^ 64)
+    (hcode : ∀ a i, hvbfCode a = some i → cr a = some i)
+    (hk73Mono : ∀ a i, wholeCode a = some i → cr a = some i)
+    (heqMono : ∀ a i, u256EqCode a = some i → cr a = some i) :
+    cpsTripleWithin
+      (27 +
+        EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_route_steps
+          parentPtr parentBytes expectedBytes +
+        (U256EqSAsm.u256EqBody headerPtr Expected headerBytes
+          (hvbfWrittenImage gasLimit 0 parentBytes)).steps) H (H + 40) cr
+      (hvbfPre sp0 spH spK (H + 40) old8 headerPtr gasLimit 0 parentPtr
+        v9 old18 v19 v20 parentBytes expectedBytes headerBytes
+        (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_env
+          Ftail))
+      (hvbfFinalRouteB sp0 spH spK (H + 40) old8 headerPtr v9 old18
+        (gasLimit >>> 1) v19 v20 gasLimit 0 parentPtr parentBytes headerBytes
+        (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj
+          Ftail)) := by
+  let F : Assertion := Ftail
+  have hF : F.pcFree := by
+    simpa [F] using hFtail
+  have hne : (0 : Word) ≠ gasLimit >>> 1 := by
+    intro hzero
+    have : (gasLimit >>> 1) = 0 := hzero.symm
+    simp [this] at htargetPos
+  have hnotlt : ¬ (gasLimit >>> 1).toNat < (0 : Word).toNat := by
+    simp
+  have hk73 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_route_adapter
+    (cr := cr) spH spK old8 headerPtr gasLimit 0 (gasLimit >>> 1) parentPtr
+    v9 old18 v19 v20 parentBytes expectedBytes headerBytes F
+    hspK rfl hne hnotlt rfl htargetPos hret hF hrw hroBase hsrc hExpectedLen
+    hovBase hovExpected hParentDisj hszDiv hszSub hk73Mono
+  have hFenv :
+      (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_env F).pcFree := by
+    dsimp [EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_env]
+    pcf
+    exact hFtail
+  have hFpost :
+      (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj F).pcFree := by
+    dsimp [EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj]
+    pcf
+    exact hFtail
+  have hFflat :
+      EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj F =
+        k74FlatFrame F := by
+    exact EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj_out_eq F
+  have hgen := header_validate_base_fee_spec_gen_within
+    (cr := cr) (k73Code := cr)
+    (n73 := EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_route_steps
+      parentPtr parentBytes expectedBytes)
+    sp0 spH spK (H + 40) old8 headerPtr gasLimit 0 parentPtr
+    v9 old18 v19 v20 parentBytes expectedBytes headerBytes
+    (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_env F)
+    F (EvmAsm.Codegen.HeaderValidateBaseFeeCompositionDecreaseZero.k73_zero_outj F)
+    hspH hspK hret hFenv hF hFpost hFflat hHeaderWf hExpectedWf
+    hHeaderLen hExpectedLen hHeaderDisj hcode (fun _ _ h => h) hk73 heqMono
+  simpa only [F] using hgen
 
 end EvmAsm.Codegen.HeaderValidateBaseFeeCompositionEqualDecrease
