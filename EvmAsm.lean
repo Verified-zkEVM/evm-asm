@@ -149,6 +149,10 @@ import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHit
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitStores
 import EvmAsm.Codegen.Programs.WitnessLookupByHashIndexedOneHitSat
 import EvmAsm.Codegen.Programs.Imports
+import EvmAsm.Codegen.Programs.StorageMultiContract
+import EvmAsm.Codegen.Programs.CreateRoundtrip
+import EvmAsm.Codegen.Programs.CallValueEffect
+import EvmAsm.Codegen.Programs.CallBalanceGate
 import EvmAsm.Codegen.Proofs.HandlerHandlesBinary
 import EvmAsm.Codegen.Proofs.HandlerHandlesLogic
 import EvmAsm.Codegen.Proofs.HandlerHandlesUnary
