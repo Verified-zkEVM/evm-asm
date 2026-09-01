@@ -12,6 +12,7 @@
 -/
 
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Evm64.CallingConvention
 
@@ -19,6 +20,11 @@ namespace EvmAsm.Codegen.ValidateHeaderInlineArms
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen.ValidateHeaderCorrespondence
+open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
+  (excessFrame excessSavedFrame excessEntryRest excessCalleePost excessFrameVals
+    ExcessRet ExcessK k70Cr k70Target
+    validate_header_excess_blob_gas_call_spec_within
+    header_validate_excess_blob_gas_under_target_spec_within)
 
 abbrev prog : Program := EvmAsm.Codegen.validateHeader_prog
 
@@ -1347,6 +1353,7 @@ theorem mvExtraDataArgs2 (headerLen o11 : Word) :
   exact cpsTripleWithin_extend_code
     (CodeReq.ofProg_mem_at H (H + 172) prog 43 (.MV .x11 .x9)
       (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
 
 /-- `MV x10, x8` @ H+184: set x10 := header (the post-merge argument).
     ESTABLISHES `x10 = header`. -/

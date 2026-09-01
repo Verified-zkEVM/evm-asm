@@ -474,6 +474,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceModelFuel
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
+import EvmAsm.Codegen.Programs.ValidateHeaderExcessBlobDispatch
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
 import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
 import EvmAsm.Codegen.Programs.ValidateHeaderWhole
