@@ -1071,4 +1071,303 @@ theorem addiParentStructPtr96Re (parentPtr x13Old : Word) :
     (CodeReq.ofProg_mem_at H (H + 128) prog 32 (.ADDI .x13 .x19 (96 : BitVec 12))
       (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
 
+/-! ## Callee status-dispatch branches and argument moves
+
+The core body branches on each callee's status in `x10` right after the JAL
+returns, and moves the header/headerLen pointers into the argument registers
+for the next callee. These arms are the status-dispatch composition pieces
+(item three of the #12346 decomposition): each BNE pair routes a callee's
+status to the matching exit tail (taken) or to the next check (fall-through),
+and each MV establishes the argument registers for the following JAL. -/
+
+abbrev excessStatusBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 268) (GuestAddrs.validate_header + 84)
+
+theorem excessStatusBne_taken_pc :
+    (H + 84) + signExtend13 excessStatusBrOff = H + 268 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 84 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 268)
+        (GuestAddrs.validate_header + 84)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 268
+  exact brOff_correct_base_off GuestAddrs.validate_header 84 268
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- `BNE x10, x0` @ H+84: the excess-blob callee returned a nonzero status
+    (excess mismatch) → exit tail at H+268 (status 2). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem excessStatusBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 84) (H + 268) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 excessStatusBrOff status (0 : Word) (H + 84)
+  rw [excessStatusBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 84) prog 21
+        (.BNE .x10 .x0 excessStatusBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+/-- `BNE x10, x0` @ H+84 fall-through: the excess-blob callee returned status
+    0 → continue at H+88. ESTABLISHES `x10` is unchanged (the status). -/
+theorem excessStatusBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 84) (H + 88) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 excessStatusBrOff status (0 : Word) (H + 84)
+  rw [show (H + 84 : Word) + 4 = H + 88 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 84) prog 21
+        (.BNE .x10 .x0 excessStatusBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+abbrev checkGasLimitBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 284) (GuestAddrs.validate_header + 112)
+
+theorem checkGasLimitBne_taken_pc :
+    (H + 112) + signExtend13 checkGasLimitBrOff = H + 284 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 112 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 284)
+        (GuestAddrs.validate_header + 112)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 284
+  exact brOff_correct_base_off GuestAddrs.validate_header 112 284
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- `BNE x10, x0` @ H+112: `check_gas_limit` failed → exit tail at H+284
+    (status 4). ESTABLISHES `x10` is unchanged (the status). -/
+theorem checkGasLimitBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 112) (H + 284) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 checkGasLimitBrOff status (0 : Word) (H + 112)
+  rw [checkGasLimitBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 112) prog 28
+        (.BNE .x10 .x0 checkGasLimitBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+/-- `BNE x10, x0` @ H+112 fall-through: `check_gas_limit` succeeded → continue
+    at H+116. ESTABLISHES `x10` is unchanged (the status). -/
+theorem checkGasLimitBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 112) (H + 116) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 checkGasLimitBrOff status (0 : Word) (H + 112)
+  rw [show (H + 112 : Word) + 4 = H + 116 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 112) prog 28
+        (.BNE .x10 .x0 checkGasLimitBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+abbrev baseFeeBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 284) (GuestAddrs.validate_header + 136)
+
+theorem baseFeeBne_taken_pc :
+    (H + 136) + signExtend13 baseFeeBrOff = H + 284 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 136 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 284)
+        (GuestAddrs.validate_header + 136)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 284
+  exact brOff_correct_base_off GuestAddrs.validate_header 136 284
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- `BNE x10, x0` @ H+136: the base-fee callee returned a nonzero status
+    (base-fee mismatch) → exit tail at H+284 (status 4). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem baseFeeBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 136) (H + 284) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 baseFeeBrOff status (0 : Word) (H + 136)
+  rw [baseFeeBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 136) prog 34
+        (.BNE .x10 .x0 baseFeeBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+/-- `BNE x10, x0` @ H+136 fall-through: the base-fee callee returned status 0
+    → continue at H+140. ESTABLISHES `x10` is unchanged (the status). -/
+theorem baseFeeBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 136) (H + 140) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 baseFeeBrOff status (0 : Word) (H + 136)
+  rw [show (H + 136 : Word) + 4 = H + 140 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 136) prog 34
+        (.BNE .x10 .x0 baseFeeBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+abbrev extraDataBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 308) (GuestAddrs.validate_header + 180)
+
+theorem extraDataBne_taken_pc :
+    (H + 180) + signExtend13 extraDataBrOff = H + 308 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 180 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 308)
+        (GuestAddrs.validate_header + 180)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 308
+  exact brOff_correct_base_off GuestAddrs.validate_header 180 308
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- `BNE x10, x0` @ H+180: `header_validate_extra_data_length` failed (extra
+    data too long) → exit tail at H+308 (status 7). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem extraDataBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 180) (H + 308) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 extraDataBrOff status (0 : Word) (H + 180)
+  rw [extraDataBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 180) prog 45
+        (.BNE .x10 .x0 extraDataBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+/-- `BNE x10, x0` @ H+180 fall-through: `header_validate_extra_data_length`
+    succeeded → continue at H+184. ESTABLISHES `x10` is unchanged (the
+    status). -/
+theorem extraDataBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 180) (H + 184) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 extraDataBrOff status (0 : Word) (H + 180)
+  rw [show (H + 180 : Word) + 4 = H + 184 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 180) prog 45
+        (.BNE .x10 .x0 extraDataBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+abbrev parentHashBrOff : BitVec 13 :=
+  brOff (GuestAddrs.validate_header + 340) (GuestAddrs.validate_header + 248)
+
+theorem parentHashBne_taken_pc :
+    (H + 248) + signExtend13 parentHashBrOff = H + 340 := by
+  change BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 248 +
+      signExtend13 (brOff (GuestAddrs.validate_header + 340)
+        (GuestAddrs.validate_header + 248)) =
+    BitVec.ofNat 64 GuestAddrs.validate_header + BitVec.ofNat 64 340
+  exact brOff_correct_base_off GuestAddrs.validate_header 248 340
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+
+/-- `BNE x10, x0` @ H+248: `header_validate_parent_hash` failed (parent hash
+    mismatch) → exit tail at H+340 (status 11). ESTABLISHES `x10` is unchanged
+    (the status). -/
+theorem parentHashBne_taken (status : Word) (hne : status ≠ 0) :
+    cpsTripleWithin 1 (H + 248) (H + 340) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 parentHashBrOff status (0 : Word) (H + 248)
+  rw [parentHashBne_taken_pc] at hbr
+  exact cpsBranchWithin_takenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 248) prog 62
+        (.BNE .x10 .x0 parentHashBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQf => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQf
+      exact hne ((sepConj_pure_right _).1 hBP).2)
+
+/-- `BNE x10, x0` @ H+248 fall-through: `header_validate_parent_hash`
+    succeeded → continue at H+252 (the status-0 tail). ESTABLISHES `x10` is
+    unchanged (the status). -/
+theorem parentHashBne_ntaken (status : Word) (heq : status = 0) :
+    cpsTripleWithin 1 (H + 248) (H + 252) callerCode
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)))
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word))) := by
+  have hbr := bne_spec_gen_within .x10 .x0 parentHashBrOff status (0 : Word) (H + 248)
+  rw [show (H + 248 : Word) + 4 = H + 252 from by bv_omega] at hbr
+  exact cpsBranchWithin_ntakenStripPure2
+    (cpsBranchWithin_extend_code
+      (CodeReq.ofProg_mem_at H (H + 248) prog 62
+        (.BNE .x10 .x0 parentHashBrOff)
+        (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide))
+      hbr)
+    (fun _hp hQt => by
+      obtain ⟨_, _, _, _, _, hBP⟩ := hQt
+      exact ((sepConj_pure_right _).1 hBP).2 heq)
+
+/-- `MV x10, x8` @ H+168: set x10 := header (the extra-data-length argument).
+    ESTABLISHES `x10 = header`. -/
+theorem mvExtraDataArgs (header o10 : Word) :
+    cpsTripleWithin 1 (H + 168) (H + 172) callerCode
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ o10))
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ header)) := by
+  have h := mv_spec_gen_within .x10 .x8 header o10 (H + 168) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 168) prog 42 (.MV .x10 .x8)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `MV x11, x9` @ H+172: set x11 := headerLen (the extra-data-length
+    argument). ESTABLISHES `x11 = headerLen`. -/
+theorem mvExtraDataArgs2 (headerLen o11 : Word) :
+    cpsTripleWithin 1 (H + 172) (H + 176) callerCode
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11))
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ headerLen)) := by
+  have h := mv_spec_gen_within .x11 .x9 headerLen o11 (H + 172) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 172) prog 43 (.MV .x11 .x9)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `MV x10, x8` @ H+184: set x10 := header (the post-merge argument).
+    ESTABLISHES `x10 = header`. -/
+theorem mvPostMergeArgs (header o10 : Word) :
+    cpsTripleWithin 1 (H + 184) (H + 188) callerCode
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ o10))
+      ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ header)) := by
+  have h := mv_spec_gen_within .x10 .x8 header o10 (H + 184) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 184) prog 46 (.MV .x10 .x8)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
+/-- `MV x11, x9` @ H+188: set x11 := headerLen (the post-merge argument).
+    ESTABLISHES `x11 = headerLen`. -/
+theorem mvPostMergeArgs2 (headerLen o11 : Word) :
+    cpsTripleWithin 1 (H + 188) (H + 192) callerCode
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11))
+      ((.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ headerLen)) := by
+  have h := mv_spec_gen_within .x11 .x9 headerLen o11 (H + 188) (by decide)
+  exact cpsTripleWithin_extend_code
+    (CodeReq.ofProg_mem_at H (H + 188) prog 47 (.MV .x11 .x9)
+      (by bv_omega) (by rw [prog_length]; decide) rfl (by rw [prog_length]; decide)) h
+
 end EvmAsm.Codegen.ValidateHeaderInlineArms
