@@ -4,8 +4,8 @@
 # GitHub Pages viewer (`docs/index.html` + `docs/cockpit/`).
 #
 # Modes:
-#   scripts/progress-cockpit.sh --write            # docs/cockpit/snapshot.json
-#   scripts/progress-cockpit.sh --write <path>     # write to <path>
+#   scripts/progress-cockpit.sh --write            # docs/cockpit/snapshot.{json,js}
+#   scripts/progress-cockpit.sh --write <path>     # write JSON to <path>; JS beside it
 #
 # The snapshot is a GENERATED ARTIFACT and is NOT committed (#12683): the
 # same conflict class as PROGRESS.md. The viewer HTML/CSS/JS are committed
@@ -77,5 +77,23 @@ PY
 
 mkdir -p "$(dirname "$OUT")"
 mv "$STAMPED_TMP" "$OUT"
+JS_OUT="${OUT%.json}.js"
+if [[ "$JS_OUT" == "$OUT" ]]; then
+  JS_OUT="${OUT}.js"
+fi
+# Script form so `open docs/index.html` (file://) can load the snapshot.
+# Browsers block fetch() of local JSON (HTTP status 0).
+python3 - "$OUT" "$JS_OUT" <<'PY'
+import json, sys
+src, js_dst = sys.argv[1], sys.argv[2]
+with open(src, encoding="utf-8") as f:
+    body = json.load(f)
+payload = json.dumps(body, indent=2, ensure_ascii=False).replace("<", "\\u003c")
+with open(js_dst, "w", encoding="utf-8") as f:
+    f.write("window.__COCKPIT_SNAPSHOT__ = ")
+    f.write(payload)
+    f.write(";\n")
+PY
 trap 'rm -f "$LEAN_TMP"' EXIT
 echo "Wrote $OUT"
+echo "Wrote $JS_OUT"

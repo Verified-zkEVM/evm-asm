@@ -557,6 +557,10 @@ function bind(root) {
 }
 
 function showError(msg) {
+  const fileHint =
+    location.protocol === "file:"
+      ? " You opened this as a file, so the snapshot must be loaded as <code>cockpit/snapshot.js</code> (run <code>scripts/progress-cockpit.sh --write</code> first). Browsers block <code>fetch()</code> of local JSON."
+      : "";
   document.getElementById("app").innerHTML = `
     <div class="stack stack-12">
       <h1>evm-asm progress cockpit</h1>
@@ -564,20 +568,38 @@ function showError(msg) {
         <div class="callout-title">Snapshot not available</div>
         <p class="small">${esc(msg)}</p>
         <p class="small">Generate it locally with <code>scripts/progress-cockpit.sh --write</code>,
-        then serve from <code>docs/</code> (<code>python3 -m http.server</code>).
-        On GitHub Pages the snapshot is published by CI on every push to <code>main</code>.</p>
+        then open <code>docs/index.html</code> (or serve from <code>docs/</code>).
+        On GitHub Pages the snapshot is published by CI; the repo Pages source
+        must be <strong>GitHub Actions</strong>, not “Deploy from branch /docs”
+        (that folder does not contain the generated snapshot).${fileHint}</p>
       </div>
     </div>
   `;
 }
 
-fetch("cockpit/snapshot.json")
-  .then((res) => {
-    if (!res.ok) throw new Error(`snapshot.json HTTP ${res.status}`);
-    return res.json();
-  })
-  .then((data) => {
-    state.data = data;
-    render();
-  })
-  .catch((err) => showError(err.message || String(err)));
+function snapshotUrl(name) {
+  const scripts = [...document.scripts].map((s) => s.src).filter(Boolean);
+  const self = scripts.find((s) => /cockpit\.js(\?|$)/.test(s));
+  return self ? new URL(name, self).href : `cockpit/${name}`;
+}
+
+function boot(data) {
+  state.data = data;
+  render();
+}
+
+function loadSnapshot() {
+  if (window.__COCKPIT_SNAPSHOT__) {
+    boot(window.__COCKPIT_SNAPSHOT__);
+    return;
+  }
+  fetch(snapshotUrl("snapshot.json"))
+    .then((res) => {
+      if (!res.ok) throw new Error(`snapshot.json HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(boot)
+    .catch((err) => showError(err.message || String(err)));
+}
+
+loadSnapshot();
