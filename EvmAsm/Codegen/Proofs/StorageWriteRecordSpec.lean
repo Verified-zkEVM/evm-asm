@@ -135,7 +135,7 @@ theorem storageWriteRecord_segA_body_spec
        (.x10 ↦ᵣ a0) **
        (.x5 ↦ᵣ countPtr) ** (.x6 ↦ᵣ (0 : Word)) ** (.x7 ↦ᵣ v7) **
        (.x13 ↦ᵣ v13) ** (.x14 ↦ᵣ v14) ** (.x15 ↦ᵣ v15) ** (.x16 ↦ᵣ a6) **
-       (.x28 ↦ᵣ (0xa2d57ec0 : Word)) ** (.x29 ↦ᵣ (0 : Word)) **
+       (.x28 ↦ᵣ EvmAsm.Stateless.TX_STORAGE_WRITES_AREA) ** (.x29 ↦ᵣ (0 : Word)) **
        (.x30 ↦ᵣ v30) ** (.x31 ↦ᵣ v31) **
        ((sp - (112 : Word)) ↦ₘ v5) ** ((sp - (104 : Word)) ↦ₘ v6) **
        ((sp - (96 : Word)) ↦ₘ v7) ** ((sp - (88 : Word)) ↦ₘ v28) **
@@ -234,8 +234,8 @@ theorem storageWriteRecord_segA_body_spec
     decide] at P19
   have P20 := addi_spec_gen_same_within .x28 (2731900928 : Word) (-320 : BitVec 12)
     (base + (80 : Word)) (by nofun)
-  rw [show (2731900928 : Word) + signExtend12 (-320 : BitVec 12) = (0xa2d57ec0 : Word) from by
-    decide] at P20
+  rw [show (2731900928 : Word) + signExtend12 (-320 : BitVec 12)
+      = EvmAsm.Stateless.TX_STORAGE_WRITES_AREA from by decide] at P20
   -- index 21: `li t4, 0` — the scan cursor
   have P21 := li_spec_gen_within .x29 v29 (0 : Word) (base + (84 : Word)) (by nofun)
   -- index 22: `bgeu t4, t1, .Lswr_append` — TAKEN, the map is empty
@@ -828,7 +828,7 @@ theorem storageWriteRecordFailClosedFlat_spec
        ((sp - (176 : Word)) ↦ₘ (GuestAddrs.tx_storage_writes_count : Word)) **
        ((sp - (168 : Word)) ↦ₘ (0 : Word)) **
        ((sp - (160 : Word)) ↦ₘ (5588 : Word)) **
-       ((sp - (152 : Word)) ↦ₘ (0xa2d57ec0 : Word)) **
+       ((sp - (152 : Word)) ↦ₘ EvmAsm.Stateless.TX_STORAGE_WRITES_AREA) **
        ((sp - (144 : Word)) ↦ₘ (0 : Word)) **
        ((sp - (136 : Word)) ↦ₘ v30) ** ((sp - (128 : Word)) ↦ₘ v31) **
        ((sp - (112 : Word)) ↦ₘ v5) ** ((sp - (104 : Word)) ↦ₘ v6) **
@@ -869,7 +869,7 @@ theorem storageWriteRecordFailClosedFlat_spec
     (GuestAddrs.storage_writes_overflow : Word)
     undoCount ovfTx ovfBlk
     (GuestAddrs.tx_storage_writes_count : Word) (0 : Word) (5588 : Word) a0
-    (0xa2d57ec0 : Word) (0 : Word) v30 v31
+    EvmAsm.Stateless.TX_STORAGE_WRITES_AREA (0 : Word) v30 v31
     (by decide) (by decide) (by decide) (by decide) hfull
   rw [show (sp - (112 : Word)) - (64 : Word) = sp - (176 : Word) from by bv_omega,
       show (sp - (112 : Word)) - (56 : Word) = sp - (168 : Word) from by bv_omega,
@@ -887,7 +887,7 @@ theorem storageWriteRecordFailClosedFlat_spec
       (GuestAddrs.storage_writes_overflow : Word) (1 : Word) (1 : Word)
       v5 v6 v7 v13 v14 v15 v28 v29 v30 v31
       (GuestAddrs.tx_storage_writes_count : Word) (0 : Word) (5588 : Word)
-      (0 : Word) (1 : Word) (0 : Word) a6 (0xa2d57ec0 : Word) (0 : Word) v30 v31
+      (0 : Word) (1 : Word) (0 : Word) a6 EvmAsm.Stateless.TX_STORAGE_WRITES_AREA (0 : Word) v30 v31
       (by decide) (by decide) (by decide) (by decide))
   seqFrame hA hB
   seqFrame hAhB hCall
@@ -910,7 +910,7 @@ theorem storageWriteRecordFailClosedFlat_spec
     temporaries `1..7, 11..13`.  The post is fully concrete: the twenty spill
     slots hold their saved values in spill order (the callee's seven carrying
     the scan state the caller had live at the call — the count pointer, 0, the
-    capacity 5588, the arena base 0xa2d57ec0, 0, and `t5`/`t6`), `sp` is back at
+    capacity 5588, the arena base `TX_STORAGE_WRITES_AREA`, 0, and `t5`/`t6`), `sp` is back at
     `0x30000000`, `tx_storage_writes_count` still reads 0, the undo cursor is
     still 200000, and BOTH overflow flags now read 1. -/
 example (ra a0 a6 : Word) :
@@ -957,7 +957,7 @@ example (ra a0 a6 : Word) :
        ((0x2fffff50 : Word) ↦ₘ (GuestAddrs.tx_storage_writes_count : Word)) **
        ((0x2fffff58 : Word) ↦ₘ (0 : Word)) **
        ((0x2fffff60 : Word) ↦ₘ (5588 : Word)) **
-       ((0x2fffff68 : Word) ↦ₘ (0xa2d57ec0 : Word)) **
+       ((0x2fffff68 : Word) ↦ₘ EvmAsm.Stateless.TX_STORAGE_WRITES_AREA) **
        ((0x2fffff70 : Word) ↦ₘ (0 : Word)) **
        ((0x2fffff78 : Word) ↦ₘ (6 : Word)) **
        ((0x2fffff80 : Word) ↦ₘ (7 : Word)) **
@@ -1056,11 +1056,16 @@ example :
     isValidDwordAccess (GuestAddrs.storage_writes_undo_count : Word) = true ∧
     isValidDwordAccess (GuestAddrs.tx_storage_writes_overflow : Word) = true ∧
     isValidDwordAccess (GuestAddrs.storage_writes_overflow : Word) = true ∧
-    (GuestAddrs.tx_storage_writes_count : Word) ≠ (GuestAddrs.storage_writes_undo_count : Word) ∧
-    (GuestAddrs.tx_storage_writes_overflow : Word) ≠ (GuestAddrs.storage_writes_overflow : Word) ∧
+    (GuestAddrs.tx_storage_writes_count : Word)
+      ≠ (GuestAddrs.storage_writes_undo_count : Word) ∧
+    (GuestAddrs.tx_storage_writes_overflow : Word)
+      ≠ (GuestAddrs.storage_writes_overflow : Word) ∧
     (GuestAddrs.tx_storage_writes_count : Word) ≠ (0x2fffff50 : Word) ∧
     (GuestAddrs.storage_writes_overflow : Word) ≠ (0x2ffffff0 : Word) :=
-  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+   by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+   by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+   by decide, by decide, by decide, by decide, by decide, by decide, by decide⟩
 
 /-! ## Axiom audit — classical-only. -/
 
