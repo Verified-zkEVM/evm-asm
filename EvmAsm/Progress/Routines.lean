@@ -421,6 +421,7 @@ import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
 -- #12127: `writeSetsRestoreFrameEmptyFlat_spec` — the frame-revert routine's
 -- nothing-to-undo arm, the first spec of any shape for that symbol.
 import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
+import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
 -- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
 -- itself has no `Program`, so this is the granularity at which the read path
 -- is statable.
@@ -5463,7 +5464,94 @@ def routineRegistry : List RoutineEntry := [
         ++ "neither call site is proved here. Satisfiability is witnessed by use: the "
         ++ "specialization `eip8037TxStateGas_zero_out_spec_within` (`a0 = a1 = 0`, "
         ++ "hence `*out = 0`) is the form `tx_intrinsic_state_gas`'s success path "
-        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`")
+        ++ "consumes. Lives in `Codegen/Programs/Eip8037TxStateGasSpec.lean`"),
+  -- #12318 composition lane: the EIP-7702 same-block code helper, composed
+  -- over the write-map reader's already-landed absent arm.
+  routine "runtime_same_block_delegation_code" .conditional
+      (some "runtimeSameBlockDelegationCodeMissFlat_spec")
+      (gate := "TWO input-domain gates, and NEITHER is invented here — both "
+        ++ "are `accountWritesLookupCurrentAbsentFlat_spec`'s, inherited "
+        ++ "verbatim by composition. (1) `tx_account_writes_count = 0` — the "
+        ++ "transaction tier is empty; (2) `account_writes_count = 0` — the "
+        ++ "block tier is empty. Under both the callee answers ABSENT "
+        ++ "(`a0 = 0`), which makes this routine deterministic: `beq a0, 2` at "
+        ++ "index 8 falls through (`0 ≠ 2`) and `bne a0, 1` at index 10 is "
+        ++ "TAKEN (`0 ≠ 1`), so control reaches `.Lrsbd_miss` at index 40 and "
+        ++ "the answer is `a0 = 1`. Covered: 18 of the 47 instructions. The "
+        ++ "arms EXCLUDED are every one that reaches a write — the callee's "
+        ++ "three non-absent answers (`1` live code, `2` present-but-empty, "
+        ++ "`3` deleted), and with them the empty-code branch at index 13 "
+        ++ "(`beq s2, x0`, target `base + 128`), the 23-byte length check at "
+        ++ "indices 14..15, the `0xef 0x01 0x00` marker comparison at indices "
+        ++ "16..23 and BOTH store paths (24..31 for the marker hit, 32..39 for "
+        ++ "the empty hit); none is claimed. Because every `la` in the routine lives "
+        ++ "on an excluded path, this proof steps through no address "
+        ++ "materialisation at all. coverRef: the five checks at the end of "
+        ++ "`Codegen/Proofs/RuntimeSameBlockDelegationCodeSpec.lean` — a fully "
+        ++ "numeric instance (`sp = 0x30000000`, both counts 0, temps "
+        ++ "`5`/`6`/`7`/`28`, `s0`/`s1`/`s2` = `8`/`9`/`18`, argument "
+        ++ "registers `20`/`21`/`22`, with `a0` read back as 1 and `a1`/`a2` "
+        ++ "as 0 rather than their entry values), a gate NEGATIVE CONTROL "
+        ++ "(`(1 : Word) ≠ 0` — a tier holding even ONE row is provably "
+        ++ "outside the arm), a SECOND negative control on this routine's own "
+        ++ "discrimination (`0 ≠ 1 ∧ 0 ≠ 2 ∧ 0 ≠ 3`, the three answers the "
+        ++ "callee contract cannot yet produce, and which take three "
+        ++ "different paths), an `isValidDwordAccess` satisfiability check on "
+        ++ "all six frame slots and both tier counters, and a distinctness "
+        ++ "control separating the callee's two-slot frame from this "
+        ++ "routine's four")
+      (notes := "`cpsTripleWithin 45` at "
+        ++ "`GuestAddrs.runtime_same_block_delegation_code`, exit "
+        ++ "`ra &&& ~~~1`, over `rsbdCR`. ⭐ The `CodeReq` is a UNION and it is "
+        ++ "FORCED, more plainly than for the write-map writers: the "
+        ++ "`jal ra, account_writes_lookup_current` at instruction index 6 is "
+        ++ "UNCONDITIONAL and sits above every branch, so every path leaves "
+        ++ "the routine's own bytes and a single `ofProg` could state nothing "
+        ++ "at all. Both legs are `GuestImageEntries` pairings — `:528` for "
+        ++ "this routine, `:409` for the callee — so entry AND CodeReq are "
+        ++ "anchored at `GuestAddrs.runtime_same_block_delegation_code` and "
+        ++ "this grades whole-routine under `proof-frontier.py --shape`. "
+        ++ "⚠️ Written `CodeReq.union a b`, NOT `a.union b`: until #13196 the "
+        ++ "`--shape` resolver discarded any dotted token, so the dot-notation "
+        ++ "spelling of the same term hid the anchor inside the first leg and "
+        ++ "graded this `structured-only`. EXTENT: "
+        ++ "`scripts/asm-fixtures/symbol-addresses.tsv` places this symbol at "
+        ++ "`0x80031000` and the next `.text` symbol "
+        ++ "`has_code_or_nonce_at_header_state_root` at `0x800310bc`, so "
+        ++ "`0xbc = 188 = 47 * 4` cross-checks the Program module's "
+        ++ "`#guard runtimeSameBlockDelegationCode_prog.length = 47` — the "
+        ++ "proved program spans the whole linked symbol with nothing left "
+        ++ "over. ⭐ WHAT THE POST DOES NOT NAME is the load-bearing part: "
+        ++ "neither `rsbd_code_ptr` nor `rsbd_code_len` appears in the pre or "
+        ++ "the post, and because `cpsTripleWithin` quantifies over a `pcFree` "
+        ++ "frame that silence is a NO-WRITE guarantee over the whole routine "
+        ++ "— exactly the property the three callers rely on when they read "
+        ++ "`a0 = 1` and fall through to the ordinary code lookup. The routine "
+        ++ "reads no arena either, since the callee's absent arm does not. "
+        ++ "⭐ The callee contract is REUSED, not re-proved. ⚠️ `t0`-`t3` are "
+        ++ "CLOBBERED and the post states it rather than framing it away: "
+        ++ "`t0 = 1` from this routine's own `li t0, 1` at index 9 (the "
+        ++ "discriminator the taken `bne` compares against), and "
+        ++ "`t1`/`t2`/`t3` = `0`, `ACCOUNT_WRITES_AREA`, `0` from the callee. "
+        ++ "All four are caller-saved. `ra`, `s0`, `s1`, `s2` and `sp` are "
+        ++ "restored; `s1`/`s2` are in fact never written on this arm (the "
+        ++ "`mv s1, a1` / `mv s2, a2` at indices 11..12 sit AFTER the taken "
+        ++ "branch), and the post is stated from the epilogue reload, which "
+        ++ "agrees. The callee's two-slot frame at `sp - 56`/`sp - 48` sits "
+        ++ "BELOW this routine's four at `sp - 32 .. sp - 8`; the pre owns all "
+        ++ "six and they are disjoint. ⚠️ IN-DEGREE: the "
+        ++ "`callee-composition-queue.py` worklist grades this symbol "
+        ++ "`in-deg 0 / 0`, which reads as dead code and is WRONG — the "
+        ++ "#13175 class again. There are three real callers, every one a live "
+        ++ "opcode handler tail emitting a literal "
+        ++ "`jal ra, runtime_same_block_delegation_code`: "
+        ++ "`extcodehashWitnessTail` and `extcodesizeWitnessTail` "
+        ++ "(`Codegen/Programs/EvmAccountWitness.lean`) and "
+        ++ "`extcodecopyWitnessTail` (`Codegen/Programs/EvmExtcodecopy.lean`). "
+        ++ "All three are still unconverted asm text, so they contribute no "
+        ++ "edge to either call graph. No Correspondence row: this arm ties to "
+        ++ "no spec-side VALUE beyond `miss`. Lives in "
+        ++ "`Codegen/Proofs/RuntimeSameBlockDelegationCodeSpec.lean`"),
 ]
 
 /-! ## Offline routine contracts
@@ -5517,12 +5605,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 241 := by decide
+theorem routineCount_eq : routineCount = 242 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 59 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 60 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5540,7 +5628,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 201 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 202 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7359,6 +7447,10 @@ private noncomputable abbrev _wsrf_gate_reachable_cover_witness :=
   @EvmAsm.Codegen.Proofs.wsrfEmpty_gate_reachable
 private noncomputable abbrev _wsrf_precondition_satisfiable_cover_witness :=
   @EvmAsm.Codegen.Proofs.wsrfEmpty_precondition_satisfiable
+-- #12318 composition lane: the EIP-7702 same-block code helper, over the
+-- write-map reader's absent arm.
+private noncomputable abbrev _runtime_same_block_delegation_code_routine_witness :=
+  @EvmAsm.Codegen.Proofs.runtimeSameBlockDelegationCodeMissFlat_spec
 -- #11654: SLOAD's tier-2 read routine, plus its THREE cover theorems. The
 -- covers are registered individually and deliberately (#12857): a non-vacuity
 -- control that lives only in a row's prose is outside the axiom gate.
