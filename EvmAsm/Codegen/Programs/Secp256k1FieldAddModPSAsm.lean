@@ -1180,13 +1180,13 @@ private theorem secfAddModPRestore_spec
         (secfAddModPVals ret s0 s1 s2 s3 s4) **
       secfAddModPCallerPost xPtr yPtr dst newSp xs ys outOrig tmpOrig ** A)
     (by unfold secfAddModPCallerPost; pcf; exact hA) hret
-  have hReg : regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) =
+  have h_reg : regsAt secfAddModPFrame (secfAddModPVals ret s0 s1 s2 s3 s4) =
       (((.x1 : Reg) ↦ᵣ ret) **
         regsAt [(.x8, 8), (.x9, 16), (.x18, 24), (.x19, 32), (.x20, 40)]
           (secfAddModPVals ret s0 s1 s2 s3 s4)) := by
     simp only [secfAddModPFrame, regsAt, secfAddModPVals, List.foldr_cons,
       List.foldr_nil, sepConj_emp_right']
-  have hRegV : regsAt secfAddModPFrame
+  have h_reg_v : regsAt secfAddModPFrame
       (secfAddModPVals (GuestAddrs.secf_add_mod_p + 104 : Word) xPtr yPtr dst
         (GuestAddrs.secf_tmp0 : Word)
         (U256AddBeSAsm.u256AddBeCarry xs ys tmpOrig)) =
@@ -1199,12 +1199,12 @@ private theorem secfAddModPRestore_spec
       List.foldr_nil, sepConj_emp_right']
   have h12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     hloadF hdeallocF
-  rw [hReg] at h12
+  rw [h_reg] at h12
   have h123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
     h12 hretF
   refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) h123
-  · rw [hRegV]; xperm_hyp hp
-  · rw [hReg]; xperm_hyp hq
+  · rw [h_reg_v]; xperm_hyp hp
+  · rw [h_reg]; xperm_hyp hq
 
 
 /-- **Whole-routine byte-identical specification for `secf_add_mod_p`.**
@@ -1335,7 +1335,8 @@ theorem secfAddModP_sideConditions_satisfiable :
     ((GuestAddrs.secp256k1_p_be : Word).toNat + 32 ≤ (0xa4000040 : Word).toNat ∨
       (0xa4000040 : Word).toNat + 32 ≤
         (GuestAddrs.secp256k1_p_be : Word).toNat) ∧
-    (((0x8001f848 : Word) + 112) &&& ~~~(1 : Word)) = ((0x8001f848 : Word) + 112) := by
+    (((GuestAddrs.secf_add_mod_p : Word) + 112) &&& ~~~(1 : Word)) =
+      ((GuestAddrs.secf_add_mod_p : Word) + 112) := by
   decide
 
 /-- Negative control: the temporary/output disjointness hypothesis is *not*
