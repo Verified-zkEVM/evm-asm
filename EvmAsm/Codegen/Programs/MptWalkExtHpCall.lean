@@ -52,11 +52,13 @@ def extHpCallFuel (srcLen : Nat) : Nat :=
   1 + hdnFuel srcLen
 
 /-- Walk ambient framed through the hp call.
-    Path/nibble bytes live in `hdnCallEntry` (no double-own). -/
+    Path/nibble bytes live in `hdnCallEntry` (no double-own), and `x0` is
+    deliberately absent for the same reason: `hdnCallEntry` already pins it,
+    and a second `(.x0 ↦ᵣ 0)` atom here made the call triple's pre/post
+    unsatisfiable (#13161 duplicate-occupancy). -/
 def extHpCallFrame (newSp : Word) (ws : WalkSaved)
     (nodeBase pathOff pathLen : Word) : Assertion :=
   walkSavedFrame newSp ws **
-  (.x0 ↦ᵣ (0 : Word)) **
   (.x23 ↦ᵣ nodeBase) **
   (MwPathOff ↦ₘ pathOff) ** (MwPathLen ↦ₘ pathLen) **
   stackFree newSp 8
