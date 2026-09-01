@@ -416,6 +416,10 @@ import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
 -- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
 -- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
 import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
+-- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
+-- itself has no `Program`, so this is the granularity at which the read path
+-- is statable.
+import EvmAsm.Codegen.Proofs.StorageWritesBlockLatestValueSpec
 -- #12850: the taylor-layer tie for the exponential inlined in
 -- `amsterdam_blob_gas_price_u256`.
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceTaylorTie
@@ -5160,6 +5164,89 @@ def routineRegistry : List RoutineEntry := [
         ++ "intermediate is written `STORAGE_WRITES_AREA + 1600`, never as a "
         ++ "bare in-range literal (GH #12586). Lives in "
         ++ "`Codegen/Proofs/StorageWritesBlockUpsertSpec.lean`"),
+  -- #11654: SLOAD's read path, at the only granularity where it is statable.
+  -- The SLOAD dispatcher handler is an `OpcodeHandlerSpec` with `body := []`
+  -- and raw `String` preBody/tail — no `Program`, no `GuestImageEntries`
+  -- pairing — so no whole-handler triple exists to state. This is tier 2 of
+  -- the funnel that handler runs (`storagePrestateResolveAsm`,
+  -- `Codegen/Programs/Storage.lean`).
+  -- ⚠️ `transcription_queue.py` credits this row's SLOAD mentions to the
+  -- handler and moves it from queue rank 12 to 4 (score 100 -> 115, "gate 1"),
+  -- via the opcode-mnemonic alias. The literal `h_SLOAD` token is kept OUT of
+  -- the comment/gate/notes so the credit stays at ONE alias hit rather than
+  -- compounding; the remaining hit is left standing because it is TRUE — the
+  -- handler's unconvertibility is exactly why this row exists and why the
+  -- SLOAD opcode row is still `.execSpec`. `docs/4ch8f-transcription-queue.md` is
+  -- regenerated to match. This row's own gate is the capacity comparison, not
+  -- the handler.
+  routine "storage_writes_block_latest_value" .conditional
+      (some "storageWritesBlockLatestValueCapacityRefusalFlat_spec")
+      (gate := "ONE input-domain gate: `BitVec.ult cap cnt` — the caller's "
+        ++ "`a4` (map capacity) is STRICTLY below its `a3` (map row count), "
+        ++ "so the `bltu a4, a3` at instruction index 5 is taken to the "
+        ++ "`a0 = 2` status arm at index 74. Everything from index 6 on is "
+        ++ "excluded: the 20-byte recipient normalisation loop (indices "
+        ++ "15..21), the 32-byte big-endian slot-key reversal (indices "
+        ++ "25..31), the 128-byte row scan (indices 33..73), and the two "
+        ++ "functional answers `a0 = 1` (found — value copied from row offset "
+        ++ "64) and `a0 = 0` (no match). coverRef, all THREE cited BY NAME so "
+        ++ "each carries its own witness abbrev below and sits inside the "
+        ++ "axiom gate (#12857) rather than in this prose: "
+        ++ "`swblvCapacityRefusal_numeric_instance` (a fully numeric "
+        ++ "instance — `sp = 0x30000000`, one row claimed against zero "
+        ++ "capacity, callee-saves `9`/`10`/`11`, with `a0` read back as 2 "
+        ++ "rather than its entry value 20 and all four frame slots concrete), "
+        ++ "`swblvCapacityRefusal_gate_reachable` (the gate witness "
+        ++ "`0 <ᵤ 1` together with TWO negative controls that are provably "
+        ++ "FALSE — `¬(16384 <ᵤ 0)`, where 16384 is the capacity the "
+        ++ "routine's own focused ABI probe passes, so the well-formed call "
+        ++ "the guest actually makes falls through into the scan and is "
+        ++ "genuinely outside this arm; and `¬(16384 <ᵤ 16384)`, so a FULL "
+        ++ "map is not a refusal either and the gate is strict `<` on "
+        ++ "purpose — plus distinct addresses for the three status arms), and "
+        ++ "`swblvCapacityRefusal_precondition_satisfiable` (an "
+        ++ "`isValidDwordAccess`-plus-distinctness check on all four frame "
+        ++ "slots, with the `prog.length * 4 = 328` extent cross-check)")
+      (notes := "`cpsTripleWithin 14` at "
+        ++ "`GuestAddrs.storage_writes_block_latest_value`, exit "
+        ++ "`ra &&& ~~~1`, over `CodeReq.ofProg … "
+        ++ "storageWritesBlockLatestValue_prog` — the "
+        ++ "`Codegen/Proofs/GuestImageEntries.lean:391` pairing itself. ⭐ A "
+        ++ "SINGLE `ofProg`, NOT a union, and the difference was checked the "
+        ++ "same way `account_writes_lookup_current`'s was: this Program "
+        ++ "contains no `jal ra, …` — every `JAL` is a `JAL .x0` internal "
+        ++ "jump and the only register-indirect transfer is the closing "
+        ++ "`jalr x0, 0(ra)`. It is a LEAF. ⚠️ Granularity, stated plainly: "
+        ++ "this is the ROUTINE's contract, not SLOAD's. It does not claim "
+        ++ "the SLOAD opcode returns the right value, and the `SLOAD` opcode "
+        ++ "row stays `.execSpec` for that reason. What it does claim is a "
+        ++ "whole-routine contract for one arm of tier 2 of SLOAD's read "
+        ++ "funnel — the bounded reader for the canonical block-level "
+        ++ "`storage_writes` map (`BlockState.storage_writes`, "
+        ++ "`state_tracker.py:74`), the tier whose omission would return the "
+        ++ "PRE-BLOCK value wherever an earlier transaction in the block "
+        ++ "already wrote the slot. This is a FAIL-CLOSED arm, not a "
+        ++ "functional one: `a0 = 2` is a refusal. ⭐ Because `cpsTripleWithin` "
+        ++ "quantifies over an arbitrary `pcFree` frame and NO map arena, "
+        ++ "scratch buffer or out pointer is named in the pre or the post, "
+        ++ "the triple ALSO says for free that on this arm the routine writes "
+        ++ "nothing outside its own 32-byte frame and does not read the "
+        ++ "canonical map at all — which is the substance of the refusal: a "
+        ++ "mis-reported count yields a status, not a partial scan past the "
+        ++ "end of the map. ⚠️ Register discipline read from the EPILOGUE, "
+        ++ "not a docstring (#13182): indices 76..79 reload exactly the four "
+        ++ "registers indices 1..4 spilled (`ra`, `s0`, `s1`, `s2`), and `sp` "
+        ++ "is popped, so this IS an honest full-restoration claim; `a0` is "
+        ++ "the answer and is deliberately NOT restored. `a3`/`a4` are read "
+        ++ "and not written and come back unchanged. `Nodup` neither proven "
+        ++ "nor assumed, for the same reason as on "
+        ++ "`account_writes_lookup_current`: this is a READER, it constructs "
+        ++ "no row sequence, and on the refusal arm it inspects no row at "
+        ++ "all, so \"the first matching row is the right one\" is not a claim "
+        ++ "in either direction. Tying the scan to the already-proven "
+        ++ "`storageRowLookup` model (`Stateless/State/StorageReadPath.lean`) "
+        ++ "is the remaining half. Lives in "
+        ++ "`Codegen/Proofs/StorageWritesBlockLatestValueSpec.lean`"),
   -- #11921: the write-map READER that is NOT a leaf — its `jal ra,
   -- account_read_record` is unconditional, so the union CodeReq is forced and
   -- the already-landed callee triple is REUSED rather than re-proved.
@@ -5325,12 +5412,12 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 238 := by decide
+theorem routineCount_eq : routineCount = 239 := by decide
 
 set_option maxRecDepth 16000 in
 theorem routineProvenCount_eq : routineCountTier .proven = 178 := by decide
 set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 57 := by decide
+theorem routineConditionalCount_eq : routineCountTier .conditional = 58 := by decide
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
@@ -5348,7 +5435,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 198 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 199 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7142,6 +7229,17 @@ private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 private noncomputable abbrev _account_writes_latest_balance_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+-- #11654: SLOAD's tier-2 read routine, plus its THREE cover theorems. The
+-- covers are registered individually and deliberately (#12857): a non-vacuity
+-- control that lives only in a row's prose is outside the axiom gate.
+private noncomputable abbrev _storage_writes_block_latest_value_routine_witness :=
+  @EvmAsm.Codegen.Proofs.storageWritesBlockLatestValueCapacityRefusalFlat_spec
+private noncomputable abbrev _swblv_numeric_instance_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_numeric_instance
+private noncomputable abbrev _swblv_gate_reachable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_gate_reachable
+private noncomputable abbrev _swblv_precondition_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.swblvCapacityRefusal_precondition_satisfiable
 
 -- #12851: the machine restoring-division fold is tied to the pure K70 model.
 -- The signed-zero and complementary-comparison representation changes are

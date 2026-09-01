@@ -710,9 +710,17 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.storageWriteRecordFailClosedFlat_spec
 
+#print axioms EvmAsm.Codegen.Proofs.storageWritesBlockLatestValueCapacityRefusalFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.storageWritesUndoPushFullFlat_spec
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_gate_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_numeric_instance
+
+#print axioms EvmAsm.Codegen.Proofs.swblvCapacityRefusal_precondition_satisfiable
 
 #print axioms EvmAsm.Codegen.Proofs.u256IsZeroFlat_spec
 
