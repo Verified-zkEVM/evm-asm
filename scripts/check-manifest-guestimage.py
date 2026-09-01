@@ -125,9 +125,24 @@ def compute_violations(gic_mod, manifest_path: Path | None = None) -> tuple[list
     gie = read_gie()
     linked = read_linked_symbols()
 
+    # GH #13173: the two sides are keyed differently and must be joined on the
+    # MANGLED name.  A GuestImageEntries row spells `GuestAddrs.<ga_name(sym)>`
+    # — `ga_name` drops the leading dot of a GNU-as local code label, because a
+    # dot cannot start a Lean identifier — while MANIFEST/TSV entries carry the
+    # RAW symbol (`.dispatch_loop_body`).  On the ~1400 global symbols `ga_name`
+    # is the identity, so joining on the raw name worked until the first
+    # dot-prefixed entry was registered, and then failed BOTH legs at once
+    # (each side reporting the other as missing).
+    conv_by_ga = {gic_mod.ga_name(e): (e, v) for e, v in converted.items()}
+    if len(conv_by_ga) != len(converted):
+        sys.exit(
+            "check-manifest-guestimage: two converted entries mangle to one "
+            "GuestAddrs name — refusing to join (would alias two addresses)"
+        )
+
     leg1: list[str] = []
     for e, p in sorted(gie.items()):
-        if e not in converted:
+        if e not in conv_by_ga:
             leg1.append(
                 f"GuestAddrs.{e} → {p} in GuestImageEntries but no MANIFEST-bound "
                 f"Function with that entry (leg 1; #12072 class)"
@@ -135,17 +150,17 @@ def compute_violations(gic_mod, manifest_path: Path | None = None) -> tuple[list
 
     leg2: list[str] = []
     mismatch: list[str] = []
-    for e, (prog, _nbytes, path) in sorted(converted.items()):
+    for ga, (e, (prog, _nbytes, path)) in sorted(conv_by_ga.items()):
         if e not in linked:
             continue  # unlinked conversion: correctly absent from GIE
-        if e not in gie:
+        if ga not in gie:
             leg2.append(
                 f"MANIFEST-bound linked entry {e!r} → {prog} ({path}) missing from "
                 f"GuestImageEntries (leg 2; #12134 class)"
             )
-        elif gie[e] != prog:
+        elif gie[ga] != prog:
             mismatch.append(
-                f"entry {e!r}: GuestImageEntries has {gie[e]!r} but MANIFEST "
+                f"entry {e!r}: GuestImageEntries has {gie[ga]!r} but MANIFEST "
                 f"binding has {prog!r} ({path})"
             )
 
