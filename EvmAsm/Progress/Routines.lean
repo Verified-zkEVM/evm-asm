@@ -5712,43 +5712,81 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
--- ⚠️ The registry list outgrew `decide`'s default recursion budget at 126 rows
--- (#12244). These three totals are still KERNEL-CHECKED — raising `maxRecDepth`
--- only lets the elaborator finish unfolding the list; it does not weaken the
--- check, and none of the forbidden tactics is involved.
-set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 244 := by decide
+/-! ### Why every total below is `decide +kernel`
 
-set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide
-set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by decide
-set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
+    The registry outgrew plain `decide`'s default recursion budget at 126 rows
+    (#12244) and the response, three times running, was a bigger budget:
+    `maxRecDepth` 8000, then 16000, then 40000 (#13220). Each raise bought a
+    ceiling that the registry then walked back up to — 244 rows was measured to
+    be one row short of the wall twice.
 
--- ⚠️ This was the LAST unbudgeted `decide` over the whole registry, and once
--- #13213 chunked the list it became the BINDING row ceiling: measured, the
--- registry elaborates at 244 rows and it is THIS theorem — not the code
--- generator — that fails at 248. Unlike the codegen limit that motivated the
--- chunk split, this is an ELABORATOR limit, so `maxRecDepth` does reach it,
--- which is why every sibling total above already carries one. Still
--- KERNEL-CHECKED; see the note under `routineCount_eq`.
-set_option maxRecDepth 40000 in
+    That escalation happened because plain `decide` evaluates the proposition
+    in the ELABORATOR, and the elaborator is the component that carries budgets
+    — one for recursion depth and one for work (see AGENTS.md on heartbeats).
+    The kernel then re-does the same evaluation subject to neither.
+    `decide +kernel` simply skips the elaborator's copy and lets the kernel —
+    which has to be convinced either way — do the work once.
+
+    So this is strictly LESS machinery, not more:
+
+    * **Trust is unchanged.** `decide +kernel` emits the same
+      `of_decide_eq_true (Eq.refl true)` term and the kernel checks it exactly
+      as before; what is removed is a redundant elaborator-side evaluation, not
+      a check. All eight totals still `#print axioms` as `[propext]`. It is NOT
+      `decide +native` / `native_decide`, which routes through
+      `Lean.ofReduceBool` and is forbidden repo-wide.
+    * **No budgets at all.** Every `set_option` that used to sit on these
+      totals is gone: they elaborate at Lean's defaults. Per AGENTS.md a
+      `maxRecDepth` above 8000 is a to-reduce item rather than an accepted
+      state, and this discharges four at 16000 and three at 40000 without
+      adding a work-budget override anywhere.
+    * **The ceiling moves by an order of magnitude, not by a few rows.**
+      Measured with throwaway probe rows (methodology in the PR that landed
+      this): under plain `decide` at `maxRecDepth 40000` the registry builds at
+      306 rows and fails at 309 — `eraseDups` is quadratic, so
+      `routineSymbols_eq` runs out of WORK rather than DEPTH, which is why
+      three rounds of raising `maxRecDepth` kept buying only a few rows. Under
+      `decide +kernel` the same probes build at 500 rows — the largest size
+      measured, and not a failure point; no wall was reached there.
+      `scripts/check-registry-tallies.py` (`ROW_LIMIT`) keeps the row count
+      clear of it.
+    * **It is also faster at the size actually shipped.** A forced rebuild of
+      this file at 244 rows went 20s to 15s, measured twice, because the
+      elaborator no longer duplicates an evaluation the kernel repeats anyway.
+
+    ⚠️ The code generator's recursion limit is a THIRD, unrelated wall and is
+    not addressed here: it applies per `routineRegistryPart*` chunk, is reached
+    by neither `set_option`, and is what the chunk split (#13213) exists for.
+-/
+
+theorem routineCount_eq : routineCount = 244 := by decide +kernel
+
+theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide +kernel
+theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by
+  decide +kernel
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
+  decide +kernel
+
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
     unwitnessed row; asserting it here makes the registry itself refuse one. -/
 theorem routineRegistry_all_witnessed :
-    routineRegistry.all (fun e => e.proofRef.isSome) = true := by decide
+    routineRegistry.all (fun e => e.proofRef.isSome) = true := by decide +kernel
 
 /-- Distinct guest symbols covered. Lower than `routineCount` because a
     per-form routine contributes several rows. -/
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
--- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
--- larger budget than the 8000 above. Still kernel-checked; see the note there.
-set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 204 := by decide
+-- ⚠️ `eraseDups` is QUADRATIC in the row count, which made this the most
+-- expensive total of the set and the first to fail under plain `decide` — on
+-- the elaborator's WORK budget, which `maxRecDepth` does not reach. Prose
+-- length is irrelevant to it: `.symbol` is the only field projected, so the
+-- failure point was identical with 733-character probe rows and with
+-- 11,191-character ones, and could not have been dodged by writing terser
+-- rows. `decide +kernel` sidesteps both budgets; see the note under
+-- `routineCount_eq`.
+theorem routineSymbols_eq : routineSymbols.length = 204 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5775,19 +5813,26 @@ def crossVerdictOk (witnessed : List String)
   reg.all fun e =>
     e.verdict != .unproven || !(witnessed.contains e.routine)
 
-set_option maxRecDepth 40000 in
 /-- A routine with a witnessed row here must not be `.unproven` in
     `Correspondence.registry`. -/
 theorem witnessed_not_unproven :
-    crossVerdictOk routineSymbols Correspondence.registry = true := by decide
+    crossVerdictOk routineSymbols Correspondence.registry = true := by
+  decide +kernel
 
+-- ⚠️ The control below carried NO budget while the theorem it controls carried
+-- `maxRecDepth 40000`. That asymmetry was an accident of the control being
+-- cheaper *today*: `.all` short-circuits at the first violating row and
+-- `"rlp_encode_u64"` is the head of the witnessed list, so `contains` answers
+-- without ever forcing `routineSymbols`. That is a property of the current row
+-- ORDER, not of the check. Running it through the same evaluator as its
+-- theorem removes the coupling.
 /-- Negative control, kernel-checked on every build: `rlp_encode_u64` is a real
     `.unproven` Correspondence row today, so witnessing it here would make the
     check fire. A gate nobody has seen fail is indistinguishable from one that
     cannot. (Was `rlp_item_span` until #11577 lifted that row.) -/
 example :
     crossVerdictOk ("rlp_encode_u64" :: routineSymbols) Correspondence.registry
-      = false := by decide
+      = false := by decide +kernel
 
 /-! ## Witness `abbrev`s
 
