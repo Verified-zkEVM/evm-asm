@@ -642,20 +642,23 @@ private theorem authCode_missing_tsh : authCode TshB = none := by
   intro k hk h_eq
   have hlen : k < 9 := by
     simpa [eip7702AuthorizationSigningHash_prog] using hk
-  have hbase : GuestAddrs.eip7702_authorization_signing_hash % 2^64 =
-      0x800294d0 := by decide
-  have htarget : GuestAddrs.tx_signing_hash % 2^64 = 0x8002bcdc := by decide
+  have hbase : GuestAddrs.eip7702_authorization_signing_hash = 0x800294d0 := by decide
+  have htarget : GuestAddrs.tx_signing_hash = 0x8002bcdc := by decide
   have hoff : 4 * k < 2^64 := by omega
   have haddr :
-      (AuthB + BitVec.ofNat 64 (4 * k)).toNat = 0x800294d0 + 4 * k := by
+      (AuthB + BitVec.ofNat 64 (4 * k)).toNat =
+        GuestAddrs.eip7702_authorization_signing_hash + 4 * k := by
     rw [BitVec.toNat_add]
     simp only [BitVec.toNat_ofNat]
-    rw [Nat.mod_eq_of_lt hoff, hbase]
+    rw [Nat.mod_eq_of_lt hoff,
+      Nat.mod_eq_of_lt (show GuestAddrs.eip7702_authorization_signing_hash < 2 ^ 64 by
+        rw [hbase]; decide)]
     apply Nat.mod_eq_of_lt
     omega
   have hto := congrArg BitVec.toNat h_eq
   simp only [BitVec.toNat_ofNat] at hto
-  rw [haddr, htarget] at hto
+  rw [haddr,
+    Nat.mod_eq_of_lt (show GuestAddrs.tx_signing_hash < 2 ^ 64 by rw [htarget]; decide)] at hto
   omega
 
 def authResidualSampleSp : Word := (0x1000 : Word)
