@@ -244,8 +244,9 @@ bounding the empirical side. ⚠️ That bound is honest but PARTIAL, and the ra
 must NOT be described as shown-unwritten: of 11628 store sites in `.text`, 2785 \
 have a fully constant address (32 of those land in `.data`, all at least 2056 \
 bytes clear of the table range), and 8843 — 76% — are UNCERTIFIED because their \
-base is unresolvable or is an anchor plus an unbounded runtime term. Both \
-artifacts arrive with #13242, open at the time of this audit. What remains on \
+base is unresolvable or is an anchor plus an unbounded runtime term. The gate \
+is wired into `scripts/check-build-parallel.sh`, so the empirical half is \
+enforced rather than recorded. What remains on \
 the machine side is (a) the four side conditions the shipped step still carries, \
 which are about the CODE region the machine fetches from rather than the \
 tables (`hi`, `hbase`, `hover`, `hvalid`), and (b) the handler-side seam. \
