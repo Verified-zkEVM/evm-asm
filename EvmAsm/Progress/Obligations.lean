@@ -195,11 +195,19 @@ loop body its own linker label, rebased `dispatchLoopBody_prog` onto it (the \
 Program had been anchored 348 bytes early, at the loop HEAD, behind the \
 code-size stop guard), and registered it in `guestImageEntries`. There IS now a \
 `CodeReq.ofProg` at its linked entry inside `guestImageCodeReq`, and \
-`guestImage_block_sub` lifts a triple stated over it into the image. What \
-remains is NOT transcription and NOT registration: the dispatch-step lemma \
-wants a triple over that Program plus the handler-side seam, and one iteration \
-of the shipped loop ALSO runs the code-size stop guard, which sits between the \
-head label and the body and is still an unconverted 348-byte span. \
+`guestImage_block_sub` lifts a triple stated over it into the image. ⚠️ PART OF \
+the dispatch step is now PROVED and must not be re-derived: the M30 gas debit \
+(prog idx 6..10 — the compare, the out-of-gas exit branch, the `sub`/`sd`) is a \
+`cpsBranchWithin 5` at the body's linked entry, lifted into `guestImageCodeReq` \
+and rowed in `Progress/Routines.lean` \
+(`Codegen/Proofs/DispatchStepGas.lean`, #13173). What remains is the OPCODE half \
+— the fetch, the two `.data` table loads and the indirect `jalr` into a handler \
+whose address is a loaded value, so the exit PC is not a constant — plus the \
+handler-side seam. And one iteration of the shipped loop ALSO runs the \
+code-size stop guard, which sits between the head label and the body and is \
+still an unconverted 348-byte span; measured, its HOT path is three \
+instructions and the rest is a halt route needing two callee contracts rather \
+than transcription (`dispatch_loop_head_not_covered`). \
 Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "the `execution_requests_hash` hash-half compose is still \
 open. (The validation-accept prefix landed domainRestricted; that work is DONE \

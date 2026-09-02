@@ -317,9 +317,12 @@ theorem dispatchStep_gasDebit_premises_refutable :
     run past `env.codeSize`.  So a head-to-body triple under an in-range premise
     is a THREE-instruction obligation, not a 348-byte one; what is genuinely
     expensive is the halt route, and it is expensive for a reason that is not
-    transcription: it contains a `jal ra, frame_return` call and a
-    `j .Lcreate_deposit_from_halt_1` into the CREATE deposit path, i.e. it needs
-    two callee contracts before it can be a triple at all.  Converting it is
+    transcription: it calls `frame_return` through `ra` and jumps into the
+    CREATE deposit-from-halt path, i.e. it needs two callee contracts before it
+    can be a triple at all.  (Both targets are named in prose only, and
+    deliberately not spelled as call syntax: `scripts/transcription_queue.py`
+    scrapes `jal ra, <sym>` out of any source line, so writing the instruction
+    out here would score a phantom call site and move the queue.)  Converting it is
     therefore a contract problem, and it is NOT named as a blocked-on symbol
     anywhere in `Progress/Obligations.lean` — nobody is blocked on the halt
     route; the in-range path is what a dispatch-step lemma needs. -/
