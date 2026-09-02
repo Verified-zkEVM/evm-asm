@@ -161,6 +161,24 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   (Lean v4.33 heartbeat-exempt unbounded-memory elaboration in
   `retSelCascade_sound_aux`).
 
+### Recent (#13164 — K74 claimed at every live K73 arm, 2026-09-02)
+
+- ✅ `header_validate_base_fee` (K74) was gated on the K73 *increasing* arm
+  only, although the equal, nonzero-decrease and zero-gas routes already had
+  parametric K74 route theorems (`HeaderValidateBaseFeeCompositionEqualDecrease`)
+  and a route-indexed K73 family (`K73RouteFamily`).  What was missing was
+  the closed non-vacuity evidence at the wrapper seam.  New module
+  `HeaderValidateBaseFeeRouteWitness` adds one closed witness per route
+  (`…_equal_route_spec_within_inhabited`, `…_decrease_route_spec_within_inhabited`,
+  `…_zero_decrease_route_spec_within_inhabited`), each instantiating its route
+  theorem at a concrete point under the union code request
+  (wrapper ∪ whole K73 image ∪ u256 equality) with every static gate closed
+  by `decide`/`simp`/`rfl` — classical axioms only.  The K74 row's gate now
+  names all four arms; the three witnesses are registered with the axiom
+  gate.  The routes keep distinct post ambients, so the claim is
+  route-indexed, not a single unconstrained K74 triple.  `0 < target` stays
+  the one genuine input-domain gate (#12951, produced by #13162).
+
 ### Recent (#13161 — regionsweep census to ZERO duplicate pairs, 2026-09-01)
 
 - ✅ Triage of the remaining census: the K73 Route-B pairs had already
