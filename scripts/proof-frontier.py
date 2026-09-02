@@ -100,7 +100,7 @@ def camel_to_snake(name):
     return second.lower().strip("_")
 
 
-def style_snake_of_theorem(thm, known_symbols=None):
+def style_snake_of_theorem(thm, known_symbols=None, reserved_symbols=None):
     """Recover the guest symbol from a spec theorem name by stripping the
     naming-convention suffix, else None.
 
@@ -114,6 +114,19 @@ def style_snake_of_theorem(thm, known_symbols=None):
     `rlp_walk_next`/`rlp_walk_next_core`: an arm of the longer routine must not
     be attributed to its shorter sibling.
 
+    `reserved_symbols` is the CENSUS UNIVERSE, and it is what keeps the prefix
+    recovery from over-correcting (#13218).  `known_symbols` is only the LINKED
+    image (`GuestAddrs.lean`), which is strictly smaller than the universe, so
+    a stem can be a real routine and still be absent from it.  `secf_cmp_p` is
+    the live case: it is a census routine with a genuine whole-routine contract
+    (`secfCmpP_spec`), it is not linked, and its stem has the linked sibling
+    `secf_cmp` as a `_`-boundary prefix.  Without this guard the recovery
+    CANNIBALISES it -- `secf_cmp_p` reads `absent` while holding a contract
+    (the exact false negative #13209 exists to remove) and `secf_cmp` is
+    credited with a contract it does not have.  So: never redirect a stem that
+    is itself a known routine; only genuine arm names (which are in no
+    universe) are eligible for prefix recovery.
+
     Without `known_symbols`, retain the raw suffix-stripped name.  That keeps
     this helper useful for the naming-only self-tests and avoids inventing a
     routine from an unbounded source-name prefix."""
@@ -126,6 +139,11 @@ def style_snake_of_theorem(thm, known_symbols=None):
         return None
     if not known_symbols or stem in known_symbols:
         return stem
+    # The stem names a real routine -- it is not an arm.  Leave it alone.
+    if reserved_symbols and stem in reserved_symbols:
+        return stem
+    # `sym + "_"` and not `sym`: the boundary is load-bearing.  Without it
+    # `secf_cmpx` would be captured by the unrelated linked routine `secf_cmp`.
     candidates = [sym for sym in known_symbols if stem.startswith(sym + "_")]
     return max(candidates, key=len) if candidates else stem
 
@@ -161,7 +179,7 @@ def linked_symbols(text):
     return set(GUEST_ADDRS_RE.findall(text))
 
 
-def spec_bearing_syms(known_symbols=None):
+def spec_bearing_syms(known_symbols=None, reserved_symbols=None):
     """symbol -> set of (relative file, theorem) for spec theorems in EvmAsm/
     sources (excluding the Progress/ registry dir itself).  This is the
     'present' signal for the three-state classifier -- NOT the registry, NOT
@@ -172,9 +190,19 @@ def spec_bearing_syms(known_symbols=None):
     runs.  If omitted, it is read from `GuestAddrs.lean`; the fixed behavior
     therefore cannot be lost by a caller reverting to the old zero-argument
     call.  The raw name remains the fallback for declarations with no linked
-    prefix; those are not silently attached to an unrelated routine."""
+    prefix; those are not silently attached to an unrelated routine.
+
+    `reserved_symbols` is the census universe, which bounds that recovery so it
+    cannot cannibalise a real routine whose name merely extends a linked
+    sibling (#13218).  It self-defaults for the same reason `known_symbols`
+    does: a caller dropping the argument must not silently re-enable the
+    over-correction."""
     if known_symbols is None:
         known_symbols = linked_symbols(GUEST_ADDRS.read_text(errors="replace"))
+    if reserved_symbols is None:
+        rows = parse_routines(ROUTINES.read_text(errors="replace"))
+        reserved_symbols = (manifest_symbols() | rowed_symbols(rows)
+                            | correspondence_symbols(CORR.read_text(errors="replace")))
     found = {}
     for path in sorted(REPO.glob("EvmAsm/**/*.lean")):
         if "EvmAsm/Progress/" in str(path):
@@ -184,7 +212,7 @@ def spec_bearing_syms(known_symbols=None):
             continue
         rel = path.relative_to(REPO)
         for m in SPEC_RE.finditer(txt):
-            sym = style_snake_of_theorem(m.group(1), known_symbols)
+            sym = style_snake_of_theorem(m.group(1), known_symbols, reserved_symbols)
             if sym:
                 found.setdefault(sym, set()).add((str(rel), m.group(1)))
     return found
@@ -607,8 +635,10 @@ def main():
     witnessed = witnessed_symbols(rows)
     corr = correspondence_symbols(CORR.read_text(errors="replace"))
     links = linked_symbols(GUEST_ADDRS.read_text(errors="replace"))
-    spec = spec_bearing_syms(links)
     fixtures = manifest_symbols()
+    # The universe must be built BEFORE the spec scan: it is what stops the
+    # arm-prefix recovery from reassigning a real routine's contract (#13218).
+    spec = spec_bearing_syms(links, fixtures | rowed | corr)
     edges = fixture_edges()
 
     universe = sorted(fixtures | rowed | corr)
@@ -775,6 +805,29 @@ def run_self_test():
         "callFrameEnterDepth1Flat_spec", {"call_frame_exit"})
           == "call_frame_enter_depth1",
           "an unrelated linked prefix must not capture an arm")
+    # 2b. OVER-CORRECTION CONTROLS for the arm recovery (#13218).  The recovery
+    # exists to rescue arm names; it must never take a contract AWAY from a
+    # routine that really exists.  Both controls below are live regressions
+    # that the #13214 self-test admitted:
+    #
+    #   (a) the census universe outranks the linked image.  `secf_cmp_p` is a
+    #       real routine with a real contract (`secfCmpP_spec`) that is NOT in
+    #       GuestAddrs, and `secf_cmp` IS.  Recovery must not reassign it.
+    check(style_snake_of_theorem(
+        "secfCmpP_spec", {"secf_cmp"}, {"secf_cmp_p"}) == "secf_cmp_p",
+          "a stem that is itself a census routine must not be reassigned "
+          "to a shorter linked sibling")
+    #       ...and the guard must be a guard, not a blanket disable: an arm
+    #       name is in no universe, so recovery still applies next to it.
+    check(style_snake_of_theorem(
+        "callFrameEnterDepth1Flat_spec", {"call_frame_enter"},
+        {"secf_cmp_p", "call_frame_enter"}) == "call_frame_enter",
+          "the reserved-symbol guard must not disable genuine arm recovery")
+    #   (b) the `_` boundary is load-bearing.  Matching a bare prefix would let
+    #       `secf_cmp` swallow the unrelated `secf_cmpx`.
+    check(style_snake_of_theorem("secfCmpx_spec", {"secf_cmp"}) == "secf_cmpx",
+          "prefix recovery must respect the '_' boundary, not match a bare "
+          "string prefix")
 
     # 3. three-state classifier plants one case per state.
     # synthetic_absent: no theorem, no row -> absent
