@@ -50,7 +50,9 @@ def leafHpCallFrame (newSp : Word) (ws : WalkSaved)
   walkSavedFrame newSp ws **
   (.x23 ↦ᵣ nodeBase) **
   (MwPathOff ↦ₘ pathOff) ** (MwPathLen ↦ₘ pathLen) **
-  stackFree newSp 8
+  -- hp_decode_nibbles owns the six shallow cells newSp-48..newSp-8;
+  -- retain only the two deeper caller cells newSp-64 and newSp-56.
+  stackFree (newSp + signExtend12 (-48 : BitVec 12)) 2
 
 theorem leafHpCallFrame_pcFree (newSp : Word) (ws : WalkSaved)
     (nodeBase pathOff pathLen : Word) :
