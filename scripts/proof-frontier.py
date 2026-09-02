@@ -100,15 +100,34 @@ def camel_to_snake(name):
     return second.lower().strip("_")
 
 
-def style_snake_of_theorem(thm):
+def style_snake_of_theorem(thm, known_symbols=None):
     """Recover the guest symbol from a spec theorem name by stripping the
-    naming-convention suffix, else None. Multi-row symbols like rlp_walk_next
-    use account-specialised names (account_rlp_walk_next_field0_spec_within);
-    strip the suffix, do NOT prefix-match a census symbol."""
+    naming-convention suffix, else None.
+
+    The optional linked-symbol set handles contracts whose theorem name also
+    names the arm being proved.  For example, the linked routine is
+    `call_frame_enter`, while its depth-1 contract is
+    `callFrameEnterDepth1Flat_spec`; the raw suffix strip yields
+    `call_frame_enter_depth1`, which is not a guest symbol.  When no exact
+    symbol exists, recover the longest `_`-boundary prefix from the linked
+    image.  Longest-first matters for families such as
+    `rlp_walk_next`/`rlp_walk_next_core`: an arm of the longer routine must not
+    be attributed to its shorter sibling.
+
+    Without `known_symbols`, retain the raw suffix-stripped name.  That keeps
+    this helper useful for the naming-only self-tests and avoids inventing a
+    routine from an unbounded source-name prefix."""
+    stem = None
     for suffix in SPEC_SUFFIXES:
         if thm.endswith(suffix):
-            return camel_to_snake(thm[: -len(suffix)])
-    return None
+            stem = camel_to_snake(thm[: -len(suffix)])
+            break
+    if stem is None:
+        return None
+    if not known_symbols or stem in known_symbols:
+        return stem
+    candidates = [sym for sym in known_symbols if stem.startswith(sym + "_")]
+    return max(candidates, key=len) if candidates else stem
 
 
 def parse_routines(text):
@@ -142,11 +161,20 @@ def linked_symbols(text):
     return set(GUEST_ADDRS_RE.findall(text))
 
 
-def spec_bearing_syms():
+def spec_bearing_syms(known_symbols=None):
     """symbol -> set of (relative file, theorem) for spec theorems in EvmAsm/
     sources (excluding the Progress/ registry dir itself).  This is the
     'present' signal for the three-state classifier -- NOT the registry, NOT
-    AxiomWitnesses (both are downstream of the rows)."""
+    AxiomWitnesses (both are downstream of the rows).
+
+    `known_symbols` is supplied by the caller so arm-qualified contracts are
+    attributed to their enclosing image routine before the three-state census
+    runs.  If omitted, it is read from `GuestAddrs.lean`; the fixed behavior
+    therefore cannot be lost by a caller reverting to the old zero-argument
+    call.  The raw name remains the fallback for declarations with no linked
+    prefix; those are not silently attached to an unrelated routine."""
+    if known_symbols is None:
+        known_symbols = linked_symbols(GUEST_ADDRS.read_text(errors="replace"))
     found = {}
     for path in sorted(REPO.glob("EvmAsm/**/*.lean")):
         if "EvmAsm/Progress/" in str(path):
@@ -156,7 +184,7 @@ def spec_bearing_syms():
             continue
         rel = path.relative_to(REPO)
         for m in SPEC_RE.finditer(txt):
-            sym = style_snake_of_theorem(m.group(1))
+            sym = style_snake_of_theorem(m.group(1), known_symbols)
             if sym:
                 found.setdefault(sym, set()).add((str(rel), m.group(1)))
     return found
@@ -578,8 +606,8 @@ def main():
     rowed = rowed_symbols(rows)
     witnessed = witnessed_symbols(rows)
     corr = correspondence_symbols(CORR.read_text(errors="replace"))
-    spec = spec_bearing_syms()
     links = linked_symbols(GUEST_ADDRS.read_text(errors="replace"))
+    spec = spec_bearing_syms(links)
     fixtures = manifest_symbols()
     edges = fixture_edges()
 
@@ -714,6 +742,7 @@ def run_self_test():
         "bgvU32leFlat_spec",
         "bahU32leFn_spec",
         "rlpListNthItem_spec",
+        "callFrameEnterDepth1Flat_spec",
     }
     ok = all(SPEC_RE.search(f"theorem {t} : True := by trivial") for t in synthetic_theorems)
     check(ok, "SPEC_RE misses one of the naming conventions")
@@ -732,6 +761,20 @@ def run_self_test():
           "suffix strip _spec_within")
     check(style_snake_of_theorem("inspection_helper") is None,
           "non-spec theorem should not map to a symbol")
+    # An arm-qualified contract must be attributed to its enclosing linked
+    # routine.  Keep a longer-prefix control: when both names exist, the most
+    # specific linked routine wins rather than its shorter sibling.
+    check(style_snake_of_theorem(
+        "callFrameEnterDepth1Flat_spec", {"call_frame_enter"}) == "call_frame_enter",
+          "arm-qualified contract must recover its enclosing linked routine")
+    check(style_snake_of_theorem(
+        "RlpWalkNextCoreProduction_spec_within",
+        {"rlp_walk_next", "rlp_walk_next_core"}) == "rlp_walk_next_core",
+          "arm recovery must choose the longest linked prefix")
+    check(style_snake_of_theorem(
+        "callFrameEnterDepth1Flat_spec", {"call_frame_exit"})
+          == "call_frame_enter_depth1",
+          "an unrelated linked prefix must not capture an arm")
 
     # 3. three-state classifier plants one case per state.
     # synthetic_absent: no theorem, no row -> absent
@@ -823,6 +866,23 @@ def run_self_test():
                 "cpsTripleWithin 5 base r (CodeReq.ofProg base p) P Q")
           == "whole-routine", "a hypothesis-pinned entry must resolve")
 
+    # The arm mapping must feed the same shape oracle as an ordinary theorem,
+    # not merely change the state bucket.  This is the concrete regression case
+    # from #13209: a depth-qualified whole-routine contract at the linked
+    # call_frame_enter entry is still graded whole-routine.
+    arm_thm = "callFrameEnterDepth1Flat_spec"
+    arm_statement = (
+        "theorem " + arm_thm + " (r : Word) : cpsTripleWithin 5 "
+        "(GuestAddrs.call_frame_enter : Word) r "
+        "(CodeReq.ofProg (GuestAddrs.call_frame_enter : Word) p) P Q := by trivial\n")
+    arm_sym = style_snake_of_theorem(arm_thm, {"call_frame_enter"})
+    arm_spec = {arm_sym: {("EvmAsm/Synthetic.lean", arm_thm)}}
+    check(shape_of_symbol(
+        "call_frame_enter", arm_spec,
+        {"EvmAsm/Synthetic.lean": arm_statement}, {}, set())[0]
+          == "whole-routine",
+          "arm-qualified whole-routine contract must retain its image shape")
+
     # 7. dot notation must not change the grade (#13196).  `wCr.union e` is
     # Lean's generalised field notation for `CodeReq.union wCr e` -- the SAME
     # term.  The resolver used to discard any token containing a '.', so it
@@ -889,7 +949,8 @@ def run_self_test():
             print(f"SELF-TEST FAIL: {p}")
         sys.exit(1)
     print("self-test PASS: naming conventions (fnspec/Fn_spec/Flat_spec/"
-          "_spec_within/_spec) recognised, all three states recognised, "
+          "_spec_within/_spec) recognised, arm-linked prefixes resolved, "
+          "all three states recognised, "
           "tail-call form recognised, startable closure recognised, "
           "all five statement shapes recognised (incl. the structured-only "
           "class and file-local shadowing).")
