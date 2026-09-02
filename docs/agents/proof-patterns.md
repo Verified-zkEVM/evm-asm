@@ -691,3 +691,29 @@ Avoid broad pure-extraction tactics on the whole post if they expand the folded 
   ```
 
   Keep `EvmAsm.Rv64.pure` qualified in the unfold so Lean does not choose an unrelated `pure`, and keep the target folded until the final local rewrite. Tracking issue: https://github.com/Verified-zkEVM/evm-asm/issues/7174.
+
+## The Standalone-Atom Rule for Threading a Frame Bundle Through Sequential Arms
+
+(Recorded from the `validate_header` status-dispatch compositions — issue #12346. When chaining single-instruction arms or callee dispatch sites with `cpsTripleWithin_frameR` / `cpsNBranchWithin_frameR`, the residual assertion threaded as the "frame" has a precise constraint on what it may contain.)
+
+### The rule
+
+Any atom an arm's spec states in its pre or post — the registers it pins to values (`regIs`, e.g. `.x18 ↦ headerBase`) and the memory cells it reads or writes (`memIs`, e.g. `(headerBase + 88) ↦ gasUsed`) — **must appear standalone** in the assertion threaded through the chain, either as the arm's own atoms or as explicit conjuncts beside the frame bundle. Atoms the arm never names may ride inside the bundle.
+
+Two reasons an arm atom cannot ride in an opaque bundle passed to `cpsTripleWithin_frameR`:
+
+- the residual `R` must be disjoint from the spec's own atoms, so a bundle containing a duplicate of an arm atom makes the residual overlap it (unsatisfiable);
+- `xperm` matches atoms syntactically, so an atom hidden inside a folded bundle can never be matched to the arm's standalone atom even when they are definitionally equal (e.g. a bundle's `.x18 ↦ o18` with `o18 := headerBase` instantiated is still not the arm's `.x18 ↦ headerBase`).
+
+### Evidence
+
+- **Positive (bundle with non-arm atoms rides fine)**: `frameAmb`, `cglFrame`, `memF` all threaded through arms they never name.
+- **Negative (bundle containing an arm atom fails)**: threading `callerFrame` (which bundles `x18`/`x19`) opaquely through the gas-check arms failed with `unsolved goals` at the `frameR` sites and `xperm: could not find atom`; splitting it into `cglFrame := callerFrame minus x18/x19` plus standalone `x18`/`x19`/mem atoms fixed it.
+
+### Procedure
+
+Read the arm's spec, list the atoms it names in pre and post, and take exactly those out of the bundle as standalone conjuncts. Everything the arm never names stays bundled. This predicts rather than describes: it is a mechanical criterion, not a per-case fix.
+
+### Generalisation
+
+This explains why different callee arms need different ambient frames (e.g. the K74 route arms, where equal/zero keep a flat frame but increase/decrease expose the caller-side accumulator): an arm that pins the accumulator in its post needs that atom standalone, while arms that never touch it can leave it bundled. The rule is about *which* atoms, not whether bundling is allowed at all.

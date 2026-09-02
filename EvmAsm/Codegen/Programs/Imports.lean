@@ -481,6 +481,7 @@ import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody8Spec
 import EvmAsm.Codegen.Programs.AmsterdamBlobGasPriceBody2Spec
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
 import EvmAsm.Codegen.Programs.ValidateHeaderExcessBlobDispatch
+import EvmAsm.Codegen.Programs.ExtraDataHslackRefutation
 import EvmAsm.Codegen.Programs.ValidateHeaderCompose
 import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
 import EvmAsm.Codegen.Programs.ValidateHeaderWhole
@@ -688,6 +689,7 @@ import EvmAsm.Codegen.Programs.RlpContentToU256BeCallSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthCallWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCallWitness
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleSpec
