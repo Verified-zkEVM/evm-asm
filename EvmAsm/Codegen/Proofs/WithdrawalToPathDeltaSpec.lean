@@ -610,44 +610,52 @@ theorem wtpdDecodeFailStep
 
     and the obstruction is in `seqFrame`/`xperm`, not in the routine (#13207).
 
-    `xperm_hyp h` expands to `exact (congrFun (show _ = _ by xperm) _).mp h`
-    (`riscv-zkvm/…/Tactics/XSimp.lean:34`), and `xperm` has to *find* the
-    permutation relating the two `**` chains.  On this routine the footprint is
-    **36 atoms** — `withdrawal_decode`'s precondition is large (a 12-cell scratch
-    stack, four save slots, fourteen registers, seven `regOwn`s, the input
-    region, five output-struct pieces and four RLP data cells) — and beyond some
-    distance `xperm` gives up.
+    ⚠️ **This section previously named the wrong mechanism.**  It read the
+    failure as a permutation-*distance* limit — "beyond some distance `xperm`
+    gives up, silently, by emitting `sorryAx`".  #13207 measured both halves of
+    that and both are wrong; the corrected account is below, and the
+    distance claim in particular should not be propagated.
 
-    ⛔ **It gives up SILENTLY, by emitting `sorryAx`, not by reporting an error.**
-    That is the trap worth recording.  The visible symptom is a cascade of
-    "don't know how to synthesize placeholder" attributed to *every* `have` in
-    the tactic block, with the main goal shown; there is no message naming
-    `xperm`, and `#print axioms` is the only thing that tells the truth.
-    `seqFrame` inherits the same behaviour: its `assignOrPermuteWithin` path
-    (`riscv-zkvm/…/Tactics/SeqFrame.lean:1012`) calls `replaceMainGoal []` on
-    success, so a permutation that "succeeds" with a sorry inside leaves an
-    empty goal list and a tainted proof, and a following tactic reports
-    "No goals to be solved" rather than anything diagnostic.
+    **Distance is not a limit.**  `xperm` proves a full reversal and a shuffle
+    of a 36-atom `**` chain, in ~1s each and with the classical three only;
+    those are now standing tests
+    (`riscv-zkvm/…/Tactics/XPermTests.lean`).  Writing assertions "in their
+    source order" buys nothing, and a permutation goal that fails does so
+    because the *atoms* differ, not because they are far apart.
 
-    Distance, not size, is what matters: `wtpdDecodeFailStep` above performs
-    **two** 36-atom permutations and is clean (classical-3 only), because both
-    were deliberately written near-identity — the precondition in
-    `withdrawal_decode_spec_within`'s own order with only the link register
-    hoisted, the postcondition as `wdCommon ;; wdScratch ;; cells` flattened in
-    place.  The four-way assembly cannot be arranged that way: segment A's
-    postcondition order is fixed by the prologue's instruction order and does
-    not align with the callee's precondition order, so `seqFrame` is asked for a
-    genuinely long permutation.
+    **`xperm` did not emit `sorryAx`.**  What it did was worse and narrower: it
+    matched atoms with `isDefEq`, which may make its two arguments equal by
+    *assigning* a metavariable.  Handed a goal `?A = ?B` — as
+    `xperm_hyp h` produces, since it expands to
+    `exact (congrFun (show _ = _ by xperm) _).mp h`
+    (`riscv-zkvm/…/Tactics/XSimp.lean:34`) and leaves both sides to the unifier
+    — the AC route reached its "≤ 1 atom" case, called `isDefEq ?A ?B`, got
+    `true` by assigning `?A := ?B`, and returned `Eq.refl ?B`.  The tactic
+    reported success having *identified the two chains* rather than permuted
+    anything.  The `sorryAx` came afterwards, from ordinary elaboration error
+    recovery: the merged, still-unassigned metavariable surfaced at the end of
+    the declaration as "don't know how to synthesize placeholder" against
+    unrelated syntax, and Lean admitted the declaration.  Hence the cascade
+    with nothing naming `xperm` in it, and hence `#print axioms` being the only
+    honest witness.  `seqFrame` inherited it through `mkPermLambda`: the
+    vacuous permutation let `assignOrPermuteWithin` succeed, `replaceMainGoal
+    []` emptied the goal list, and the next tactic reported "No goals to be
+    solved" while the `logWarning` escape hatch never fired.
 
-    Closing the row therefore needs one of:
+    ⇒ **Fixed upstream**: `checkPermOperands` rejects a metavariable-headed
+    atom with an error that names `xperm` and prints both chains, on every
+    route.  The guard is narrow — an `?A` that occurs as an atom of *both*
+    sides still permutes — so it can only refuse searches that were already
+    meaningless.  Any future recurrence of this shape is now an ordinary,
+    correctly-attributed tactic failure.
 
-      * an `xperm` that is complete (or that fails loudly) on ~40 atoms; or
-      * a `seqFrame` variant that takes the atom correspondence explicitly; or
-      * bundling `withdrawal_decode`'s precondition behind a single opaque
-        `def` (as `wtpdFailCells` already does for its postcondition), which
-        would cut the visible atom count at the seam from 36 to about 10.
-
-    The third is the cheapest and is what the next attempt should do. -/
+    What that does *not* settle is why the four-way assembly here does not
+    compose; it settles only that the diagnosis above was not it.  Re-attempt
+    the assembly against the fixed tactic and read the error it now gives.  The
+    cheap structural move remains worth doing first: bundle
+    `withdrawal_decode`'s precondition behind a single opaque `def` (as
+    `wtpdFailCells` already does for its postcondition), cutting the visible
+    atom count at the seam from 36 to about 10. -/
 
 /-! ## Non-vacuity of the gate
 
