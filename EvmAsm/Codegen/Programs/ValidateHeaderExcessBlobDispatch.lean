@@ -646,4 +646,109 @@ theorem baseFeeDispatch_spec
       simp [baseCalleePost, sepConj_emp_right'] at hq ⊢
       xperm_hyp hq) s9
 
+/-!
+## Timestamp and number-succ checks (H + 140 → H + 168)
+
+The fourth dispatch increment (callee-free): after the base-fee JAL returns
+status 0 at H + 140, the core checks that the header timestamp is strictly
+after the parent's (BGEU ntaken at H + 148) and that the header number is
+exactly parent + 1 (BNE ntaken at H + 164).  All seven arms are single
+instructions over `callerCode`, so this composition is pure framing — no code
+union needed.
+
+Registers on entry (from the base-fee dispatch post): `x18 ↦ thisStruct`,
+`x19 ↦ parentStructPtr`, `x10 ↦ 0` (status), the four struct dwords
+`(thisStruct+64/72)` and `(parentStructPtr+64/72)` read by the loads, and the
+caller frame residual `tsNumFrameRes`.
+
+Establishes (post): `x5 ↦ this.number`, `x6 ↦ parent.number + 1`, all four
+struct dwords intact, `x10 ↦ 0`.  Gates (static, caller-supplied):
+`h_lt : BitVec.ult parentTs headerTs` (timestamp strictly increasing),
+`heq : headerNum = parentNum + 1` (number successor).
+-/
+
+abbrev tsNumFrameRes (spC : Word) (vals : Reg → Word) (oldRa : Word)
+    (F : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spC) ** (.x1 ↦ᵣ oldRa) ** (.x10 ↦ᵣ (0 : Word)) **
+  (.x8 ↦ᵣ vals .x8) ** (.x9 ↦ᵣ vals .x9) **
+  (.x20 ↦ᵣ vals .x20) ** (.x21 ↦ᵣ vals .x21) **
+  regOwns [.x7, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** F
+
+abbrev tsNumDispatchPre (spC thisStruct parentStructPtr : Word) (vals : Reg → Word)
+    (o5 o6 headerTs parentTs headerNum parentNum oldRa : Word) (F : Assertion) : Assertion :=
+  (.x18 ↦ᵣ thisStruct) ** (.x5 ↦ᵣ o5) ** ((thisStruct + 72) ↦ₘ headerTs) **
+  (.x19 ↦ᵣ parentStructPtr) ** (.x6 ↦ᵣ o6) ** ((parentStructPtr + 72) ↦ₘ parentTs) **
+  ((thisStruct + 64) ↦ₘ headerNum) ** ((parentStructPtr + 64) ↦ₘ parentNum) **
+  tsNumFrameRes spC vals oldRa F
+
+abbrev tsNumDispatchPost (spC thisStruct parentStructPtr : Word) (vals : Reg → Word)
+    (headerTs parentTs headerNum parentNum oldRa : Word) (F : Assertion) : Assertion :=
+  (.x18 ↦ᵣ thisStruct) ** (.x5 ↦ᵣ headerNum) ** ((thisStruct + 72) ↦ₘ headerTs) **
+  (.x19 ↦ᵣ parentStructPtr) ** (.x6 ↦ᵣ (parentNum + 1)) ** ((parentStructPtr + 72) ↦ₘ parentTs) **
+  ((thisStruct + 64) ↦ₘ headerNum) ** ((parentStructPtr + 64) ↦ₘ parentNum) **
+  tsNumFrameRes spC vals oldRa F
+
+set_option maxRecDepth 8000 in
+theorem tsNumDispatch_spec
+    (spC thisStruct parentStructPtr : Word) (vals : Reg → Word)
+    (o5 o6 headerTs parentTs headerNum parentNum oldRa : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_lt : BitVec.ult parentTs headerTs)
+    (heq : headerNum = parentNum + 1) :
+    cpsTripleWithin (1 + 1 + 1 + 1 + 1 + 1 + 1) (H + 140) (H + 168) callerCode
+      (tsNumDispatchPre spC thisStruct parentStructPtr vals
+        o5 o6 headerTs parentTs headerNum parentNum oldRa F)
+      (tsNumDispatchPost spC thisStruct parentStructPtr vals
+        headerTs parentTs headerNum parentNum oldRa F) := by
+  let frameRes : Assertion := tsNumFrameRes spC vals oldRa F
+  have h1 := ldHeaderTimestamp thisStruct o5 headerTs
+  have h1F := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ parentStructPtr) ** (.x6 ↦ᵣ o6) ** ((parentStructPtr + 72) ↦ₘ parentTs) **
+      ((thisStruct + 64) ↦ₘ headerNum) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h1
+  have h2 := ldParentTimestamp parentStructPtr o6 parentTs
+  have h2F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisStruct) ** (.x5 ↦ᵣ headerTs) ** ((thisStruct + 72) ↦ₘ headerTs) **
+      ((thisStruct + 64) ↦ₘ headerNum) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h2
+  have h3 := timestampNotIncreasing_ntaken parentTs headerTs h_lt
+  have h3F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisStruct) ** ((thisStruct + 72) ↦ₘ headerTs) **
+      (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 72) ↦ₘ parentTs) **
+      ((thisStruct + 64) ↦ₘ headerNum) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h3
+  have h4 := ldHeaderNumber6 thisStruct headerTs headerNum
+  have h4F := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ parentStructPtr) ** (.x6 ↦ᵣ parentTs) ** ((parentStructPtr + 72) ↦ₘ parentTs) **
+      ((thisStruct + 72) ↦ₘ headerTs) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h4
+  have h5 := ldParentNumber6 parentStructPtr parentTs parentNum
+  have h5F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisStruct) ** (.x5 ↦ᵣ headerNum) ** ((thisStruct + 64) ↦ₘ headerNum) **
+      ((thisStruct + 72) ↦ₘ headerTs) ** ((parentStructPtr + 72) ↦ₘ parentTs) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h5
+  have h6 := addiParentSucc parentNum
+  have h6F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisStruct) ** (.x5 ↦ᵣ headerNum) ** ((thisStruct + 64) ↦ₘ headerNum) **
+      ((thisStruct + 72) ↦ₘ headerTs) ** (.x19 ↦ᵣ parentStructPtr) **
+      ((parentStructPtr + 72) ↦ₘ parentTs) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h6
+  have h7 := numberNotSucc_ntaken headerNum (parentNum + 1) heq
+  have h7F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisStruct) ** ((thisStruct + 64) ↦ₘ headerNum) **
+      ((thisStruct + 72) ↦ₘ headerTs) ** (.x19 ↦ᵣ parentStructPtr) **
+      ((parentStructPtr + 72) ↦ₘ parentTs) ** ((parentStructPtr + 64) ↦ₘ parentNum) ** frameRes)
+    (by dsimp [frameRes, tsNumFrameRes]; pcf; exact hF) h7
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1F h2F
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s12 h3F
+  have s1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s123 h4F
+  have s12345 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1234 h5F
+  have s123456 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s12345 h6F
+  have s1234567 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s123456 h7F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp [tsNumDispatchPre, frameRes, tsNumFrameRes] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by dsimp [tsNumDispatchPost, frameRes, tsNumFrameRes] at hq ⊢; xperm_hyp hq)
+    s1234567
+
 end EvmAsm.Codegen.ValidateHeaderInlineArms
