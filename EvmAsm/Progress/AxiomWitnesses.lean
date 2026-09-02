@@ -328,6 +328,28 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
 
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_image
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_refutable
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_satisfiable
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_fetch_within
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_image
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_instance
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_premises_refutable
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatch_ra_is_resume
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.opcode_table_contents_not_scratch_determined
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.opcode_tables_adjacent
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.regs_not_exposed_here
+
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
 #print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight
