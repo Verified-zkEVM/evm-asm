@@ -402,10 +402,21 @@ theorem guestDataImage_controls :
 
 section ResiduePreservation
 
--- The three table-indexed proofs below unfold `opcodeGasCostEntries` /
--- `opcodeHandlerEntries` (256-element `List.range` maps) while discharging
--- their index bounds; the default 512 frames do not survive that.
+-- Instantiating `bytesRegion_mem_dword` at `tableBytes <a 256-entry table>`
+-- makes the elaborator reduce `List.length` through a 256-way `flatMap`, and
+-- `guestDataScratch_strictly_stronger` additionally reduces a `getElem` at a
+-- concrete index; neither survives the default 512 frames.  Measured, not
+-- guessed: 8000 still fails, 40000 carries everything but the strictness
+-- proof, which carries its own `set_option` below.
 set_option maxRecDepth 40000
+
+/-! The four heap-lookup helpers below are general separation-logic facts, not
+    `.data` facts.  They live here rather than in `EvmAsm/Rv64/SepLogic.lean`
+    because that module is a GENERATED shim over `riscv-zkvm`
+    (`scripts/gen-rv64-shims.py`, `--check`-gated), so it cannot host new
+    lemmas.  `HashBridgeKeccakEnvelope` needed the same reasoning and kept a
+    private three-dword special case; if a third caller appears, these are what
+    it should reuse. -/
 
 /-- Left-biased union: a dword the LEFT heap owns survives the merge. -/
 theorem mem_union_left {h₁ h₂ : PartialState} {a v : Word}
