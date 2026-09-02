@@ -33,6 +33,7 @@
 
 import EvmAsm.Rv64.CodeReqExtents
 import EvmAsm.Rv64.MemSat
+import EvmAsm.Codegen.Proofs.GuestDataImage
 import EvmAsm.Codegen.Proofs.GuestImageEntries
 import EvmAsm.Codegen.RegionMap
 import EvmAsm.Codegen.RegionMapLinkPins
@@ -177,6 +178,24 @@ theorem dispatchLoop_head_not_pinned_to_body :
 def regionScratch (r : RegionMap.GuestRegion) : Assertion :=
   anyBytes (BitVec.ofNat 64 r.base) r.size
 
+/-- **The `.data` tile, with the shipped dispatch tables PINNED** (GH #13229).
+
+    Every other writable tile is `regionScratch`, i.e. `anyBytes` — ownership
+    with contents forgotten.  `.data` is different because it is PROGBITS: the
+    loader copies its bytes in before `_start`, exactly as it does for `.text`,
+    which `guestImageCodeReq` already pins.  Havocking it was not conservative,
+    it was unfaithful in the one direction that makes the dispatch step
+    unprovable — `DispatchStepOpcode.opcode_table_contents_not_scratch_determined`
+    is the theorem that no `↦ₘ` atom about the tables follows from `anyBytes`.
+
+    Only the two dispatch tables are pinned; the rest of the tile stays havoc'd,
+    because Lean does not have the bytes of the other ~260 `.data` symbols and
+    at least one of them (`secc_point_tmp`) is written at runtime.
+    `Proofs.GuestDataImage.guestDataScratch_weakens` is the discharge obligation
+    for the swap: the pinned bundle ENTAILS the `anyBytes` tile it replaces, so
+    nothing that only wanted ownership of `.data` can be broken by it. -/
+abbrev regionScratchData : Assertion := Proofs.GuestDataImage.guestDataScratch
+
 /-- The guest's working-state ownership at entry: the **eight** writable
     (`zone = .ram`) regions of the emitted-reality map, ascending —
     `zisk_system ** OUTPUT ** guest_stack ** state_tracker_live **
@@ -195,7 +214,7 @@ def guestScratch : Assertion :=
   regionScratch RegionMap.outputRegion **
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
-  regionScratch RegionMap.dataRegion **
+  regionScratchData **
   regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.stateGasDiagRegion **
   regionScratch RegionMap.sszScratchRegion
@@ -232,20 +251,14 @@ theorem guestScratch_matches_regionMap :
     `[0xa0000000, 0xc0000000)`; all footprints ascend, so the `MemSat`
     combinators chain them. -/
 
+-- GH #13229: the zone argument now lives once, in `Proofs/GuestDataImage.lean`,
+-- because the pinned `.data` tile needs the `bytesRegion` case of it as well as
+-- the `anyBytes` case.  This is the wrapper, not a second copy.
 private theorem satWithin_ramRegion (b n : Nat)
     (hb : 0xa0000000 ≤ b) (he : b + n ≤ 0xc0000000)
     (halign : b % 8 = 0) (hn : n % 8 = 0) :
-    (anyBytes (BitVec.ofNat 64 b) n).SatWithin b (b + n) := by
-  have hbase : (BitVec.ofNat 64 b).toNat = b := by
-    rw [BitVec.toNat_ofNat]; exact Nat.mod_eq_of_lt (by omega)
-  have hcount : 8 * ((n + 7) / 8) = n := by omega
-  have h := satWithin_anyBytes (BitVec.ofNat 64 b) n (fun k hk => by
-    have hlt : (BitVec.ofNat 64 b).toNat + 8 * k < 2 ^ 64 := by omega
-    apply isValidDwordAccess_of_toNat
-    · rw [toNat_add_ofNat_of_le hlt, hbase]; omega
-    · rw [toNat_add_ofNat_of_le hlt, hbase]; right; right; omega)
-  rw [hbase, hcount] at h
-  exact h
+    (anyBytes (BitVec.ofNat 64 b) n).SatWithin b (b + n) :=
+  Proofs.GuestDataImage.satWithin_ramAny b n hb he halign hn
 
 private theorem satWithin_inputLen (input : SpecRef.Bytes) :
     (bytesRegion (INPUT_ADDR + INPUT_LEN_OFFSET)
@@ -315,18 +328,21 @@ theorem guestScratch_sat : ∀ input : SpecRef.Bytes,
       (by omega) (by omega)
   -- Link pins are `abbrev` from RegionMapLinkPins (#11230). Use `decide` (not
   -- omega) so inequalities reduce through abbrevs; no hand-typed end/size hex.
-  have t6 : (regionScratch RegionMap.dataRegion).SatWithin
-      0xa0b00000 (0xa0b00000 + RegionMap.dataSizeBytes) := by
-    dsimp [regionScratch, RegionMap.dataRegion, RegionMap.dataSizeBytes,
-      RegionMapLinkPins.dataSizeBytes]
-    apply satWithin_ramRegion <;> decide
+  -- GH #13229: the `.data` tile is PINNED, so its witness is the shipped table
+  -- bytes rather than all-zeroes.  The bounds are unchanged — `satWithin`'s
+  -- obligation depends only on the LENGTH, which the pin does not move.
+  have t6 : regionScratchData.SatWithin
+      RegionMap.dataRegion.base
+      (RegionMap.dataRegion.base + RegionMap.dataRegion.size) :=
+    Proofs.GuestDataImage.guestDataScratch_satWithin
   have t7 : (regionScratch RegionMap.bssRegion).SatWithin
       0xa0b70000 (0xa0b70000 + RegionMap.bssSizeBytes) := by
     dsimp [regionScratch, RegionMap.bssRegion, RegionMap.bssSizeBytes,
       RegionMapLinkPins.bssSizeBytes]
     apply satWithin_ramRegion <;> decide
   have t7' : (regionScratch RegionMap.bssRegion).SatWithin
-      (0xa0b00000 + RegionMap.dataSizeBytes) (0xa0b70000 + RegionMap.bssSizeBytes) :=
+      (RegionMap.dataRegion.base + RegionMap.dataRegion.size)
+      (0xa0b70000 + RegionMap.bssSizeBytes) :=
     t7.mono (by decide) (le_refl _)
   -- GH #11186: `.state_gas_diag` is linker-placed immediately after `.bss`, so
   -- its base IS `t7`'s upper bound, and this join needs no `mono` widening —
@@ -428,13 +444,20 @@ private theorem guestInput_regFree (input : SpecRef.Bytes) (r : Reg) :
   exact sepConj_regFree (bytesRegion_regFree _ _ _)
     (bytesRegion_regFree _ _ _)
 
+private theorem regionScratchData_regFree (r : Reg) :
+    RegFree regionScratchData r := by
+  unfold regionScratchData Proofs.GuestDataImage.guestDataScratch
+    Proofs.GuestDataImage.guestDataImage
+  exact sepConj_regFree (anyBytes_regFree _ _ _)
+    (sepConj_regFree (bytesRegion_regFree _ _ _) (bytesRegion_regFree _ _ _))
+
 private theorem guestScratch_regFree (r : Reg) : RegFree guestScratch r := by
   unfold guestScratch regionScratch
   exact sepConj_regFree (anyBytes_regFree _ _ _)
     (sepConj_regFree (anyBytes_regFree _ _ _)
       (sepConj_regFree (anyBytes_regFree _ _ _)
         (sepConj_regFree (anyBytes_regFree _ _ _)
-          (sepConj_regFree (anyBytes_regFree _ _ _)
+          (sepConj_regFree (regionScratchData_regFree _)
             (sepConj_regFree (anyBytes_regFree _ _ _)
               (sepConj_regFree (anyBytes_regFree _ _ _)
                 (anyBytes_regFree _ _ _)))))))
@@ -615,7 +638,7 @@ def guestResidue : Assertion :=
   outputTailScratch **
   regionScratch RegionMap.guestStackRegion **
   regionScratch RegionMap.stateTrackerLiveRegion **
-  regionScratch RegionMap.dataRegion **
+  regionScratchData **
   regionScratch RegionMap.bssRegion **
   regionScratch RegionMap.stateGasDiagRegion **
   regionScratch RegionMap.sszScratchRegion

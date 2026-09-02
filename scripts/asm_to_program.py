@@ -74,6 +74,11 @@ def ga_name(sym):
     return sym[1:] if sym.startswith('.') else sym
 
 
+# symbol -> ELF section, filled in by `_load_symmap` alongside SYMMAP.  Used by
+# `_collect_guest_addr_syms` to pin the `.text`-resident handler-label family
+# (GH #13229) without widening the pin set to same-named data symbols.
+SYMSECTION = {}
+
 def _load_symmap():
     m = {}
     lean_name = {}
@@ -101,6 +106,7 @@ def _load_symmap():
                 f"onto one constant. Rename one label.")
         lean_name[name] = sym
         m[sym] = int(addr, 16)
+        SYMSECTION[sym] = section
     return m
 SYMMAP = _load_symmap()
 GA = 'GuestAddrs'   # Lean namespace for the generated address constants
@@ -1995,6 +2001,22 @@ def _collect_guest_addr_syms():
         'vhrp_this_struct',
         'vhrp_parent_struct',
     })
+    # GH #13229: the shipped `opcode_handlers` table is 256 `.dword <label>`
+    # entries whose values are chosen by the LINKER, not by the emitter, so a
+    # Lean statement about what the table HOLDS needs the link-time
+    # label->address map.  `opcodeHandlerLabels`
+    # (EvmAsm/Codegen/Proofs/OpcodeTables.lean) names those labels; every one
+    # of them is an `h_`-prefixed `.text` symbol in the linker-facts table, so
+    # the whole `h_*` family is pinned here and the generated resolver
+    # (`gen_handler_addrs`, EvmAsm/Codegen/GuestHandlerAddrs.lean) cites the
+    # pins BY NAME rather than re-copying addresses into a second Lean file.
+    # A superset is harmless: extra rows are unreachable from
+    # `opcodeHandlerLabels`, while a MISSING row would silently resolve to the
+    # default and be caught by scripts/check-opcode-tables.sh against the ELF.
+    need.update({
+        s for s, sec in SYMSECTION.items()
+        if s.startswith('h_') and sec == '.text'
+    })
     root=os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for fn in man:
         fp=fixture_path(fn)
@@ -2064,6 +2086,73 @@ def gen_guest_addrs():
         L.append(f"def {ga_name(sym)} : Nat := 0x{addr:08x}")
     L.append("")
     L.append("end EvmAsm.Codegen.GuestAddrs")
+    return '\n'.join(L)+'\n'
+
+HANDLERADDRS_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    'EvmAsm', 'Codegen', 'GuestHandlerAddrs.lean')
+
+def _handler_label_syms():
+    """The `h_`-prefixed `.text` symbols of the linked guest, sorted."""
+    return sorted(s for s, sec in SYMSECTION.items()
+                  if s.startswith('h_') and sec == '.text')
+
+def gen_handler_addrs():
+    """GH #13229 — the link-time label->address map for the `.data` jump table.
+
+    `opcode_handlers` is emitted as 256 `.dword <handler label>` entries, so
+    what it HOLDS is decided by the linker.  `opcodeHandlerEntries`
+    (EvmAsm/Codegen/Proofs/OpcodeTables.lean) is therefore parameterised by a
+    resolver `addrOf : String -> Word`; this file is that resolver's table.
+
+    Rows cite `GuestAddrs.<label>` BY NAME — no address is copied into a
+    second Lean file, so `GuestAddrs.lean` stays the single file that churns
+    on layout drift."""
+    syms = _handler_label_syms()
+    L = []
+    L.append("/-")
+    L.append("  EvmAsm.Codegen.GuestHandlerAddrs")
+    L.append("")
+    L.append("  GENERATED — do not edit by hand.")
+    L.append("  `python3 scripts/asm_to_program.py handler-addrs` regenerates this")
+    L.append("  from `scripts/asm-fixtures/symbol-addresses.tsv` (the linker-facts")
+    L.append("  table): one row per `h_`-prefixed `.text` symbol of the linked")
+    L.append("  `stateless_guest`, i.e. the opcode-handler label family that the")
+    L.append("  `.data` jump table `opcode_handlers` dispatches to.")
+    L.append("")
+    L.append("  Why this file exists (GH #13229). `opcode_handlers` is emitted as")
+    L.append("  256 `.dword <label>` entries, so its CONTENTS are chosen by the")
+    L.append("  linker, not by the emitter — unlike `opcode_gas_costs`, whose")
+    L.append("  dwords are numbers `staticGasCost` already produces in Lean.")
+    L.append("  `Proofs.OpcodeTables.opcodeHandlerEntries` is consequently")
+    L.append("  parameterised by a resolver `addrOf : String → Word`; this table")
+    L.append("  is the shipped resolver, and")
+    L.append("  `Proofs.GuestDataImage.guestHandlerAddr` wraps it.")
+    L.append("")
+    L.append("  Rows cite `GuestAddrs.<label>` BY NAME, so no address is copied")
+    L.append("  into a second Lean file and `GuestAddrs.lean` remains the single")
+    L.append("  file that churns on guest layout drift.  A superset of the labels")
+    L.append("  actually reachable from `opcodeHandlerLabels` is fine (extra rows")
+    L.append("  are never looked up); a MISSING row would resolve to the default")
+    L.append("  and is caught against the ELF by")
+    L.append("  `scripts/check-opcode-tables.sh`.")
+    L.append("-/")
+    L.append("")
+    L.append("module")
+    L.append("")
+    L.append("public import EvmAsm.Codegen.GuestAddrs")
+    L.append("")
+    L.append("@[expose] public section")
+    L.append("namespace EvmAsm.Codegen.GuestHandlerAddrs")
+    L.append("")
+    L.append("/-- Handler label ↦ its linked `.text` address, by name. -/")
+    L.append("def handlerAddrRows : List (String × Nat) :=")
+    for i, s in enumerate(syms):
+        head = "  [ " if i == 0 else "  , "
+        L.append(f'{head}("{s}", GuestAddrs.{ga_name(s)})')
+    L.append("  ]")
+    L.append("")
+    L.append("end EvmAsm.Codegen.GuestHandlerAddrs")
     return '\n'.join(L)+'\n'
 
 # These functions are verified drop-ins whose `_prog` definitions are intentionally
@@ -3479,7 +3568,7 @@ def declaring_module_self_test():
 
 def main():
     ap=argparse.ArgumentParser()
-    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','numlabel-self-test','symbranch-self-test','dotentry-self-test','declaring-module-self-test'])
+    ap.add_argument('command', choices=['convert','check','emit-lean','rewrite','check-file','check-all','coverage','guest-addrs','check-guest-addrs','handler-addrs','check-handler-addrs','numlabel-self-test','symbranch-self-test','dotentry-self-test','declaring-module-self-test'])
     ap.add_argument('--file', help='Lean source file')
     ap.add_argument('--func', help='<name>Function def')
     ap.add_argument('--funcs', help='comma-separated Function defs (rewrite/check-file)')
@@ -3511,6 +3600,21 @@ def main():
                   "(guest layout / converted-set changed)")
             sys.exit(1)
         print(f"check-guest-addrs: CLEAN ({want.count(' : Nat :=')} symbols)")
+        return
+    if args.command=='handler-addrs':
+        out=gen_handler_addrs()
+        open(HANDLERADDRS_PATH,'w').write(out)
+        print(f"wrote {HANDLERADDRS_PATH} ({out.count(', GuestAddrs.')} labels)")
+        return
+    if args.command=='check-handler-addrs':
+        want=gen_handler_addrs()
+        have=open(HANDLERADDRS_PATH).read() if os.path.exists(HANDLERADDRS_PATH) else ''
+        if want!=have:
+            print("GuestHandlerAddrs.lean DRIFT: regenerate with "
+                  "`python3 scripts/asm_to_program.py handler-addrs` "
+                  "(guest layout / handler-label set changed)")
+            sys.exit(1)
+        print(f"check-handler-addrs: CLEAN ({want.count(', GuestAddrs.')} labels)")
         return
     if args.command=='coverage':
         rows=classify_all()
@@ -3578,6 +3682,15 @@ def main():
         except ConvError as e:
             gaprob=[f"GuestAddrs: {e}"]
         allprob+=gaprob
+        # GH #13229: same contract for the handler-label resolver, which is a
+        # second projection of the SAME linker-facts table.
+        try:
+            if gen_handler_addrs()!=(open(HANDLERADDRS_PATH).read()
+                                     if os.path.exists(HANDLERADDRS_PATH) else ''):
+                allprob.append("GuestHandlerAddrs.lean out of date: regenerate with "
+                               "`python3 scripts/asm_to_program.py handler-addrs`")
+        except ConvError as e:
+            allprob.append(f"GuestHandlerAddrs: {e}")
         bare_j_files,bare_j_defs,bare_j_sites=count_bare_j_program_files(man)
         if bare_j_sites != EXPECTED_BARE_J_SITES:
             allprob.append(
