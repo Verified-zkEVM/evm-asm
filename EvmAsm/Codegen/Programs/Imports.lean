@@ -443,6 +443,7 @@ import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
+import EvmAsm.Codegen.Programs.HeaderValidatePostMergeCallWitness
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopSpec
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopBody
 import EvmAsm.Codegen.Programs.HeaderValidatePostMergeLoopCloseClean
