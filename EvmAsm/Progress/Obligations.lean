@@ -128,7 +128,8 @@ def obligations : List Obligation := [
     blockedBy :=
       [.infra "`rlp_item_span` is `.conditional` on WalkedSpanForm — the \
 zero-triple gap is closed (that issue landed `rlp_item_span_spec_within`), and \
-#10780 closed the OUTER-HEADER half: `rlp_item_span_long_spec_within` proves the \
+the OUTER-HEADER half is closed too (its issue closed 2026-08-30 against the \
+rowed encode/size family): `rlp_item_span_long_spec_within` proves the \
 long form for every `lenlen` and `rlp_item_span_any_header_spec_within` \
 dispatches the two arms, so the header form is no longer a restriction. Still \
 uncovered: non-SpanForm walked items, and REJECTION of non-canonical long \
@@ -158,8 +159,12 @@ verified against the linked ELF (`Codegen/Programs/RlpWalkNextStrictFuelModel.le
 both machine halves are proved under explicit premises; the sole remaining item is \
 a fuel-indexed CPS loop contract for the long-list path at `S+88`, with no usable \
 existing theorem to adapt"],
-    auditedAt := some "2026-08-14 @12335",
-    note := "pure-Lean RLP ✅. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
+    auditedAt := some "2026-09-02 @closed-blocker-sweep",
+    note := "pure-Lean RLP ✅. Blocker-citation audit 2026-09-02: the only \
+issue number this cell carried (the RLP encode-side semantic-spec issue) had \
+CLOSED on 2026-08-30 with the requested family rowed, so it is no longer \
+spelled here; the substantive blockers below were not re-derived in that \
+sweep and keep their 2026-08-14 provenance. ⚠️ NO EMBEDDED REGISTRY COUNTS HERE, deliberately: \
 this note used to carry a hand-written decoder-registry tally and had drifted to \
 being wrong on every figure in it (the live values move several times a day). The \
 counts live in `Progress/Routines.lean` as `routineCount_eq`, \
@@ -178,7 +183,8 @@ interpreter. The one-opcode `h_ADD` pilot's FOUNDATION landed \
 (`Codegen/Proofs/ExecuteSeamBridge.lean`: `guestExec` relation, \
 `add_limb_result_eq_add`) and its issue closed; the one-step simulation itself is \
 NOT claimed there. ⚠️ The representation blocker this entry used to name is \
-CLOSED and must not be re-derived: #12204 step 3 landed `dispatchLoopBody_prog` \
+CLOSED and must not be re-derived: the handler-lane design work's step 3 landed \
+`dispatchLoopBody_prog` \
 (`Codegen/Dispatch.lean`, sixteen instructions), tied to the SHIPPED dispatcher \
 text by `dispatchLoopFunction_eq_prog` (`rfl`) composed with \
 `emitRuntimeDispatcherLoop_split`, so the loop is no longer a raw String. The \
@@ -190,7 +196,8 @@ exit label is deliberately NOT spelled in this cell: \
 `blockedBy` as DEMANDED work at +100 per obligation, so spelling it here would \
 rank a 500-byte exit path nobody is blocked on near the top of the \
 transcription queue. Name symbols here only when they ARE the remaining work. \
-⚠️ The PAIRING blocker this entry used to name is also CLOSED: #13173 gave the \
+⚠️ The PAIRING blocker this entry used to name is also CLOSED: the pairing work \
+gave the \
 loop body its own linker label, rebased `dispatchLoopBody_prog` onto it (the \
 Program had been anchored 348 bytes early, at the loop HEAD, behind the \
 code-size stop guard), and registered it in `guestImageEntries`. There IS now a \
@@ -200,7 +207,7 @@ the dispatch step is now PROVED and must not be re-derived: the M30 gas debit \
 (prog idx 6..10 — the compare, the out-of-gas exit branch, the `sub`/`sd`) is a \
 `cpsBranchWithin 5` at the body's linked entry, lifted into `guestImageCodeReq` \
 and rowed in `Progress/Routines.lean` \
-(`Codegen/Proofs/DispatchStepGas.lean`, #13173). ⚠️ The OPCODE half is now ALSO \
+(`Codegen/Proofs/DispatchStepGas.lean`). ⚠️ The OPCODE half is now ALSO \
 PROVED and must not be re-derived: `Codegen/Proofs/DispatchStepOpcode.lean` \
 carries the fetch and gas-table load (prog idx 0..5), the handler-table load \
 and the indirect `jalr` (prog idx 11..15), and `dispatchStep_body_within` — a \
@@ -208,12 +215,42 @@ and the indirect `jalr` (prog idx 11..15), and `dispatchStep_body_within` — a 
 fetched, whose dispatch exit PC is the LOADED handler address. A computed exit \
 needed no new CPS rule (`cpsTripleWithin`'s exit is a term), and the ready-made \
 `execBlock` → CPS bridges could not be reused because their `exposedRegs` \
-currency omits x1 and x20 (`regs_not_exposed_here`). What remains on the \
-machine side is (a) the two dispatch tables' CONTENTS, which no Lean statement \
-ties to the shipped image — the writable-`.data` tile is owned as havoc'd \
-`anyBytes`, so a `.data` counterpart of `guestImageCodeReq` is the missing \
-piece (`opcode_table_contents_not_scratch_determined` states that gap as a \
-theorem) — and (b) the handler-side seam. And one iteration of the shipped \
+currency omits x1 and x20 (`regs_not_exposed_here`). ⚠️ The TABLE-CONTENTS \
+blocker this entry used to name is ALSO CLOSED and must not be re-derived: \
+`.data` is PROGBITS, so the loader copies its bytes in exactly as it does \
+`.text`, and `Codegen/Proofs/GuestDataImage.lean` is the `.data` counterpart of \
+`guestImageCodeReq` — it pins both dispatch tables inside that tile \
+(`guestDataScratch`, swapped in for the havoc'd `anyBytes` tile under \
+`guestDataScratch_weakens`, so nothing that only wanted ownership breaks). \
+`dispatchStep_body_shipped` instantiates the whole-body triple at those pinned \
+tables, so for every fetched byte the gas charged and the handler address \
+reached are read out of the shipped image rather than out of two universally \
+quantified lists, and `dispatchStep_body_shipped_controls` is the negative \
+control that the parametric family really did admit a different `.data` image. \
+`opcode_table_contents_not_scratch_determined` survives as the theorem saying \
+why the pin was needed, not as an open gap. ⛔ THE PIN DID NOT REMOVE A BURDEN, \
+IT MOVED ONE: `guestResidue` carries the same pinned tile, and \
+`guestScratch_eq_window_residue` is an EQUALITY, so the two sides move together \
+and the POST inherits the pin. That is a NEW `.64` obligation — the guest must \
+not clobber either table by halt — and it is NOT discharged. It is gapped for a \
+structural reason, not an unattempted one: `.64` is \
+`TopComposition.runStatelessGuestSound_of_phases`, which still takes its six \
+phase Props as hypotheses, and the missing fact is run-level (no store lands in \
+the table range) with no whole-program write map to quantify over. \
+`guestResidue_rejects_clobbered_tables` is that obligation as a theorem rather \
+than a docstring — a halt heap that zeroed the second gas-table dword provably \
+FAILS the residue — and `scripts/check-data-table-residue.sh` is the wired gate \
+bounding the empirical side. ⚠️ That bound is honest but PARTIAL, and the range \
+must NOT be described as shown-unwritten: of 11628 store sites in `.text`, 2785 \
+have a fully constant address (32 of those land in `.data`, all at least 2056 \
+bytes clear of the table range), and 8843 — 76% — are UNCERTIFIED because their \
+base is unresolvable or is an anchor plus an unbounded runtime term. The gate \
+is wired into `scripts/check-build-parallel.sh`, so the empirical half is \
+enforced rather than recorded. What remains on \
+the machine side is (a) the four side conditions the shipped step still carries, \
+which are about the CODE region the machine fetches from rather than the \
+tables (`hi`, `hbase`, `hover`, `hvalid`), and (b) the handler-side seam. \
+And one iteration of the shipped \
 loop ALSO runs the \
 code-size stop guard, which sits between the head label and the body and is \
 still an unconverted 348-byte span; measured, its HOT path is three \
@@ -223,24 +260,30 @@ Ranked in `docs/4ch8f-transcription-queue.md`",
          .infra "the `execution_requests_hash` hash-half compose is still \
 open. (The validation-accept prefix landed domainRestricted; that work is DONE \
 and its issue closed.) ⚠️ `stage_system_call` NO LONGER belongs on this list: \
-its machine post landed as #12206 item 1 \
+its machine post landed \
 (`stage_system_call_spec_within`, `.conditional`) — `a2` is 0, 1 or 2 with the \
 STAGING-failure class 1 kept distinguishable from the EXECUTION-failure class \
-2 (#11810), plus `a1 = 0`, `a0 = &system_call_returndata` and \
+2 (the `InvalidBlock` propagation gap, fixed and closed), plus `a1 = 0`, \
+`a0 = &system_call_returndata` and \
 `system_call_mode = 0` on the failure path and `ra`/`s0` restored on every \
 path, all of it CALLEE-INDEPENDENT because `a2` is written only by that \
 routine's own `li` instructions. What survives is the DISCHARGE of its three \
-named residuals `ArdCallShape` / `SscpCallShape` / `RdcCallShape`, the last of \
-which is #12204",
+named residuals `ArdCallShape` / `SscpCallShape` / `RdcCallShape`. ⚠️ The last \
+of those is the strongest thing this lane assumes — it claims the whole EVM \
+interpreter leaves the two dedicated spill cells untouched, which is why the \
+staging routine is NOT re-entrant — and it has had NO open tracker since the \
+handler-lane design issue closed 2026-09-01; everything the other two shapes \
+pin was measured against the callee's emitted text",
          .infra "`assemble_execution_requests` whole-routine triple LANDED \
-(#12813, `assemble_execution_requests_spec_within`) and `requests_hash_verify` \
-LANDED on top of it (#12206 item 2, `requests_hash_verify_spec_within`: the \
+(`assemble_execution_requests_spec_within`) and `requests_hash_verify` \
+LANDED on top of it (`requests_hash_verify_spec_within`: the \
 assemble call is genuinely COMPOSED via `callWithin_spec`, not assumed). What \
 survives is narrower and is a residual, not this item: the \
 `execution_requests_hash` call at 0x8005437c stands under `ErhCallShape` \
 because that routine's own triple covers only a NON-RETURNING validation \
-prefix (B → B+300). Discharge owners, in order: #12018 \
-`zkvm_sha256_spec_within` for the hash half, then the return path of \
+prefix (B → B+300). The hash-half discharge owner is now DONE — \
+`zkvm_sha256_spec_within` exists and is consumed — so the sole remaining owner \
+is the return path of \
 `execution_requests_hash`. (The Program conversion itself is DONE, \
 byte-identity waived, ELF byte-identical; its issue closed)",
          .infra "`erh_hash_one` empty+nonempty tops under residual h_sha \
@@ -250,14 +293,30 @@ byte-identity waived, ELF byte-identical; its issue closed)",
 `.proven` `zkvm_sha256` row in `Progress/Routines.lean`. The full body spine now \
 covers setup, block processing, padding (both `rem < 56` and `rem ≥ 56`), digest \
 and output, with the exported post tied to `SpecRef.sha256`; the earlier note that \
-padding/digest/output were deferred is stale. The remaining work is narrower and \
-unchanged in kind: retire the residual `h_sha` at the two `erh_hash_one` call sites \
-by composing this triple through `callWithin` (the tops still use \
-`shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
+padding/digest/output were deferred is stale. ⚠️ ALSO STALE, and re-measured \
+2026-09-02: the retirement this cell used to list as remaining work is DONE — \
+`ExecutionRequestsHashShaDischarge` establishes the `callWithin` from the \
+machine triple and BOTH `erh_hash_one` tops now say \"discharged via \
+`zkvm_sha256_spec_within` (no residual `h_sha`)\", so no `shaCallWithinShape` \
+premise survives on either. What that retirement unblocked but did not \
+discharge is the \
 separate hash-half five-slot compose after `validation_accept` (the parent \
-`execution_requests_hash` composition remains open)."],
-      auditedAt := some "2026-09-02 @13173-opcode-half",
-      note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
+`execution_requests_hash` composition remains open, and is the same owner the \
+item above names)."],
+      auditedAt := some "2026-09-02 @closed-blocker-sweep",
+      note := "`InterpreterLoop.lean` + handler-table simulation ✅. \
+⭐ Closed-blocker sweep 2026-09-02: this row carried SIX dead issue numbers, \
+more than every other row combined. For provenance, since the `blockedBy` \
+column is where a number reads as \"this is still open\": the representation \
+and RdcCallShape citations were the handler-lane design issue #12204 (closed \
+2026-09-01); the pairing and gas-debit citations were #13173 (closed \
+2026-09-02); the staging/hash items cited #11810 (closed 2026-08-08), #12206 \
+(closed 2026-09-01), #12018 (closed 2026-08-15), and #12813 — which was never \
+merged as itself, its commit reaching main inside batch PR #12847. The \
+table-contents item was retired by #13229 / PR #13239. Two claims were also \
+found FALSE against the tree and corrected: the discharge ordering that still \
+named the sha256 triple as an owner, and \"the tops still use \
+`shaCallWithinShape`\". Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
 M5's runtime fetch/decode/dispatch and 91 wired opcodes, for weeks. The real gap \
@@ -304,22 +363,25 @@ covered; the other 55 sites and the remaining accelerator families are still ope
       [.infra "trie-walk loop spec for `mpt_walk` over `mptNodeIs`/`nodeDbIs` \
 against `trieLookup` — arm pieces + kind callWithin landed (that issue closed); \
 the surviving residual is the callee `witness_lookup_by_hash` machine triple \
-for the HIT/general domain, tracked at #12036. TRANSCRIPTION DONE (PR 12111) \
-and the empty-section miss triple landed (#12036). Both `wlCallWithinShape` \
+for the HIT/general domain BEYOND `widx_count = 1`, tracked at #12996 (the \
+successor that carries exactly the two uncovered shapes; its predecessor closed \
+2026-09-01 with the `widx_count = 1` scope met). TRANSCRIPTION DONE (PR 12111) \
+and the empty-section miss triple landed. Both `wlCallWithinShape` \
 repairs are now DONE: walk `fullCode` unions `wlhCr` (#12152), and the six \
 `wlh_*` telemetry cells join `wlCallEntry`/`wlCallReturn` (#12162), so the \
 generic residual is SATISFIABLE rather than vacuous. PRODUCTION empty-miss \
 at walk sites is now enable=1: `wlCallWithinShapeEn` + three discharges \
 `root/branch/ext_wl_enabled_empty_establishes_shape` via \
-`wlhCallWithin_enabled_empty` over the enabled_empty top (#12183). Nested \
+`wlhCallWithin_enabled_empty` over the enabled_empty top. Nested \
 stack needs `stackFree sp0 16` (SAY SO). LEGACY enable=0 three-site \
 `MptWalkWlEmpty` kept. PRODUCTION HIT at `widx_count = 1` is now the same \
 shape one domain over: `wlCallWithinShapeHitEn` + three discharges \
 `root/branch/ext_wl_enabled_hit_establishes_shape` via \
-`wlhCallWithin_enabled_one_hit` over the enabled_one_hit top (#12036), so at \
+`wlhCallWithin_enabled_one_hit` over the enabled_one_hit top, so at \
 the three sites the hit residual is a THEOREM on that domain, not a \
-hypothesis. What is NOT covered: arbitrary `widx_count` (the real binary \
-search) and the linear scan with `zkvm_keccak256`. And the enable=0-shaped \
+hypothesis. What is NOT covered (#12996): arbitrary `widx_count` (the real \
+binary search, which first needs an index-sortedness predicate nothing states) \
+and the linear scan with `zkvm_keccak256`. And the enable=0-shaped \
 `MptWalkResidualChain.wlCallWithinShapeHit` (`stackFree sp0 8`, six-cell \
 `wlTelemetry`, no `widx_*`/`wlh_indexed_*` cells, no `widx_records` bytes) is \
 a DIFFERENT residual that stays a free `h_wl` on the hop-glue chains — no \
@@ -327,22 +389,33 @@ enable=1 arm can produce that ambient. `hp_decode_nibbles` and setup/root are \
 RETIRED.",
         .infra "machine triple `witness_lookup_by_hash_spec_within` at \
 GuestAddrs.witness_lookup_by_hash for the GENERAL/HIT domain — production \
-empty-miss enable=1 is proved and consumed at three walk sites (#12183), and \
+empty-miss enable=1 is proved and consumed at three walk sites, and \
 the enable=1 HIT arm at `widx_count = 1` is now proved whole-routine \
-(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036) with \
+(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402) with \
 the section pointer AND length free-but-matched, and CONSUMED at the three \
-walk sites (`wlCallWithinShapeHitEn`, #12036); what remains is arbitrary \
+walk sites (`wlCallWithinShapeHitEn`); what remains is #12996's two shapes, \
+arbitrary \
 `widx_count` (the real binary search) and the linear scan with \
 `zkvm_keccak256`. The enable=0-shaped `wlCallWithinShapeHit` on the hop-glue \
-chains is a separate free hypothesis, retired only by moving those chains onto \
+chains is a separate free hypothesis with NO open tracker of its own, retired \
+only by moving those chains onto \
 the enable=1 ambient",
         .infra "witness-ingest DB builder triples against \
-`build_node_db`/`build_code_db` (#11800)",
+`build_node_db`/`build_code_db`. ⚠️ STILL LIVE, and now UNTRACKED: the issue \
+this item used to cite was about TRANSCRIPTION, and it closed 2026-08-12 once \
+both guest-side builders became Programs, i.e. once a `cpsTripleWithin` became \
+STATABLE. Neither has one, and no successor issue was opened",
         .infra "three-tier resolve coherence (appended DB / resolve cache / \
 witness section) vs SpecRef's single node source — where `resolveCacheValidIs` \
 (`Evm64/MptAssertions.lean`) earns its keep"],
-    auditedAt := some "2026-08-24 @12036-hit-restate",
-    note := "Re-audited 2026-08-24 (#12036): the enable=1 HIT residual is now \
+    auditedAt := some "2026-09-02 @closed-blocker-sweep",
+    note := "Closed-blocker sweep 2026-09-02: #12036 closed 2026-09-01 with its \
+named scope (`widx_count = 1`) met and successor #12996 open, so the blocker \
+cells now cite #12996 while the provenance citations lose their number rather \
+than being rewritten to point at the successor — #12996 asks explicitly that \
+they not be repointed. #12183 closed 2026-08-12 (PR #12219) and #11800 closed \
+2026-08-12; the DB-builder item is the one blocker here that is STILL TRUE with \
+its tracker gone. Prior audit 2026-08-24 (#12036): the enable=1 HIT residual is \
 restated onto the production ambient (`wlCallWithinShapeHitEn`) and discharged \
 at all three walk sites, at `widx_count = 1` ONLY. Empty-miss three-site \
 discharge unchanged (#12183); nested sf16 SAY SO for both. Still DEPENDENCY: \
@@ -378,15 +451,20 @@ of 4/5/6/7",
 boundary registers x5, x10 and x17 in BOTH `scratch` and `residue`. The \
 generic forcing lemmas still apply to any register omitted by a framing, but \
 the unconverted `_start` shell remains the inherited whole-image clobber \
-residual (#12166), so this narrow boundary set is not yet a complete image \
-clobber theorem",
+residual, so this narrow boundary set is not yet a complete image \
+clobber theorem. (The constraint that an unpinned entry makes a phase FALSE \
+rather than weak is unchanged; its issue closed 2026-08-12 once the coverage \
+figure it was misquoted against was corrected at its generated source.)",
        .infra "the composition itself is NO LONGER a blocker: \
 `TopComposition.lean:runStatelessGuestSound_of_phases` proves \
 `runStatelessGuestSound` from six named phase hypotheses, and \
 `runStatelessGuestSound_demo` shows that family is jointly satisfiable \
 (so it is not a vacuous implication)"],
-    auditedAt := some "2026-08-12 @12130",
-    note := "Audited 2026-08-12 (#12130), first time ever. The row said only \
+    auditedAt := some "2026-09-02 @closed-blocker-sweep",
+    note := "Closed-blocker sweep 2026-09-02: the only dead number this row \
+carried was #12166 (closed 2026-08-12 via #12247), cited on the framing item as \
+provenance for a constraint that still holds; the constraint stays, the number \
+does not. Prior audit 2026-08-12 (#12130), first time ever. The row said only \
 \"blocked on 4+5+6+7\"; that was incomplete — image-CodeReq coverage and the \
 register-free framing bundle block it on their own. The sequencing/halt-wrap \
 half is now DONE (six named phase hypotheses, jointly satisfiable); what \
@@ -413,31 +491,50 @@ PRECONDITION discharged by the producer, and it is discharged for only 2 of the 
          .infra "trie-walk loop spec for `mpt_walk` over mptNodeIs/nodeDbIs \
 against trieLookup — arm pieces + kind callWithin + path-preserve landed (that \
 issue closed); residual only hit/general `witness_lookup_by_hash` machine \
-(#12036). Both `wlCallWithinShape` repairs are DONE (#12152, #12162), so the \
+beyond `widx_count = 1` (#12996). Both `wlCallWithinShape` repairs are DONE \
+(#12152, #12162), so the \
 generic residual is satisfiable rather than vacuous. The three empty-section \
 discharges at walk sites are on the production-UNREACHABLE \
-`section_len = 0`/`widx_enabled = 0` domain per #12183; discharged and \
+`section_len = 0`/`widx_enabled = 0` domain; discharged and \
 satisfiable is not the same as reached. The informative indexed domain is \
-`widx_enabled = 1`, tracked at #12181 with a count-0 callee triple now existing. \
+`widx_enabled = 1`, and BOTH indexed callee triples now exist on it \
+(`witness_lookup_by_hash_indexed_spec_within_empty` and `…_one_hit`), each with \
+an exhibited entry state — so what that domain still lacks is the PARENT at \
+arbitrary count, not a callee contract. \
 hp_decode_nibbles and setup/root are RETIRED. Three-tier resolve divergence \
 stated in docs/4ch8f-slstate-specref-correspondence.md:164",
-         .infra "machine triple `witness_lookup_by_hash_spec_within` (#12036) — \
+         .infra "machine triple `witness_lookup_by_hash_spec_within` (#12996) — \
 transcription landed (PR 12111), the `section_len = 0` whole-routine triple is \
 proved and consumed at the empty-section walk sites (#12162), and the \
 enable=1 HIT arm is proved whole-routine at `widx_count = 1` \
-(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402, #12036) and \
+(`witness_lookup_by_hash_spec_within_enabled_one_hit`, fuel 402) and \
 now CONSUMED at the three walk sites on that domain \
-(`wlCallWithinShapeHitEn`, `root/branch/ext_wl_enabled_hit_establishes_shape`, \
-#12036). Remaining: arbitrary `widx_count` (binary search), the linear scan \
-loop at a symbolic trip count with `zkvm_keccak256`, and the enable=0-shaped \
-`wlCallWithinShapeHit` still free on the hop-glue chains (#12181)",
+(`wlCallWithinShapeHitEn`, `root/branch/ext_wl_enabled_hit_establishes_shape`). \
+Remaining, per #12996: arbitrary `widx_count` (binary search) and the linear \
+scan loop at a symbolic trip count with `zkvm_keccak256`. Remaining OUTSIDE \
+#12996, and now with no open tracker at all: the enable=0-shaped \
+`wlCallWithinShapeHit` still free on the hop-glue chains",
          .infra "witness-ingest DB builder triples against \
-build_node_db/build_code_db (#11800)",
-         .infra "no `cpsTripleWithin` for `witness_codes_index_build` / \
-`witness_codes_lookup_by_hash` — the code-DB *routines*. The predicate side is \
-DONE and its issue closed; only the routine triples remain" ],
-    auditedAt := some "2026-08-12 @12162-wl-ambient",
-    note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Re-audited \
+build_node_db/build_code_db. ⚠️ STILL LIVE, and now UNTRACKED — the issue this \
+item used to cite was about transcription and closed 2026-08-12 once both \
+builders became Programs; that made a triple STATABLE, not proved, and no \
+successor was opened",
+         .infra "no `cpsTripleWithin` for `witness_codes_index_build`, and only \
+a `.conditional` empty-section one for `witness_codes_lookup_by_hash` \
+(`witness_codes_lookup_by_hash_spec_within_empty_section`) — the code-DB \
+*routines*. The predicate side is \
+DONE and its issue closed; the general-domain routine triples remain" ],
+    auditedAt := some "2026-09-02 @closed-blocker-sweep",
+    note := "⭐ THE SOUNDNESS CORE OF STATELESSNESS (#11579). Closed-blocker \
+sweep 2026-09-02: #12036 (closed 2026-09-01) is replaced in the blocker cells \
+by its open successor #12996, which carries exactly the two uncovered wl \
+shapes; #12181 (closed 2026-08-12) is gone because its own two carried-forward \
+residuals both landed — the indexed empty and one-hit triples exist and both \
+now have exhibited entry states; #12183 (closed 2026-08-12 via PR #12219) and \
+#11800 (closed 2026-08-12) are gone as provenance-only citations. TWO items \
+were also found understated against the tree and corrected: the DB-builder item \
+is still true but untracked, and the code-DB item claimed no triple for a \
+routine that has a `.conditional` empty-section one. Prior re-audit \
 2026-08-12 (#12162): both wlCallWithinShape repairs are DONE, so the generic \
 residual is satisfiable rather than vacuous; the three empty-section discharges \
 are on the production-UNREACHABLE `section_len = 0`/`widx_enabled = 0` domain per \
