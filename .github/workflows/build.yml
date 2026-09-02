@@ -150,8 +150,10 @@ jobs:
       # domains and inline arms, so the gate runs the actual registered-domain
       # CFG analysis and keeps both controls visible.  Its self-test includes
       # reachable, gated and unconstrained branches plus a planted domain flip.
+      # --live is the default scan and --self-test is additive; spelling both
+      # out makes the two obligations visible without running the census twice.
       - name: Wrapper-JAL residual/domain detector (#12747)
-        run: python3 scripts/check-wrapper-jal-vacuity.py --self-test
+        run: python3 scripts/check-wrapper-jal-vacuity.py --live --self-test
 
       # #13183: a reloc-bearing converted `_prog` has no base coverage until
       # its linked entry is paired in GuestImageEntries.  Keep the positive
