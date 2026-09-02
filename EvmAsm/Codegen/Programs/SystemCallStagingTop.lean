@@ -547,11 +547,743 @@ theorem stage_system_call_spec_within
     (the post demands nothing the pre does not supply), and a fifth shows the
     post is not constant: all three status codes are taken.
 
+    The permanent witness `sscSamplePre_inhabited` is a JOINT, non-empty
+    inhabitant of the whole wrapper precondition, rather than a collection of
+    per-atom checks.  The three `…_sscCode_not_inhabited` theorems then refute
+    the corresponding full residual shapes at that same concrete state: the
+    wrapper JAL is fetched, but its target is absent from the wrapper-only
+    `sscCode`, so the next machine step is `none` and cannot satisfy the
+    residual's return-PC postcondition.  Thus the residuals are genuinely
+    blocked on callee code, not merely on an impossible resource footprint.
+
     ⚠️ WHAT THIS DOES NOT ESTABLISH, stated rather than hidden: that a real
     `account_read_record` / `stage_system_call_payload` /
     `runtime_dispatcher_call` execution satisfies the TRIPLE half of each
     shape.  That is the discharge, and it is the open work (owner #12204 for
     the third). -/
+
+/-! ### A concrete whole-routine precondition witness
+
+    The residual refutations below must not be explained by an impossible
+    resource footprint.  This witness uses `m = 0` and `A = empAssertion`, but
+    it still supplies every register and every BSS cell in `sscPre` exactly
+    once.  The register-owned scratch is given concrete zero values in the
+    witness heap; `memOwn` cells are given the values the call sites expect.
+    The code and PC fields are deliberately left unowned by the partial state,
+    since `sscPre` owns neither. -/
+
+def sscSampleSp : Word := (0x1000 : Word)
+def sscSampleTgt : Word := (0x2000 : Word)
+def sscSampleCodePtr : Word := (0x3000 : Word)
+def sscSampleCodeLen : Word := (0 : Word)
+def sscSampleBlockPayload : Word := (0x4000 : Word)
+def sscSamplePayloadOut : Word := (0x5000 : Word)
+def sscSampleV5 : Word := (5 : Word)
+def sscSampleV6 : Word := (6 : Word)
+def sscSampleV8 : Word := sscSamplePayloadOut
+def sscSampleRet : Word := (0 : Word)
+
+private inductive SscSampleAtom where
+  | reg (r : Reg) (v : Word)
+  | own (a v : Word) (valid : isValidDwordAccess a = true)
+  deriving DecidableEq
+
+private inductive SscSampleResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def sscSampleResource : SscSampleAtom → SscSampleResource
+  | .reg r _ => .reg r
+  | .own a _ _ => .mem a
+
+private def sscScratchReg (r : Reg) : Prop :=
+  r = .x3 ∨ r = .x4 ∨ r = .x7 ∨ r = .x9 ∨
+    r = .x15 ∨ r = .x16 ∨ r = .x17 ∨ r = .x18 ∨
+    r = .x19 ∨ r = .x20 ∨ r = .x21 ∨ r = .x22 ∨
+    r = .x23 ∨ r = .x24 ∨ r = .x25 ∨ r = .x26 ∨
+    r = .x27 ∨ r = .x28 ∨ r = .x29 ∨ r = .x30 ∨ r = .x31
+
+private instance sscScratchRegDecidable (r : Reg) : Decidable (sscScratchReg r) := by
+  unfold sscScratchReg
+  infer_instance
+
+private def sscSampleAtom : SscSampleAtom → Assertion
+  | .reg r v => if sscScratchReg r then regOwn r else r ↦ᵣ v
+  | .own a _ _ => memOwn a
+
+private def sscSampleHeap : SscSampleAtom → PartialState
+  | .reg r v => PartialState.singletonReg r v
+  | .own a v _ => PartialState.singletonMem a v
+
+private theorem sscSampleRegReg {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem sscSampleMemMem {a1 a2 : Word} {v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem sscSampleRegMem {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) := by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem sscSampleMemReg {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  sscSampleRegMem.symm
+
+private theorem sscSampleHeapDisjoint {x y : SscSampleAtom}
+    (h : sscSampleResource x ≠ sscSampleResource y) :
+    (sscSampleHeap x).Disjoint (sscSampleHeap y) := by
+  cases x <;> cases y
+  · apply sscSampleRegReg
+    simpa [sscSampleResource] using h
+  · exact sscSampleRegMem
+  · exact sscSampleMemReg
+  · apply sscSampleMemMem
+    simpa [sscSampleResource] using h
+
+private def sscSampleAtoms : List SscSampleAtom :=
+  [ .reg .x0 0, .reg .x1 sscSampleRet, .reg .x2 sscSampleSp,
+    .reg .x5 sscSampleV5, .reg .x6 sscSampleV6, .reg .x8 sscSampleV8,
+    .reg .x10 sscSampleTgt, .reg .x11 sscSampleCodePtr,
+    .reg .x12 sscSampleCodeLen, .reg .x13 sscSampleBlockPayload,
+    .reg .x14 sscSamplePayloadOut,
+    .reg .x3 0, .reg .x4 0, .reg .x7 0, .reg .x9 0,
+    .reg .x15 0, .reg .x16 0, .reg .x17 0, .reg .x18 0,
+    .reg .x19 0, .reg .x20 0, .reg .x21 0, .reg .x22 0,
+    .reg .x23 0, .reg .x24 0, .reg .x25 0, .reg .x26 0,
+    .reg .x27 0, .reg .x28 0, .reg .x29 0, .reg .x30 0,
+    .reg .x31 0,
+    .own SscRa 0 (by decide), .own SscS0 sscSampleV8 (by decide),
+    .own SccMode 1 (by decide), .own SccLen 0 (by decide),
+    .own RtAuthFn 0 (by decide), .own RdgHalt 0 (by decide),
+    .own RdInPtr (sscSamplePayloadOut + BitVec.ofNat 64 8) (by decide) ]
+
+private theorem sscSampleAtoms_pairwise :
+    sscSampleAtoms.Pairwise
+      (fun x y => sscSampleResource x ≠ sscSampleResource y) := by
+  unfold sscSampleAtoms sscSampleResource
+  decide
+
+private theorem sscSampleAtoms_hsat :
+    (sscSampleAtoms.foldr (fun x acc => sscSampleAtom x ** acc) empAssertion)
+      (sscSampleAtoms.foldr
+        (fun x acc => (sscSampleHeap x).union acc) PartialState.empty) := by
+  apply sepConj_foldr_satisfiable sscSampleAtom sscSampleHeap sscSampleAtoms
+  · intro x hx
+    cases x with
+    | reg r v =>
+      by_cases hs : sscScratchReg r
+      · simp only [sscSampleAtom, hs, ↓reduceIte]
+        exact ⟨v, rfl⟩
+      · simp only [sscSampleAtom, hs, ↓reduceIte, sscSampleHeap, regIs]
+    | own a v hv => exact ⟨v, rfl, hv⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => sscSampleHeapDisjoint h)
+      sscSampleAtoms_pairwise
+
+private def sscSampleAtomConcrete : SscSampleAtom → Assertion
+  | .reg r v => if sscScratchReg r then regOwn r else r ↦ᵣ v
+  | .own a v _ => a ↦ₘ v
+
+private def sscSampleAtomsConcreteAssert : Assertion :=
+  sscSampleAtoms.foldr
+    (fun x acc => sscSampleAtomConcrete x ** acc) empAssertion
+
+private theorem sscSampleAtoms_hsat_concrete :
+    (sscSampleAtomsConcreteAssert)
+      (sscSampleAtoms.foldr
+        (fun x acc => (sscSampleHeap x).union acc) PartialState.empty) := by
+  apply sepConj_foldr_satisfiable sscSampleAtomConcrete sscSampleHeap
+    sscSampleAtoms
+  · intro x hx
+    cases x with
+    | reg r v =>
+      by_cases hs : sscScratchReg r
+      · simp only [sscSampleAtomConcrete, hs, ↓reduceIte]
+        exact ⟨v, rfl⟩
+      · simp only [sscSampleAtomConcrete, hs, ↓reduceIte, sscSampleHeap,
+          regIs]
+    | own a v hv => exact ⟨rfl, hv⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => sscSampleHeapDisjoint h)
+      sscSampleAtoms_pairwise
+
+private def sscSampleHeapFold : PartialState :=
+  sscSampleAtoms.foldr
+    (fun x acc => (sscSampleHeap x).union acc) PartialState.empty
+
+private def sscSampleAtomsAssert : Assertion :=
+  sscSampleAtoms.foldr (fun x acc => sscSampleAtom x ** acc) empAssertion
+
+def sscSamplePre : Assertion :=
+  sscPre sscSampleSp sscSampleTgt sscSampleCodePtr sscSampleCodeLen
+    sscSampleBlockPayload sscSamplePayloadOut sscSampleV5 sscSampleV6
+    sscSampleV8 sscSampleRet 0 empAssertion
+
+private theorem sscSamplePre_eq_atoms :
+    sscSamplePre = sscSampleAtomsAssert := by
+  simp [sscSamplePre, sscPre, sscScratchOwn, sscSampleAtomsAssert,
+    sscSampleAtoms, sscSampleAtom, sscSampleSp, sscSampleTgt,
+    sscSampleCodePtr, sscSampleCodeLen, sscSampleBlockPayload,
+    sscSamplePayloadOut, sscSampleV5, sscSampleV6, sscSampleV8,
+    sscSampleRet, sscScratchReg, stackFree, sepConj_emp_left',
+    sepConj_emp_right']
+  funext h
+  exact propext ⟨fun hp => by xperm_hyp hp, fun hp => by xperm_hyp hp⟩
+
+def sscSampleStateAt (entry : Word) : MachineState where
+  regs := fun r => (sscSampleHeapFold.regs r).getD 0
+  mem := fun a => (sscSampleHeapFold.mem a).getD 0
+  code := sscCode
+  pc := entry
+  publicValues := (sscSampleHeapFold.publicValues).getD []
+  privateInput := (sscSampleHeapFold.privateInput).getD []
+  inputBufBase := defaultInputBufBase
+
+private theorem sscSampleHeap_x0 :
+    sscSampleHeapFold.regs .x0 = some 0 := by
+  unfold sscSampleHeapFold sscSampleAtoms sscSampleHeap
+  decide
+
+private theorem sscSampleState_getReg (entry : Word) (r : Reg) (hr : r ≠ .x0) :
+    (sscSampleStateAt entry).getReg r =
+      (sscSampleHeapFold.regs r).getD 0 := by
+  cases r <;> simp_all [sscSampleStateAt, MachineState.getReg]
+
+private theorem sscSampleState_getMem (entry : Word) (a : Word) :
+    (sscSampleStateAt entry).getMem a =
+      (sscSampleHeapFold.mem a).getD 0 := by
+  rfl
+
+private theorem sscSampleHeap_code_none_atom (x : SscSampleAtom) (a : Word) :
+    (sscSampleHeap x).code a = none := by
+  cases x <;> rfl
+
+private theorem sscSampleHeap_code_none (a : Word) :
+    sscSampleHeapFold.code a = none := by
+  unfold sscSampleHeapFold
+  induction sscSampleAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (sscSampleHeap x).code a = none :=
+      sscSampleHeap_code_none_atom x a
+    change (match (sscSampleHeap x).code a with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (sscSampleHeap y).union acc)
+          PartialState.empty).code a) = none
+    rw [hx, ih]
+
+private theorem sscSampleHeap_pc_none :
+    sscSampleHeapFold.pc = none := by
+  unfold sscSampleHeapFold
+  induction sscSampleAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (sscSampleHeap x).pc = none := by cases x <;> rfl
+    change (match (sscSampleHeap x).pc with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (sscSampleHeap y).union acc)
+          PartialState.empty).pc) = none
+    rw [hx, ih]
+
+private theorem sscSampleState_compat (entry : Word) :
+    sscSampleHeapFold.CompatibleWith (sscSampleStateAt entry) := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v hv
+    by_cases hr : r = .x0
+    · subst r
+      have hv0 : v = 0 := by
+        rw [sscSampleHeap_x0] at hv
+        injection hv with hv
+        exact hv.symm
+      subst hv0
+      rfl
+    · rw [sscSampleState_getReg entry r hr, hv]
+      rfl
+  · intro a v hv
+    show (sscSampleStateAt entry).getMem a = v
+    rw [sscSampleState_getMem entry a, hv]
+    rfl
+  · intro a i hi
+    rw [sscSampleHeap_code_none a] at hi
+    cases hi
+  · intro v hv
+    rw [sscSampleHeap_pc_none] at hv
+    cases hv
+  · intro v hv; cases hv
+  · intro v hv; cases hv
+  · intro v hv; cases hv
+
+theorem sscSamplePre_inhabited :
+    sscSamplePre.holdsFor (sscSampleStateAt B) := by
+  refine ⟨sscSampleHeapFold, sscSampleState_compat B, ?_⟩
+  rw [sscSamplePre_eq_atoms]
+  exact sscSampleAtoms_hsat
+
+private def sscSampleArdFrame : Assertion :=
+  (SccMode ↦ₘ (1 : Word)) ** (SccLen ↦ₘ (0 : Word)) **
+  (RtAuthFn ↦ₘ (0 : Word)) ** (RdgHalt ↦ₘ (0 : Word)) **
+  (RdInPtr ↦ₘ (sscSamplePayloadOut + BitVec.ofNat 64 8))
+
+private def sscSampleSscpFrame : Assertion :=
+  (SccLen ↦ₘ (0 : Word)) ** (RtAuthFn ↦ₘ (0 : Word)) **
+  (RdgHalt ↦ₘ (0 : Word)) **
+  (RdInPtr ↦ₘ (sscSamplePayloadOut + BitVec.ofNat 64 8))
+
+private theorem sscSampleArdPre_eq_concrete :
+    (((.x1 ↦ᵣ sscSampleRet) **
+      ardCallEntry sscSampleSp sscSampleTgt sscSampleCodePtr
+        sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+        sscSampleV5 sscSampleV6 sscSampleV8 sscSampleRet 0) **
+      sscSampleArdFrame) = sscSampleAtomsConcreteAssert := by
+  simp [ardCallEntry, sscSampleArdFrame, sscSpillSaved, sscScratchOwn,
+    sscSampleAtomsConcreteAssert, sscSampleAtoms, sscSampleAtomConcrete,
+    sscScratchReg,
+    sscSampleSp, sscSampleTgt, sscSampleCodePtr, sscSampleCodeLen,
+    sscSampleBlockPayload, sscSamplePayloadOut, sscSampleV5, sscSampleV6,
+    sscSampleV8, sscSampleRet, stackFree, sepConj_emp_left',
+    sepConj_emp_right']
+  funext h
+  exact propext ⟨fun hp => by xperm_hyp hp, fun hp => by xperm_hyp hp⟩
+
+private theorem sscSampleSscpPre_eq_concrete :
+    (((.x1 ↦ᵣ sscSampleRet) **
+      sscpCallEntry sscSampleSp sscSampleTgt sscSampleCodePtr
+        sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+        sscSampleV5 sscSampleV6 sscSampleRet sscSampleV8 0) **
+      sscSampleSscpFrame) = sscSampleAtomsConcreteAssert := by
+  simp [sscpCallEntry, sscSampleSscpFrame, sscSpillSaved, sscScratchOwn,
+    sscSampleAtomsConcreteAssert, sscSampleAtoms, sscSampleAtomConcrete,
+    sscScratchReg,
+    sscSampleSp, sscSampleTgt, sscSampleCodePtr, sscSampleCodeLen,
+    sscSampleBlockPayload, sscSamplePayloadOut, sscSampleV5, sscSampleV6,
+    sscSampleV8, sscSampleRet, stackFree, sepConj_emp_left',
+    sepConj_emp_right']
+  funext h
+  exact propext ⟨fun hp => by xperm_hyp hp, fun hp => by xperm_hyp hp⟩
+
+private theorem sscSampleRdcPre_eq_concrete :
+    (((.x1 ↦ᵣ sscSampleRet) **
+      rdcCallEntry sscSampleSp sscSamplePayloadOut
+        sscSampleV5 sscSampleV6 sscSampleTgt sscSampleCodePtr
+        sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+        sscSampleRet sscSampleV8 0)) = sscSampleAtomsConcreteAssert := by
+  simp [rdcCallEntry, sscSpillSaved, sscScratchOwn,
+    sscSampleAtomsConcreteAssert, sscSampleAtoms, sscSampleAtomConcrete,
+    sscScratchReg,
+    sscSampleSp, sscSampleTgt, sscSampleCodePtr, sscSampleCodeLen,
+    sscSampleBlockPayload, sscSamplePayloadOut, sscSampleV5, sscSampleV6,
+    sscSampleV8, sscSampleRet, stackFree, sepConj_emp_left',
+    sepConj_emp_right']
+  funext h
+  exact propext ⟨fun hp => by xperm_hyp hp, fun hp => by xperm_hyp hp⟩
+
+/-! ### The deployed wrapper does not contain its three callees
+
+    The `CodeReq` above is intentionally only the 71-instruction wrapper.  The
+    following kernel checks make the resulting boundary explicit: each
+    local JAL is present in that wrapper, while each deployed callee entry is
+    outside its instruction range.  The offsets and entries below are derived
+    from `GuestAddrs`; older `SystemCallStagingBase` and
+    `SystemCallStagingResiduals` docstrings still contain stale literal
+    addresses and are not the formal source of these checks. -/
+
+private theorem sscCode_ard_jal :
+    sscCode (pc 7) =
+      some (.JAL .x1
+        (jalOff GuestAddrs.account_read_record
+          (GuestAddrs.stage_system_call + 28))) := by
+  apply (mem_at 7 (.JAL .x1
+      (jalOff GuestAddrs.account_read_record
+        (GuestAddrs.stage_system_call + 28))) (pc 7) rfl
+    (by rw [sscProgL_len]; norm_num) (by decide))
+  simp [CodeReq.singleton]
+
+private theorem sscCode_ard_missing : sscCode ArdB = none := by
+  unfold sscCode ArdB B sscProgL
+  decide
+
+private theorem sscCode_sscp_jal :
+    sscCode (pc 25) =
+      some (.JAL .x1
+        (jalOff GuestAddrs.stage_system_call_payload
+          (GuestAddrs.stage_system_call + 100))) := by
+  apply (mem_at 25 (.JAL .x1
+      (jalOff GuestAddrs.stage_system_call_payload
+        (GuestAddrs.stage_system_call + 100))) (pc 25) rfl
+    (by rw [sscProgL_len]; norm_num) (by decide))
+  simp [CodeReq.singleton]
+
+private theorem sscCode_sscp_missing : sscCode SscpB = none := by
+  unfold sscCode SscpB B sscProgL
+  decide
+
+private theorem sscCode_rdc_jal :
+    sscCode (pc 31) =
+      some (.JAL .x1
+        (jalOff GuestAddrs.runtime_dispatcher_call
+          (GuestAddrs.stage_system_call + 124))) := by
+  apply (mem_at 31 (.JAL .x1
+      (jalOff GuestAddrs.runtime_dispatcher_call
+        (GuestAddrs.stage_system_call + 124))) (pc 31) rfl
+    (by rw [sscProgL_len]; norm_num) (by decide))
+  simp [CodeReq.singleton]
+
+private theorem sscCode_rdc_missing : sscCode RdcB = none := by
+  unfold sscCode RdcB B sscProgL
+  decide
+
+private theorem sscArdStep_one :
+    step (sscSampleStateAt (pc 7)) =
+      some (execInstrBr (sscSampleStateAt (pc 7))
+        (.JAL .x1
+          (jalOff GuestAddrs.account_read_record
+            (GuestAddrs.stage_system_call + 28)))) := by
+  apply step_non_ecall_non_mem
+  · change sscCode (pc 7) = some (.JAL .x1
+      (jalOff GuestAddrs.account_read_record
+        (GuestAddrs.stage_system_call + 28)))
+    exact sscCode_ard_jal
+  · decide
+  · decide
+  · decide
+
+private theorem sscArdStep_target_pc :
+    (execInstrBr (sscSampleStateAt (pc 7))
+      (.JAL .x1
+        (jalOff GuestAddrs.account_read_record
+          (GuestAddrs.stage_system_call + 28)))).pc = ArdB := by
+  change (sscSampleStateAt (pc 7)).pc + signExtend21
+      (jalOff GuestAddrs.account_read_record
+        (GuestAddrs.stage_system_call + 28)) = ArdB
+  change pc 7 + signExtend21
+      (jalOff GuestAddrs.account_read_record
+        (GuestAddrs.stage_system_call + 28)) = ArdB
+  exact pc_jal_ard
+
+private theorem sscArdStep_after_none :
+    step (execInstrBr (sscSampleStateAt (pc 7))
+      (.JAL .x1
+        (jalOff GuestAddrs.account_read_record
+          (GuestAddrs.stage_system_call + 28)))) = none := by
+  have hcode := step_code_preserved sscArdStep_one
+  have hfetch :
+      (execInstrBr (sscSampleStateAt (pc 7))
+        (.JAL .x1
+          (jalOff GuestAddrs.account_read_record
+            (GuestAddrs.stage_system_call + 28)))).code
+        (execInstrBr (sscSampleStateAt (pc 7))
+          (.JAL .x1
+            (jalOff GuestAddrs.account_read_record
+              (GuestAddrs.stage_system_call + 28)))).pc = none := by
+    rw [hcode, sscArdStep_target_pc]
+    exact sscCode_ard_missing
+  simp [step, hfetch]
+
+private theorem sscSscpStep_one :
+    step (sscSampleStateAt (pc 25)) =
+      some (execInstrBr (sscSampleStateAt (pc 25))
+        (.JAL .x1
+          (jalOff GuestAddrs.stage_system_call_payload
+            (GuestAddrs.stage_system_call + 100)))) := by
+  apply step_non_ecall_non_mem
+  · change sscCode (pc 25) = some (.JAL .x1
+      (jalOff GuestAddrs.stage_system_call_payload
+        (GuestAddrs.stage_system_call + 100)))
+    exact sscCode_sscp_jal
+  · decide
+  · decide
+  · decide
+
+private theorem sscSscpStep_target_pc :
+    (execInstrBr (sscSampleStateAt (pc 25))
+      (.JAL .x1
+        (jalOff GuestAddrs.stage_system_call_payload
+          (GuestAddrs.stage_system_call + 100)))).pc = SscpB := by
+  change (sscSampleStateAt (pc 25)).pc + signExtend21
+      (jalOff GuestAddrs.stage_system_call_payload
+        (GuestAddrs.stage_system_call + 100)) = SscpB
+  change pc 25 + signExtend21
+      (jalOff GuestAddrs.stage_system_call_payload
+        (GuestAddrs.stage_system_call + 100)) = SscpB
+  exact pc_jal_sscp
+
+private theorem sscSscpStep_after_none :
+    step (execInstrBr (sscSampleStateAt (pc 25))
+      (.JAL .x1
+        (jalOff GuestAddrs.stage_system_call_payload
+          (GuestAddrs.stage_system_call + 100)))) = none := by
+  have hcode := step_code_preserved sscSscpStep_one
+  have hfetch :
+      (execInstrBr (sscSampleStateAt (pc 25))
+        (.JAL .x1
+          (jalOff GuestAddrs.stage_system_call_payload
+            (GuestAddrs.stage_system_call + 100)))).code
+        (execInstrBr (sscSampleStateAt (pc 25))
+          (.JAL .x1
+            (jalOff GuestAddrs.stage_system_call_payload
+              (GuestAddrs.stage_system_call + 100)))).pc = none := by
+    rw [hcode, sscSscpStep_target_pc]
+    exact sscCode_sscp_missing
+  simp [step, hfetch]
+
+private theorem sscRdcStep_one :
+    step (sscSampleStateAt (pc 31)) =
+      some (execInstrBr (sscSampleStateAt (pc 31))
+        (.JAL .x1
+          (jalOff GuestAddrs.runtime_dispatcher_call
+            (GuestAddrs.stage_system_call + 124)))) := by
+  apply step_non_ecall_non_mem
+  · change sscCode (pc 31) = some (.JAL .x1
+      (jalOff GuestAddrs.runtime_dispatcher_call
+        (GuestAddrs.stage_system_call + 124)))
+    exact sscCode_rdc_jal
+  · decide
+  · decide
+  · decide
+
+private theorem sscRdcStep_target_pc :
+    (execInstrBr (sscSampleStateAt (pc 31))
+      (.JAL .x1
+        (jalOff GuestAddrs.runtime_dispatcher_call
+          (GuestAddrs.stage_system_call + 124)))).pc = RdcB := by
+  change (sscSampleStateAt (pc 31)).pc + signExtend21
+      (jalOff GuestAddrs.runtime_dispatcher_call
+        (GuestAddrs.stage_system_call + 124)) = RdcB
+  change pc 31 + signExtend21
+      (jalOff GuestAddrs.runtime_dispatcher_call
+        (GuestAddrs.stage_system_call + 124)) = RdcB
+  exact pc_jal_rdc
+
+private theorem sscRdcStep_after_none :
+    step (execInstrBr (sscSampleStateAt (pc 31))
+      (.JAL .x1
+        (jalOff GuestAddrs.runtime_dispatcher_call
+          (GuestAddrs.stage_system_call + 124)))) = none := by
+  have hcode := step_code_preserved sscRdcStep_one
+  have hfetch :
+      (execInstrBr (sscSampleStateAt (pc 31))
+        (.JAL .x1
+          (jalOff GuestAddrs.runtime_dispatcher_call
+            (GuestAddrs.stage_system_call + 124)))).code
+        (execInstrBr (sscSampleStateAt (pc 31))
+          (.JAL .x1
+            (jalOff GuestAddrs.runtime_dispatcher_call
+              (GuestAddrs.stage_system_call + 124)))).pc = none := by
+    rw [hcode, sscRdcStep_target_pc]
+    exact sscCode_rdc_missing
+  simp [step, hfetch]
+
+private theorem sscStepN_after_none {next : MachineState}
+    (hafter : step next = none) (n : Nat) :
+    stepN (n + 1) next = none := by
+  rw [stepN_succ]
+  simp [hafter]
+
+private theorem sscStepN_two_plus {state next : MachineState}
+    (hstep : step state = some next) (hafter : step next = none) (n : Nat) :
+    stepN (n + 2) state = none := by
+  rw [show n + 2 = (n + 1) + 1 by omega, stepN_succ, hstep]
+  exact sscStepN_after_none hafter n
+
+private theorem sscNoReturn (state next : MachineState) (caller : Word)
+    (hstep : step state = some next) (hafter : step next = none)
+    (hcaller : state.pc ≠ caller + 4)
+    (hnext : next.pc ≠ caller + 4)
+    (k : Nat) (s' : MachineState)
+    (hsteps : stepN k state = some s') :
+    s'.pc ≠ caller + 4 := by
+  cases k with
+  | zero =>
+    have heq : state = s' := by
+      simpa [stepN] using hsteps
+    intro hpceq
+    rw [← heq] at hpceq
+    exact hcaller hpceq
+  | succ k =>
+    cases k with
+    | zero =>
+      have heq : next = s' := by
+        rw [stepN_one, hstep] at hsteps
+        exact Option.some.inj hsteps
+      intro hpceq
+      rw [← heq] at hpceq
+      exact hnext hpceq
+    | succ n =>
+      rw [sscStepN_two_plus hstep hafter n] at hsteps
+      cases hsteps
+
+theorem ard_residual_sscCode_not_inhabited (fuel : Nat) :
+    ¬ ArdCallShape sscCode (pc 7) sscSampleRet
+      sscSampleSp sscSampleTgt sscSampleCodePtr sscSampleCodeLen
+      sscSampleBlockPayload sscSamplePayloadOut
+      sscSampleV5 sscSampleV6 sscSampleV8
+      (0 : Word) (0 : Word) (0 : Word) sscSampleRet
+      0 (jalOff GuestAddrs.account_read_record
+        (GuestAddrs.stage_system_call + 28)) fuel sscSampleArdFrame := by
+  intro hcontract
+  have htrip := hcontract.2
+  have hpre :
+      ((((.x1 ↦ᵣ sscSampleRet) **
+        ardCallEntry sscSampleSp sscSampleTgt sscSampleCodePtr
+          sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+          sscSampleV5 sscSampleV6 sscSampleV8 sscSampleRet 0) **
+        sscSampleArdFrame) ** empAssertion).holdsFor
+        (sscSampleStateAt (pc 7)) := by
+    refine ⟨sscSampleHeapFold, sscSampleState_compat (pc 7), ?_⟩
+    rw [sscSampleArdPre_eq_concrete]
+    exact ⟨sscSampleHeapFold, PartialState.empty,
+      PartialState.Disjoint_empty_right, PartialState.union_empty_right,
+      sscSampleAtoms_hsat_concrete, rfl⟩
+  have hcr : sscCode.SatisfiedBy (sscSampleStateAt (pc 7)) := by
+    intro a i hi
+    change sscCode a = some i
+    exact hi
+  obtain ⟨k, _, s', hstep, hpc', _⟩ :=
+    htrip empAssertion pcFree_emp (sscSampleStateAt (pc 7)) hcr hpre rfl
+  have hcaller : (sscSampleStateAt (pc 7)).pc ≠ pc 7 + 4 := by
+    change pc 7 ≠ pc 7 + 4
+    unfold pc B
+    decide
+  have hnext :
+      (execInstrBr (sscSampleStateAt (pc 7))
+        (.JAL .x1
+          (jalOff GuestAddrs.account_read_record
+            (GuestAddrs.stage_system_call + 28)))).pc ≠ pc 7 + 4 := by
+    rw [sscArdStep_target_pc]
+    unfold ArdB pc B
+    decide
+  exact (sscNoReturn (state := sscSampleStateAt (pc 7))
+    (next := execInstrBr (sscSampleStateAt (pc 7))
+      (.JAL .x1
+        (jalOff GuestAddrs.account_read_record
+          (GuestAddrs.stage_system_call + 28)))) (caller := pc 7)
+    sscArdStep_one sscArdStep_after_none hcaller hnext k s' hstep) hpc'
+
+theorem sscp_residual_sscCode_not_inhabited (fuel : Nat) :
+    ¬ SscpCallShape sscCode (pc 25) sscSampleRet
+      sscSampleSp sscSampleTgt sscSampleCodePtr sscSampleCodeLen
+      sscSampleBlockPayload sscSamplePayloadOut
+      sscSampleV5 sscSampleV6 (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      sscSampleRet sscSampleV8
+      0 (jalOff GuestAddrs.stage_system_call_payload
+        (GuestAddrs.stage_system_call + 100)) fuel sscSampleSscpFrame := by
+  intro hcontract
+  have htrip := hcontract.2
+  have hpre :
+      ((((.x1 ↦ᵣ sscSampleRet) **
+        sscpCallEntry sscSampleSp sscSampleTgt sscSampleCodePtr
+          sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+          sscSampleV5 sscSampleV6 sscSampleRet sscSampleV8 0) **
+        sscSampleSscpFrame) ** empAssertion).holdsFor
+        (sscSampleStateAt (pc 25)) := by
+    refine ⟨sscSampleHeapFold, sscSampleState_compat (pc 25), ?_⟩
+    rw [sscSampleSscpPre_eq_concrete]
+    exact ⟨sscSampleHeapFold, PartialState.empty,
+      PartialState.Disjoint_empty_right, PartialState.union_empty_right,
+      sscSampleAtoms_hsat_concrete, rfl⟩
+  have hcr : sscCode.SatisfiedBy (sscSampleStateAt (pc 25)) := by
+    intro a i hi
+    change sscCode a = some i
+    exact hi
+  obtain ⟨k, _, s', hstep, hpc', _⟩ :=
+    htrip empAssertion pcFree_emp (sscSampleStateAt (pc 25)) hcr hpre rfl
+  have hcaller : (sscSampleStateAt (pc 25)).pc ≠ pc 25 + 4 := by
+    change pc 25 ≠ pc 25 + 4
+    unfold pc B
+    decide
+  have hnext :
+      (execInstrBr (sscSampleStateAt (pc 25))
+        (.JAL .x1
+          (jalOff GuestAddrs.stage_system_call_payload
+            (GuestAddrs.stage_system_call + 100)))).pc ≠ pc 25 + 4 := by
+    rw [sscSscpStep_target_pc]
+    unfold SscpB pc B
+    decide
+  exact (sscNoReturn (state := sscSampleStateAt (pc 25))
+    (next := execInstrBr (sscSampleStateAt (pc 25))
+      (.JAL .x1
+        (jalOff GuestAddrs.stage_system_call_payload
+          (GuestAddrs.stage_system_call + 100)))) (caller := pc 25)
+    sscSscpStep_one sscSscpStep_after_none hcaller hnext k s' hstep) hpc'
+
+theorem rdc_residual_sscCode_not_inhabited (fuel : Nat) :
+    ¬ RdcCallShape sscCode (pc 31) sscSampleRet
+      sscSampleSp sscSamplePayloadOut
+      sscSampleV5 sscSampleV6 sscSampleTgt sscSampleCodePtr
+      sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+      (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word) (0 : Word)
+      (0 : Word) (0 : Word) sscSampleRet sscSampleV8
+      0 (jalOff GuestAddrs.runtime_dispatcher_call
+        (GuestAddrs.stage_system_call + 124)) fuel empAssertion := by
+  intro hcontract
+  have htrip := hcontract.2
+  have hpre :
+      ((((.x1 ↦ᵣ sscSampleRet) **
+        rdcCallEntry sscSampleSp sscSamplePayloadOut
+          sscSampleV5 sscSampleV6 sscSampleTgt sscSampleCodePtr
+          sscSampleCodeLen sscSampleBlockPayload sscSamplePayloadOut
+          sscSampleRet sscSampleV8 0) ** empAssertion) ** empAssertion).holdsFor
+        (sscSampleStateAt (pc 31)) := by
+    refine ⟨sscSampleHeapFold, sscSampleState_compat (pc 31), ?_⟩
+    rw [sscSampleRdcPre_eq_concrete]
+    refine ⟨sscSampleHeapFold, PartialState.empty,
+      PartialState.Disjoint_empty_right, PartialState.union_empty_right,
+      ?_, rfl⟩
+    exact ⟨sscSampleHeapFold, PartialState.empty,
+      PartialState.Disjoint_empty_right, PartialState.union_empty_right,
+      sscSampleAtoms_hsat_concrete, rfl⟩
+  have hcr : sscCode.SatisfiedBy (sscSampleStateAt (pc 31)) := by
+    intro a i hi
+    change sscCode a = some i
+    exact hi
+  obtain ⟨k, _, s', hstep, hpc', _⟩ :=
+    htrip empAssertion pcFree_emp (sscSampleStateAt (pc 31)) hcr hpre rfl
+  have hcaller : (sscSampleStateAt (pc 31)).pc ≠ pc 31 + 4 := by
+    change pc 31 ≠ pc 31 + 4
+    unfold pc B
+    decide
+  have hnext :
+      (execInstrBr (sscSampleStateAt (pc 31))
+        (.JAL .x1
+          (jalOff GuestAddrs.runtime_dispatcher_call
+            (GuestAddrs.stage_system_call + 124)))).pc ≠ pc 31 + 4 := by
+    rw [sscRdcStep_target_pc]
+    unfold RdcB pc B
+    decide
+  exact (sscNoReturn (state := sscSampleStateAt (pc 31))
+    (next := execInstrBr (sscSampleStateAt (pc 31))
+      (.JAL .x1
+        (jalOff GuestAddrs.runtime_dispatcher_call
+          (GuestAddrs.stage_system_call + 124)))) (caller := pc 31)
+    sscRdcStep_one sscRdcStep_after_none hcaller hnext k s' hstep) hpc'
 
 /-- **Residual 1 is reachable**: every computable conjunct of `ArdCallShape`
     holds at the real `jal ra, account_read_record` (index 7, `0x8005374c`). -/
@@ -646,5 +1378,10 @@ theorem ssc_status_exec_fail_ne_staging_fail : sscStatus 1 0 7 ≠ sscStatus 0 0
 theorem ssc_retlen_staging_fail_reachable : sscRetLen 0 0 9 = 0 := by decide
 
 theorem ssc_retlen_dispatch_reachable : sscRetLen 1 0 9 = 9 := by decide
+
+#print axioms sscSamplePre_inhabited
+#print axioms ard_residual_sscCode_not_inhabited
+#print axioms sscp_residual_sscCode_not_inhabited
+#print axioms rdc_residual_sscCode_not_inhabited
 
 end EvmAsm.Codegen.SystemCallStagingTop
