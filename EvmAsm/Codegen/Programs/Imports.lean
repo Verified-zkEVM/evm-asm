@@ -438,6 +438,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseZeroTest
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionIncreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionRouteFamily
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeRouteWitness
 import EvmAsm.Codegen.Programs.HeaderBaseFeeWholeRoutes
 import EvmAsm.Codegen.Programs.ValidateHeader
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashCorrespondence
