@@ -124,7 +124,7 @@ jobs:
           scripts/check-specref-citations.py --self-test
           scripts/check-specref-citations.py --strict
 
-      # #13196/#13209: `proof-frontier.py --shape` is the oracle this repo trusts OVER
+      # #13196/#13209/#13218: `proof-frontier.py --shape` is the oracle this repo trusts OVER
       # tier prose, so a silent false negative in its classifier is worse than
       # no classifier -- it pushes a rowable routine into the "not rowable" pile
       # with no signal. Its resolver used to discard any token containing a '.',
@@ -136,8 +136,11 @@ jobs:
       # regression nor an over-correction ("grade every union whole-routine")
       # can land quietly. The self-test also keeps arm-qualified contracts tied
       # to their enclosing linked routine, with longest-prefix and foreign-prefix
-      # controls. Pure source parse, no build; the census itself is a
-      # report, not a gate, so only the classifier self-test is wired.
+      # controls, and bounds that recovery by the census universe (#13218) so it
+      # cannot take a contract AWAY from a real routine whose name extends a
+      # linked sibling -- the `secf_cmp_p`/`secf_cmp` case, which the arm fix
+      # regressed into a false `absent`. Pure source parse, no build; the census
+      # itself is a report, not a gate, so only the classifier self-test is wired.
       - name: Proof-frontier shape classifier self-test
         run: python3 scripts/proof-frontier.py --self-test
 
