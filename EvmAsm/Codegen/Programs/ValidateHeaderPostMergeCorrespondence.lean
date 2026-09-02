@@ -104,12 +104,19 @@ theorem validateHeader_postMerge_jal_mem :
 
 /-!
 The theorem below is the machine half of the post-merge correspondence.  Its
-`hcallee` premise is intentionally undischarged: proving that premise is the
-missing machine triple for K67 `header_validate_post_merge`.  A future proof
-must instantiate `calleeCode` with K67 plus its RLP-walker closure and must
-expose the exact `postMergeCalleePost` status; no old full-routine theorem can
-be substituted because `chain_validate_post_merge_full` is a different
-Program and was removed as dead code.
+`hcallee` premise is undischarged, but NOT because the machine triple for K67
+`header_validate_post_merge` is missing — that triple EXISTS at
+`HeaderValidatePostMergeFinal.lean` (`header_validate_post_merge_spec_within`).
+The gap is a SHAPE mismatch: the existing producer concludes in the five-way
+disjunctive post `k67PostRet` (statuses 0..4, each guarded by its own
+`k67Guard*`), while this call-spec's `hcallee` wants a SINGLE-status
+`postMergeCalleePost`.  A future proof must add a SELECTION lemma that picks one
+status (e.g. status 0) out of the `k67PostRet` disjunction, plus the linear
+routing that instantiates `calleeCode` with K67 and its RLP-walker closure;
+no old full-routine theorem can be substituted because
+`chain_validate_post_merge_full` is a different Program and was removed as
+dead code.  The premise is nonetheless JOINTLY INHABITABLE at the H+192 caller
+shape (see `HeaderValidatePostMergeCallWitness.lean`).
 -/
 set_option maxRecDepth 8000 in
 theorem validate_header_post_merge_call_spec_within
