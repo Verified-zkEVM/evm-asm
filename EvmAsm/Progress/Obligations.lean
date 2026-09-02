@@ -228,8 +228,25 @@ reached are read out of the shipped image rather than out of two universally \
 quantified lists, and `dispatchStep_body_shipped_controls` is the negative \
 control that the parametric family really did admit a different `.data` image. \
 `opcode_table_contents_not_scratch_determined` survives as the theorem saying \
-why the pin was needed, not as an open gap. What remains on the \
-machine side is (a) the four side conditions the shipped step still carries, \
+why the pin was needed, not as an open gap. ⛔ THE PIN DID NOT REMOVE A BURDEN, \
+IT MOVED ONE: `guestResidue` carries the same pinned tile, and \
+`guestScratch_eq_window_residue` is an EQUALITY, so the two sides move together \
+and the POST inherits the pin. That is a NEW `.64` obligation — the guest must \
+not clobber either table by halt — and it is NOT discharged. It is gapped for a \
+structural reason, not an unattempted one: `.64` is \
+`TopComposition.runStatelessGuestSound_of_phases`, which still takes its six \
+phase Props as hypotheses, and the missing fact is run-level (no store lands in \
+the table range) with no whole-program write map to quantify over. \
+`guestResidue_rejects_clobbered_tables` is that obligation as a theorem rather \
+than a docstring — a halt heap that zeroed the second gas-table dword provably \
+FAILS the residue — and `scripts/check-data-table-residue.sh` is the wired gate \
+bounding the empirical side. ⚠️ That bound is honest but PARTIAL, and the range \
+must NOT be described as shown-unwritten: of 11628 store sites in `.text`, 2785 \
+have a fully constant address (32 of those land in `.data`, all at least 2056 \
+bytes clear of the table range), and 8843 — 76% — are UNCERTIFIED because their \
+base is unresolvable or is an anchor plus an unbounded runtime term. Both \
+artifacts arrive with #13242, open at the time of this audit. What remains on \
+the machine side is (a) the four side conditions the shipped step still carries, \
 which are about the CODE region the machine fetches from rather than the \
 tables (`hi`, `hbase`, `hover`, `hvalid`), and (b) the handler-side seam. \
 And one iteration of the shipped \
