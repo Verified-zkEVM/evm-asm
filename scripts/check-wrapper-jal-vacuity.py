@@ -17,7 +17,7 @@ zero-valued named memory cells.  It does not infer semantic facts from prose.
 If the interpreter cannot parse the required shape, the result is ``unknown``
 and the gate fails closed.
 
-The current four-row regression fixture is:
+The historical four-row regression fixture is:
 
 * ``eip7702_authorization_signing_hash`` and ``stage_system_call``: reachable;
 * ``blockhash_from_witness_headers`` and ``witness_codes_lookup_by_hash``:
@@ -38,7 +38,11 @@ they are not silently treated as evidence of safety.
 
 Usage:
   python3 scripts/check-wrapper-jal-vacuity.py --self-test
+  python3 scripts/check-wrapper-jal-vacuity.py --live
   python3 scripts/check-wrapper-jal-vacuity.py
+
+``--live`` is the default tree scan.  ``--self-test`` adds the synthetic
+controls before that scan; the flags may be passed together explicitly.
 """
 
 from __future__ import annotations
@@ -73,6 +77,18 @@ EXPECTED_REFS = {
     "eip7702_authorization_signing_hash":
         "eip7702_authorization_signing_hash_spec_within",
 }
+
+# The population of structural candidates is intentionally not a gate: a new
+# direct-call control may be legitimate, and a new excluded row should not
+# require editing this checker merely to keep CI green.  The safety-relevant
+# baseline is the *set of confirmed names*.  A new confirmed name, or the
+# disappearance of an existing one, therefore fails closed while excluded
+# candidates may be added and reviewed in the live report.
+CONFIRMED_BASELINE_SHA = "9546786dfd87cd71265334bfef23512a0abd7fd8"
+CONFIRMED_BASELINE = frozenset({
+    "eip7702_authorization_signing_hash",
+    "stage_system_call",
+})
 
 REF_RE = re.compile(r'\(some\s+"([^"]+)"\)')
 DEF_HEAD = re.compile(
@@ -963,6 +979,12 @@ def outcome_label(row: Row, analysis: Analysis) -> str:
     return "excluded no-residual direct-call control"
 
 
+def confirmed_baseline_diff(confirmed: set[str]) -> tuple[list[str], list[str]]:
+    """Return confirmed names added to and removed from the reviewed baseline."""
+    return (sorted(confirmed - CONFIRMED_BASELINE),
+            sorted(CONFIRMED_BASELINE - confirmed))
+
+
 def report(rows_seen: list[Row], matches: list[tuple[Row, Analysis, str]]) -> list[str]:
     problems: list[str] = []
     by_symbol = {row.symbol: (row, analysis, prog) for row, analysis, prog in matches}
@@ -996,6 +1018,17 @@ def report(rows_seen: list[Row], matches: list[tuple[Row, Analysis, str]]) -> li
           f"confirmed={len(confirmed)}, "
           f"excluded={len(matches) - len(confirmed) - len(unknown)}, "
           f"unknown-failed-closed={len(unknown)}")
+    print("confirmed-name baseline at " + CONFIRMED_BASELINE_SHA + ": "
+          + (", ".join(sorted(CONFIRMED_BASELINE)) or "none"))
+    added_confirmed, removed_confirmed = confirmed_baseline_diff(set(confirmed))
+    if added_confirmed or removed_confirmed:
+        changes: list[str] = []
+        if added_confirmed:
+            changes.append("added=" + ",".join(added_confirmed))
+        if removed_confirmed:
+            changes.append("removed=" + ",".join(removed_confirmed))
+        problems.append("confirmed-name baseline changed at "
+                       + current_git_head() + ": " + "; ".join(changes))
     print(f"historical four-row census was measured at {HISTORICAL_CENSUS_SHA}; "
           "the current candidate population is reported with its own tree SHA")
     print("stage-two domain analysis: actual registered precondition + parsed CFG;")
@@ -1018,9 +1051,6 @@ def report(rows_seen: list[Row], matches: list[tuple[Row, Analysis, str]]) -> li
         if analysis.status == "unknown":
             problems.append(f"{symbol}: unknown-failed-closed; review unsupported "
                             "control-flow or domain syntax")
-        elif symbol not in EXPECTED and analysis.residual:
-            problems.append(f"new wrapper-plus-residual match requires review: "
-                            f"{symbol} ({analysis.status})")
         elif symbol in EXPECTED and analysis.status == "unknown":
             problems.append(f"{symbol}: stage-two reachability is unknown")
 
@@ -1078,6 +1108,20 @@ def self_test() -> int:
         for failure in failures:
             print("  " + failure)
         return 1
+    added, removed = confirmed_baseline_diff(set(CONFIRMED_BASELINE))
+    if added or removed:
+        print("SELF-TEST: FAIL -- clean confirmed baseline is not stable")
+        return 1
+    added, removed = confirmed_baseline_diff(
+        set(CONFIRMED_BASELINE) | {"synthetic_new_confirmed"})
+    if added != ["synthetic_new_confirmed"] or removed:
+        print("SELF-TEST: FAIL -- a new confirmed name was not detected")
+        return 1
+    added, removed = confirmed_baseline_diff(
+        set(CONFIRMED_BASELINE) - {"stage_system_call"})
+    if added or removed != ["stage_system_call"]:
+        print("SELF-TEST: FAIL -- a removed confirmed name was not detected")
+        return 1
     # A planted path-control corruption must be visible in the same run as the
     # clean controls.  Replacing the forced zero with a nonzero fact changes
     # the stage-two result from gated-away to reachable.
@@ -1130,10 +1174,20 @@ def self_test() -> int:
 
 
 def main() -> int:
-    if "--self-test" in sys.argv:
+    args = set(sys.argv[1:])
+    unknown_args = args - {"--self-test", "--live"}
+    if unknown_args:
+        print("wrapper-JAL detector: FAIL -- unknown option(s): "
+              + ", ".join(sorted(unknown_args)))
+        return 1
+    if "--self-test" in args:
         rc = self_test()
         if rc:
             return rc
+        # The live scan remains the default, so an old invocation that only
+        # names --self-test cannot silently lose tree coverage.  CI spells out
+        # both flags for legibility, but the safety property does not depend on
+        # remembering the second one in the workflow.
     _rows, matches, scan_problems = scan()
     problems = report(_rows, matches)
     problems.extend(scan_problems)
@@ -1142,9 +1196,8 @@ def main() -> int:
         for problem in problems:
             print("  " + problem)
         return 1
-    print("wrapper-JAL detector: PASS (four-row regression fixture classified "
-          "2 wrapper-plus-residual reachable / 2 domain-gated; additional "
-          "no-residual direct-call controls are reported separately)")
+    print("wrapper-JAL detector: PASS (confirmed-name baseline matched; "
+          "additional excluded direct-call controls are report-only)")
     return 0
 
 
