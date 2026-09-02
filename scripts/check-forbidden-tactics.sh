@@ -12,6 +12,10 @@
 # proof term:
 #
 #   * `native_decide` — trusts arbitrary compiled `Decidable` evaluation.
+#   * `decide +native` — the same thing under its configuration spelling; it
+#                        shares no token with `native_decide`, so it needs its
+#                        own entry. (Not to be confused with `decide +kernel`,
+#                        which moves evaluation INTO the kernel and is fine.)
 #   * `bv_decide`      — reflects an LRAT checker run via native evaluation.
 #
 # Both were fully eliminated from this repo (native_decide 206 -> 0,
@@ -29,8 +33,9 @@
 #
 # Policy (CLAUDE.md "No native_decide or bv_decide"):
 #   FORBIDDEN as tactic invocations anywhere in EvmAsm/**.lean:
-#     native_decide, bv_decide
+#     native_decide, decide +native, bv_decide
 #   To extend the list, add tokens to FORBIDDEN below (and document why).
+#   Entries are ERE fragments, so escape any regex metacharacter.
 #
 # Doc mentions are allowed: a reference written inside backticks (e.g.
 # "Replaces `bv_decide`") or in a `--` line comment is NOT flagged. A real
@@ -51,7 +56,15 @@ cd "$ROOT"
 
 # Tactics that expand the TCB by sealing results behind a native-compiler
 # trust axiom instead of a kernel-checked proof term.
-FORBIDDEN=(native_decide bv_decide)
+#
+# `decide +native` is the CONFIGURATION spelling of `native_decide` and routes
+# through the same `Lean.ofReduceBool`. It shares no token with `native_decide`,
+# so the first two entries do not match it and nothing else in the tree did
+# either — found while introducing `decide +kernel` (the harmless sibling, which
+# moves evaluation INTO the kernel and is left alone) to `Progress/Routines.lean`.
+# Spelled with the `decide ` prefix so that a prose mention written as
+# `decide +native` stays exempt under the same backtick rule as the others.
+FORBIDDEN=(native_decide bv_decide 'decide \+native')
 
 SCAN_DIR="EvmAsm"
 
@@ -64,6 +77,10 @@ esac
 
 # Build an alternation of the forbidden tokens.
 alt="$(IFS='|'; echo "${FORBIDDEN[*]}")"
+# Human-readable form of the same list: the entries are ERE fragments, so a
+# token that needs escaping (`decide \+native`) must not be shown with its
+# backslash in a message a contributor is meant to act on.
+SHOWN="$(printf '%s' "${FORBIDDEN[*]}" | tr -d '\\')"
 
 # A hit is the token bounded by non-identifier, non-backtick chars (so it is a
 # real tactic token, not a substring and not a `backtick-quoted` doc mention),
@@ -77,7 +94,7 @@ hits="$(
 
 if [[ "$mode" == "report" ]]; then
   echo "== Forbidden-tactic scan over ${SCAN_DIR}/**.lean =="
-  echo "   forbidden: ${FORBIDDEN[*]}"
+  echo "   forbidden: ${SHOWN}"
   echo
   if [[ -n "$hits" ]]; then echo "$hits"; else echo "  (none)"; fi
   echo
@@ -92,7 +109,7 @@ if [[ -n "$hits" ]]; then
 
 ==================================================================
 check-forbidden-tactics FAILED: $n invocation(s) of a TCB-expanding
-tactic (${FORBIDDEN[*]}) found in ${SCAN_DIR}/.
+tactic (${SHOWN}) found in ${SCAN_DIR}/.
 
 These tactics seal their result behind a native-compiler trust axiom
 (Lean.ofReduceBool / Lean.trustCompiler) instead of a kernel-checked
@@ -108,4 +125,4 @@ EOF
   exit 1
 fi
 
-echo "check-forbidden-tactics: OK — no ${FORBIDDEN[*]} invocations in ${SCAN_DIR}/."
+echo "check-forbidden-tactics: OK — no ${SHOWN} invocations in ${SCAN_DIR}/."
