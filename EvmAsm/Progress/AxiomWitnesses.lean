@@ -554,6 +554,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeMulNativeContract.k73_mul_status_branch_native_spec_within
 
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_decrease_route_spec_within_inhabited
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_equal_route_spec_within_inhabited
+
+#print axioms EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_zero_decrease_route_spec_within_inhabited
+
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
 
 #print axioms EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.k73_routeB_post_success_split
