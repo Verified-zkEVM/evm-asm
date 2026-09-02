@@ -92,6 +92,7 @@
   control: three hypotheses each provably FALSE at a concrete point.
 -/
 import EvmAsm.Codegen.Proofs.DispatchStepGas
+import EvmAsm.Codegen.Proofs.GuestDataImage
 import EvmAsm.Codegen.Proofs.OpcodeTables
 import EvmAsm.Rv64.LaResolve
 import EvmAsm.Rv64.MemRegion
@@ -791,5 +792,140 @@ theorem dispatchStep_opcode_premises_refutable :
   refine ⟨by decide, by decide, ?_⟩
   rw [length_opcodeHandlerEntries]
   omega
+
+/-! ### The shipped instantiation (GH #13229)
+
+    Everything above is parametric in `gasCosts`/`handlers`: `dispatchStep_body_
+    image` proves the control flow and the indexing for whatever the two tables
+    hold, because until #13229 nothing in Lean could say what they DO hold —
+    `opcode_table_contents_not_scratch_determined` is that gap as a theorem.
+
+    `Proofs/GuestDataImage.lean` closes it.  `.data` is PROGBITS, so the loader
+    copies its bytes in before `_start` exactly as it does `.text`; the two
+    dispatch tables are pinned at their linked bases and `guestScratch` now
+    carries them instead of havoc.  So the family can be instantiated at the
+    SHIPPED tables, and three of its seven side conditions disappear:
+
+    * `hgc` / `hh` — the index bounds become unconditional.  A fetched byte is
+      a `BitVec 8`, both shipped tables are exactly 256 long, so there is
+      nothing left to assume;
+    * `halign` — discharged by `shippedHandlerTable_jalr_stable`, which is
+      proved over the RESOLVER'S RANGE (the 157 generated rows plus the `0`
+      default) rather than by enumerating 256 opcodes.
+
+    What remains (`hi`, `hbase`, `hover`, `hvalid`) is about the CODE region
+    the machine is fetching from, not about the tables — a different obligation
+    entirely, and not one #13229 claimed.
+
+    The two table `bytesRegion`s are still in the pre, and must be: separation
+    logic requires owning a region to read it.  The change is that they are no
+    longer arbitrary.  They are spelled `guestDataImage` here, which is that
+    pair definitionally (`guestDataImage_tables`), so the entry assertion
+    supplies them rather than the caller inventing them. -/
+
+open Proofs.GuestDataImage in
+/-- A fetched opcode always indexes the shipped gas table: it is a `BitVec 8`
+    and the table is 256 long. -/
+theorem shippedGas_index (b : BitVec 8) : b.toNat < shippedGasCostTable.length := by
+  have hlen : shippedGasCostTable.length = 256 := by simp
+  have hb : b.toNat < 2 ^ 8 := b.isLt
+  omega
+
+open Proofs.GuestDataImage in
+/-- The same for the shipped handler table. -/
+theorem shippedHandler_index (b : BitVec 8) :
+    b.toNat < shippedHandlerTable.length := by
+  have hlen : shippedHandlerTable.length = 256 := by simp
+  have hb : b.toNat < 2 ^ 8 := b.isLt
+  omega
+
+open Proofs.GuestDataImage in
+/-- **The dispatch step over the tables the image actually ships.**
+
+    Same sixteen instructions, same two exits, same `guestImageCodeReq` — but
+    the gas charged and the handler reached are now read out of
+    `guestDataImage`, the pinned `.data` bundle, instead of out of two
+    universally quantified lists.  For every one of the 256 opcodes, *this*
+    opcode charges *this* gas and reaches *this* handler in the shipped
+    guest. -/
+theorem dispatchStep_body_shipped (codeBase : Word) (code : List (BitVec 8))
+    (i : Nat) (gp gas old1 old5 old6 old7 : Word)
+    (hi : i < code.length)
+    (hbase : codeBase.toNat % 8 = 0)
+    (hover : codeBase.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (codeBase + BitVec.ofNat 64 i) = true) :
+    cpsBranchWithin 16 B guestImageCodeReq
+      (((.x1 : Reg) ↦ᵣ old1) ** ((.x5 : Reg) ↦ᵣ old5) ** ((.x6 : Reg) ↦ᵣ old6)
+        ** ((.x7 : Reg) ↦ᵣ old7)
+        ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+        ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+        ** bytesRegion codeBase code ** guestDataImage)
+      (shippedHandlerTable[(code[i]'hi).toNat]'(shippedHandler_index _))
+        (((.x1 : Reg) ↦ᵣ (B + 64))
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (HT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat)))
+          ** ((.x7 : Reg) ↦ᵣ
+              (shippedHandlerTable[(code[i]'hi).toNat]'(shippedHandler_index _)))
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp)
+          ** ((gp + 568) ↦ₘ
+              (gas - (shippedGasCostTable[(code[i]'hi).toNat]'(shippedGas_index _))))
+          ** ⌜¬ BitVec.ult gas
+              (shippedGasCostTable[(code[i]'hi).toNat]'(shippedGas_index _))⌝
+          ** bytesRegion codeBase code ** guestDataImage)
+      (BitVec.ofNat 64 GuestAddrs.exit_outofgas)
+        (((.x1 : Reg) ↦ᵣ old1)
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ
+              (shippedGasCostTable[(code[i]'hi).toNat]'(shippedGas_index _)))
+          ** ((.x7 : Reg) ↦ᵣ gas)
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+          ** ⌜BitVec.ult gas
+              (shippedGasCostTable[(code[i]'hi).toNat]'(shippedGas_index _))⌝
+          ** bytesRegion codeBase code ** guestDataImage) :=
+  dispatchStep_body_image codeBase code i shippedGasCostTable shippedHandlerTable
+    gp gas old1 old5 old6 old7 hi hbase hover hvalid
+    (shippedGas_index _) (shippedHandler_index _)
+    (shippedHandlerTable_jalr_stable _ (by
+      have hb : (code[i]'hi).toNat < 2 ^ 8 := BitVec.isLt _
+      omega))
+
+open Proofs.GuestDataImage in
+set_option maxRecDepth 100000 in
+/-- **Satisfiable instance for the shipped family**, and the reason it is worth
+    stating separately from `dispatchStep_body_instance`.
+
+    That earlier instance had to be built over `demoResolver`, because no Lean
+    term named the linker's choice.  This one is about the image: `ADD` charges
+    3 and reaches `h_ADD`, `STOP` reaches `h_STOP`, and the two are DIFFERENT
+    addresses — so `dispatchStep_body_shipped` is a statement about 256
+    distinct destinations, not one address repeated. -/
+theorem dispatchStep_body_shipped_instance :
+    shippedGasCostTable[0x01]! = 3
+    ∧ shippedHandlerTable[0x01]! = BitVec.ofNat 64 GuestAddrs.h_ADD
+    ∧ shippedHandlerTable[0x00]! = BitVec.ofNat 64 GuestAddrs.h_STOP
+    ∧ shippedHandlerTable[0x00]! ≠ shippedHandlerTable[0x01]! := by
+  refine ⟨by decide, by decide, by decide, by decide⟩
+
+open Proofs.GuestDataImage in
+set_option maxRecDepth 100000 in
+/-- **Negative control: the parametric family really did not determine the
+    image.**
+
+    `demoResolver` is a legitimate resolver — it makes every premise of
+    `dispatchStep_body_within` / `dispatchStep_body_image` true — and the table
+    it produces is provably NOT the one the guest ships.  So the older family
+    was satisfied by at least two different `.data` images, which is exactly
+    what `opcode_table_contents_not_scratch_determined` says and exactly what
+    `dispatchStep_body_shipped` removes.
+
+    Second conjunct: the shipped gas table is not degenerate at the opcode the
+    instance above uses (`ADD` is not free), so that instance is not reading a
+    zeroed region. -/
+theorem dispatchStep_body_shipped_controls :
+    opcodeHandlerEntries demoResolver ≠ shippedHandlerTable
+    ∧ ¬ (shippedGasCostTable[0x01]! = 0) := by
+  refine ⟨by decide, by decide⟩
 
 end EvmAsm.Codegen.DispatchStepOpcode
