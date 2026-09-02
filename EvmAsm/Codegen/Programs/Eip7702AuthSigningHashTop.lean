@@ -616,6 +616,424 @@ theorem authCallSite_ok_sample :
 theorem sample_ret_align : (((0x2000 : Word)) &&& ~~~(1 : Word)) = (0x2000 : Word) := by
   decide
 
+/-! ## The instantiated `authCode` residual is not inhabitable
+
+The residual above is intentionally generic, but its use in this wrapper fixes
+`cr` to `authCode`.  That CodeReq contains the nine wrapper instructions and
+does not contain the callee at `TshB`.  The following model makes the distinction
+kernel-visible: the call-site conjunct is inhabited, and the complete CPS
+conjunct is false because a state compatible with the precondition can execute
+the wrapper's `jal` and then has no instruction at the callee entry.
+
+This is a finding about the current residual instantiation, not a conditional
+retiering or a registry edit.  A future `tx_signing_hash` triple must be applied
+through a CodeReq that contains the deployed callee code (or through an explicit
+code-extension bridge); `SatisfiedBy` cannot supply an absent instruction.
+-/
+
+private theorem authCode_authJal :
+    authCode authJalPC = some (.JAL .x1 authJalOff) := by
+  unfold authCode authJalPC
+  decide
+
+private theorem authCode_missing_tsh : authCode TshB = none := by
+  unfold authCode TshB
+  apply CodeReq.ofProg_none_range
+  intro k hk h_eq
+  have hlen : k < 9 := by
+    simpa [eip7702AuthorizationSigningHash_prog] using hk
+  have hbase : GuestAddrs.eip7702_authorization_signing_hash % 2^64 =
+      0x800294d0 := by decide
+  have htarget : GuestAddrs.tx_signing_hash % 2^64 = 0x8002bcdc := by decide
+  have hoff : 4 * k < 2^64 := by omega
+  have haddr :
+      (AuthB + BitVec.ofNat 64 (4 * k)).toNat = 0x800294d0 + 4 * k := by
+    rw [BitVec.toNat_add]
+    simp only [BitVec.toNat_ofNat]
+    rw [Nat.mod_eq_of_lt hoff, hbase]
+    apply Nat.mod_eq_of_lt
+    omega
+  have hto := congrArg BitVec.toNat h_eq
+  simp only [BitVec.toNat_ofNat] at hto
+  rw [haddr, htarget] at hto
+  omega
+
+def authResidualSampleSp : Word := (0x1000 : Word)
+def authResidualSampleIn : Word := (0x10000 : Word)
+def authResidualSampleOut : Word := (0x20000 : Word)
+def authResidualSampleInBytes : List (BitVec 8) :=
+  RLP.encode (.list ([] : List RLP.RLPItem))
+def authResidualSampleOutBytes : List (BitVec 8) := List.replicate 32 0
+def authResidualSampleStack (i : Nat) : Word :=
+  authResidualSampleSp - BitVec.ofNat 64 (8 * (i + 1))
+
+private inductive AuthResidualAtom where
+  | reg (r : Reg) (v : Word)
+  | mem (a v : Word) (valid : isValidDwordAccess a = true)
+  | own (a : Word) (valid : isValidDwordAccess a = true)
+  deriving DecidableEq
+
+private inductive AuthResidualResource where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def authResidualResource : AuthResidualAtom → AuthResidualResource
+  | .reg r _ => .reg r
+  | .mem a _ _ => .mem a
+  | .own a _ => .mem a
+
+private def authResidualAtom : AuthResidualAtom → Assertion
+  | .reg r v => r ↦ᵣ v
+  | .mem a v _ => a ↦ₘ v
+  | .own a _ => memOwn a
+
+private def authResidualHeap : AuthResidualAtom → PartialState
+  | .reg r v => PartialState.singletonReg r v
+  | .mem a v _ => PartialState.singletonMem a v
+  | .own a _ => PartialState.singletonMem a 0
+
+private theorem authResidualRegReg {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r
+    right
+    simp [PartialState.singletonReg, hne]
+  · left
+    simp [PartialState.singletonReg, h]
+
+private theorem authResidualMemMem {a1 a2 : Word} {v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a
+    right
+    simp [PartialState.singletonMem, hne]
+  · left
+    simp [PartialState.singletonMem, h]
+
+private theorem authResidualRegMem {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) := by
+  exact ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem authResidualMemReg {r : Reg} {a : Word} {v w : Word} :
+    (PartialState.singletonMem a v).Disjoint
+      (PartialState.singletonReg r w) :=
+  authResidualRegMem.symm
+
+private theorem authResidualHeap_disjoint {x y : AuthResidualAtom}
+    (h : authResidualResource x ≠ authResidualResource y) :
+    (authResidualHeap x).Disjoint (authResidualHeap y) := by
+  cases x <;> cases y
+  · apply authResidualRegReg
+    simpa [authResidualResource] using h
+  · exact authResidualRegMem
+  · exact authResidualRegMem
+  · exact authResidualMemReg
+  · apply authResidualMemMem
+    simpa [authResidualResource] using h
+  · apply authResidualMemMem
+    simpa [authResidualResource] using h
+  · exact authResidualMemReg
+  · apply authResidualMemMem
+    simpa [authResidualResource] using h
+  · apply authResidualMemMem
+    simpa [authResidualResource] using h
+
+def authResidualAtoms : List AuthResidualAtom :=
+  [ .reg .x1 0, .reg .x2 authResidualSampleSp,
+    .own (authResidualSampleStack 7) (by decide),
+    .own (authResidualSampleStack 6) (by decide),
+    .own (authResidualSampleStack 5) (by decide),
+    .own (authResidualSampleStack 4) (by decide),
+    .own (authResidualSampleStack 3) (by decide),
+    .own (authResidualSampleStack 2) (by decide),
+    .own (authResidualSampleStack 1) (by decide),
+    .own (authResidualSampleStack 0) (by decide),
+    .reg .x10 authResidualSampleIn, .reg .x11 1, .reg .x12 0,
+    .reg .x13 0, .reg .x14 authResidualSampleOut, .reg .x0 0,
+    .mem authResidualSampleIn 192 (by decide),
+    .mem authResidualSampleOut 0 (by decide),
+    .mem (authResidualSampleOut + 8) 0 (by decide),
+    .mem (authResidualSampleOut + 16) 0 (by decide),
+    .mem (authResidualSampleOut + 24) 0 (by decide),
+    .mem authResidualSampleSp 0 (by decide) ]
+
+private theorem authResidualAtoms_pairwise :
+    authResidualAtoms.Pairwise
+      (fun x y => authResidualResource x ≠ authResidualResource y) := by
+  unfold authResidualAtoms authResidualResource authResidualSampleSp
+    authResidualSampleIn authResidualSampleOut authResidualSampleStack
+  decide
+
+private theorem authResidualAtoms_hsat :
+    (authResidualAtoms.foldr (fun x acc => authResidualAtom x ** acc) empAssertion)
+      (authResidualAtoms.foldr
+        (fun x acc => (authResidualHeap x).union acc) PartialState.empty) := by
+  apply sepConj_foldr_satisfiable authResidualAtom authResidualHeap
+    authResidualAtoms
+  · intro x hx
+    cases x with
+    | reg r v => exact rfl
+    | mem a v hv => exact ⟨rfl, hv⟩
+    | own a hv => exact ⟨0, rfl, hv⟩
+  · exact List.Pairwise.imp
+      (fun {_ _} h => authResidualHeap_disjoint h)
+      authResidualAtoms_pairwise
+
+private def authResidualHeapFold : PartialState :=
+  authResidualAtoms.foldr
+    (fun x acc => (authResidualHeap x).union acc) PartialState.empty
+
+private def authResidualAtomsAssert : Assertion :=
+  authResidualAtoms.foldr (fun x acc => authResidualAtom x ** acc) empAssertion
+
+private theorem authResidualPre_eq_atoms :
+    (((.x1 ↦ᵣ (0 : Word)) **
+      tshCallEntry authResidualSampleSp authResidualSampleIn (1 : Word)
+        (0 : Word) (0 : Word) authResidualSampleOut
+        authResidualSampleInBytes authResidualSampleOutBytes) **
+      authResidualFrame authResidualSampleSp (0 : Word) empAssertion)
+      = authResidualAtomsAssert := by
+  have hframeAddr :
+      authResidualSampleSp + signExtend12 (0 : BitVec 12) =
+        authResidualSampleSp := by decide
+  unfold authResidualFrame
+  rw [hframeAddr]
+  simp [tshCallEntry, authResidualAtomsAssert,
+    authResidualAtoms,
+    authResidualAtom, authResidualSampleInBytes, authResidualSampleOutBytes,
+    authResidualSampleSp, authResidualSampleIn, authResidualSampleOut,
+    authResidualSampleStack, bytesRegion, bytesRegionAux, stackFree,
+    packBytes, packDword, getByteAt, RLP.encode, RLP.encode.encodeItems,
+    sepConj_emp_right', sepConj_assoc']
+
+private theorem authResidualAtomsAssert_holds :
+    authResidualAtomsAssert authResidualHeapFold := by
+  exact authResidualAtoms_hsat
+
+def authResidualSamplePre : Assertion :=
+  ((.x1 ↦ᵣ (0 : Word)) **
+    tshCallEntry authResidualSampleSp authResidualSampleIn (1 : Word)
+      (0 : Word) (0 : Word) authResidualSampleOut
+      authResidualSampleInBytes authResidualSampleOutBytes) **
+    authResidualFrame authResidualSampleSp (0 : Word) empAssertion
+
+theorem authResidualSamplePre_eq_atoms :
+    authResidualSamplePre = authResidualAtomsAssert := by
+  exact authResidualPre_eq_atoms
+
+def authResidualSampleState : MachineState where
+  regs := fun r => (authResidualHeapFold.regs r).getD 0
+  mem := fun a => (authResidualHeapFold.mem a).getD 0
+  code := authCode
+  pc := authJalPC
+  publicValues := (authResidualHeapFold.publicValues).getD []
+  privateInput := (authResidualHeapFold.privateInput).getD []
+  inputBufBase := (authResidualHeapFold.inputBufBase).getD defaultInputBufBase
+
+private theorem authResidualHeap_x0 :
+    authResidualHeapFold.regs .x0 = some 0 := by
+  unfold authResidualHeapFold authResidualAtoms authResidualHeap
+  decide
+
+private theorem authResidualState_getReg (r : Reg) (hr : r ≠ .x0) :
+    authResidualSampleState.getReg r =
+      (authResidualHeapFold.regs r).getD 0 := by
+  cases r <;> simp_all [authResidualSampleState, MachineState.getReg]
+
+private theorem authResidualState_getMem (a : Word) :
+    authResidualSampleState.getMem a =
+      (authResidualHeapFold.mem a).getD 0 := by
+  rfl
+
+private theorem authResidualHeap_code_none_atom (x : AuthResidualAtom) (a : Word) :
+    (authResidualHeap x).code a = none := by
+  cases x <;> rfl
+
+private theorem authResidualHeap_code_none (a : Word) :
+    authResidualHeapFold.code a = none := by
+  unfold authResidualHeapFold
+  induction authResidualAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (authResidualHeap x).code a = none :=
+      authResidualHeap_code_none_atom x a
+    change (match (authResidualHeap x).code a with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (authResidualHeap y).union acc)
+          PartialState.empty).code a) = none
+    rw [hx, ih]
+
+private theorem authResidualHeap_pc_none : authResidualHeapFold.pc = none := by
+  unfold authResidualHeapFold
+  induction authResidualAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (authResidualHeap x).pc = none := by cases x <;> rfl
+    change (match (authResidualHeap x).pc with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (authResidualHeap y).union acc)
+          PartialState.empty).pc) = none
+    rw [hx, ih]
+
+private theorem authResidualState_compat :
+    authResidualHeapFold.CompatibleWith authResidualSampleState := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v hv
+    by_cases hr : r = .x0
+    · subst r
+      have hv0 : v = 0 := by
+        rw [authResidualHeap_x0] at hv
+        injection hv with hv
+        exact hv.symm
+      subst hv0
+      rfl
+    · rw [authResidualState_getReg r hr, hv]
+      rfl
+  · intro a v hv
+    show authResidualSampleState.getMem a = v
+    rw [authResidualState_getMem a, hv]
+    rfl
+  · intro a i hi
+    rw [authResidualHeap_code_none a] at hi
+    cases hi
+  · intro v hv
+    rw [authResidualHeap_pc_none] at hv
+    cases hv
+  · intro v hv; cases hv
+  · intro v hv; cases hv
+  · intro v hv; cases hv
+
+theorem authResidualSamplePre_inhabited :
+    authResidualSamplePre.holdsFor authResidualSampleState := by
+  refine ⟨authResidualHeapFold, authResidualState_compat, ?_⟩
+  rw [authResidualSamplePre_eq_atoms]
+  exact authResidualAtomsAssert_holds
+
+theorem authResidualSampleCallSiteOk :
+    tshCallSiteOk authCode authJalPC (1 : Word)
+      ([] : List RLP.RLPItem) authResidualSampleOutBytes authJalOff
+      (authResidualFrame authResidualSampleSp (0 : Word) empAssertion) := by
+  apply authCallSite_ok
+  · exact pcFree_emp
+  · decide
+  · simp [authResidualSampleOutBytes]
+
+private theorem authResidualStep_one :
+    step authResidualSampleState =
+      some (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)) := by
+  apply step_non_ecall_non_mem
+  · change authCode authJalPC = some (.JAL .x1 authJalOff)
+    exact authCode_authJal
+  · decide
+  · decide
+  · decide
+
+private theorem authResidualStep_target_pc :
+    (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)).pc = TshB := by
+  change authResidualSampleState.pc + signExtend21 authJalOff = TshB
+  change authJalPC + signExtend21 authJalOff = TshB
+  exact authJal_target
+
+private theorem authResidualStep_after_none :
+    step (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)) = none := by
+  have hcode := step_code_preserved authResidualStep_one
+  have hfetch :
+      (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)).code
+        (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)).pc = none := by
+    rw [hcode, authResidualStep_target_pc]
+    exact authCode_missing_tsh
+  simp [step, hfetch]
+
+private theorem authResidualStepN_after_none (n : Nat) :
+    stepN (n + 1)
+      (execInstrBr authResidualSampleState (.JAL .x1 authJalOff)) = none := by
+  rw [stepN_succ]
+  simp [authResidualStep_after_none]
+
+private theorem authResidualJal_ne_return :
+    authJalPC ≠ authJalPC + 4 := by
+  unfold authJalPC AuthB
+  decide
+
+private theorem authResidualTsh_ne_return :
+    TshB ≠ authJalPC + 4 := by
+  unfold TshB authJalPC AuthB
+  decide
+
+private theorem authResidualStepN_two_plus (n : Nat) :
+    stepN (n + 2) authResidualSampleState = none := by
+  rw [show n + 2 = (n + 1) + 1 by omega, stepN_succ,
+    authResidualStep_one]
+  exact authResidualStepN_after_none n
+
+private theorem authResidualNoReturn (k : Nat) (s' : MachineState)
+    (hstep : stepN k authResidualSampleState = some s') :
+    s'.pc ≠ authJalPC + 4 := by
+  cases k with
+  | zero =>
+    have heq : authResidualSampleState = s' := by
+      simpa [stepN] using hstep
+    intro hpceq
+    rw [← heq] at hpceq
+    change authJalPC = authJalPC + 4 at hpceq
+    exact authResidualJal_ne_return hpceq
+  | succ k =>
+    cases k with
+    | zero =>
+      have heq :
+          execInstrBr authResidualSampleState (.JAL .x1 authJalOff) = s' := by
+        rw [stepN_one, authResidualStep_one] at hstep
+        exact Option.some.inj hstep
+      intro hpceq
+      rw [← heq, authResidualStep_target_pc] at hpceq
+      exact authResidualTsh_ne_return hpceq
+    | succ n =>
+      rw [authResidualStepN_two_plus n] at hstep
+      cases hstep
+
+theorem txSigningHashContract_authCode_not_inhabited (fuel : Nat) :
+    ¬ txSigningHashContract authCode authJalPC (0 : Word)
+      authResidualSampleSp authResidualSampleIn (1 : Word)
+      authResidualSampleOut ([] : List RLP.RLPItem)
+      authResidualSampleOutBytes authJalOff fuel
+      (authResidualFrame authResidualSampleSp (0 : Word) empAssertion) := by
+  intro hcontract
+  have htrip := hcontract.2 (0 : Word) (0 : Word) (by decide)
+  have hpre :
+      ((((.x1 ↦ᵣ (0 : Word)) **
+        tshCallEntry authResidualSampleSp authResidualSampleIn (1 : Word)
+          (0 : Word) (0 : Word) authResidualSampleOut
+          (RLP.encode (.list ([] : List RLP.RLPItem)))
+          authResidualSampleOutBytes) **
+        authResidualFrame authResidualSampleSp (0 : Word) empAssertion) **
+        empAssertion).holdsFor
+        authResidualSampleState := by
+    change (authResidualSamplePre ** empAssertion).holdsFor
+      authResidualSampleState
+    rcases authResidualSamplePre_inhabited with ⟨hp, hcompat, hholds⟩
+    refine ⟨hp, hcompat, ?_⟩
+    exact ⟨hp, PartialState.empty, PartialState.Disjoint_empty_right,
+      PartialState.union_empty_right, hholds, rfl⟩
+  have hcr : authCode.SatisfiedBy authResidualSampleState := by
+    intro a i hi
+    exact hi
+  obtain ⟨k, _, s', hstep, hpc', _⟩ :=
+    htrip empAssertion pcFree_emp authResidualSampleState hcr hpre rfl
+  exact authResidualNoReturn k s' hstep hpc'
+
 #print axioms eip7702_authorization_signing_hash_spec_within
 #print axioms recover_authority_unfold
 #print axioms eip7702AuthorizationSigningHash_prog_eq_frame
@@ -625,5 +1043,8 @@ theorem sample_ret_align : (((0x2000 : Word)) &&& ~~~(1 : Word)) = (0x2000 : Wor
 #print axioms sampleAuth_tuple_length
 #print axioms authSigningPreimage_segments
 #print axioms authJal_target
+#print axioms authResidualSamplePre_inhabited
+#print axioms authResidualSampleCallSiteOk
+#print axioms txSigningHashContract_authCode_not_inhabited
 
 end EvmAsm.Codegen.Eip7702AuthSigningHashSpec
