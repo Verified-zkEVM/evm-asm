@@ -117,6 +117,30 @@ BACKTICKED_RE = re.compile(r"`([A-Za-z][A-Za-z0-9_']*)`")
 ROW_SPLIT_RE = re.compile(r'\n  routine "')
 WITNESS_RE = re.compile(r"abbrev\s+_\w+\s*:=\s*@([A-Za-z0-9_.]+)")
 SPEC_RE = re.compile(r'\(some\s*\n?\s*"([A-Za-z0-9_\']+)"\)')
+ROUTINE_CHUNK_START_RE = re.compile(
+    r"(?m)^def routineRegistry(?:Part[A-Za-z0-9_]*)?\s*"
+    r":\s*List RoutineEntry\s*:=\s*\["
+)
+ROUTINE_LIST_END_RE = re.compile(r"(?m)^\]\s*$")
+
+
+def routine_registry_body(text: str) -> str | None:
+    """Join all source bodies making up the computable routine registry.
+
+    Routines.lean is split into list chunks to keep elaboration/code generation
+    bounded. The non-vacuity scan must inspect every chunk; scanning only the
+    wrapper would silently turn this gate into a zero-row self-test.
+    """
+    starts = list(ROUTINE_CHUNK_START_RE.finditer(text))
+    if not starts:
+        return None
+    bodies = []
+    for start in starts:
+        end = ROUTINE_LIST_END_RE.search(text, start.end())
+        if end is None:
+            return None
+        bodies.append(text[start.end():end.start()])
+    return "\n".join(bodies)
 
 
 def analyse(text: str, declared: set[str] | None = None,
@@ -133,12 +157,16 @@ def analyse(text: str, declared: set[str] | None = None,
         start = text.find("def registry")
         end = text.find("theorem registry_size")
     else:
-        start = text.find("def routineRegistry")
-        end = text.find("theorem routineCount_eq")
-    if start < 0 or end < 0 or end <= start:
+        body = routine_registry_body(text)
+        start, end = 0, 1
+        if body is None:
+            return ([ ("<parse>", "could not locate the registry body", "unwitnessed") ],
+                    0, 0)
+    if corr and (start < 0 or end < 0 or end <= start):
         return ([("<parse>", "could not locate the registry body", "unwitnessed")],
                 0, 0)
-    body = text[start:end]
+    if corr:
+        body = text[start:end]
 
     if corr:
         rows = CORR_SPLIT_RE.split(body)[1:]

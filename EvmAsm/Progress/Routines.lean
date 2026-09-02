@@ -489,7 +489,7 @@ def routine (symbol : String) (tier : ProofTier) (proofRef : Option String)
     Grouped by guest symbol. This is a **partial** enumeration of the verified
     guest surface — see `routineCount` below and the module docstring in
     `EvmAsm/Progress/AxiomWitnesses.lean` for what is not yet covered. -/
-def routineRegistry : List RoutineEntry := [
+def routineRegistryPartA : List RoutineEntry := [
   -- `rlp_encode_uint_be` — the routine whose uncovered triple surfaced #11042.
   routine "rlp_encode_uint_be" .conditional (some "reub_spec_within")
       (gate := "stripped payload `n - reubZeros xs 0 n ≤ 55` — the RLP "
@@ -2634,6 +2634,13 @@ def routineRegistry : List RoutineEntry := [
         ++ "same aliasing caveat as the twin; total over `depth`. Byte-tied by "
         ++ "`frameLoadRegs_byte_tie` (`rfl`). Lives in "
         ++ "`Codegen/Programs/FrameLoadRegsSAsm.lean`"),
+]
+
+-- Keep each computable chunk below the measured flat-list ceiling: the
+-- 243-row monolith builds, while adding one short row (244 total) reaches the
+-- code generator's recursion limit. Rechunk before either part approaches 244
+-- rows; new rows may be appended to either part.
+def routineRegistryPartB : List RoutineEntry := [
   -- ==========================================================================
   -- The P-256 family (#12244). Four leaves, all four ALREADY carrying flat
   -- triples over their own `CodeReq.ofProg (GuestAddrs.<sym>) <sym>_prog` with
@@ -5614,6 +5621,8 @@ def routineRegistry : List RoutineEntry := [
         ++ "values back. No Correspondence row: this arm ties to no spec-side VALUE. Lives in "
         ++ "`Codegen/Proofs/CallFrameEnterSpec.lean`"),
 ]
+
+def routineRegistry : List RoutineEntry := routineRegistryPartA ++ routineRegistryPartB
 
 /-! ## Offline routine contracts
 

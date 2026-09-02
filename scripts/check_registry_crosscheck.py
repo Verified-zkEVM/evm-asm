@@ -78,25 +78,45 @@ def witnessed_symbols(text: str) -> set[str]:
     return set(re.findall(r'routine\s+"([A-Za-z0-9_]+)"', text))
 
 
+_ROUTINE_CHUNK_START = re.compile(
+    r"(?m)^def routineRegistry(?:Part[A-Za-z0-9_]*)?\s*"
+    r":\s*List RoutineEntry\s*:=\s*\["
+)
+_ROUTINE_LIST_END = re.compile(r"(?m)^\]\s*$")
+
+
+def _routine_registry_bodies(text: str) -> list[str] | None:
+    """Return the bodies of all computable routine-registry chunks.
+
+    The registry is intentionally allowed to be split into named list chunks
+    so the Lean elaborator/code generator does not build one unbounded inline
+    list. Keep this parser list-scoped: the file-wide row regex above is the
+    primary census, while this independent recount must inspect exactly the
+    same registry chunks and not witness prose below them.
+    """
+    starts = list(_ROUTINE_CHUNK_START.finditer(text))
+    if not starts:
+        return None
+    bodies = []
+    for start in starts:
+        end = _ROUTINE_LIST_END.search(text, start.end())
+        if end is None:
+            return None
+        bodies.append(text[start.end():end.start()])
+    return bodies
+
+
 def independent_routine_symbol_count(text: str) -> int:
-    """Recount distinct symbols inside `routineRegistry` only (line-anchored).
+    """Recount distinct symbols inside the routine-registry chunks.
 
     Deliberately not the same regex surface as `witnessed_symbols`: a drift that
     makes the file-wide primary miss or double-count still has this list-scoped
     recount to disagree with.
     """
-    m = re.search(r"def routineRegistry : List RoutineEntry := \[", text)
-    if m is None:
+    bodies = _routine_registry_bodies(text)
+    if bodies is None:
         return -1
-    i, depth = m.end(), 1  # already inside the outer `[`
-    while i < len(text) and depth > 0:
-        c = text[i]
-        if c == "[":
-            depth += 1
-        elif c == "]":
-            depth -= 1
-        i += 1
-    body = text[m.end() : i - 1]
+    body = "\n".join(bodies)
     return len(set(re.findall(r'(?m)^\s*routine\s+"([A-Za-z0-9_]+)"', body)))
 
 
