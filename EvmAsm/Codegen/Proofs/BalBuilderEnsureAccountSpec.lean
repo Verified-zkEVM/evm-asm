@@ -117,6 +117,37 @@ open EvmAsm.Rv64
 open EvmAsm.Rv64.SAsm
 open EvmAsm.Rv64.Tactics
 open EvmAsm.Codegen
+open EvmAsm.Evm64.Terminating (copyIntoRegion copyIntoRegion_length)
+
+/-- Local `PCFree` instance for `bytesRegion` (there is no global one — only
+    section-scoped ones in the RLP files).  Without it `runBlock`/`seqFrame`'s
+    `buildPcFreeProof` cannot discharge a frame containing the key or row
+    region and silently leaves the frame metavariable unassigned. -/
+local instance instPCFreeBytesRegion (b : Word) (bs : List (BitVec 8)) :
+    Assertion.PCFree (bytesRegion b bs) := ⟨bytesRegion_pcFree b bs⟩
+
+local macro "pcFreeR" : tactic =>
+  `(tactic| repeat' first
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_memOwn
+    | apply pcFree_sepConj
+    | pcFree)
+
+/-- Word decrement of a successor counter. -/
+private theorem bbea_succ_dec (n : Nat) :
+    BitVec.ofNat 64 (n + 1) + signExtend12 (-1 : BitVec 12) = BitVec.ofNat 64 n := by
+  apply BitVec.eq_of_toNat_eq
+  have hs : (signExtend12 (-1 : BitVec 12) : Word).toNat = 18446744073709551615 := by decide
+  rw [BitVec.toNat_add, hs, BitVec.toNat_ofNat, BitVec.toNat_ofNat]
+  omega
+
+/-- Pointer advance by 1 byte. -/
+private theorem bbea_advance (b : Word) (m : Nat) :
+    (b + BitVec.ofNat 64 m) + signExtend12 (1 : BitVec 12) = b + BitVec.ofNat 64 (m + 1) := by
+  rw [show signExtend12 (1 : BitVec 12) = (1 : Word) from by decide]; bv_omega
 
 /-- The routine's linked entry. -/
 abbrev BBEA : Word := (GuestAddrs.bal_builder_ensure_account : Word)
@@ -317,5 +348,216 @@ theorem balBuilderEnsureAccount_segB_body_spec
   -- index 41: `mv t2, s0` — the SOURCE key cursor
   have Q9 := mv_spec_gen_within .x7 .x8 addrPtr w7 (base + (164 : Word)) (by nofun)
   runBlock Q0 Q1 Q2 Q3 Q4 Q5 Q6 Q7 Q8 Q9
+
+/-! ## Segment C — the twenty-iteration key copy
+
+  Indices 42..48 are a genuine loop, not a skipped one:
+
+  ```
+  42:  beq  t0, x0, +28        -- exit to index 49 when the countdown drains
+  43:  lbu  x28, 0(t2)         -- SOURCE byte (t2 = the caller's key cursor)
+  44:  sb   0(t1), x28         -- DESTINATION byte (t1 = the row cursor)
+  45:  addi t1, t1, 1
+  46:  addi t2, t2, 1
+  47:  addi t0, t0, -1
+  48:  jal  x0, -24            -- back-edge to 42
+  ```
+
+  ⚠️ The cursor roles are the REVERSE of `hesrCopyBody`'s: `t1` writes and
+  `t2` reads.  Read off the Program, not the sibling proof. -/
+
+/-- The copy-loop invariant after `i` of the twenty key bytes have landed in
+    the row: the two cursors sit `i` bytes in, `x28` holds whatever the last
+    `lbu` left there, and the row region carries the first `i` key bytes. -/
+def bbeaCopyInv (addrPtr accountsBase : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (i : Nat) : Assertion :=
+  ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 i)) **
+  ((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 i)) ** regOwn .x28 **
+  bytesRegion addrPtr srcBytes **
+  bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 i)
+
+theorem bbeaCopyInv_pcFree (addrPtr accountsBase : Word)
+    (srcBytes dstBytes : List (BitVec 8)) (i : Nat) :
+    (bbeaCopyInv addrPtr accountsBase srcBytes dstBytes i).pcFree := by
+  unfold bbeaCopyInv; pcFreeR
+
+/-- One iteration of the key copy (indices 43..48, `base + 172 → base + 168`):
+    read key byte `i`, store it into row byte `i`, bump both cursors,
+    decrement the countdown, and take the back-edge. -/
+theorem balBuilderEnsureAccount_copyBody_spec
+    (base addrPtr accountsBase : Word) (srcBytes dstBytes : List (BitVec 8))
+    (i m : Nat)
+    (h_src_align : addrPtr.toNat % 8 = 0)
+    (h_dst_align : accountsBase.toNat % 8 = 0)
+    (h_src_lt : i < srcBytes.length)
+    (h_dst_lt : i < dstBytes.length)
+    (h_src_over : addrPtr.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : accountsBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (addrPtr + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (accountsBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 6 (base + (172 : Word)) (base + (168 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bbeaCopyInv addrPtr accountsBase srcBytes dstBytes i)
+      (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bbeaCopyInv addrPtr accountsBase srcBytes dstBytes (i + 1)) := by
+  unfold bbeaCopyInv
+  have htrunc : ((srcBytes[i]'h_src_lt).zeroExtend 64).truncate 8 = (srcBytes[i]'h_src_lt) := by
+    apply BitVec.eq_of_toNat_eq
+    rw [BitVec.toNat_setWidth, BitVec.toNat_setWidth]
+    have := (srcBytes[i]'h_src_lt).isLt
+    rw [Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)]
+  have hgetd : srcBytes.getD i 0 = (srcBytes[i]'h_src_lt) := by
+    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h_src_lt]
+    simp
+  have hstep : copyIntoRegion dstBytes srcBytes 0 0 (i + 1)
+      = (copyIntoRegion dstBytes srcBytes 0 0 i).set i (srcBytes[i]'h_src_lt) := by
+    simp only [copyIntoRegion, Nat.zero_add, hgetd]
+  -- Peel `regOwn .x28` to a concrete entry value, quantified.
+  suffices key : ∀ v28 : Word,
+      cpsTripleWithin 6 (base + (172 : Word)) (base + (168 : Word))
+        (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+        ((((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 i)) **
+          ((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 i)) **
+          bytesRegion addrPtr srcBytes **
+          bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 i)) **
+         ((.x28 : Reg) ↦ᵣ v28))
+        (((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+         ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 (i + 1))) **
+         ((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 (i + 1))) ** regOwn .x28 **
+         bytesRegion addrPtr srcBytes **
+         bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 (i + 1))) by
+    exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun _ hq => by
+      xperm_chunked hq) (cpsTripleWithin_of_forall_regIs_to_regOwn key)
+  intro v28
+  -- With `x28` concrete, the six instructions run straight through; weaken the
+  -- copied byte back to `regOwn` afterwards.
+  suffices hbody : cpsTripleWithin 6 (base + (172 : Word)) (base + (168 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      (((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 i)) ** ((.x28 : Reg) ↦ᵣ v28) **
+       bytesRegion addrPtr srcBytes **
+       ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 i)) **
+       bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 i) **
+       ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 (i + 1))) **
+       ((.x28 : Reg) ↦ᵣ ((srcBytes[i]'h_src_lt).zeroExtend 64)) **
+       bytesRegion addrPtr srcBytes **
+       ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 (i + 1))) **
+       bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 (i + 1)) **
+       ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) by
+    refine cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp) (fun sState hq => ?_) hbody
+    have hq2 : (((.x28 : Reg) ↦ᵣ ((srcBytes[i]'h_src_lt).zeroExtend 64)) **
+        ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 (i + 1))) **
+        ((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 (i + 1))) **
+        bytesRegion addrPtr srcBytes **
+        bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 (i + 1))) sState := by
+      xperm_chunked hq
+    have hq3 := sepConj_mono_left (regIs_implies_regOwn .x28) _ hq2
+    xperm_chunked hq3
+  -- The five straight-line steps 43..47, then the back-edge composed by hand
+  -- (`runBlock` reconciles a forward exit only; index 48 jumps BACKWARD).
+  have hstraight : cpsTripleWithin 5 (base + (172 : Word)) (base + (192 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      (((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 i)) ** ((.x28 : Reg) ↦ᵣ v28) **
+       bytesRegion addrPtr srcBytes **
+       ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 i)) **
+       bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 i) **
+       ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (m + 1)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)))
+      (((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 (i + 1))) **
+       ((.x28 : Reg) ↦ᵣ ((srcBytes[i]'h_src_lt).zeroExtend 64)) **
+       bytesRegion addrPtr srcBytes **
+       ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 (i + 1))) **
+       bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 (i + 1)) **
+       ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) := by
+    unfold balBuilderEnsureAccount_prog
+    simp only [CodeReq.ofProg_cons, CodeReq.ofProg_nil]
+    -- index 43: `lbu x28, 0(t2)` — the key byte
+    have C0 := bytesRegion_lbu_within .x28 .x7 addrPtr v28 (base + (172 : Word))
+      srcBytes i (by nofun) h_src_align h_src_lt (by omega) (h_src_valid i h_src_lt)
+    -- index 44: `sb 0(t1), x28` — the row byte
+    have C1 := bytesRegion_sb_within .x6 .x28 accountsBase ((srcBytes[i]'h_src_lt).zeroExtend 64)
+      (base + (176 : Word)) (copyIntoRegion dstBytes srcBytes 0 0 i) i h_dst_align
+      (by rw [copyIntoRegion_length]; omega) (by omega)
+      (h_dst_valid i h_dst_lt)
+    rw [htrunc, ← hstep] at C1
+    -- index 45: `addi t1, t1, 1` — bump the row cursor
+    have C2 := addi_spec_gen_same_within .x6
+      (accountsBase + BitVec.ofNat 64 i) (1 : BitVec 12) (base + (180 : Word)) (by nofun)
+    rw [bbea_advance accountsBase i] at C2
+    -- index 46: `addi t2, t2, 1` — bump the key cursor
+    have C3 := addi_spec_gen_same_within .x7
+      (addrPtr + BitVec.ofNat 64 i) (1 : BitVec 12) (base + (184 : Word)) (by nofun)
+    rw [bbea_advance addrPtr i] at C3
+    -- index 47: `addi t0, t0, -1` — drain the countdown
+    have C4 := addi_spec_gen_same_within .x5 (BitVec.ofNat 64 (m + 1)) (-1 : BitVec 12)
+      (base + (188 : Word)) (by nofun)
+    rw [bbea_succ_dec m] at C4
+    runBlock C0 C1 C2 C3 C4
+  -- index 48: `jal x0, -24` — the back-edge to the loop header
+  have hjmem : ∀ a i',
+      CodeReq.singleton (base + (192 : Word)) (.JAL .x0 (-24 : BitVec 21)) a = some i' →
+      CodeReq.ofProg base balBuilderEnsureAccount_prog a = some i' :=
+    CodeReq.ofProg_mem_at base (base + (192 : Word)) balBuilderEnsureAccount_prog 48
+      (.JAL .x0 (-24 : BitVec 21)) (by bv_omega) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel)
+  have C5 := jal0_spec_pcFree (-24 : BitVec 21) (base + (192 : Word))
+    (P := ((.x7 : Reg) ↦ᵣ (addrPtr + BitVec.ofNat 64 (i + 1))) **
+      ((.x28 : Reg) ↦ᵣ ((srcBytes[i]'h_src_lt).zeroExtend 64)) **
+      bytesRegion addrPtr srcBytes **
+      ((.x6 : Reg) ↦ᵣ (accountsBase + BitVec.ofNat 64 (i + 1))) **
+      bytesRegion accountsBase (copyIntoRegion dstBytes srcBytes 0 0 (i + 1)) **
+      ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 m) ** ((.x0 : Reg) ↦ᵣ (0 : Word))) (by pcFreeR)
+  rw [show signExtend21 (-24 : BitVec 21) = (-24 : Word) from by decide,
+      show base + (192 : Word) + (-24 : Word) = base + (168 : Word) from by bv_omega] at C5
+  exact cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_chunked hp) hstraight
+    (cpsTripleWithin_extend_code hjmem C5)
+
+/-- **The copy-loop closure** (indices 42..48, `base + 168 → base + 196`):
+    `countdownLoop_spec` over `bbeaCopyInv`, twenty iterations of six steps
+    each plus the final guard test. -/
+theorem balBuilderEnsureAccount_copyLoop_spec
+    (base addrPtr accountsBase : Word) (srcBytes dstBytes : List (BitVec 8))
+    (h_src_align : addrPtr.toNat % 8 = 0)
+    (h_dst_align : accountsBase.toNat % 8 = 0)
+    (h_src_len : srcBytes.length = 20)
+    (h_dst_len : 20 ≤ dstBytes.length)
+    (h_src_over : addrPtr.toNat + srcBytes.length < 2 ^ 64)
+    (h_dst_over : accountsBase.toNat + dstBytes.length < 2 ^ 64)
+    (h_src_valid : ∀ k, k < srcBytes.length →
+      isValidByteAccess (addrPtr + BitVec.ofNat 64 k) = true)
+    (h_dst_valid : ∀ k, k < dstBytes.length →
+      isValidByteAccess (accountsBase + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 141 (base + (168 : Word)) (base + (196 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      (((.x5 : Reg) ↦ᵣ (20 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bbeaCopyInv addrPtr accountsBase srcBytes dstBytes 0)
+      (((.x5 : Reg) ↦ᵣ (0 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+       bbeaCopyInv addrPtr accountsBase srcBytes dstBytes 20) := by
+  have hguard : ∀ a i,
+      CodeReq.singleton (base + (168 : Word)) (.BEQ .x5 .x0 (28 : BitVec 13)) a = some i →
+      CodeReq.ofProg base balBuilderEnsureAccount_prog a = some i :=
+    CodeReq.ofProg_mem_at base (base + (168 : Word)) balBuilderEnsureAccount_prog 42
+      (.BEQ .x5 .x0 (28 : BitVec 13)) (by bv_omega) (by decide +kernel) (by decide +kernel)
+      (by decide +kernel)
+  have hloop := countdownLoop_spec
+    (cr := CodeReq.ofProg base balBuilderEnsureAccount_prog)
+    (hdr := base + (168 : Word)) (exitAddr := base + (196 : Word)) (ctr := .x5)
+    (exitOff := (28 : BitVec 13)) (bodyStep := 6) (N := 20)
+    (inv := fun n => bbeaCopyInv addrPtr accountsBase srcBytes dstBytes (20 - n))
+    (by nofun) (by omega)
+    (by rw [show signExtend13 (28 : BitVec 13) = (28 : Word) from by decide]; bv_omega)
+    (fun n => bbeaCopyInv_pcFree _ _ _ _ _)
+    hguard
+    (fun n hn => by
+      have hidx : 20 - n = (20 - (n + 1)) + 1 := by omega
+      rw [show base + (168 : Word) + 4 = base + (172 : Word) from by bv_omega, hidx]
+      exact balBuilderEnsureAccount_copyBody_spec base addrPtr accountsBase srcBytes dstBytes
+        (20 - (n + 1)) n h_src_align h_dst_align (by omega) (by omega)
+        h_src_over h_dst_over h_src_valid h_dst_valid)
+  simpa using hloop
 
 end EvmAsm.Codegen.Proofs
