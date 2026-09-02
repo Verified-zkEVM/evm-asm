@@ -75,7 +75,11 @@ CANARY = "bal_canonical_sort"
 def witnessed_symbols(text: str) -> set[str]:
     """Symbols of RoutineEntry rows (all rows are witnessed —
     `routineRegistry_all_witnessed` refuses a row without a proofRef)."""
-    return set(re.findall(r'routine\s+"([A-Za-z0-9_]+)"', text))
+    # ⚠️ Dotted symbols are real rows (#13173): `.dispatch_loop_body` is a LOCAL
+    # label inside `runtime_dispatcher` and appears with its dot in the linked
+    # census, so an undotted class silently dropped the row and made this
+    # parser disagree with the kernel-checked `routineSymbols_eq`.
+    return set(re.findall(r'routine\s+"([.A-Za-z0-9_]+)"', text))
 
 
 _ROUTINE_CHUNK_START = re.compile(
@@ -117,7 +121,7 @@ def independent_routine_symbol_count(text: str) -> int:
     if bodies is None:
         return -1
     body = "\n".join(bodies)
-    return len(set(re.findall(r'(?m)^\s*routine\s+"([A-Za-z0-9_]+)"', body)))
+    return len(set(re.findall(r'(?m)^\s*routine\s+"([.A-Za-z0-9_]+)"', body)))
 
 
 def parse_entries(text: str) -> list[dict[str, str]]:

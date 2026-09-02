@@ -110,7 +110,13 @@ def registry_symbols() -> set[str]:
     if not os.path.exists(ROUTINES):
         return set()
     text = open(ROUTINES).read()
-    return set(re.findall(r'routine\s+"([A-Za-z0-9_]+)"', text))
+    # ⚠️ The leading dot is part of the character class on purpose (#13173).
+    # `.dispatch_loop_body` is a LOCAL label inside `runtime_dispatcher`, and
+    # that is exactly how it appears in the linked census, so a row about it is
+    # a legitimate row. An undotted `[A-Za-z0-9_]+` silently SKIPPED such a row
+    # — the gate then reported OK by not seeing it, which is the one outcome a
+    # liveness gate must not have.
+    return set(re.findall(r'routine\s+"([.A-Za-z0-9_]+)"', text))
 
 
 def lean_sources() -> list[str]:

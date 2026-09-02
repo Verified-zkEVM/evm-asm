@@ -424,6 +424,7 @@ import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
 import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
 import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
 import EvmAsm.Codegen.Proofs.CallFrameEnterSpec
+import EvmAsm.Codegen.Proofs.DispatchStepGas
 -- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
 -- itself has no `Program`, so this is the granularity at which the read path
 -- is statable.
@@ -5635,6 +5636,47 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "into ownership — sound in that direction only, which is why the post cannot hand the "
         ++ "values back. No Correspondence row: this arm ties to no spec-side VALUE. Lives in "
         ++ "`Codegen/Proofs/CallFrameEnterSpec.lean`"),
+  -- #13173 obligation 4: the dispatch step's gas debit.
+  --
+  -- ⛔ There is NO whole-body triple for this symbol, and no one-ITERATION
+  -- triple for the loop it sits in. This row covers indices 6..10 only.
+  --
+  -- ⚠️ The symbol carries its leading dot: `.dispatch_loop_body` is a LOCAL
+  -- label inside `runtime_dispatcher`, and that is how it appears in the linked
+  -- census (`scripts/asm-fixtures/symbol-addresses.tsv`) and how
+  -- `emitDispatchLoopCodeSizeStopGuard` emits it. Spelling it undotted makes
+  -- `check-routine-liveness.sh` read the row as a dead symbol.
+  routine ".dispatch_loop_body" .proven (some "dispatchStep_gasDebit_image")
+      (notes := "THE PER-OPCODE GAS DEBIT, `cpsBranchWithin 5` at "
+        ++ "`GuestAddrs.dispatch_loop_body + 24` (prog idx 6..10 of the "
+        ++ "sixteen-instruction `dispatchLoopBody_prog`): `ld x7,568(x20)`, the "
+        ++ "compare, the relaxed out-of-gas jump, `sub`, `sd`. Two exits, and "
+        ++ "the discriminating fact rides each as a pure atom: `+44` with "
+        ++ "`env+568` holding `gas - cost` under `¬ gas <ᵤ cost`, or the LINKED "
+        ++ "`GuestAddrs.exit_outofgas` with the cell UNCHANGED. ⚠️ idx 7 and 8 "
+        ++ "are ONE source line — `dispatchLoopBody_relocs` records `(7, .br "
+        ++ ".bltu …)`, so the assembler's inverted `BGEU`-TAKEN edge is the "
+        ++ "has-enough-gas path, the opposite reading of the mnemonic. The cost "
+        ++ "register is left FREE: this says nothing about `opcode_gas_costs` "
+        ++ "(idx 2..5; its read spec is `Proofs/OpcodeTables.lean`). ⭐ Stated "
+        ++ "over the body's own `ofProg` and transported into "
+        ++ "`guestImageCodeReq` by `dispatchLoopBody_block_sub` — the row #13178 "
+        ++ "added is what makes that lift exist; before it the Program was "
+        ++ "anchored 348 bytes early and matched the image at no address. "
+        ++ "EXTENT: `4 * 16 = 64 = dispatch_resume - dispatch_loop_body` off the "
+        ++ "symbol table (`body_extent`). ⛔ NOT one loop iteration: the 348-byte "
+        ++ "code-size stop guard sits between `.dispatch_loop` and this body and "
+        ++ "is unconverted. It is not FRAMED out, it is outside the extent — "
+        ++ "`dispatch_loop_head_not_covered` states that boundary, and its "
+        ++ "docstring measures what an iteration lemma would cost (a 3-insn hot "
+        ++ "path; the ~84-insn halt route needs two callee contracts, not "
+        ++ "transcription). No gate. coverRef `dispatchStep_gasDebit_instance` "
+        ++ "(linked `evm_env`, a real `staticGasCost` entry, and the `↦ₘ` "
+        ++ "address shown addressable/aligned); negative control "
+        ++ "`dispatchStep_gasDebit_premises_refutable` — the head-anchored code "
+        ++ "premise, the gas premise, and the precondition's own memory atom, "
+        ++ "each FALSE at a concrete point. Lives in "
+        ++ "`Codegen/Proofs/DispatchStepGas.lean`"),
 ]
 
 def routineRegistry : List RoutineEntry := routineRegistryPartA ++ routineRegistryPartB
@@ -5690,10 +5732,10 @@ def routineCountTier (t : ProofTier) : Nat :=
 -- only lets the elaborator finish unfolding the list; it does not weaken the
 -- check, and none of the forbidden tactics is involved.
 set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 243 := by decide
+theorem routineCount_eq : routineCount = 244 := by decide
 
 set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 179 := by decide
+theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide
 set_option maxRecDepth 16000 in
 theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by decide
 set_option maxRecDepth 16000 in
@@ -5721,7 +5763,7 @@ def routineSymbols : List String :=
 -- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
 -- larger budget than the 8000 above. Still kernel-checked; see the note there.
 set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 203 := by decide
+theorem routineSymbols_eq : routineSymbols.length = 204 := by decide
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7588,5 +7630,19 @@ private noncomputable abbrev _amsterdam_divst_six_witness :=
 -- the specialization is a corollary and is the weaker claim.
 private noncomputable abbrev _eip8037_tx_state_gas_routine_witness :=
   @EvmAsm.Codegen.Eip8037TxStateGasSpec.eip8037TxStateGas_spec_within
+
+-- #13173 obligation 4: the dispatch step's gas debit.  The witnessed name is
+-- the IMAGE-level form (`guestImageCodeReq`), not the `ofProg`-level one it is
+-- lifted from -- the lift through `dispatchLoopBody_block_sub` is the part
+-- #13178 made possible, so it is the part the gate should see.  Its cover
+-- witness and negative control ride along beside it.
+private noncomputable abbrev _dispatch_step_gas_debit_witness :=
+  @EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_image
+private noncomputable abbrev _dispatch_step_gas_debit_instance_witness :=
+  @EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_instance
+private noncomputable abbrev _dispatch_step_gas_debit_control_witness :=
+  @EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_premises_refutable
+private noncomputable abbrev _dispatch_step_guard_boundary_witness :=
+  @EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
 
 end EvmAsm.Progress
