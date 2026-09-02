@@ -791,8 +791,150 @@ theorem balBuilderEnsureAccountAppendEmptyFlat_spec
   exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
     (fun _ hq => by xperm_chunked hq) hAhBhChDhE
 
+/-! ## Non-vacuity
+
+  Three checks, in the shape `docs/agents` asks for: a fully numeric instance
+  (so a `True`-shaped or trivially satisfiable post could not have passed),
+  positive witnesses and NEGATIVE controls for the arm-selecting branches, and
+  a satisfiability check on the numeric precondition — `memOwn`/`↦ₘ` and
+  `bytesRegion` all *assert* validity, so an unsatisfiable pre is a real risk
+  rather than a formality. -/
+
+/-- The twenty key bytes of the numeric instance: `1 .. 20`, all distinct and
+    all nonzero, so the copy is observable. -/
+def bbeaDemoKey : List (BitVec 8) :=
+  [(1 : BitVec 8), (2 : BitVec 8), (3 : BitVec 8),
+   (4 : BitVec 8), (5 : BitVec 8), (6 : BitVec 8), (7 : BitVec 8), (8 : BitVec 8),
+   (9 : BitVec 8), (10 : BitVec 8), (11 : BitVec 8), (12 : BitVec 8), (13 : BitVec 8),
+   (14 : BitVec 8), (15 : BitVec 8), (16 : BitVec 8), (17 : BitVec 8), (18 : BitVec 8),
+   (19 : BitVec 8), (20 : BitVec 8)]
+
+/-- The row the instance starts from: the 24-byte table stride, zeroed. -/
+def bbeaDemoRow : List (BitVec 8) :=
+  [(0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8)]
+
+/-! ⭐ The copy is REAL and it is a PREFIX copy: the twenty key bytes land in
+    the row's first twenty positions and the four stride-padding bytes are
+    untouched.  `#guard` pins it against the definition, and the disequality
+    below rules out a post that merely restated the input. -/
+#guard copyIntoRegion bbeaDemoRow bbeaDemoKey 0 0 20 =
+  [(1 : BitVec 8), (2 : BitVec 8),
+   (3 : BitVec 8), (4 : BitVec 8), (5 : BitVec 8), (6 : BitVec 8), (7 : BitVec 8),
+   (8 : BitVec 8), (9 : BitVec 8), (10 : BitVec 8), (11 : BitVec 8), (12 : BitVec 8),
+   (13 : BitVec 8), (14 : BitVec 8), (15 : BitVec 8), (16 : BitVec 8), (17 : BitVec 8),
+   (18 : BitVec 8), (19 : BitVec 8), (20 : BitVec 8), (0 : BitVec 8), (0 : BitVec 8),
+   (0 : BitVec 8), (0 : BitVec 8)]
+
+#guard copyIntoRegion bbeaDemoRow bbeaDemoKey 0 0 20 ≠ bbeaDemoRow
+
+/-- **Numeric instance.**  `sp = 0x30000000`, key buffer at `0x20000000`, the
+    table's linked `.bss` base, count cell `0`, temps `1 .. 7`, `s0`-`s5`
+    `8, 9, 18, 19, 20, 21`.  The post is fully concrete: `a0` reads back `0`
+    (the interned index) rather than its entry value, the count cell reads
+    back `1`, the row carries the key, `sp` is back at `0x30000000`, and the
+    six spill slots at `0x2fffffd0 .. 0x2ffffff8` hold `8, 9, 18, 19, 20, 21`
+    in spill order. -/
+theorem bbeaAppendEmpty_numeric_instance (ra : Word) :
+    cpsTripleWithin 179 BBEA (ra &&& ~~~(1 : Word)) bbeaCR
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) **
+       (.x5 ↦ᵣ (1 : Word)) ** (.x6 ↦ᵣ (2 : Word)) ** (.x7 ↦ᵣ (3 : Word)) **
+       (.x8 ↦ᵣ (8 : Word)) ** (.x9 ↦ᵣ (9 : Word)) **
+       (.x10 ↦ᵣ (0x20000000 : Word)) **
+       (.x18 ↦ᵣ (18 : Word)) ** (.x19 ↦ᵣ (19 : Word)) ** (.x20 ↦ᵣ (20 : Word)) **
+       (.x21 ↦ᵣ (21 : Word)) ** (.x28 ↦ᵣ (28 : Word)) **
+       memOwn (0x2fffffd0 : Word) ** memOwn (0x2fffffd8 : Word) **
+       memOwn (0x2fffffe0 : Word) ** memOwn (0x2fffffe8 : Word) **
+       memOwn (0x2ffffff0 : Word) ** memOwn (0x2ffffff8 : Word) **
+       (BBCNT ↦ₘ (0 : Word)) **
+       bytesRegion (0x20000000 : Word) bbeaDemoKey ** bytesRegion BBACC bbeaDemoRow)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (0x30000000 : Word)) **
+       (.x5 ↦ᵣ (1 : Word)) ** (.x6 ↦ᵣ (BBACC + BitVec.ofNat 64 20)) **
+       (.x7 ↦ᵣ ((0x20000000 : Word) + BitVec.ofNat 64 20)) **
+       (.x8 ↦ᵣ (8 : Word)) ** (.x9 ↦ᵣ (9 : Word)) ** (.x10 ↦ᵣ (0 : Word)) **
+       (.x18 ↦ᵣ (18 : Word)) ** (.x19 ↦ᵣ (19 : Word)) ** (.x20 ↦ᵣ (20 : Word)) **
+       (.x21 ↦ᵣ (21 : Word)) ** regOwn .x28 **
+       ((0x2fffffd0 : Word) ↦ₘ (8 : Word)) ** ((0x2fffffd8 : Word) ↦ₘ (9 : Word)) **
+       ((0x2fffffe0 : Word) ↦ₘ (18 : Word)) ** ((0x2fffffe8 : Word) ↦ₘ (19 : Word)) **
+       ((0x2ffffff0 : Word) ↦ₘ (20 : Word)) ** ((0x2ffffff8 : Word) ↦ₘ (21 : Word)) **
+       (BBCNT ↦ₘ (1 : Word)) **
+       bytesRegion (0x20000000 : Word) bbeaDemoKey **
+       bytesRegion BBACC (copyIntoRegion bbeaDemoRow bbeaDemoKey 0 0 20)) := by
+  have h := balBuilderEnsureAccountAppendEmptyFlat_spec (0x30000000 : Word) ra
+    (0x20000000 : Word) 1 2 3 8 9 18 19 20 21 28 bbeaDemoKey bbeaDemoRow
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
+  rw [show (0x30000000 : Word) - (48 : Word) = (0x2fffffd0 : Word) from by decide,
+      show (0x30000000 : Word) - (40 : Word) = (0x2fffffd8 : Word) from by decide,
+      show (0x30000000 : Word) - (32 : Word) = (0x2fffffe0 : Word) from by decide,
+      show (0x30000000 : Word) - (24 : Word) = (0x2fffffe8 : Word) from by decide,
+      show (0x30000000 : Word) - (16 : Word) = (0x2ffffff0 : Word) from by decide,
+      show (0x30000000 : Word) - (8 : Word) = (0x2ffffff8 : Word) from by decide] at h
+  exact h
+
+/-- **Gate witnesses and negative controls.**
+
+    1. `¬ 0 <ᵤ 0` inhabits the arm's gate: with `bal_builder_account_count = 0`
+       the scan guard `bgeu s3, s2` at index 14 IS taken, with zero
+       comparison-loop iterations.
+    2. `¬ ¬ (0 <ᵤ 1)` is provably FALSE, so a table holding even ONE row falls
+       through into the twenty-byte comparison loop — the hit / append-at-a-
+       nonzero-index arms are genuinely EXCLUDED from this triple rather than
+       silently covered.
+    3. `0 <ᵤ 140000` inhabits the capacity branch's NOT-taken side at index 34.
+    4. `¬ (140000 <ᵤ 140000)` is its negative control: at exactly the capacity
+       the branch IS taken, so the `bal_builder_overflow` arm is a different
+       arm and this triple does not claim it.
+    5. The commit arm (index 49, `+196`) and the overflow arm (index 54,
+       `+216`) are distinct addresses, so `a0 = 0` is a real selection among
+       arms rather than the routine's only exit.
+    6. The gate is on a cell distinct from the table itself, so it is not a
+       disguised statement about the row region. -/
+theorem bbeaAppendEmpty_gate_controls :
+    (¬ BitVec.ult (0 : Word) (0 : Word))
+    ∧ ¬ (¬ BitVec.ult (0 : Word) (1 : Word))
+    ∧ (BitVec.ult (0 : Word) (140000 : Word))
+    ∧ (¬ BitVec.ult (140000 : Word) (140000 : Word))
+    ∧ (GuestAddrs.bal_builder_ensure_account + 196
+        ≠ GuestAddrs.bal_builder_ensure_account + 216)
+    ∧ (BBCNT ≠ BBACC) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide⟩
+
+/-- **Satisfiability of the numeric instance's precondition.**  The six frame
+    slots are valid, 8-byte-aligned dwords; the count cell likewise; both byte
+    regions are 8-aligned and every byte of each is a valid access; and the
+    three areas are pairwise disjoint — the frame sits in MEM, the key buffer
+    well below it, and the table in RAM. -/
+theorem bbeaAppendEmpty_pre_satisfiable :
+    isValidDwordAccess (0x2fffffd0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffd8 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe0 : Word) = true ∧
+    isValidDwordAccess (0x2fffffe8 : Word) = true ∧
+    isValidDwordAccess (0x2ffffff0 : Word) = true ∧
+    isValidDwordAccess (0x2ffffff8 : Word) = true ∧
+    isValidDwordAccess BBCNT = true ∧
+    (0x20000000 : Word).toNat % 8 = 0 ∧
+    BBACC.toNat % 8 = 0 ∧
+    (∀ k, k < bbeaDemoKey.length →
+      isValidByteAccess ((0x20000000 : Word) + BitVec.ofNat 64 k) = true) ∧
+    (∀ k, k < bbeaDemoRow.length →
+      isValidByteAccess (BBACC + BitVec.ofNat 64 k) = true) ∧
+    ((0x20000000 : Word) < (0x2fffffd0 : Word)) ∧
+    ((0x2ffffff8 : Word) < BBCNT) ∧
+    (BBCNT < BBACC) :=
+  ⟨by decide, by decide, by decide, by decide, by decide, by decide, by decide,
+   by decide, by decide, by decide +kernel, by decide +kernel, by decide, by decide,
+   by decide⟩
+
 /-! ## Axiom audit — classical-only. -/
 
 #print axioms balBuilderEnsureAccountAppendEmptyFlat_spec
+#print axioms bbeaAppendEmpty_numeric_instance
+#print axioms bbeaAppendEmpty_gate_controls
+#print axioms bbeaAppendEmpty_pre_satisfiable
 
 end EvmAsm.Codegen.Proofs

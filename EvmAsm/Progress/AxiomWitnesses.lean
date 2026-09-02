@@ -696,11 +696,19 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.Proofs.balAccountPath_keccak_arena_call_available
 
+#print axioms EvmAsm.Codegen.Proofs.balBuilderEnsureAccountAppendEmptyFlat_spec
+
 #print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToFieldFlat_spec
 
 #print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_alias_control
 
 #print axioms EvmAsm.Codegen.Proofs.balSerializerU64ToField_sample_reachable
+
+#print axioms EvmAsm.Codegen.Proofs.bbeaAppendEmpty_gate_controls
+
+#print axioms EvmAsm.Codegen.Proofs.bbeaAppendEmpty_numeric_instance
+
+#print axioms EvmAsm.Codegen.Proofs.bbeaAppendEmpty_pre_satisfiable
 
 #print axioms EvmAsm.Codegen.Proofs.callFrameEnterDepth1Flat_spec
 
