@@ -758,6 +758,17 @@ private theorem sepConj_regFree {P Q : Assertion} {r : Reg}
   rw [← hunion]
   simp [PartialState.union, hP h1 hp1, hQ h2 hp2]
 
+/-- GH #13229: the `.data` tile is no longer a bare `anyBytes` — it is the
+    pinned bundle `anyBytes ** (bytesRegion ** bytesRegion)`.  Register freedom
+    is unaffected (a memory assertion owns no register either way), but the
+    proof term has to walk the new shape. -/
+private theorem regionScratchData_regFree (r : Reg) :
+    RegFree regionScratchData r := by
+  unfold regionScratchData GuestDataImage.guestDataScratch
+    GuestDataImage.guestDataImage
+  exact sepConj_regFree (anyBytes_regFree _ _ _)
+    (sepConj_regFree (bytesRegion_regFree _ _ _) (bytesRegion_regFree _ _ _))
+
 /-- The `.63` entry framing owns no register. -/
 theorem guestScratch_regFree (r : Reg) : RegFree guestScratch r := by
   unfold guestScratch regionScratch
@@ -765,7 +776,7 @@ theorem guestScratch_regFree (r : Reg) : RegFree guestScratch r := by
     (sepConj_regFree (anyBytes_regFree _ _ _)
       (sepConj_regFree (anyBytes_regFree _ _ _)
         (sepConj_regFree (anyBytes_regFree _ _ _)
-          (sepConj_regFree (anyBytes_regFree _ _ _)
+          (sepConj_regFree (regionScratchData_regFree _)
             (sepConj_regFree (anyBytes_regFree _ _ _)
               (sepConj_regFree (anyBytes_regFree _ _ _)
                 (anyBytes_regFree _ _ _)))))))
@@ -844,24 +855,36 @@ private theorem regOwn_codeFree (r : Reg) : CodeFree (regOwn r) := by
   rw [hv]
   rfl
 
+/-- GH #13229: the pinned `.data` tile's code-freedom, over the new shape.  The
+    pinned bytes live in the memory heap exactly as the havoc'd ones did — the
+    swap changes WHICH bytes are asserted, not which component of the state
+    holds them. -/
+private theorem regionScratchData_codeFree : CodeFree regionScratchData := by
+  unfold regionScratchData GuestDataImage.guestDataScratch
+    GuestDataImage.guestDataImage
+  exact sepConj_codeFree (anyBytes_codeFree _ _)
+    (sepConj_codeFree (bytesRegion_codeFree _ _) (bytesRegion_codeFree _ _))
+
 private theorem guestScratch_codeFree : CodeFree guestScratch := by
   unfold guestScratch regionScratch
   exact sepConj_codeFree (anyBytes_codeFree _ _)
     (sepConj_codeFree (anyBytes_codeFree _ _)
       (sepConj_codeFree (anyBytes_codeFree _ _)
         (sepConj_codeFree (anyBytes_codeFree _ _)
-          (sepConj_codeFree (anyBytes_codeFree _ _)
+          (sepConj_codeFree regionScratchData_codeFree
             (sepConj_codeFree (anyBytes_codeFree _ _)
               (sepConj_codeFree (anyBytes_codeFree _ _)
                 (anyBytes_codeFree _ _)))))))
 
 private theorem guestScratch_pcFree : guestScratch.pcFree := by
   unfold guestScratch regionScratch
+  -- GH #13229: the `.data` slot is the pinned bundle; its `pcFree` is proved
+  -- once, at the definition, as `GuestDataImage.guestDataScratch_pcFree`.
   exact pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
     (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
       (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
         (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
-          (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
+          (pcFree_sepConj GuestDataImage.guestDataScratch_pcFree
             (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
               (pcFree_sepConj (EvmAsm.Rv64.pcFree_anyBytes _ _)
                 (EvmAsm.Rv64.pcFree_anyBytes _ _)))))))

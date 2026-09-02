@@ -154,7 +154,6 @@ literal	EvmAsm/Codegen/Programs/U256MulU64Be/OuterLoop.lean	0xa4386860	5	GH #126
 literal	EvmAsm/Codegen/Programs/U256MulU64Be/WholeModel.lean	0xa4386860	5	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
 literal	EvmAsm/Codegen/Programs/U256MulU64Be/WholeModel.lean	0xa4386888	2	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
 literal	EvmAsm/Codegen/Programs/WitnessLookupByHashIndexedOneHitSat.lean	0xa2e07088	5	GH #12648 census: satisfiability-witness literals
-literal	EvmAsm/Codegen/Proofs/GuestImage.lean	0xa0b00000	3	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
 literal	EvmAsm/Codegen/Proofs/HashBridgeKeccakSegTop.lean	0xa3a4c0e0	2	GH #12648 census: one-time pin of a GuestAddrs-valued literal; symbolization tracked in #12648
 literal	EvmAsm/Codegen/RegionMapLinkPins.lean	0xabf6dc00	1	GH #12648 census: derived link-pin literals
 literal	EvmAsm/Codegen/RegionMapLinkPins.lean	0xb2386c00	1	GH #12648 census: derived link-pin literals
