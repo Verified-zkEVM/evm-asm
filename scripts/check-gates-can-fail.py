@@ -199,6 +199,7 @@ _BUNDLE_SOURCE_CHECK_ONLY = {
     "check-no-hardcoded-guest-pc.sh",
     "check-opcode-structure.sh",
     "check-phase-entry-pinned.py",
+    "check-prog-base-coverage.py",
     "check-registry-crosscheck.sh",
     "check-render-oracle-coverage.py",
     "check-retired-predicates.sh",

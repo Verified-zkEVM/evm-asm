@@ -139,6 +139,15 @@ jobs:
       - name: Proof-frontier shape classifier self-test
         run: python3 scripts/proof-frontier.py --self-test
 
+      # #13183: a reloc-bearing converted `_prog` has no base coverage until
+      # its linked entry is paired in GuestImageEntries.  Keep the positive
+      # control next to the live source scan so a permanently green detector
+      # cannot pass unnoticed.
+      - name: Converted Program base coverage (#13183)
+        run: |
+           python3 scripts/check-prog-base-coverage.py --self-test
+           python3 scripts/check-prog-base-coverage.py
+
       # #12931 fixed one gate that had been wired but unable to fail; this is
       # the companion that makes the class impossible to reintroduce. Pure
       # source scan over the workflows + scripts/, no build. Self-test first:
