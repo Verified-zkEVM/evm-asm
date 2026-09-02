@@ -68,10 +68,87 @@ CORR_ROW_RE = re.compile(r'\n  \{ family :=')
 CHUNK_RE = re.compile(
     r'^def (routineRegistryPart[A-Za-z0-9_]*)\s*:\s*List RoutineEntry\s*:=\s*\[',
     re.M)
-# The measured wall.
-CHUNK_CEILING = 244
-# Act well before it: a chunk this size still builds, but it is time to split.
-CHUNK_LIMIT = 200
+# ⚠️ RE-MEASURED. `CHUNK_CEILING` was 244 with `CHUNK_LIMIT` at 200, and that
+# pair was UNSOUND: 244 came from probing the pre-split monolith with 425-char
+# rows, but the code generator's limit is on the recursion DEPTH of the chunk's
+# expression, and a row's own `++` chain of prose fragments contributes to that
+# depth. So the wall is a function of row SIZE as well as row COUNT. Appending
+# probe rows to the live `routineRegistryPartB` and reading the exit code:
+#
+#     row size      chunk rows      result
+#     ~11,200 ch    179             builds
+#     ~11,200 ch    182             FAILS  ("maximum recursion depth reached
+#                                            in the code generator")
+#      ~6,700 ch    182             builds   (~= the largest real row today)
+#      ~1,700 ch    232             builds   (~= the median real row)
+#
+# 182 < the old CHUNK_LIMIT of 200, so a chunk could have passed this gate and
+# still failed the build -- the exact hole the gate exists to close. The
+# constants below are keyed to the WORST measurement rather than to the row
+# size that happens to be typical, because the gate cannot see prose length and
+# a single fat row is enough to move the wall.
+CHUNK_CEILING = 180
+# Act well before it: a chunk this size still builds at any row size measured,
+# but it is time to split. Splitting is a three-line change (add a
+# `routineRegistryPart*` and extend the concatenation); walking into the
+# codegen error is not.
+CHUNK_LIMIT = 150
+
+# -- whole-registry row ceiling ------------------------------------------------
+# THREE different walls have stopped this registry growing. Two respond to
+# `set_option` and one does not, which is why they keep getting conflated:
+#
+#   1. code generator recursion   PER CHUNK; no `set_option` reaches it. That
+#                                 is what CHUNK_LIMIT above guards.
+#   2. elaborator recursion depth WHOLE registry; `maxRecDepth` reaches it.
+#   3. elaborator work budget     WHOLE registry; `maxRecDepth` does NOT reach
+#                                 it. `routineSymbols` is `eraseDups` over the
+#                                 row map, i.e. QUADRATIC, so this is the wall
+#                                 the registry actually hits -- and the reason
+#                                 raising `maxRecDepth` three times (8000 ->
+#                                 16000 -> 40000) each bought only a few rows.
+#
+# 2 and 3 are both consequences of evaluating the totals IN THE ELABORATOR. The
+# totals in Routines.lean now use `decide +kernel`, which evaluates in the
+# kernel and is subject to neither, and carry no `set_option` at all. Measured
+# with throwaway probe rows placed in fresh chunks, so wall 1 cannot confound
+# the reading:
+#
+#     plain `decide`, `maxRecDepth 40000`   306 rows build; 309 FAIL (wall 3)
+#     `decide +kernel`, no `set_option`     500 rows build
+#
+# ROW_MEASURED_OK is the largest size actually BUILT, not an extrapolation, and
+# not the failure point: no wall was reached at 500. (A 1000-row probe was
+# abandoned after 20 minutes without a verdict -- past a few hundred rows the
+# file's build time, not any budget, is what bites. That is a reason to keep
+# this number to something a contributor can actually re-measure, which 500 is
+# at about nine minutes.)
+#
+# For the size the repo actually ships, `decide +kernel` is also FASTER, since
+# the elaborator no longer duplicates an evaluation the kernel repeats anyway:
+# a forced rebuild of Routines.lean at 244 rows went 20s -> 15s, twice.
+#
+# ROW_LIMIT is where this gate stops the registry walking further into a region
+# nobody has measured -- which is precisely how it ended up one row from the
+# wall on two separate occasions.
+ROW_MEASURED_OK = 500
+ROW_LIMIT = 400
+
+# The ceiling above is a property of HOW the totals are evaluated, not of the
+# registry. Revert them to plain `decide` and it collapses to ~306, making
+# ROW_LIMIT a lie. So the evaluator is CHECKED, not assumed.
+#
+# `+native` is rejected outright: `decide +native` is the modern spelling of
+# `native_decide` and would seal these totals behind `Lean.ofReduceBool`.
+KERNEL_TOTALS = (
+    "routineCount_eq",
+    "routineProvenCount_eq",
+    "routineConditionalCount_eq",
+    "routinePartlyCount_eq",
+    "routineRegistry_all_witnessed",
+    "routineSymbols_eq",
+    "witnessed_not_unproven",
+)
 
 
 def _fail(msgs: list[str], msg: str) -> None:
@@ -141,6 +218,69 @@ def check_chunk_ceiling(text: str, rows: list, msgs: list[str]) -> None:
                         f"`routineRegistry`; see #13210")
 
 
+def check_row_ceiling(rows: list, msgs: list[str]) -> None:
+    """Keep the WHOLE registry inside the region someone has actually built."""
+    if len(rows) >= ROW_LIMIT:
+        _fail(msgs, f"Routines.lean: the registry holds {len(rows)} rows, at "
+                    f"or past the {ROW_LIMIT}-row re-measure limit. The "
+                    f"largest size measured to build is {ROW_MEASURED_OK}; "
+                    f"beyond that nobody knows where the wall is. Re-measure "
+                    f"it (append throwaway rows, build, read the exit code, "
+                    f"remove them), then raise ROW_MEASURED_OK and ROW_LIMIT "
+                    f"together -- do not raise ROW_LIMIT alone")
+
+
+def _decl_tactic(text: str, name: str) -> str | None:
+    """The tactic closing `theorem <name>`, or None if it is not `decide`.
+
+    Returns "" when the declaration itself cannot be found, so the caller can
+    tell "renamed/removed" apart from "proved by something else".
+    """
+    m = re.search(rf"^theorem\s+{re.escape(name)}\b", text, re.M)
+    if m is None:
+        return ""
+    rest = text[m.end():]
+    stop = re.search(r"\n(?:theorem|def|example|abbrev|/-|@\[|set_option)", rest)
+    body = rest[:stop.start()] if stop else rest
+    t = re.search(r":=\s*by\s+(decide(?:\s*\+\s*\w+)*)", body)
+    return t.group(1) if t else None
+
+
+def check_kernel_decide(text: str, msgs: list[str]) -> None:
+    """Every registry-wide total must be closed by `decide +kernel` (#13210).
+
+    This is what makes ROW_LIMIT meaningful: the row ceiling is a property of
+    the evaluator, so a silent revert to plain `decide` must fail here rather
+    than a few dozen rows later in a ~50 minute build.
+    """
+    for name in KERNEL_TOTALS:
+        tac = _decl_tactic(text, name)
+        if tac == "":
+            _fail(msgs, f"Routines.lean: could not find `theorem {name}` -- it "
+                        f"was renamed or removed, so the evaluator check and "
+                        f"the ROW_LIMIT it underwrites are no longer covering "
+                        f"it")
+            continue
+        if tac is None:
+            _fail(msgs, f"Routines.lean: {name} is not closed by a `decide` "
+                        f"tactic. The registry-wide totals are sized for "
+                        f"`decide +kernel`; see the ROW_MEASURED_OK note")
+            continue
+        flat = tac.replace(" ", "")
+        if "+native" in flat:
+            _fail(msgs, f"Routines.lean: {name} uses `decide +native` -- the "
+                        f"modern spelling of `native_decide`, which seals the "
+                        f"result behind `Lean.ofReduceBool`. Forbidden "
+                        f"repo-wide (CLAUDE.md); use `decide +kernel`")
+            continue
+        if "+kernel" not in flat:
+            _fail(msgs, f"Routines.lean: {name} is closed by `{tac}`, not "
+                        f"`decide +kernel`. Plain `decide` evaluates in the "
+                        f"ELABORATOR, which drops the registry's row ceiling "
+                        f"from {ROW_MEASURED_OK} to about 306 and puts "
+                        f"ROW_LIMIT ({ROW_LIMIT}) past the wall")
+
+
 def check_routines(text: str, msgs: list[str]) -> None:
     rows = ROW_RE.findall(text)
     if not rows:
@@ -148,6 +288,8 @@ def check_routines(text: str, msgs: list[str]) -> None:
                     "and this gate is silently vacuous; fix ROW_RE")
         return
     check_chunk_ceiling(text, rows, msgs)
+    check_row_ceiling(rows, msgs)
+    check_kernel_decide(text, msgs)
     tiers = Counter(tier for _, tier in rows)
     symbols = {sym for sym, _ in rows}
 
@@ -378,16 +520,90 @@ def self_test() -> int:
         failures.append(f"control: live chunk walk is not seeing the registry: "
                         f"{live}")
 
+    # -- whole-registry row ceiling + evaluator -------------------------------
+    # 11. Same shape as 6a, for the row ceiling: a limit at or above the
+    #     largest size anyone has BUILT is a limit that permits an unmeasured
+    #     registry, which is the state this pair of constants exists to end.
+    if ROW_LIMIT >= ROW_MEASURED_OK:
+        failures.append(f"ROW_LIMIT ({ROW_LIMIT}) is not below the largest "
+                        f"measured-good size ROW_MEASURED_OK "
+                        f"({ROW_MEASURED_OK}); the gate would wave the registry "
+                        f"into a region nobody has built")
+
+    # 12. The row ceiling must fire, and must fire through run() -- everything
+    #     else here could pass with check_row_ceiling unwired.
+    def plant_rows(n: int) -> str:
+        m = ROW_RE.search(rt)
+        add = "".join(f'\n  routine "planted{i}" .proven (some "t"),'
+                      for i in range(n))
+        return rt[:m.start()] + add + rt[m.start():]
+
+    need = ROW_LIMIT - len(ROW_RE.findall(rt))
+    expect("planted: registry at the re-measure limit (through run())",
+           run(plant_rows(need), ct), want_fail=True, needle="re-measure limit")
+
+    # 13. ...and must not be merely strict: one row below the limit is the
+    #     shipping condition and has to pass. Checked on the function directly,
+    #     since planting rows into the real file breaks its tally literals.
+    direct: list[str] = []
+    check_row_ceiling(["r"] * (ROW_LIMIT - 1), direct)
+    expect("control: registry one row under the limit", direct, want_fail=False)
+
+    # 14. The evaluator underwrites ROW_LIMIT, so a silent revert to plain
+    #     `decide` must fail here rather than dozens of rows later in a ~50
+    #     minute build. Planted on the real file, through run().
+    reverted = re.sub(r"(theorem routineSymbols_eq[^\n]*:= by )decide \+kernel",
+                      r"\1decide", rt)
+    if reverted == rt:
+        failures.append("planted: plain-`decide` revert did not apply -- the "
+                        "theorem's spelling changed, so check 14 is vacuous")
+    expect("planted: a total reverted to elaborator-side `decide`",
+           run(reverted, ct), want_fail=True, needle="`decide +kernel`")
+
+    # 15. `decide +native` is `native_decide` under its modern spelling and
+    #     would seal these totals behind `Lean.ofReduceBool`.
+    #     `check-forbidden-tactics.sh` scans for the token `native_decide` and
+    #     does NOT match this spelling, so nothing else in the tree catches it.
+    natived = re.sub(r"(theorem routineSymbols_eq[^\n]*:= by )decide \+kernel",
+                     r"\1decide +native", rt)
+    if natived == rt:
+        failures.append("planted: `decide +native` plant did not apply -- the "
+                        "theorem's spelling changed, so check 15 is vacuous")
+    #     ⚠️ The needle is the TCB wording, not the string "+native". Deleting
+    #     the `+native` branch outright still fails -- the `+kernel` check
+    #     catches it on the way past and quotes the tactic back -- so a needle
+    #     of "+native" would match a message that has stopped saying this is a
+    #     soundness violation and now calls it a row-ceiling problem. Found by
+    #     mutating this check.
+    expect("planted: a total switched to `decide +native`",
+           run(natived, ct), want_fail=True, needle="Lean.ofReduceBool")
+
+    # 16. Non-blindness for the evaluator walk, the counterpart of 10: every
+    #     name in KERNEL_TOTALS must resolve in the shipped file. If one is
+    #     renamed the gate reports it (check 14/15 would still pass on the
+    #     others), so assert the live reading rather than an exit status.
+    live_tactics = {n: _decl_tactic(rt, n) for n in KERNEL_TOTALS}
+    unresolved = [n for n, t in live_tactics.items() if t == ""]
+    if unresolved:
+        failures.append(f"control: KERNEL_TOTALS names not found in the "
+                        f"shipped Routines.lean: {unresolved}")
+
     if failures:
         print("SELF-TEST: FAIL")
         for f in failures:
             print("  " + f)
         return 1
-    print("SELF-TEST: PASS (13 checks: 1 clean control, 4 planted mismatches, "
+    print("SELF-TEST: PASS (19 checks: 1 clean control, 4 planted mismatches, "
           "1 vacuity control, 6 chunk-ceiling checks -- oversize, under-limit "
           "control, limit-below-wall, run() wiring, un-chunked, "
-          "walk-blindness -- and 1 live-registry chunk control) "
-          f"-- live chunks: {', '.join(f'{n}={c}' for n, c in live)}")
+          "walk-blindness -- 1 live-registry chunk control, 3 row-ceiling "
+          "checks -- limit-below-measured, run() wiring, under-limit control "
+          "-- and 3 evaluator checks -- plain-`decide` revert, `+native`, "
+          "live-name resolution) "
+          f"-- live chunks: {', '.join(f'{n}={c}' for n, c in live)}"
+          f"; rows {len(ROW_RE.findall(rt))}/{ROW_LIMIT} "
+          f"(measured good to {ROW_MEASURED_OK}); totals: "
+          f"{', '.join(sorted(set(t for t in live_tactics.values() if t)))}")
     return 0
 
 
