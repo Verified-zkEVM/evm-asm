@@ -376,4 +376,228 @@ theorem guestDataImage_controls :
     ∧ ¬ (8 ∣ 20) ∧ 8 ∣ tableSizeBytes := by
   refine ⟨by decide, by decide, by decide, by decide⟩
 
+/-! ## 8. The residue-preservation obligation the pin CREATES
+
+    §3's `guestDataScratch_weakens` discharges the swap on the PRE side, and
+    that is the whole story for `guestScratch`: strengthening a precondition
+    can only help a consumer that merely wanted ownership.  `guestResidue` is
+    a POST, and `GuestImage.guestScratch_eq_window_residue` is an EQUALITY, so
+    the same substitution on the residue side is a genuine NEW obligation for
+    `.64`: **the guest must not clobber either table by halt.**
+
+    This section does not discharge that obligation — `dataTables_residue_gap`
+    says exactly why it cannot be discharged here — but it does three things
+    prose could not:
+
+    * `bytesRegion_mem_dword` makes a pinned table's dword contents READABLE
+      off any heap satisfying the pin.  That is what "clobbered" has to mean
+      at the assertion layer, and it is the general form of
+      `HashBridgeKeccakEnvelope`'s private three-dword `mem_dword2_of_bytesRegion`.
+    * `guestDataScratch_strictly_stronger` proves the obligation is REAL: an
+      all-zero `.data` heap satisfies the havoc'd tile the residue used to
+      carry, and does NOT satisfy the pinned one.  The residue side gained a
+      proof burden, not a docstring.
+    * `dataTables_residue_gap` states where the remaining gap sits, as a claim
+      about what does and does not follow rather than as a remark. -/
+
+section ResiduePreservation
+
+-- Instantiating `bytesRegion_mem_dword` at `tableBytes <a 256-entry table>`
+-- makes the elaborator reduce `List.length` through a 256-way `flatMap`, and
+-- `guestDataScratch_strictly_stronger` additionally reduces a `getElem` at a
+-- concrete index; neither survives the default 512 frames.  Measured, not
+-- guessed: 8000 still fails, 40000 carries everything but the strictness
+-- proof, which carries its own `set_option` below.
+set_option maxRecDepth 40000
+
+/-! The four heap-lookup helpers below are general separation-logic facts, not
+    `.data` facts.  They live here rather than in `EvmAsm/Rv64/SepLogic.lean`
+    because that module is a GENERATED shim over `riscv-zkvm`
+    (`scripts/gen-rv64-shims.py`, `--check`-gated), so it cannot host new
+    lemmas.  `HashBridgeKeccakEnvelope` needed the same reasoning and kept a
+    private three-dword special case; if a third caller appears, these are what
+    it should reuse. -/
+
+/-- Left-biased union: a dword the LEFT heap owns survives the merge. -/
+theorem mem_union_left {h₁ h₂ : PartialState} {a v : Word}
+    (hv : h₁.mem a = some v) : (h₁.union h₂).mem a = some v := by
+  show (match h₁.mem a with | some x => some x | none => h₂.mem a) = some v
+  rw [hv]
+
+/-- Left-biased union: a dword the RIGHT heap owns also survives, because
+    disjointness makes the left heap's slot empty. -/
+theorem mem_union_right {h₁ h₂ : PartialState} {a v : Word}
+    (hd : h₁.Disjoint h₂) (hv : h₂.mem a = some v) :
+    (h₁.union h₂).mem a = some v := by
+  rcases hd.2.1 a with hn | hn
+  · show (match h₁.mem a with | some x => some x | none => h₂.mem a) = some v
+    rw [hn]; exact hv
+  · rw [hn] at hv; exact absurd hv (by simp)
+
+/-- Read a determined dword through the LEFT conjunct of a `**`. -/
+theorem mem_of_sepConj_left {P Q : Assertion} {h : PartialState} {a v : Word}
+    (hpq : (P ** Q) h) (hP : ∀ h', P h' → h'.mem a = some v) :
+    h.mem a = some v := by
+  obtain ⟨h₁, h₂, -, rfl, hp, -⟩ := hpq
+  exact mem_union_left (hP h₁ hp)
+
+/-- Read a determined dword through the RIGHT conjunct of a `**`. -/
+theorem mem_of_sepConj_right {P Q : Assertion} {h : PartialState} {a v : Word}
+    (hpq : (P ** Q) h) (hQ : ∀ h', Q h' → h'.mem a = some v) :
+    h.mem a = some v := by
+  obtain ⟨h₁, h₂, hd, rfl, -, hq⟩ := hpq
+  exact mem_union_right hd (hQ h₂ hq)
+
+/-- **A pinned region's dword contents are DETERMINED.**  Every atom of
+    `bytesRegion` is exact ownership (`memIs a v h` means
+    `h = singletonMem a v`), so at every dword index the heap holds exactly
+    the packed slice — no `∃`, no frame to hide in.  This is what makes
+    "the table still holds the shipped bytes" a checkable statement about a
+    halt heap. -/
+theorem bytesRegion_mem_dword {base : Word} {bs : List (BitVec 8)} {dw : Nat}
+    (hdw : 8 * dw < bs.length) {h : PartialState} (hb : bytesRegion base bs h) :
+    h.mem (base + BitVec.ofNat 64 (8 * dw))
+      = some (packBytes ((bs.drop (8 * dw)).take 8)) := by
+  obtain ⟨front, rest, -, -, heq⟩ := bytesRegion_dword_at base bs dw hdw
+  rw [heq] at hb
+  refine mem_of_sepConj_right hb (fun h' hh => ?_)
+  refine mem_of_sepConj_left hh (fun h'' hh' => ?_)
+  obtain ⟨rfl, -⟩ := hh'
+  simp [PartialState.singletonMem]
+
+/-- The gas table's `i`-th dword, read off any heap satisfying the pin. -/
+theorem guestDataImage_mem_gas_dword {i : Nat} (hi : i < 256)
+    {h : PartialState}
+    (hd : guestDataImage h) :
+    h.mem (gasTableBase + BitVec.ofNat 64 (8 * i))
+      = some (shippedGasCostTable[i]'(by
+          simp only [length_opcodeGasCostEntries]; exact hi)) := by
+  unfold guestDataImage at hd
+  obtain ⟨h₁, h₂, -, rfl, hg, -⟩ := hd
+  have hbound : 8 * i < (tableBytes shippedGasCostTable).length := by
+    simp only [length_tableBytes, length_opcodeGasCostEntries]; omega
+  have hcell := bytesRegion_mem_dword (base := gasTableBase)
+    (bs := tableBytes shippedGasCostTable) (dw := i) (h := h₁) hbound hg
+  rw [tableBytes_slice shippedGasCostTable i
+      (by simp only [length_opcodeGasCostEntries]; exact hi),
+    packBytes_dwordBytes] at hcell
+  exact mem_union_left hcell
+
+/-- The handler table's `i`-th dword, read off any heap satisfying the pin. -/
+theorem guestDataImage_mem_handler_dword {i : Nat} (hi : i < 256)
+    {h : PartialState}
+    (hd : guestDataImage h) :
+    h.mem (handlerTableBase + BitVec.ofNat 64 (8 * i))
+      = some (shippedHandlerTable[i]'(by
+          simp only [length_opcodeHandlerEntries]; exact hi)) := by
+  unfold guestDataImage at hd
+  obtain ⟨h₁, h₂, hdj, rfl, -, hn⟩ := hd
+  have hbound : 8 * i < (tableBytes shippedHandlerTable).length := by
+    simp only [length_tableBytes, length_opcodeHandlerEntries]; omega
+  have hcell := bytesRegion_mem_dword (base := handlerTableBase)
+    (bs := tableBytes shippedHandlerTable) (dw := i) (h := h₂) hbound hn
+  rw [tableBytes_slice shippedHandlerTable i
+      (by simp only [length_opcodeHandlerEntries]; exact hi),
+    packBytes_dwordBytes] at hcell
+  exact mem_union_right hdj hcell
+
+/-- The `.data` tile's dword index of `opcode_gas_costs[1]`, derived from the
+    two pinned addresses rather than written down: the gas table starts at
+    `dataTablesOffset` bytes into the tile, and ADD is opcode `1`. -/
+private abbrev gasDword1Index : Nat := dataTablesOffset / 8 + 1
+
+/-- ADD's static gas cost is `3`, so dword `1` of `opcode_gas_costs` is NOT
+    zero — the discriminator the strictness proof below turns on.  Stated
+    separately so a re-tiering of ADD breaks *this*, with a reason, rather
+    than the strictness proof's last `rw`. -/
+theorem gas_dword1_ne_zero :
+    (shippedGasCostTable[1]'(by simp only [length_opcodeGasCostEntries]; omega))
+      ≠ (0 : Word) := by
+  simp only [shippedGasCostTable, opcodeGasCostEntries, List.getElem_map,
+    List.getElem_range]
+  decide
+
+set_option maxRecDepth 200000 in
+/-- **The pin is a STRICT strengthening, so the residue obligation is real.**
+
+    A heap holding all zeroes across `.data` satisfies the havoc'd tile that
+    `guestScratch`/`guestResidue` used to carry, and does NOT satisfy the
+    pinned one: dword `1` of `opcode_gas_costs` is ADD's static cost `3`, not
+    `0`.  So `guestDataScratch` genuinely rules out halt heaps that the old
+    `regionScratch RegionMap.dataRegion` admitted, and `guestDataScratch_weakens`
+    (§3) is one-directional on purpose.
+
+    ⛔ Read together with `guestDataScratch_weakens` this is the whole shape of
+    GH #13229's cost: free on the PRE, a new proof burden on the POST. -/
+theorem guestDataScratch_strictly_stronger :
+    ∃ h, anyBytes dataTileBase RegionMap.dataRegion.size h
+      ∧ ¬ guestDataScratch h := by
+  have hlen : (List.replicate RegionMap.dataRegion.size (0 : BitVec 8)).length
+      = RegionMap.dataRegion.size := List.length_replicate
+  obtain ⟨h, hz, -⟩ := satWithin_ramBytes RegionMap.dataRegion.base
+    (List.replicate RegionMap.dataRegion.size (0 : BitVec 8))
+    (by decide) (by rw [hlen]; decide) (by decide) (by rw [hlen]; decide)
+  refine ⟨h, ⟨_, hlen, hz⟩, fun hpin => ?_⟩
+  -- the zero heap's dword at `opcode_gas_costs + 8`
+  have hzero := bytesRegion_mem_dword
+    (bs := List.replicate RegionMap.dataRegion.size (0 : BitVec 8))
+    (dw := gasDword1Index) (by rw [hlen]; decide) hz
+  -- the pinned tile's dword at the same address
+  have hpinned := mem_of_sepConj_right hpin
+    (fun h' hh => guestDataImage_mem_gas_dword (i := 1) (by decide) hh)
+  rw [show (BitVec.ofNat 64 RegionMap.dataRegion.base
+        + BitVec.ofNat 64 (8 * gasDword1Index))
+      = gasTableBase + BitVec.ofNat 64 (8 * 1) from by decide] at hzero
+  rw [hpinned] at hzero
+  -- the two readings of the same dword, spelled at the same type
+  have hsame : (shippedGasCostTable[1]'(by
+        simp only [length_opcodeGasCostEntries]; omega))
+      = packBytes (List.take 8 (List.drop (8 * gasDword1Index)
+          (List.replicate RegionMap.dataRegion.size (0 : BitVec 8)))) :=
+    Option.some.inj hzero
+  have hzeroval : packBytes (List.take 8 (List.drop (8 * gasDword1Index)
+      (List.replicate RegionMap.dataRegion.size (0 : BitVec 8)))) = 0 := by
+    simp only [List.drop_replicate, List.take_replicate]
+    decide
+  exact gas_dword1_ne_zero (hsame.trans hzeroval)
+
+/-- **Where the gap is, and what is on each side of it.**
+
+    1. The residue now DETERMINES the tables: any halt heap satisfying
+       `guestDataImage` holds `shippedHandlerTable[i]` at
+       `opcode_handlers + 8i`.  So the obligation has a statement, not just a
+       name.
+    2. It is not free: `guestDataScratch_strictly_stronger` exhibits a heap
+       that satisfies the old havoc'd tile and fails the pinned one.
+    3. And it is not derivable from ownership: the havoc weakening is
+       one-directional, which is
+       `DispatchStepOpcode.opcode_table_contents_not_scratch_determined` in
+       the `.data` tile's own vocabulary.
+
+    ⛔ **What is missing** is the run-level fact — that the guest's stores never
+    reach `[opcode_gas_costs, .data_end)` — and it cannot be proved at this
+    layer, because `.64` (`TopComposition.runStatelessGuestSound_of_phases`)
+    still takes its six phase Props as HYPOTHESES: there is no whole-program
+    write map to quantify over.  The offline evidence is
+    `scripts/check-data-table-residue.sh`, which re-derives from the LINKED
+    image (not from the emitter source, and not from this docstring) that
+    exactly two instructions in `.text` materialise an address in the range,
+    that both feed an `ld`, and that no store's statically resolvable base
+    lands in it.  That gate bounds the risk; it is not a proof, and this
+    theorem does not pretend otherwise. -/
+theorem dataTables_residue_gap :
+    (∀ (i : Nat) (hi : i < 256), ∀ h, guestDataImage h →
+        h.mem (handlerTableBase + BitVec.ofNat 64 (8 * i))
+          = some (shippedHandlerTable[i]'(by
+              simp only [length_opcodeHandlerEntries]; exact hi)))
+    ∧ (∃ h, anyBytes dataTileBase RegionMap.dataRegion.size h
+        ∧ ¬ guestDataScratch h)
+    ∧ (∀ h, guestDataScratch h →
+        anyBytes dataTileBase RegionMap.dataRegion.size h) :=
+  ⟨fun _ hi _ hd => guestDataImage_mem_handler_dword hi hd,
+   guestDataScratch_strictly_stronger,
+   guestDataScratch_weakens⟩
+
+end ResiduePreservation
+
 end EvmAsm.Codegen.Proofs.GuestDataImage
