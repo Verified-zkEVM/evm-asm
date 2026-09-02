@@ -97,6 +97,30 @@ EVM stack: x12 is EVM stack pointer, stack grows upward, 32 bytes per element.
   Post-fix: ~7ms kernel at n=83, works to n≈400; large unbundled atom
   chains (40–80+) are viable, so ambient-bundling workarounds that fold
   atoms into opaque descriptors purely for xperm cost can be retired.
+- **xperm operand hygiene** (#13207, measured 2026-09-02): permutation
+  *distance* is not a limit — a full reversal and a shuffle of a 36-atom
+  chain are both proved in ~1s (pinned upstream in
+  `RiscvZkvm/Rv64/Logic/Tactics/XPermTests.lean`). Do **not** reorder
+  assertions "into their source order" to help it; a failing permutation
+  goal has mismatched *atoms*. What does bite is an **undetermined
+  operand**: `xperm` matches with `isDefEq`, which used to close `?A = ?B`
+  by assigning `?A := ?B` and returning `Eq.refl` — success, having proved
+  nothing, with the fallout appearing as "don't know how to synthesize
+  placeholder" at every `have` and `sorryAx` in the declaration. Now a
+  loud error naming the tactic. See `docs/agents/tactics-deep.md`.
+  - ⛔ **Blocked follow-up**: the fix is in
+    [riscv-zkvm#9](https://github.com/Verified-zkEVM/riscv-zkvm/pull/9),
+    not in this repo. Landing it here needs that merged, a release cut,
+    and `lakefile.toml`'s `riscv-zkvm` pin bumped off `v0.3.0`. The bump
+    must also update one `#guard_msgs` docstring in
+    `EvmAsm/Tests/RunBlockLayoutBridge.lean`: the `opaque`-program case now
+    reports a `runBlock` CodeReq-bridge error instead of the placeholder
+    message. A full `lake build EvmAsm` against the fix branch fails that
+    one module and nothing else.
+  - ⚠️ `withdrawal_to_path_delta` is **not** unblocked by this. Its
+    recorded blocker named the distance limit, which does not exist, so
+    the row is un-diagnosed rather than fixed; re-attempt the four-way
+    assembly against the bumped pin and read the error it then gives.
 
 ---
 

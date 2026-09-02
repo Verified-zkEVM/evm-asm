@@ -44,6 +44,45 @@ simp only [memBufferIs, addr_100_plus_4, addr_104_plus_4,
 exact hab
 ```
 
+### `xperm`: what actually limits it
+
+`xperm` (and `xperm_hyp`, `xsimp`, `xcancel`, and the permutation `seqFrame`
+and `runBlock` build internally) lives in the `riscv-zkvm` dependency
+(`RiscvZkvm/Rv64/Logic/Tactics/XPerm.lean`). Two things about it are worth
+knowing before you spend an afternoon on a permutation that will not go.
+
+**Permutation distance is not a limit — do not reorder your assertions to
+"help" it.** A full reversal and a shuffle of a 36-atom `**` chain both go
+through in about a second, and are pinned as tests in
+`RiscvZkvm/Rv64/Logic/Tactics/XPermTests.lean`. If a permutation goal fails,
+the two sides' *atoms* differ; look for the mismatched atom, not for a
+shorter route between the orders.
+
+**Both sides must be instantiated when the tactic runs.** `xperm` matches
+atoms with `isDefEq`, and `isDefEq` may make its two arguments equal by
+*assigning* a metavariable. This used to be a silent-success bug
+([#13207](https://github.com/Verified-zkEVM/evm-asm/issues/13207)): on a goal
+`?A = ?B` the tactic assigned `?A := ?B` and returned `Eq.refl ?B`, reporting
+success having proved nothing. The `sorryAx` that followed came from ordinary
+elaboration error recovery once the merged metavariable failed to synthesize —
+which is why the visible errors were "don't know how to synthesize
+placeholder" against *every* `have` in the block, with nothing naming `xperm`,
+and why `#print axioms` was the only honest witness. `seqFrame` inherited it
+through `mkPermLambda`: `assignOrPermuteWithin` "succeeded",
+`replaceMainGoal []` emptied the goal list, and the next tactic said "No goals
+to be solved".
+
+An undetermined operand is now a plain error naming the tactic and printing
+both chains. The guard is narrow — a metavariable occurring as an atom of
+*both* sides has an honest counterpart and still permutes — so it only refuses
+searches that could never have meant anything.
+
+⇒ The transferable lesson is not about `xperm`. **A tactic that closes a goal
+by assigning a metavariable it was supposed to match has not proved anything**,
+and the resulting `sorryAx` will be reported nowhere near the tactic. When
+errors point at every `have` in a block and name no tactic, suspect the
+automation, and reach for `#print axioms` before debugging the `have`s.
+
 ## Calling Convention (LP64)
 
 New functions **must** follow the LP64 calling convention defined in
