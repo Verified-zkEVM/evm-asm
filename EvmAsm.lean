@@ -77,6 +77,7 @@ import EvmAsm.Codegen.Proofs.CalldataLoadGuardedHandlerSpec
 import EvmAsm.Codegen.Proofs.CreateDeployedCodeValidSpec
 import EvmAsm.Codegen.Proofs.CreateInitcodeSizeValidSpec
 import EvmAsm.Codegen.Proofs.DispatchStepGas
+import EvmAsm.Codegen.Proofs.DispatchStepOpcode
 import EvmAsm.Codegen.Proofs.DoWhileDemo
 import EvmAsm.Codegen.Proofs.GuardedHandlerSpecs
 import EvmAsm.Codegen.Proofs.GuestImage
