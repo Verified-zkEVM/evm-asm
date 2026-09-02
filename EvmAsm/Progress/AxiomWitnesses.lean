@@ -334,6 +334,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped
 
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_controls
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_instance
+
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_fetch_within
 
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_image

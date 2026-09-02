@@ -7885,6 +7885,13 @@ private noncomputable abbrev _dispatch_step_body_control_witness :=
   @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_refutable
 private noncomputable abbrev _dispatch_step_opcode_control_witness :=
   @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_premises_refutable
+-- The shipped-family instance and its negative control (#13228/#13239's row
+-- prose cites both by name), analogous to the parameterized cover/control
+-- pair above but over the linked image rather than `demoResolver`.
+private noncomputable abbrev _dispatch_step_body_shipped_instance_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_instance
+private noncomputable abbrev _dispatch_step_body_shipped_controls_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_controls
 -- ⚠️ The row's GATE is a theorem too, and it is the one a reader is most
 -- likely to take on trust.  Witnessing it puts the ".data is not pinned"
 -- statement, the resume-label tie and the table-layout cross-check inside the
