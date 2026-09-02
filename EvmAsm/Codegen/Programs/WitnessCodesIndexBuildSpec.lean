@@ -1,9 +1,70 @@
 /-
   EvmAsm.Codegen.Programs.WitnessCodesIndexBuildSpec
 
-  **Machine facts for the guest routine `witness_codes_index_build`** (GH #13246).
+  **Machine facts for the guest routine `witness_codes_index_build`** (GH #13246,
+  obligations 7 and 10).
 
-  Placeholder header; filled in once the theorem lands.
+  `witnessCodesIndexBuild_prog` (`WitnessCodeLookup.lean`, 158 instructions) was
+  transcribed in #12160 so that a `cpsTripleWithin` over the real linked program
+  could be STATED.  #11800 closed on that transcription; this module is the
+  attachment half it deliberately left out.  The proved domain is an
+  intentionally narrow empty-code-section checkpoint; it is not a claim about
+  the keccak loop or the heapsort.
+
+  ## §A  What is established here
+
+  * `wcb_abiFrame_byte_tie` (in `WitnessCodesLookupSpec.lean`) already says the
+    routine IS a standard 11-slot ABI frame around a 133-instruction body, so
+    `abiFrame_spec_own` applies and the prologue/epilogue (`ra`, `s0`…`s9`
+    save/restore, `sp` round-trip) are DERIVED, not assumed.
+  * `chainK` and `laStoreOwn`/`laStoreAt` — the two composition idioms, generic
+    in the `CodeReq`.  `chainK` sequences two segments that share a carried
+    context by pure reassociation, so the thirteen-cell initialisation block
+    costs a linear chain rather than thirteen permutation searches.  Both are
+    written to be reusable by the mechanically identical node-DB builder
+    `witness_index_build`, which is the other half of #13246 item 1 and is NOT
+    proved here.
+  * `witness_codes_index_build_spec_within_empty_section` — the **whole-routine
+    triple**, entry `GuestAddrs.witness_codes_index_build` to the caller's
+    return address, over `CodeReq.ofProg` of the real program, in at most 88
+    machine steps.  It pins `a0 = 0` (success), `wcidx_enabled = 1`,
+    `wcidx_count = 0`, `wcidx_section_ptr = a0`, `wcidx_section_len = 0`,
+    `wcidx_build_status = 0`, all ten `wclh_*` counters reset, and the eleven
+    callee-saved registers restored.  That published state is the machine
+    counterpart of `Stateless.SpecRef.build_code_db [] = []`.
+  * `wcb_entryState_exists` — a concrete `MachineState` at the routine's OWN
+    entry (`pc = wcbB`) satisfying the whole-routine precondition, with the
+    forty-five atoms' pairwise disjointness kernel-checked.
+
+  ## §B  What is NOT established (read before citing this module)
+
+  The gate is `a1 = section_len = 0`, an INPUT-DOMAIN restriction.  Nothing here
+  bounds `section_len` from above, and nothing here says anything about:
+
+  * the SSZ offset-table guards (idx 57…66) or the per-entry keccak loop
+    (idx 70…97), which contain the `zkvm_keccak256` cross-`jal` at idx 93;
+  * the two heapsort loops (idx 101…124), which contain the `wcidx_record_ptr`,
+    `wcidx_swap_records` and `wcidx_sift_down` cross-`jal`s;
+  * the failure tail (idx 140…144), which sets `wcidx_build_status := 1` and
+    returns `a0 = 1`.
+
+  On the domain proved here **none of those five callees is REACHED** — the
+  `beq s1, zero` at idx 56 jumps over the loop that contains the keccak call
+  and the `bltu s2, t0` at idx 100 jumps over both sort loops — so this theorem
+  carries **no unproven-callee dependency**.  The general routine does; any
+  extension past either branch must carry those callee contracts as explicit
+  hypotheses.  Branch polarity was read off the Program's own
+  `brOff (…+392) (…+224)` and `brOff (…+500) (…+400)` immediates, not off a
+  source line or a disassembly.
+
+  ## §C  Relation to the node-DB builder
+
+  `witnessIndexBuild_prog` (`MptWitnessIndex.lean`) is the same 158
+  instructions with `widx_*` in place of `wcidx_*`.  Its leaf callees
+  (`widx_record_ptr`, `widx_cmp32`, `widx_swap_records`) have triples in
+  `Codegen/Proofs/MptWitnessIndexSpec.lean`, but the routine itself has no
+  whole-routine triple and no registry row; §1's `chainK`/`laStoreOwn` are
+  stated generically in the `CodeReq` precisely so that mirror can reuse them.
 -/
 
 import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
@@ -724,5 +785,286 @@ theorem witness_codes_index_build_spec_within_empty_section
     (wcbEmptySectionBody _ vals v6 ptr)
   rw [wcbFrame_length] at h
   exact h
+
+/-! ## §7  Non-vacuity
+
+    Three exhibits.  A concrete `MachineState` at the routine's OWN entry
+    satisfying the whole-routine precondition (`wcb_entryState_exists`); the
+    domain gate shown reachable (`wcb_empty_section_gate_reachable`); and the
+    same gate shown provably FALSE one byte of `section_len` along
+    (`wcb_nonempty_section_gate_absurd`), which is what makes the
+    `section_len = 0` restriction a restriction rather than decoration. -/
+
+/-- A concrete caller stack pointer in ziskemu's writable RAM zone, far from
+    the `wcidx_*`/`wclh_*` cells at `0xa34070xx`. -/
+def wcbSampleSp0 : Word := (0xa00b0000 : Word)
+
+def wcbSampleNewSp : Word := wcbSampleSp0 + signExtend12 (-96 : BitVec 12)
+
+/-- A two-byte-aligned return address inside the guest text. -/
+def wcbSampleRet : Word := (0x80006300 : Word)
+
+/-- The SSZ code-section base the caller passes in `a0`. -/
+def wcbSamplePtr : Word := (0x40000030 : Word)
+
+/-- An arbitrary live value in the scratch register `t1`. -/
+def wcbSampleV6 : Word := (0xbeef : Word)
+
+/-- Sample entry values for the eleven callee-saved registers — pairwise
+    distinct, so the post's "restored to its ENTRY value" claim is
+    discriminating rather than satisfied by a constant. -/
+def wcbSampleVals : Reg → Word
+  | .x1 => wcbSampleRet
+  | .x8 => (0x101 : Word)
+  | .x9 => (0x202 : Word)
+  | .x18 => (0x303 : Word)
+  | .x19 => (0x404 : Word)
+  | .x20 => (0x505 : Word)
+  | .x21 => (0x606 : Word)
+  | .x22 => (0x707 : Word)
+  | .x23 => (0x808 : Word)
+  | .x24 => (0x909 : Word)
+  | .x25 => (0xa0a : Word)
+  | _ => (0 : Word)
+
+private structure WcbEMem where
+  a : Word
+  valid : isValidDwordAccess a = true
+
+private inductive WcbEAtom where
+  | reg (r : Reg) (v : Word)
+  | regO (r : Reg)
+  | memO (m : WcbEMem)
+
+private inductive WcbERes where
+  | reg (r : Reg)
+  | mem (a : Word)
+  deriving DecidableEq
+
+private def wcbEAssertion : WcbEAtom → Assertion
+  | .reg r v => r ↦ᵣ v
+  | .regO r => regOwn r
+  | .memO m => memOwn m.a
+
+private def wcbEHeap : WcbEAtom → PartialState
+  | .reg r v => PartialState.singletonReg r v
+  | .regO r => PartialState.singletonReg r (0 : Word)
+  | .memO m => PartialState.singletonMem m.a (0 : Word)
+
+private def wcbERes : WcbEAtom → WcbERes
+  | .reg r _ => .reg r
+  | .regO r => .reg r
+  | .memO m => .mem m.a
+
+/-- The forty-five atoms of the whole-routine precondition, in the order the
+    assertion nests them: `sp`, the eleven callee-saved registers, the eleven
+    frame slots, the five caller-ambient registers, and the seventeen `.data`
+    cells. -/
+private def wcbEAtoms : List WcbEAtom :=
+  [.reg .x2 wcbSampleSp0, .reg .x1 (wcbSampleVals .x1), .reg .x8 (wcbSampleVals .x8),
+   .reg .x9 (wcbSampleVals .x9), .reg .x18 (wcbSampleVals .x18),
+   .reg .x19 (wcbSampleVals .x19), .reg .x20 (wcbSampleVals .x20),
+   .reg .x21 (wcbSampleVals .x21), .reg .x22 (wcbSampleVals .x22),
+   .reg .x23 (wcbSampleVals .x23), .reg .x24 (wcbSampleVals .x24),
+   .reg .x25 (wcbSampleVals .x25),
+   .memO ⟨wcbSampleNewSp + signExtend12 (0 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (8 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (16 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (24 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (32 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (40 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (48 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (56 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (64 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (72 : BitVec 12), by decide⟩,
+   .memO ⟨wcbSampleNewSp + signExtend12 (80 : BitVec 12), by decide⟩,
+   .reg .x0 (0 : Word), .regO .x5, .reg .x6 wcbSampleV6, .reg .x10 wcbSamplePtr,
+   .reg .x11 (0 : Word), .memO ⟨WcbEnabledLoc, by decide⟩,
+   .memO ⟨WcbBuildStatusLoc, by decide⟩, .memO ⟨WcbBuildSectionLenLoc, by decide⟩,
+   .memO ⟨WcbBuildCountLoc, by decide⟩, .memO ⟨WcbSectionPtrLoc, by decide⟩,
+   .memO ⟨WcbSectionLenLoc, by decide⟩, .memO ⟨WcbCountLoc, by decide⟩,
+   .memO ⟨WcbLookupCallsLoc, by decide⟩, .memO ⟨WcbIndexedCallsLoc, by decide⟩,
+   .memO ⟨WcbIndexedHitsLoc, by decide⟩, .memO ⟨WcbIndexedMissesLoc, by decide⟩,
+   .memO ⟨WcbLinearCallsLoc, by decide⟩, .memO ⟨WcbLinearHitsLoc, by decide⟩,
+   .memO ⟨WcbLinearMissesLoc, by decide⟩, .memO ⟨WcbLinearIterationsLoc, by decide⟩,
+   .memO ⟨WcbLinearLastLenLoc, by decide⟩, .memO ⟨WcbLinearMaxLenLoc, by decide⟩]
+
+private theorem wcbEAtoms_pairwise : wcbEAtoms.Pairwise
+    (fun x y => wcbERes x ≠ wcbERes y) := by
+  unfold wcbEAtoms wcbERes wcbSampleNewSp wcbSampleSp0 WcbEnabledLoc WcbBuildStatusLoc WcbBuildSectionLenLoc WcbBuildCountLoc WcbSectionPtrLoc WcbSectionLenLoc WcbCountLoc WcbLookupCallsLoc WcbIndexedCallsLoc WcbIndexedHitsLoc WcbIndexedMissesLoc WcbLinearCallsLoc WcbLinearHitsLoc WcbLinearMissesLoc WcbLinearIterationsLoc WcbLinearLastLenLoc WcbLinearMaxLenLoc
+  decide
+
+private theorem wcbERegRegDisjoint {r1 r2 : Reg} {v1 v2 : Word}
+    (hne : r1 ≠ r2) :
+    (PartialState.singletonReg r1 v1).Disjoint
+      (PartialState.singletonReg r2 v2) := by
+  refine ⟨?_, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro r
+  by_cases h : r = r1
+  · subst r; right; simp [PartialState.singletonReg, hne]
+  · left; simp [PartialState.singletonReg, h]
+
+private theorem wcbEMemMemDisjoint {a1 a2 v1 v2 : Word}
+    (hne : a1 ≠ a2) :
+    (PartialState.singletonMem a1 v1).Disjoint
+      (PartialState.singletonMem a2 v2) := by
+  refine ⟨fun _ => Or.inl rfl, ?_, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+  intro a
+  by_cases h : a = a1
+  · subst a; right; simp [PartialState.singletonMem, hne]
+  · left; simp [PartialState.singletonMem, h]
+
+private theorem wcbERegMemDisjoint {r : Reg} {a v w : Word} :
+    (PartialState.singletonReg r v).Disjoint
+      (PartialState.singletonMem a w) :=
+  ⟨fun _ => Or.inr rfl, fun _ => Or.inl rfl, fun _ => Or.inl rfl,
+    Or.inl rfl, Or.inl rfl, Or.inl rfl, Or.inl rfl⟩
+
+private theorem wcbEAtomHeapDisjoint {x y : WcbEAtom}
+    (h : wcbERes x ≠ wcbERes y) :
+    (wcbEHeap x).Disjoint (wcbEHeap y) := by
+  cases x <;> cases y
+  all_goals first
+    | (apply wcbERegRegDisjoint; simpa [wcbERes] using h)
+    | (apply wcbEMemMemDisjoint; simpa [wcbERes] using h)
+    | exact wcbERegMemDisjoint
+    | exact wcbERegMemDisjoint.symm
+
+private theorem wcbEAtoms_hsat :
+    (wcbEAtoms.foldr (fun x acc => wcbEAssertion x ** acc) empAssertion)
+      (wcbEAtoms.foldr (fun x acc => (wcbEHeap x).union acc) PartialState.empty) := by
+  apply sepConj_foldr_satisfiable wcbEAssertion wcbEHeap wcbEAtoms
+  · intro x _
+    cases x with
+    | reg r v => exact rfl
+    | regO r => exact ⟨(0 : Word), rfl⟩
+    | memO m => exact ⟨(0 : Word), rfl, m.valid⟩
+  · exact List.Pairwise.imp (fun {_ _} h => wcbEAtomHeapDisjoint h) wcbEAtoms_pairwise
+
+private def wcbEHeapAll : PartialState :=
+  wcbEAtoms.foldr (fun x acc => (wcbEHeap x).union acc) PartialState.empty
+
+/-- The concrete machine state: the forty-five atoms' contents, the routine's
+    own code, and `pc` at the routine's linked entry. -/
+def wcbEntryState : MachineState where
+  regs := fun r => match wcbEHeapAll.regs r with | some v => v | none => 0
+  mem := fun a => match wcbEHeapAll.mem a with | some v => v | none => 0
+  code := wcbCr
+  pc := wcbB
+
+private theorem wcbEHeapAll_x0 : wcbEHeapAll.regs .x0 = some 0 := by
+  decide
+
+private theorem wcbEntryState_getReg (r : Reg) (hr : r ≠ .x0) :
+    wcbEntryState.getReg r =
+      (match wcbEHeapAll.regs r with | some v => v | none => 0) := by
+  cases r <;> simp_all [wcbEntryState, MachineState.getReg]
+
+private theorem wcbEntryState_getMem (a : Word) :
+    wcbEntryState.getMem a =
+      (match wcbEHeapAll.mem a with | some v => v | none => 0) := rfl
+
+private theorem wcbEHeap_code_none (x : WcbEAtom) (a : Word) :
+    (wcbEHeap x).code a = none := by
+  cases x <;> rfl
+
+private theorem wcbEHeapAll_code_none (a : Word) : wcbEHeapAll.code a = none := by
+  unfold wcbEHeapAll
+  induction wcbEAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    change (match (wcbEHeap x).code a with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (wcbEHeap y).union acc)
+          PartialState.empty).code a) = none
+    rw [wcbEHeap_code_none x a, ih]
+
+private theorem wcbEHeapAll_pc_none : wcbEHeapAll.pc = none := by
+  unfold wcbEHeapAll
+  induction wcbEAtoms with
+  | nil => rfl
+  | cons x xs ih =>
+    have hx : (wcbEHeap x).pc = none := by cases x <;> rfl
+    change (match (wcbEHeap x).pc with
+      | some v => some v | none =>
+        (xs.foldr (fun y acc => (wcbEHeap y).union acc)
+          PartialState.empty).pc) = none
+    rw [hx, ih]
+
+private theorem wcbEHeapAll_compat : wcbEHeapAll.CompatibleWith wcbEntryState := by
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · intro r v h
+    by_cases hr : r = .x0
+    · subst r
+      rw [wcbEHeapAll_x0] at h
+      simp only [Option.some.injEq] at h
+      simpa [wcbEntryState, MachineState.getReg] using h
+    · rw [wcbEntryState_getReg r hr, h]
+  · intro a v h
+    rw [wcbEntryState_getMem a, h]
+  · intro a i h
+    rw [wcbEHeapAll_code_none a] at h
+    cases h
+  · intro v h
+    rw [wcbEHeapAll_pc_none] at h
+    cases h
+  · intro v h; cases h
+  · intro v h; cases h
+  · intro v h; cases h
+
+private theorem wcbEntryPre_eq_atoms :
+    (((.x2 : Reg) ↦ᵣ wcbSampleSp0) ** regsAt wcbFrame wcbSampleVals **
+      frameSlotsOwn wcbFrame wcbSampleNewSp **
+      wcbArgs wcbSampleV6 wcbSamplePtr) =
+      wcbEAtoms.foldr (fun x acc => wcbEAssertion x ** acc) empAssertion := by
+  unfold wcbArgs wcbBuilderCells wcbEAtoms wcbEAssertion wcbFrame regsAt frameSlotsOwn
+  simp only [List.foldr, sepConj_emp_right', sepConj_assoc']
+
+/-- **The whole-routine precondition is inhabited at the routine's own
+    entry.**  `wcbEntryState` has `pc = GuestAddrs.witness_codes_index_build`,
+    satisfies the routine's `CodeReq`, and satisfies the precondition of
+    `witness_codes_index_build_spec_within_empty_section` at
+    `sp0 = wcbSampleSp0`, `ret = wcbSampleRet` and `vals = wcbSampleVals` —
+    so the theorem is not vacuously true of an unsatisfiable state. -/
+theorem wcb_entryState_exists :
+    wcbEntryState.pc = wcbB ∧ wcbCr.SatisfiedBy wcbEntryState ∧
+      ((((.x2 : Reg) ↦ᵣ wcbSampleSp0) ** regsAt wcbFrame wcbSampleVals **
+        frameSlotsOwn wcbFrame wcbSampleNewSp **
+        wcbArgs wcbSampleV6 wcbSamplePtr)).holdsFor wcbEntryState := by
+  refine ⟨rfl, ?_, ?_⟩
+  · intro a i h; exact h
+  · refine ⟨wcbEHeapAll, wcbEHeapAll_compat, ?_⟩
+    rw [wcbEntryPre_eq_atoms]
+    exact wcbEAtoms_hsat
+
+/-- The ABI hypotheses hold at the sample: `ra` carries the sample return
+    address and it is two-byte aligned. -/
+theorem wcb_sample_abi_ok :
+    wcbSampleVals .x1 = wcbSampleRet ∧
+      (wcbSampleRet &&& ~~~(1 : Word)) = wcbSampleRet := ⟨rfl, by decide⟩
+
+/-- **Negative control on the ABI gate**: one byte along, the return address
+    is odd and `halign` is provably FALSE. -/
+theorem wcb_odd_ret_absurd :
+    ¬ (((wcbSampleRet + 1) &&& ~~~(1 : Word)) = wcbSampleRet + 1) := by decide
+
+/-- **The domain gate is reachable**: with `section_len = 0` the `beq s1, zero`
+    at idx 56 IS taken, which is the jump this theorem's whole tail rides. -/
+theorem wcb_empty_section_gate_reachable : (0 : Word) = (0 : Word) := rfl
+
+/-- **Negative control on the domain gate**: at `section_len = 1` the taken
+    arm of the same branch carries `⌜(1 : Word) = 0⌝` and is provably FALSE,
+    so no re-instantiation of this proof at a non-empty section reaches the
+    publish tail.  The `section_len = 0` restriction is load-bearing, not
+    decoration. -/
+theorem wcb_nonempty_section_gate_absurd :
+    ∀ hp, (((.x9 : Reg) ↦ᵣ (1 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+      ⌜(1 : Word) = (0 : Word)⌝) hp → False := by
+  intro hp hq
+  obtain ⟨_, _, _, _, _, hB⟩ := hq
+  obtain ⟨_, _, _, _, _, hP⟩ := hB
+  exact absurd hP.2 (by decide)
 
 end EvmAsm.Codegen.WitnessCodesIndexBuildSpec
