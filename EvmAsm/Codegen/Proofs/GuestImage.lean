@@ -688,9 +688,10 @@ def guestFraming : GuestFraming where
     * `guestResidue_rejects_clobbered_tables` — the contrapositive, and the
       obligation in its sharpest form: a halt heap that zeroed
       `opcode_gas_costs[1]` provably does NOT satisfy the residue;
-    * `guestResidue_sat` — and yet the post is still inhabited, so the pin did
-      not make `.64` unprovable-by-construction the way `residue := guestScratch`
-      did in the #9785 review.
+    * `guestResidue_sat` — and yet the conjunct the pin strengthened is still
+      inhabited, so pinning did not empty it the way `residue := guestScratch`
+      emptied the #9785 post.  (Scope note on the theorem itself: that is a
+      claim about `guestResidue`, not about the full `.64` post.)
 
     ⛔ **The residual gap.**  None of this discharges the obligation: the
     run-level fact — that no store the guest executes lands in
@@ -755,11 +756,17 @@ theorem guestResidue_rejects_clobbered_tables {h : PartialState}
   rw [hz] at hgood
   exact Proofs.GuestDataImage.gas_dword1_ne_zero (Option.some.inj hgood).symm
 
-/-- **The strengthened post is still inhabited.**  Pinning the tables did not
-    make the `.64` postcondition unsatisfiable — the failure mode the #9785
-    review found when `residue := guestScratch` over-owned the observation
-    window.  Read with `guestScratch_eq_window_residue`: the entry witness
-    already contains a residue witness. -/
+/-- **The strengthened residue is still inhabited.**  Pinning the tables did
+    not empty the conjunct it strengthened — the failure mode the #9785 review
+    found when `residue := guestScratch` over-owned the observation window.
+    Read with `guestScratch_eq_window_residue`: the entry witness already
+    contains a residue witness.
+
+    ⚠️ Scope, precisely.  This is about `guestResidue`, NOT about the whole
+    `.64` post `guestOutputSound execute input ** fr.residue`: that also needs
+    the three register atoms and an output window satisfying `SpecAccepts`,
+    neither of which the pin touched and neither of which is claimed here.
+    What it rules out is the one thing pinning COULD have broken. -/
 theorem guestResidue_sat : ∃ h, guestResidue h := by
   obtain ⟨h, hp⟩ := guestScratch_sat [] (by decide)
   obtain ⟨-, hsc, -, -, -, hs⟩ := hp
