@@ -30,7 +30,9 @@ open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
   (excessFrame excessSavedFrame excessEntryRest excessCalleePost excessFrameVals
     ExcessRet ExcessK k70Cr k70Target
     validate_header_excess_blob_gas_call_spec_within
-    header_validate_excess_blob_gas_under_target_spec_within)
+    header_validate_excess_blob_gas_under_target_spec_within
+    baseFrame baseSavedFrame baseFrameVals baseEntryRest baseCalleePost
+    BaseRet BaseK validate_header_base_fee_call_spec_within)
 open EvmAsm.Codegen.ValidateHeaderCheckGasLimit
   (callerFrame checkGasLimitStatus4Post checkGasLimitFallPost
     validate_header_check_gas_limit_routes_spec_within)
@@ -471,5 +473,177 @@ theorem gasCheckDispatch_spec
     have hpB := sepConj_mono_left (sepConj_mono hx5 hx6) _ hp56
     xperm_hyp hpB
   exact cpsTripleWithin_seq_cpsNBranchWithin_perm_same_cr hperm hpre hroutes
+
+
+/-! ## Base-fee dispatch composition (`H+116 → H+140`, third increment)
+
+    `addiThisStructPtr96` → `ldParentGasLimitRe` → `ldParentGasUsed` →
+    `addiParentStructPtr96Re`, then the `base_fee` JAL at `H+132` via
+    `validate_header_base_fee_call_spec_within` with the callee triple supplied
+    as the `hcallee` HYPOTHESIS (the base-fee callee coverage is #13231, whose
+    producer is separate), then `baseFeeBne_ntaken` (gate `status = 0`).
+    Item three is here exercised at a third dispatch site with the blocked
+    callee carried as a premise, per the claimed-region hcore plan.
+
+    The base-fee callee frame (`baseFrame` at `spC-16`) rides in the caller pre
+    (`baseFeeFrameRes`); the four argument arms need `x18`/`x19` and the two
+    parent-struct memory atoms as STANDALONE atoms (they read them), while
+    `x18`/`x19` and those memory atoms must survive the callee (the core reads
+    `x18` again at `H+140`), so they are threaded through the JAL in the
+    caller residual `F`. -/
+
+abbrev bfFull (calleeCode : CodeReq) : CodeReq := callerCode.union calleeCode
+
+theorem bfFull_caller_mono (calleeCode : CodeReq) :
+    ∀ a i, callerCode a = some i → bfFull calleeCode a = some i := by
+  intro a i hi
+  exact CodeReq.union_mono_left a i hi
+
+abbrev baseFeeFrameRes (spC : Word) (vals : Reg → Word) (oldRa : Word)
+    (F : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  frameSlotsOwn baseFrame (spC + signExtend12 (-16 : BitVec 12)) **
+  regsAt baseSavedFrame vals **
+  regOwns [.x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) ** F
+
+abbrev baseFeeDispatchPre (spC thisPtr parentPtr : Word) (vals : Reg → Word)
+    (o10 o11 o12 o13 gasLimit gasUsed oldRa : Word) (F : Assertion) : Assertion :=
+  (.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ o10) **
+  (.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit) **
+  (.x12 ↦ᵣ o12) ** ((parentPtr + 88) ↦ₘ gasUsed) **
+  (.x13 ↦ᵣ o13) **
+  baseFeeFrameRes spC vals oldRa F
+
+theorem baseFeeDispatch_preCall
+    {calleeCode : CodeReq}
+    (spC thisPtr parentPtr : Word) (vals : Reg → Word)
+    (o10 o11 o12 o13 gasLimit gasUsed oldRa : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin (1 + 1 + 1 + 1) (H + 116) (H + 132) (bfFull calleeCode)
+      (baseFeeDispatchPre spC thisPtr parentPtr vals
+        o10 o11 o12 o13 gasLimit gasUsed oldRa F)
+      (baseFeeDispatchPre spC thisPtr parentPtr vals
+        (o10 := thisPtr + 96) (o11 := gasLimit) (o12 := gasUsed)
+        (o13 := parentPtr + 96) (gasLimit := gasLimit) (gasUsed := gasUsed)
+        (oldRa := oldRa) F) := by
+  let frameRes : Assertion := baseFeeFrameRes spC vals oldRa F
+  have h1 := addiThisStructPtr96 thisPtr o10
+  have h1C := cpsTripleWithin_extend_code
+    (bfFull_caller_mono calleeCode) h1
+  have h1F := cpsTripleWithin_frameR
+    ((.x19 ↦ᵣ parentPtr) ** (.x11 ↦ᵣ o11) ** ((parentPtr + 80) ↦ₘ gasLimit) **
+      (.x12 ↦ᵣ o12) ** ((parentPtr + 88) ↦ₘ gasUsed) **
+      (.x13 ↦ᵣ o13) ** frameRes)
+    (by dsimp [frameRes, baseFeeFrameRes]; pcf; exact hF) h1C
+  have h2 := ldParentGasLimitRe parentPtr o11 gasLimit
+  have h2C := cpsTripleWithin_extend_code
+    (bfFull_caller_mono calleeCode) h2
+  have h2F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ (thisPtr + 96)) **
+      (.x12 ↦ᵣ o12) ** ((parentPtr + 88) ↦ₘ gasUsed) **
+      (.x13 ↦ᵣ o13) ** frameRes)
+    (by dsimp [frameRes, baseFeeFrameRes]; pcf; exact hF) h2C
+  have h3 := ldParentGasUsed parentPtr o12 gasUsed
+  have h3C := cpsTripleWithin_extend_code
+    (bfFull_caller_mono calleeCode) h3
+  have h3F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ (thisPtr + 96)) **
+      (.x11 ↦ᵣ gasLimit) **
+      ((parentPtr + 80) ↦ₘ gasLimit) **
+      (.x13 ↦ᵣ o13) ** frameRes)
+    (by dsimp [frameRes, baseFeeFrameRes]; pcf; exact hF) h3C
+  have h4 := addiParentStructPtr96Re parentPtr o13
+  have h4C := cpsTripleWithin_extend_code
+    (bfFull_caller_mono calleeCode) h4
+  have h4F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ thisPtr) ** (.x10 ↦ᵣ (thisPtr + 96)) **
+      (.x11 ↦ᵣ gasLimit) **
+      ((parentPtr + 80) ↦ₘ gasLimit) **
+      (.x12 ↦ᵣ gasUsed) ** ((parentPtr + 88) ↦ₘ gasUsed) ** frameRes)
+    (by dsimp [frameRes, baseFeeFrameRes]; pcf; exact hF) h4C
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1F h2F
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s12 h3F
+  have s1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s123 h4F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp [baseFeeDispatchPre, frameRes, baseFeeFrameRes] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by dsimp [baseFeeDispatchPre, frameRes, baseFeeFrameRes] at hq ⊢; xperm_hyp hq)
+    s1234
+
+set_option maxRecDepth 8000 in
+theorem baseFeeDispatch_spec
+    {calleeCode : CodeReq} {n : Nat}
+    (spC thisPtr parentPtr : Word) (vals : Reg → Word)
+    (o10 o11 o12 o13 gasLimit gasUsed status oldRa : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (hcallerDisj : callerCode.Disjoint calleeCode)
+    (hstatus0 : status = 0)
+    (hcallee : cpsTripleWithin n BaseK BaseRet calleeCode
+      ((.x1 ↦ᵣ BaseRet) **
+        baseEntryRest spC vals (thisPtr + 96) gasLimit gasUsed (parentPtr + 96)
+          empAssertion)
+      (baseCalleePost spC vals status BaseRet empAssertion)) :
+    cpsTripleWithin (1 + 1 + 1 + 1 + (1 + n) + 1) (H + 116) (H + 140)
+      (bfFull calleeCode)
+      (baseFeeDispatchPre spC thisPtr parentPtr vals
+        o10 o11 o12 o13 gasLimit gasUsed oldRa F)
+      (baseCalleePost spC vals status BaseRet empAssertion **
+        ((.x18 ↦ᵣ thisPtr) ** (.x19 ↦ᵣ parentPtr) **
+          ((parentPtr + 80) ↦ₘ gasLimit) ** ((parentPtr + 88) ↦ₘ gasUsed) ** F)) := by
+  let Fcall : Assertion :=
+    (.x18 ↦ᵣ thisPtr) ** (.x19 ↦ᵣ parentPtr) **
+      ((parentPtr + 80) ↦ₘ gasLimit) ** ((parentPtr + 88) ↦ₘ gasUsed) ** F
+  have hFcall : Fcall.pcFree := by
+    dsimp [Fcall]
+    pcf
+    exact hF
+  have hpre := baseFeeDispatch_preCall (calleeCode := calleeCode)
+    spC thisPtr parentPtr vals
+    o10 o11 o12 o13 gasLimit gasUsed oldRa F hF
+  have hcall := validate_header_base_fee_call_spec_within
+    (cr := bfFull calleeCode) (calleeCode := calleeCode) (n := n)
+    spC vals (thisPtr + 96) gasLimit gasUsed (parentPtr + 96) status oldRa
+    empAssertion empAssertion Fcall
+    (by unfold empAssertion; exact pcFree_emp) hFcall
+    hcallerDisj (fun _ _ h => h) hcallee
+  have hcallS6 : cpsTripleWithin (1 + n) (H + 132) (H + 136) (bfFull calleeCode)
+      (baseFeeDispatchPre spC thisPtr parentPtr vals
+        (o10 := thisPtr + 96) (o11 := gasLimit) (o12 := gasUsed)
+        (o13 := parentPtr + 96) (gasLimit := gasLimit) (gasUsed := gasUsed)
+        (oldRa := oldRa) F)
+      ((.x10 ↦ᵣ status) ** (.x0 ↦ᵣ (0 : Word)) **
+        (.x1 ↦ᵣ BaseRet) ** (.x2 ↦ᵣ spC) **
+        frameSlotsSaved baseFrame (spC + signExtend12 (-16 : BitVec 12))
+          (baseFrameVals BaseRet vals) **
+        regsAt baseSavedFrame vals **
+        regOwns [.x5, .x6, .x7, .x11, .x12, .x13, .x28, .x29, .x30, .x31] **
+        Fcall) := by
+    exact cpsTripleWithin_weaken (fun h hp => by
+      dsimp [Fcall, baseFeeDispatchPre, baseFeeFrameRes] at hp ⊢
+      simp [baseEntryRest, baseSavedFrame, regsAt, regOwns,
+        sepConj_emp_right'] at hp ⊢
+      xperm_hyp hp)
+      (fun _ hq => by
+        dsimp [Fcall] at hq ⊢
+        simp [baseCalleePost, sepConj_emp_right'] at hq ⊢
+        xperm_hyp hq) hcall
+  have s7 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by dsimp [Fcall, baseFeeDispatchPre] at hp ⊢; xperm_hyp hp) hpre hcallS6
+  have h8 := baseFeeBne_ntaken status hstatus0
+  have h8C := cpsTripleWithin_extend_code (bfFull_caller_mono calleeCode) h8
+  have h8F := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ BaseRet) ** (.x2 ↦ᵣ spC) **
+      frameSlotsSaved baseFrame (spC + signExtend12 (-16 : BitVec 12))
+        (baseFrameVals BaseRet vals) **
+      regsAt baseSavedFrame vals **
+      regOwns [.x5, .x6, .x7, .x11, .x12, .x13, .x28, .x29, .x30, .x31] ** Fcall)
+    (by dsimp [Fcall, baseFrame, baseSavedFrame]; pcf; exact hF) h8C
+  have s9 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s7 h8F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp [baseFeeDispatchPre, Fcall] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      dsimp [Fcall] at hq ⊢
+      simp [baseCalleePost, sepConj_emp_right'] at hq ⊢
+      xperm_hyp hq) s9
 
 end EvmAsm.Codegen.ValidateHeaderInlineArms

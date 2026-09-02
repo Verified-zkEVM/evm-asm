@@ -257,7 +257,16 @@ def residual_blocks(paths):
 
 # ---- signal 4: registry gates ----------------------------------------------
 _ROW_SPLIT = re.compile(r"(?m)^  routine \"")
-_ROW_HEAD = re.compile(r'([A-Za-z0-9_]+)"\s+\.(\w+)')
+# ⚠️ The leading dot is part of the character class on purpose (#13228), and
+# `.match` is anchored, so an undotted class did not merely mis-NAME a dotted
+# row — it returned None and `continue`d, dropping the row from the scan
+# entirely.  `.dispatch_loop_body` is a LOCAL label inside the runtime
+# dispatcher and that is how it appears in the linked census, so a row about it
+# is a legitimate row.  The defect was invisible while every dotted row was
+# `.proven` (not a `GATED_TIERS` member, so skipped anyway); the first dotted
+# `.conditional` row is what surfaced it.  Same widening as
+# `check_routine_liveness.py:registry_symbols`.
+_ROW_HEAD = re.compile(r'([.A-Za-z0-9_]+)"\s+\.(\w+)')
 GATED_TIERS = ("conditional", "execSpec")
 # The registry chunks' own delimiters. A row's block runs to the NEXT row, so
 # the LAST row's block ran to end of file without this bound — see below.
@@ -846,6 +855,28 @@ def run_self_test() -> int:
         '  routine "c" .conditional (some "c_spec")\n      (gate := "needs z_r"),\n')
     check([g[0] for g in gated] == ["c/c_spec"], f"gate rows {gated}")
 
+    # 5a. A DOTTED symbol is a legitimate row symbol and must not be dropped
+    # (#13228).  `_ROW_HEAD.match` is anchored, so before the class was widened
+    # a leading dot made the match fail outright and the row vanished from the
+    # scan — the gate then reported on 61 of 62 gated rows by not seeing one.
+    # Both legs: the row is found, AND it is keyed under its dotted spelling
+    # (undotting it here would make this leg pass while still mis-attributing
+    # the block).  Negative control below.
+    dotted = registry_gate_blocks(
+        '  routine ".d_loop_body" .conditional (some "d_spec")\n'
+        '      (gate := "needs z_r"),\n')
+    check([g[0] for g in dotted] == [".d_loop_body/d_spec"],
+          f"dotted gated row dropped or mis-keyed: {dotted}")
+    check(dotted and "z_r" in dotted[0][1],
+          "dotted row's own gate prose must reach the scan")
+    # Negative control: with the dot removed from the class the same row is
+    # dropped, so the leg above pins the widening rather than restating that
+    # the row exists.
+    narrow = re.compile(r'([A-Za-z0-9_]+)"\s+\.(\w+)')
+    check(narrow.match('.d_loop_body" .conditional (some "d_spec")') is None,
+          "negative control did not refute: an undotted class should FAIL to "
+          "match a dotted row head, so widening it is what admits the row")
+
     # 5b. The LAST row's block must stop at the registry's closing `]` instead
     # of running to end of file (#12244).  Both legs matter: the tail must be
     # excluded, and the row itself must still be found.  Negative control: the
@@ -873,7 +904,8 @@ def run_self_test() -> int:
         return 1
     print("self-test PASS: symbol boundaries, blockedBy-only obligation parse, "
           "demand-over-cost weight ordering, `.replace` derivation shape, "
-          "gated-tier row filter, registry-`]` block bound (+ leak control).")
+          "gated-tier row filter, dotted-symbol row head (+ narrow control), "
+          "registry-`]` block bound (+ leak control).")
     return 0
 
 

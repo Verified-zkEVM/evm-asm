@@ -1151,10 +1151,25 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   into an inverted `BGEU`+`JAL`, so the BGEU-**taken** edge is the has-enough-gas
   path, the opposite reading of the mnemonic; `dispatchLoopBody_relocs` is where
   that is recorded, and reading the Program without it inverts the whole lemma.
-  ⛔ What is NOT proved: the opcode half (fetch, the two `.data` table loads, and
-  the indirect `jalr` whose target is a LOADED value, so the exit PC is not a
-  constant and a whole-body triple would have to be indexed by the opcode), and
-  one loop ITERATION, which also runs the 348-byte code-size stop guard.
+  ✅ The opcode half and the WHOLE body landed in #13228
+  (`Codegen/Proofs/DispatchStepOpcode.lean`) and are rowed `.conditional`:
+  `dispatchStep_fetch_within` (idx 0..5), `dispatchStep_opcode_within`
+  (idx 11..15) and `dispatchStep_body_within`/`_image`, a `cpsBranchWithin 16`
+  over all sixteen instructions with step bound `6 + 5 + 5`. The indirect `jalr`
+  target being a LOADED value did NOT need a new CPS rule: naming the loaded
+  handler in the precondition makes the exit a `Word`-valued term. `op` is
+  `(code[i]).toNat`, a projection of the code region rather than a parameter, so
+  the one theorem covers all 256 opcodes.
+  ⛔ Why `.conditional` and not `.proven`: both `.data` tables enter as
+  CALLER-SUPPLIED `bytesRegion` premises and nothing in Lean ties them to the
+  shipped image — `guestScratch` owns that tile as `anyBytes`, stated as a
+  theorem by `opcode_table_contents_not_scratch_determined`, and
+  `scripts/check-opcode-tables.sh` compares the ELF bytes to
+  `opcodeGasCostEntries`/`opcodeHandlerEntries` OFFLINE. So what is tied to the
+  image is the sixteen instructions and both exit ADDRESSES, not the table
+  CONTENTS the handler address is read from. Tracked by #13229.
+  ⛔ Still NOT proved: one loop ITERATION, which also runs the 348-byte
+  code-size stop guard.
   ⭐ The guard is cheaper than its byte count suggests, and this is the measurement
   worth keeping: its HOT path is three instructions (`sub x5, x10, x21`,
   `ld x6, 496(x20)`, `bltu x5, x6, 1f`) and `1:` is the label
@@ -1164,10 +1179,18 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   jumps into the CREATE deposit-from-halt path, so it needs two callee contracts
   before it can be a triple at all. A head-to-body triple under an in-range
   premise is therefore a THREE-instruction obligation.
-  ⚠️ Two registry parsers matched `[A-Za-z0-9_]+` and so silently DROPPED a row
+  ⚠️ THREE registry parsers matched `[A-Za-z0-9_]+` and so silently DROPPED a row
   naming a dotted local label: `check-routine-liveness` reported OK by not seeing
   it, and `check-registry-crosscheck`'s recount disagreed with the kernel-checked
-  `routineSymbols_eq`. Both widened. And `transcription_queue.py` scrapes
+  `routineSymbols_eq`. Both widened. The third, `transcription_queue.py`'s
+  `_ROW_HEAD`, survived until the first dotted `.conditional` row: the pattern is
+  used with anchored `.match`, so a leading dot made it return `None` and the row
+  was dropped from the gated-tier scan entirely — the gate reported on 61 of 62
+  rows by not seeing one. Every dotted row until then was `.proven`, which is not
+  a `GATED_TIERS` member and was skipped anyway, so the defect was invisible.
+  ⛔ The tempting fix — dropping the dot from the row symbol so the gate goes
+  green — would have HIDDEN the row; `.dispatch_loop_body` is how the local label
+  appears in the linked census. And `transcription_queue.py` scrapes
   `jal ra, <sym>` out of any source line, PROSE INCLUDED — writing that
   instruction inside a docstring scores a phantom call site and moves the queue.
 

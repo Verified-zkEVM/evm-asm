@@ -33,6 +33,15 @@ EvmAsm/Rv64/SailEquiv/ALUProofs.lean     4000000
 EvmAsm/Evm64/Dispatch/EntrySpec.lean                          -
 EvmAsm/Evm64/DivMod/LimbSpec/Div128Step2.lean                 -
 EvmAsm/Evm64/DivMod/Compose/FullPathN2V4NoNopFinalPost.lean   -
+# Routines.lean: prose only, and specifically prose recording that this file no
+# longer needs a budget of EITHER kind. Its registry-wide totals used to escalate
+# `maxRecDepth` (8000 -> 16000 -> 40000) and were next in line to need a work
+# budget too, because plain `decide` evaluates in the elaborator; they now use
+# `decide +kernel`, which evaluates in the kernel and so has no budget to raise.
+# The comment names the option so that the next person to hit the wall reads why
+# raising it is the wrong move. No `set_option` of any kind remains in the file.
+# A real numeric override appearing here later still fails as VALUE-DRIFT.
+EvmAsm/Progress/Routines.lean                                 -
 EvmAsm/SLHDSA/DemoCorrect.lean 1000000
 EvmAsm/SLHDSA/VerifyProof.lean 1000000
 EvmAsm/SLHDSA/VerifyProof.lean 2000000

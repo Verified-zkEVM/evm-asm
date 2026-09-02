@@ -425,6 +425,10 @@ import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
 import EvmAsm.Codegen.Proofs.RuntimeSameBlockDelegationCodeSpec
 import EvmAsm.Codegen.Proofs.CallFrameEnterSpec
 import EvmAsm.Codegen.Proofs.DispatchStepGas
+-- #13228: the opcode half of the same body, and with it the whole-body
+-- `cpsBranchWithin 16`. Imports `DispatchStepGas` itself, so the line above is
+-- redundant for resolution and kept for the row that cites it.
+import EvmAsm.Codegen.Proofs.DispatchStepOpcode
 -- #11654: tier 2 of SLOAD's storage read path. The SLOAD dispatcher handler
 -- itself has no `Program`, so this is the granularity at which the read path
 -- is statable.
@@ -5638,8 +5642,11 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "`Codegen/Proofs/CallFrameEnterSpec.lean`"),
   -- #13173 obligation 4: the dispatch step's gas debit.
   --
-  -- ⛔ There is NO whole-body triple for this symbol, and no one-ITERATION
-  -- triple for the loop it sits in. This row covers indices 6..10 only.
+  -- ⛔ This row covers indices 6..10 ONLY. The whole-body triple that composes
+  -- it with the two halves on either side is the NEXT row (#13228); it is kept
+  -- separate rather than superseded because this one is the reusable mid-body
+  -- anchor, and because it is `.proven` while the whole-body claim is not.
+  -- Neither row is a one-ITERATION triple for the loop they sit in.
   --
   -- ⚠️ The symbol carries its leading dot: `.dispatch_loop_body` is a LOCAL
   -- label inside `runtime_dispatcher`, and that is how it appears in the linked
@@ -5677,6 +5684,105 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "premise, the gas premise, and the precondition's own memory atom, "
         ++ "each FALSE at a concrete point. Lives in "
         ++ "`Codegen/Proofs/DispatchStepGas.lean`"),
+  -- #13173 obligation 4, complete: the whole sixteen-instruction dispatch step.
+  --
+  -- ⚠️ `.conditional`, and deliberately NOT `.proven`. The control flow and the
+  -- indexing are unconditional, but the two `.data` tables the claim reads
+  -- through are CALLER-SUPPLIED premises, and nothing in Lean ties them to the
+  -- shipped image. A `.proven` row here would read as "the deployed dispatcher
+  -- is verified for all 256 opcodes", which is a strictly stronger statement
+  -- than anything in the tree. See the gate; tracked by #13229.
+  --
+  -- Same dotted symbol as the row above, for the same reason.
+  routine ".dispatch_loop_body" .conditional (some "dispatchStep_body_image")
+      (gate := "THE TWO OPCODE TABLES ARE PREMISES, NOT IMAGE FACTS. The "
+        ++ "precondition carries `bytesRegion GT (tableBytes gasCosts)` and "
+        ++ "`bytesRegion HT (tableBytes handlers)` for CALLER-SUPPLIED "
+        ++ "`gasCosts handlers : List Word`, and nothing discharges either from "
+        ++ "the shipped image: `guestScratch` owns that writable tile as "
+        ++ "`regionScratch`, i.e. `anyBytes` — ownership with contents "
+        ++ "FORGOTTEN. That is not a reading of the definition but a theorem, "
+        ++ "`opcode_table_contents_not_scratch_determined`: two DISTINCT "
+        ++ "equal-length table images plus the `bytesRegion → anyBytes` havoc "
+        ++ "weakening, so a heap satisfying the tile may hold either and no "
+        ++ "`↦ₘ` atom about the table base follows. The `.data` counterpart of "
+        ++ "`guestImageCodeReq` does not exist; `scripts/check-opcode-tables.sh` "
+        ++ "compares the ELF bytes to `opcodeGasCostEntries`/"
+        ++ "`opcodeHandlerEntries` OFFLINE, and that offline check is the only "
+        ++ "thing standing where a Lean pin would go. Two further domain "
+        ++ "restrictions ride along: `halign` admits only tables whose indexed "
+        ++ "entry is 2-aligned — at an ODD entry `jalr` clears bit 0 and the "
+        ++ "exit is NOT the loaded value — and `hgc`/`hh` require the fetched "
+        ++ "byte to index inside BOTH tables, so a caller supplying fewer than "
+        ++ "256 entries gets no claim about the opcodes past its end. Tracked "
+        ++ "by #13229")
+      (notes := "THE WHOLE DISPATCH STEP: `cpsBranchWithin 16` at "
+        ++ "`GuestAddrs.dispatch_loop_body`, all sixteen instructions of "
+        ++ "`dispatchLoopBody_prog`, over `guestImageCodeReq`. Two exits. "
+        ++ "DISPATCH: `handlers[op]`, a LOADED value rather than a link-time "
+        ++ "constant — the branch target is a `Word`-valued TERM, so naming the "
+        ++ "loaded handler in the precondition is what lets the exit mention "
+        ++ "it, and no new CPS rule was needed for a computed exit PC. `x1` is "
+        ++ "left holding `B + 64`, which `dispatch_ra_is_resume` pins to "
+        ++ "`GuestAddrs.dispatch_resume`, so the indirect jump is a CALL back "
+        ++ "into the loop and the handler's `ret` re-enters it. OUT OF GAS: the "
+        ++ "linked `GuestAddrs.exit_outofgas`, with the gas cell UNCHANGED. "
+        ++ "⭐ `op` is `(code[i]).toNat` — the byte the machine fetched through "
+        ++ "`x10`, a PROJECTION of the code region and not a parameter of the "
+        ++ "statement — so this is ONE theorem covering all 256 opcodes: "
+        ++ "whatever the tables hold, the body charges the `op`-th gas entry "
+        ++ "and jumps to the `op`-th handler. ⚠️ Read the gate before reading "
+        ++ "that as a claim about the DEPLOYED dispatcher; what is tied to the "
+        ++ "image is the sixteen instructions (`guestImageCodeReq`, via "
+        ++ "`dispatchLoopBody_block_sub`, the #13178 anchor) and both exit "
+        ++ "ADDRESSES, not the table CONTENTS the handler address is read from. "
+        ++ "⚠️ idx 7 and 8 are ONE source line: `dispatchLoopBody_relocs` "
+        ++ "records `(7, .br .bltu …)` and the assembler relaxed it into an "
+        ++ "inverted `BGEU +8` plus a `JAL`, so the BGEU-TAKEN edge is the "
+        ++ "has-enough-gas path — the opposite of the mnemonic's reading, and "
+        ++ "the reloc table is what says so. EXTENT: `symbol-addresses.tsv` "
+        ++ "places the entry at `0x800307d8` and the resume label at "
+        ++ "`0x80030818`, so `0x40 = 64 = 4 * 16` cross-checks "
+        ++ "`#guard dispatchLoopBody_prog.length = 16` (`body_extent`). "
+        ++ "COMPOSED, not re-derived: `dispatchStep_fetch_within` (idx 0..5 — "
+        ++ "the `lbu` fetch, the `slli` that scales it and the gas-table load), "
+        ++ "`dispatchStep_gasDebit_within` (idx 6..10, #13224, the row above) "
+        ++ "and `dispatchStep_opcode_within` (idx 11..15 — the handler-table "
+        ++ "load and the indirect `jalr`); the step bound 16 is `6 + 5 + 5`, "
+        ++ "and no execution runs both halves of the relaxed branch pair inside "
+        ++ "the middle factor. `x5` carrying `8 * op` ACROSS the gas debit is "
+        ++ "what lets the two halves meet with no interface to invent. ⛔ Still "
+        ++ "NOT one loop iteration: the 348-byte code-size stop guard between "
+        ++ "the loop head and this body is unconverted and lies OUTSIDE the "
+        ++ "extent — it is not framed out (`dispatch_loop_head_not_covered`). "
+        ++ "⛔ The ready-made `execBlock` → CPS bridges cannot state this block, "
+        ++ "for a reason of register SCOPE and not of engine mismatch: their "
+        ++ "currency is `regAtoms rf exposedRegs`, which contains neither the "
+        ++ "`jalr` link register `x1` nor the environment pointer `x20` "
+        ++ "(`regs_not_exposed_here`), so the route is the `↦ᵣ`-atom one, "
+        ++ "instruction by instruction. What DOES port is the table IMAGE: "
+        ++ "`tableRegion_dword_at` splits a `bytesRegion` over "
+        ++ "`OpcodeTables.tableBytes` into the `op`-th dword atom and a frame, "
+        ++ "so both engines agree on what \"the table is at this address\" "
+        ++ "means while each reads it its own way. Layout cross-check "
+        ++ "`opcode_tables_adjacent`: the two tables are `8 * 256` bytes apart "
+        ++ "and both dword-aligned, off `GuestAddrs` rather than off prose. "
+        ++ "coverRef `dispatchStep_body_premises_satisfiable` — all seven side "
+        ++ "conditions simultaneously true at one concrete point (an aligned, "
+        ++ "in-range one-byte code region holding `0x01`, against the two "
+        ++ "256-entry mirrors), so the premise family is not contradictory — "
+        ++ "plus `dispatchStep_opcode_instance`, which exhibits the CONCLUSION "
+        ++ "at opcode `0x01` under a concrete non-degenerate resolver, inside "
+        ++ "`guestImageCodeReq`, with the indexed cell shown addressable and "
+        ++ "aligned. Negative controls `dispatchStep_body_premises_refutable` "
+        ++ "(a misaligned code base, and a code pointer in the model's "
+        ++ "inter-zone gap — each provably FALSE, and "
+        ++ "`bytesRegion_lbu_within` is unusable without both) and "
+        ++ "`dispatchStep_opcode_premises_refutable` (the code premise off by "
+        ++ "ONE instruction, where the body answers with the gas debit's `sd` "
+        ++ "instead; the alignment premise at an odd handler address; the index "
+        ++ "premise at a 257th opcode). Lives in "
+        ++ "`Codegen/Proofs/DispatchStepOpcode.lean`"),
 ]
 
 def routineRegistry : List RoutineEntry := routineRegistryPartA ++ routineRegistryPartB
@@ -5727,43 +5833,81 @@ def routineCount : Nat := routineRegistry.length
 def routineCountTier (t : ProofTier) : Nat :=
   (routineRegistry.filter (fun e => e.tier == t)).length
 
--- ⚠️ The registry list outgrew `decide`'s default recursion budget at 126 rows
--- (#12244). These three totals are still KERNEL-CHECKED — raising `maxRecDepth`
--- only lets the elaborator finish unfolding the list; it does not weaken the
--- check, and none of the forbidden tactics is involved.
-set_option maxRecDepth 16000 in
-theorem routineCount_eq : routineCount = 244 := by decide
+/-! ### Why every total below is `decide +kernel`
 
-set_option maxRecDepth 16000 in
-theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide
-set_option maxRecDepth 16000 in
-theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by decide
-set_option maxRecDepth 16000 in
-theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
+    The registry outgrew plain `decide`'s default recursion budget at 126 rows
+    (#12244) and the response, three times running, was a bigger budget:
+    `maxRecDepth` 8000, then 16000, then 40000 (#13220). Each raise bought a
+    ceiling that the registry then walked back up to — 244 rows was measured to
+    be one row short of the wall twice.
 
--- ⚠️ This was the LAST unbudgeted `decide` over the whole registry, and once
--- #13213 chunked the list it became the BINDING row ceiling: measured, the
--- registry elaborates at 244 rows and it is THIS theorem — not the code
--- generator — that fails at 248. Unlike the codegen limit that motivated the
--- chunk split, this is an ELABORATOR limit, so `maxRecDepth` does reach it,
--- which is why every sibling total above already carries one. Still
--- KERNEL-CHECKED; see the note under `routineCount_eq`.
-set_option maxRecDepth 40000 in
+    That escalation happened because plain `decide` evaluates the proposition
+    in the ELABORATOR, and the elaborator is the component that carries budgets
+    — one for recursion depth and one for work (see AGENTS.md on heartbeats).
+    The kernel then re-does the same evaluation subject to neither.
+    `decide +kernel` simply skips the elaborator's copy and lets the kernel —
+    which has to be convinced either way — do the work once.
+
+    So this is strictly LESS machinery, not more:
+
+    * **Trust is unchanged.** `decide +kernel` emits the same
+      `of_decide_eq_true (Eq.refl true)` term and the kernel checks it exactly
+      as before; what is removed is a redundant elaborator-side evaluation, not
+      a check. All eight totals still `#print axioms` as `[propext]`. It is NOT
+      `decide +native` / `native_decide`, which routes through
+      `Lean.ofReduceBool` and is forbidden repo-wide.
+    * **No budgets at all.** Every `set_option` that used to sit on these
+      totals is gone: they elaborate at Lean's defaults. Per AGENTS.md a
+      `maxRecDepth` above 8000 is a to-reduce item rather than an accepted
+      state, and this discharges four at 16000 and three at 40000 without
+      adding a work-budget override anywhere.
+    * **The ceiling moves by an order of magnitude, not by a few rows.**
+      Measured with throwaway probe rows (methodology in the PR that landed
+      this): under plain `decide` at `maxRecDepth 40000` the registry builds at
+      306 rows and fails at 309 — `eraseDups` is quadratic, so
+      `routineSymbols_eq` runs out of WORK rather than DEPTH, which is why
+      three rounds of raising `maxRecDepth` kept buying only a few rows. Under
+      `decide +kernel` the same probes build at 500 rows — the largest size
+      measured, and not a failure point; no wall was reached there.
+      `scripts/check-registry-tallies.py` (`ROW_LIMIT`) keeps the row count
+      clear of it.
+    * **It is also faster at the size actually shipped.** A forced rebuild of
+      this file at 244 rows went 20s to 15s, measured twice, because the
+      elaborator no longer duplicates an evaluation the kernel repeats anyway.
+
+    ⚠️ The code generator's recursion limit is a THIRD, unrelated wall and is
+    not addressed here: it applies per `routineRegistryPart*` chunk, is reached
+    by neither `set_option`, and is what the chunk split (#13213) exists for.
+-/
+
+theorem routineCount_eq : routineCount = 245 := by decide +kernel
+
+theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide +kernel
+theorem routineConditionalCount_eq : routineCountTier .conditional = 62 := by
+  decide +kernel
+theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
+  decide +kernel
+
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
     unwitnessed row; asserting it here makes the registry itself refuse one. -/
 theorem routineRegistry_all_witnessed :
-    routineRegistry.all (fun e => e.proofRef.isSome) = true := by decide
+    routineRegistry.all (fun e => e.proofRef.isSome) = true := by decide +kernel
 
 /-- Distinct guest symbols covered. Lower than `routineCount` because a
     per-form routine contributes several rows. -/
 def routineSymbols : List String :=
   routineRegistry.map (·.symbol) |>.eraseDups
 
--- ⚠️ `eraseDups` over 150 rows is deeper than the tier counts, so this one needs a
--- larger budget than the 8000 above. Still kernel-checked; see the note there.
-set_option maxRecDepth 40000 in
-theorem routineSymbols_eq : routineSymbols.length = 204 := by decide
+-- ⚠️ `eraseDups` is QUADRATIC in the row count, which made this the most
+-- expensive total of the set and the first to fail under plain `decide` — on
+-- the elaborator's WORK budget, which `maxRecDepth` does not reach. Prose
+-- length is irrelevant to it: `.symbol` is the only field projected, so the
+-- failure point was identical with 733-character probe rows and with
+-- 11,191-character ones, and could not have been dodged by writing terser
+-- rows. `decide +kernel` sidesteps both budgets; see the note under
+-- `routineCount_eq`.
+theorem routineSymbols_eq : routineSymbols.length = 204 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -5790,19 +5934,26 @@ def crossVerdictOk (witnessed : List String)
   reg.all fun e =>
     e.verdict != .unproven || !(witnessed.contains e.routine)
 
-set_option maxRecDepth 40000 in
 /-- A routine with a witnessed row here must not be `.unproven` in
     `Correspondence.registry`. -/
 theorem witnessed_not_unproven :
-    crossVerdictOk routineSymbols Correspondence.registry = true := by decide
+    crossVerdictOk routineSymbols Correspondence.registry = true := by
+  decide +kernel
 
+-- ⚠️ The control below carried NO budget while the theorem it controls carried
+-- `maxRecDepth 40000`. That asymmetry was an accident of the control being
+-- cheaper *today*: `.all` short-circuits at the first violating row and
+-- `"rlp_encode_u64"` is the head of the witnessed list, so `contains` answers
+-- without ever forcing `routineSymbols`. That is a property of the current row
+-- ORDER, not of the check. Running it through the same evaluator as its
+-- theorem removes the coupling.
 /-- Negative control, kernel-checked on every build: `rlp_encode_u64` is a real
     `.unproven` Correspondence row today, so witnessing it here would make the
     check fire. A gate nobody has seen fail is indistinguishable from one that
     cannot. (Was `rlp_item_span` until #11577 lifted that row.) -/
 example :
     crossVerdictOk ("rlp_encode_u64" :: routineSymbols) Correspondence.registry
-      = false := by decide
+      = false := by decide +kernel
 
 /-! ## Witness `abbrev`s
 
@@ -7644,5 +7795,40 @@ private noncomputable abbrev _dispatch_step_gas_debit_control_witness :=
   @EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_premises_refutable
 private noncomputable abbrev _dispatch_step_guard_boundary_witness :=
   @EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
+
+-- #13228: the whole sixteen-instruction dispatch step, same symbol.  Again the
+-- witnessed name is the IMAGE-level form.  The two composed factors are
+-- witnessed BESIDE it rather than left implicit: `dispatchStep_body_image` is
+-- proved from them, so the kernel would carry any taint of theirs anyway, but a
+-- reader auditing "which theorems does the gate actually see" should not have
+-- to reconstruct the composition to answer.
+private noncomputable abbrev _dispatch_step_body_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_image
+private noncomputable abbrev _dispatch_step_fetch_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_fetch_within
+private noncomputable abbrev _dispatch_step_opcode_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_image
+-- The row's two cover theorems and its two negative controls (#12857): a
+-- non-vacuity control that lives only in a row's prose is outside the gate.
+private noncomputable abbrev _dispatch_step_body_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_satisfiable
+private noncomputable abbrev _dispatch_step_opcode_instance_cover_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_instance
+private noncomputable abbrev _dispatch_step_body_control_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_refutable
+private noncomputable abbrev _dispatch_step_opcode_control_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_premises_refutable
+-- ⚠️ The row's GATE is a theorem too, and it is the one a reader is most
+-- likely to take on trust.  Witnessing it puts the ".data is not pinned"
+-- statement, the resume-label tie and the table-layout cross-check inside the
+-- same axiom gate as the claim they qualify.
+private noncomputable abbrev _dispatch_step_data_gap_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.opcode_table_contents_not_scratch_determined
+private noncomputable abbrev _dispatch_step_ra_is_resume_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatch_ra_is_resume
+private noncomputable abbrev _dispatch_step_tables_adjacent_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.opcode_tables_adjacent
+private noncomputable abbrev _dispatch_step_regs_not_exposed_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.regs_not_exposed_here
 
 end EvmAsm.Progress
