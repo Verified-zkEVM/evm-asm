@@ -5754,40 +5754,24 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "`Codegen/Proofs/DispatchStepGas.lean`"),
   -- #13173 obligation 4, complete: the whole sixteen-instruction dispatch step.
   --
-  -- ⚠️ `.conditional`, and deliberately NOT `.proven`. The control flow and the
-  -- indexing are unconditional, but the two `.data` tables the claim reads
-  -- through are CALLER-SUPPLIED premises, and nothing in Lean ties them to the
-  -- shipped image. A `.proven` row here would read as "the deployed dispatcher
-  -- is verified for all 256 opcodes", which is a strictly stronger statement
-  -- than anything in the tree. See the gate; tracked by #13229.
+  -- #13239 promoted the table contents from caller premises to image facts:
+  -- `guestDataImage` pins the two PROGBITS tables, and
+  -- `dispatchStep_body_shipped` instantiates the complete body at those fixed
+  -- tables.  The row is therefore `.proven`, not `.conditional`: its remaining
+  -- hypotheses (`hi`, alignment, no-wrap and valid byte access) are ordinary
+  -- resource/ABI facts, which this registry explicitly does not count as an
+  -- input-domain gate.
   --
-  -- Same dotted symbol as the row above, for the same reason.
-  routine ".dispatch_loop_body" .conditional (some "dispatchStep_body_image")
-      (gate := "THE TWO OPCODE TABLES ARE PREMISES, NOT IMAGE FACTS. The "
-        ++ "precondition carries `bytesRegion GT (tableBytes gasCosts)` and "
-        ++ "`bytesRegion HT (tableBytes handlers)` for CALLER-SUPPLIED "
-        ++ "`gasCosts handlers : List Word`, and nothing discharges either from "
-        ++ "the shipped image: `guestScratch` owns that writable tile as "
-        ++ "`regionScratch`, i.e. `anyBytes` — ownership with contents "
-        ++ "FORGOTTEN. That is not a reading of the definition but a theorem, "
-        ++ "`opcode_table_contents_not_scratch_determined`: two DISTINCT "
-        ++ "equal-length table images plus the `bytesRegion → anyBytes` havoc "
-        ++ "weakening, so a heap satisfying the tile may hold either and no "
-        ++ "`↦ₘ` atom about the table base follows. The `.data` counterpart of "
-        ++ "`guestImageCodeReq` does not exist; `scripts/check-opcode-tables.sh` "
-        ++ "compares the ELF bytes to `opcodeGasCostEntries`/"
-        ++ "`opcodeHandlerEntries` OFFLINE, and that offline check is the only "
-        ++ "thing standing where a Lean pin would go. Two further domain "
-        ++ "restrictions ride along: `halign` admits only tables whose indexed "
-        ++ "entry is 2-aligned — at an ODD entry `jalr` clears bit 0 and the "
-        ++ "exit is NOT the loaded value — and `hgc`/`hh` require the fetched "
-        ++ "byte to index inside BOTH tables, so a caller supplying fewer than "
-        ++ "256 entries gets no claim about the opcodes past its end. Tracked "
-        ++ "by #13229")
+  -- Keep `opcode_table_contents_not_scratch_determined` witnessed below.  It
+  -- is the negative theorem that justified the 13239 strengthening, not an
+  -- obsolete premise.  The separate run-level table-preservation obligation
+  -- in #13242 is not part of this local sixteen-instruction triple.
+  routine ".dispatch_loop_body" .proven (some "dispatchStep_body_shipped")
       (notes := "THE WHOLE DISPATCH STEP: `cpsBranchWithin 16` at "
         ++ "`GuestAddrs.dispatch_loop_body`, all sixteen instructions of "
-        ++ "`dispatchLoopBody_prog`, over `guestImageCodeReq`. Two exits. "
-        ++ "DISPATCH: `handlers[op]`, a LOADED value rather than a link-time "
+        ++ "`dispatchLoopBody_prog`, over `guestImageCodeReq` plus the pinned "
+        ++ "`guestDataImage`. Two exits. DISPATCH: "
+        ++ "`shippedHandlerTable[op]`, a LOADED value rather than a link-time "
         ++ "constant — the branch target is a `Word`-valued TERM, so naming the "
         ++ "loaded handler in the precondition is what lets the exit mention "
         ++ "it, and no new CPS rule was needed for a computed exit PC. `x1` is "
@@ -5797,13 +5781,18 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "linked `GuestAddrs.exit_outofgas`, with the gas cell UNCHANGED. "
         ++ "⭐ `op` is `(code[i]).toNat` — the byte the machine fetched through "
         ++ "`x10`, a PROJECTION of the code region and not a parameter of the "
-        ++ "statement — so this is ONE theorem covering all 256 opcodes: "
-        ++ "whatever the tables hold, the body charges the `op`-th gas entry "
-        ++ "and jumps to the `op`-th handler. ⚠️ Read the gate before reading "
-        ++ "that as a claim about the DEPLOYED dispatcher; what is tied to the "
-        ++ "image is the sixteen instructions (`guestImageCodeReq`, via "
-        ++ "`dispatchLoopBody_block_sub`, the #13178 anchor) and both exit "
-        ++ "ADDRESSES, not the table CONTENTS the handler address is read from. "
+        ++ "statement — so this is ONE theorem covering all 256 opcodes: the "
+        ++ "body charges `shippedGasCostTable[op]` and jumps to "
+        ++ "`shippedHandlerTable[op]`, with both tables fixed by the linked "
+        ++ "image. There is no table-size or handler-alignment input gate left: "
+        ++ "the byte range and every 256-entry table cell are discharged by the "
+        ++ "shipped definitions and their kernel-checked image facts. The "
+        ++ "ordinary `hi`, `hbase`, `hover` and `hvalid` hypotheses are resource/"
+        ++ "ABI facts, not excluded input-domain cases. `guestDataImage` is the "
+        ++ "new `.data` image assertion; `opcode_table_contents_not_scratch_"
+        ++ "determined` remains witnessed as the negative rationale for why the "
+        ++ "13239 pin was necessary. This local triple does NOT claim the "
+        ++ "run-level non-clobber/residue postcondition tracked by #13242. "
         ++ "⚠️ idx 7 and 8 are ONE source line: `dispatchLoopBody_relocs` "
         ++ "records `(7, .br .bltu …)` and the assembler relaxed it into an "
         ++ "inverted `BGEU +8` plus a `JAL`, so the BGEU-TAKEN edge is the "
@@ -5835,14 +5824,14 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "means while each reads it its own way. Layout cross-check "
         ++ "`opcode_tables_adjacent`: the two tables are `8 * 256` bytes apart "
         ++ "and both dword-aligned, off `GuestAddrs` rather than off prose. "
-        ++ "coverRef `dispatchStep_body_premises_satisfiable` — all seven side "
-        ++ "conditions simultaneously true at one concrete point (an aligned, "
-        ++ "in-range one-byte code region holding `0x01`, against the two "
-        ++ "256-entry mirrors), so the premise family is not contradictory — "
-        ++ "plus `dispatchStep_opcode_instance`, which exhibits the CONCLUSION "
-        ++ "at opcode `0x01` under a concrete non-degenerate resolver, inside "
-        ++ "`guestImageCodeReq`, with the indexed cell shown addressable and "
-        ++ "aligned. Negative controls `dispatchStep_body_premises_refutable` "
+        ++ "The shipped-family instance `dispatchStep_body_shipped_instance` "
+        ++ "shows ADD charges 3, reaches `h_ADD`, STOP reaches `h_STOP`, and "
+        ++ "the destinations differ; `dispatchStep_body_shipped_controls` "
+        ++ "keeps the older parameterized/demo family visibly distinct from the "
+        ++ "shipped one. The old `dispatchStep_body_premises_satisfiable` and "
+        ++ "`dispatchStep_opcode_instance` remain useful non-vacuity controls "
+        ++ "for the parameterized construction, while the negative controls "
+        ++ "`dispatchStep_body_premises_refutable` "
         ++ "(a misaligned code base, and a code pointer in the model's "
         ++ "inter-zone gap — each provably FALSE, and "
         ++ "`bytesRegion_lbu_within` is unusable without both) and "
@@ -5950,8 +5939,8 @@ def routineCountTier (t : ProofTier) : Nat :=
 
 theorem routineCount_eq : routineCount = 246 := by decide +kernel
 
-theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide +kernel
-theorem routineConditionalCount_eq : routineCountTier .conditional = 63 := by
+theorem routineProvenCount_eq : routineCountTier .proven = 181 := by decide +kernel
+theorem routineConditionalCount_eq : routineCountTier .conditional = 62 := by
   decide +kernel
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
   decide +kernel
@@ -7875,14 +7864,13 @@ private noncomputable abbrev _dispatch_step_gas_debit_control_witness :=
 private noncomputable abbrev _dispatch_step_guard_boundary_witness :=
   @EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
 
--- #13228: the whole sixteen-instruction dispatch step, same symbol.  Again the
--- witnessed name is the IMAGE-level form.  The two composed factors are
--- witnessed BESIDE it rather than left implicit: `dispatchStep_body_image` is
--- proved from them, so the kernel would carry any taint of theirs anyway, but a
--- reader auditing "which theorems does the gate actually see" should not have
--- to reconstruct the composition to answer.
+-- #13228/#13239: the whole sixteen-instruction dispatch step, same symbol.  The
+-- witnessed theorem is now the SHIPPED image-level form: the 13239 data pin is
+-- part of its statement, so the row no longer carries table contents as free
+-- premises.  The parameterized theorem remains a dependency and is still
+-- checked transitively by the shipped theorem's axiom report.
 private noncomputable abbrev _dispatch_step_body_witness :=
-  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_image
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped
 private noncomputable abbrev _dispatch_step_fetch_witness :=
   @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_fetch_within
 private noncomputable abbrev _dispatch_step_opcode_witness :=
@@ -7897,6 +7885,13 @@ private noncomputable abbrev _dispatch_step_body_control_witness :=
   @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_refutable
 private noncomputable abbrev _dispatch_step_opcode_control_witness :=
   @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_opcode_premises_refutable
+-- The shipped-family instance and its negative control (#13228/#13239's row
+-- prose cites both by name), analogous to the parameterized cover/control
+-- pair above but over the linked image rather than `demoResolver`.
+private noncomputable abbrev _dispatch_step_body_shipped_instance_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_instance
+private noncomputable abbrev _dispatch_step_body_shipped_controls_witness :=
+  @EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_controls
 -- ⚠️ The row's GATE is a theorem too, and it is the one a reader is most
 -- likely to take on trust.  Witnessing it puts the ".data is not pinned"
 -- statement, the resume-label tie and the table-layout cross-check inside the
