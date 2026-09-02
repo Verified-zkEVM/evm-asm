@@ -679,12 +679,14 @@ def guestFraming : GuestFraming where
     `guestScratch_eq_window_residue` being an EQUALITY is exactly why: the two
     sides move together, so the residue inherits the pin.
 
-    The three theorems below say what that costs, in the vocabulary a `.64`
-    prover has to work in:
+    What that costs, in the vocabulary a `.64` prover has to work in (named,
+    not counted — GH #11186 is what a counted list does here):
 
-    * `guestResidue_pins_gas_dword` — the post DETERMINES the table cells, so
-      "the guest did not clobber the tables" is a consequence of the post
-      rather than a side remark about it;
+    * `guestResidue_mem_of_dataImage` — the walk from the residue down to the
+      pinned tile, once, so no other theorem repeats the tile's position;
+    * `guestResidue_pins_{gas,handler}_dword` — the post DETERMINES the table
+      cells, so "the guest did not clobber the tables" is a consequence of the
+      post rather than a side remark about it;
     * `guestResidue_rejects_clobbered_tables` — the contrapositive, and the
       obligation in its sharpest form: a halt heap that zeroed
       `opcode_gas_costs[1]` provably does NOT satisfy the residue;
