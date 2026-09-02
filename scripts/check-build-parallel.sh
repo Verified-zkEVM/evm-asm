@@ -30,7 +30,13 @@ declare -A expected_steps=(
   # 14 since check-no-seed-csr.sh (#10796) — the SailEquiv bridge excludes
   # Sail's nondeterministic Zkr seed CSR; this scans the linked production ELF
   # and fails if that excluded instruction ever appears.
-  [codegen]=14
+  # 15 since check-data-table-residue.sh (#13229 follow-up) — the RESIDUE half
+  # of the `.data` pin: nothing in the linked image may reach
+  # [opcode_gas_costs, .data end), because `guestResidue` now ASSERTS the
+  # tables survive to halt. PARTIAL in the same sense as
+  # check-misaligned-access: statically-resolvable store bases only, unknown
+  # bases reported rather than certified.
+  [codegen]=15
   [guestaddrs-starts]=1
   [asm-to-program]=1
   # The report count grew 5 → 6 → 7 → 8 → 9 → 10 when check-doc-links.sh
@@ -114,6 +120,13 @@ codegen_checks() {
   # drift guard but never wired; same dormant-gate class as #12494.
   # Needs the guest ELF + riscv toolchain; skips (exit 0) if toolchain absent.
   run_step scripts/check-opcode-tables.sh
+  # GH #13229 follow-up: check-opcode-tables proves the shipped tables hold the
+  # bytes Lean pins; this one is about what happens to them AFTERWARDS. Pinning
+  # `.data` put the tables inside `guestResidue`, i.e. inside the `.64` POST, so
+  # a store reaching them would make that post unprovable rather than merely
+  # unproven. Linked disassembly + emitted asm; skips (exit 0) if the toolchain
+  # is absent, via the same shared wording.
+  run_step scripts/check-data-table-residue.sh
   # GH #12496: demand-first transcription queue doc drift guard. Same shape as
   # check-guest-image-coverage.sh (self-test + --check-doc). Was titled "CI
   # entry point" but never wired; first run on main failed — dormant AND

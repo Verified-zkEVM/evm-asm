@@ -419,6 +419,7 @@ import EvmAsm.Codegen.Proofs.StorageWritesBlockUpsertSpec
 -- #11921: `accountWritesLatestBalanceAbsentFlat_spec` — the write-map
 -- reader that is NOT a leaf; reuses `accountReadRecordSuppressedFlat_spec`.
 import EvmAsm.Codegen.Proofs.AccountWritesLatestBalanceSpec
+import EvmAsm.Codegen.Proofs.BalBuilderEnsureAccountSpec
 -- #12127: `writeSetsRestoreFrameEmptyFlat_spec` — the frame-revert routine's
 -- nothing-to-undo arm, the first spec of any shape for that symbol.
 import EvmAsm.Codegen.Proofs.WriteSetsRestoreFrameSpec
@@ -5443,6 +5444,73 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "there is no matching row for uniqueness to be about. No "
         ++ "Correspondence row: this arm ties to no spec-side VALUE. Lives in "
         ++ "`Codegen/Proofs/AccountWritesLatestBalanceSpec.lean`"),
+  -- #11921: the LAST unrowed write-map routine, `account_writes_emit_builder_tx`,
+  -- has six distinct `jal ra` callees and NONE of the five non-keccak ones had a
+  -- whole-routine contract. This is the keystone of three of them:
+  -- `bal_builder_append_balance`, `bal_builder_append_nonce` and
+  -- `bal_builder_append_code` each open with an UNCONDITIONAL
+  -- `jal ra, bal_builder_ensure_account` above every branch, so none of the three
+  -- can be stated over a single `CodeReq.ofProg` until this row exists.
+  routine "bal_builder_ensure_account" .conditional
+      (some "balBuilderEnsureAccountAppendEmptyFlat_spec")
+      (gate := "ONE input-domain gate: `bal_builder_account_count = 0` — the "
+        ++ "account table is empty, so the scan guard `bgeu s3, s2` at "
+        ++ "instruction index 14 is taken with ZERO comparison-loop "
+        ++ "iterations and the 140000-row capacity branch at index 34 falls "
+        ++ "through. The arms excluded are the HIT arm (indices 15..31, the "
+        ++ "per-row twenty-byte comparison loop and its early-mismatch "
+        ++ "break), the append-at-a-nonzero-index arm, and the capacity arm "
+        ++ "at index 54 that latches `bal_builder_overflow` and returns -1. "
+        ++ "⭐ The empty-table arm is not the interesting arm, only the "
+        ++ "REACHABLE one: every other terminating path runs the twenty-byte "
+        ++ "comparison loop once per existing row, and the overflow arm needs "
+        ++ "the count to reach 140000, hence 140000 scan iterations first. "
+        ++ "coverRef: `bbeaAppendEmpty_numeric_instance` — a fully numeric "
+        ++ "instance (`sp = 0x30000000`, key buffer at `0x20000000` holding "
+        ++ "the twenty distinct nonzero bytes `1..20`, the table's linked "
+        ++ "`.bss` base, count cell 0, temps `1..3`, `s0`-`s5` "
+        ++ "`8,9,18,19,20,21`, `a0` read back as 0 rather than `0x20000000`, "
+        ++ "the count cell read back as 1 and all six spill slots read back "
+        ++ "concretely); NEGATIVE controls in "
+        ++ "`bbeaAppendEmpty_gate_controls` (`¬¬(0 <ᵤ 1)` is provably FALSE, "
+        ++ "so a table holding even ONE row falls into the comparison loop "
+        ++ "and the hit arm is genuinely excluded; `¬(140000 <ᵤ 140000)` "
+        ++ "likewise shows the capacity branch IS taken at capacity, so the "
+        ++ "overflow arm is a different arm), plus distinct-address checks "
+        ++ "for the commit arm (+196) vs the overflow arm (+216) and for the "
+        ++ "gate cell vs the table itself; and "
+        ++ "`bbeaAppendEmpty_pre_satisfiable`, an "
+        ++ "`isValidDwordAccess`/`isValidByteAccess`-plus-disjointness check "
+        ++ "over the six frame slots, the count cell and both byte regions. "
+        ++ "Two `#guard`s pin that the copy is real and is a PREFIX copy: "
+        ++ "`copyIntoRegion bbeaDemoRow bbeaDemoKey 0 0 20` equals the key "
+        ++ "followed by the four untouched stride-padding bytes, and is NOT "
+        ++ "`bbeaDemoRow`")
+      (notes := "`cpsTripleWithin 179` at "
+        ++ "`GuestAddrs.bal_builder_ensure_account`, exit `ra &&& ~~~1`, over "
+        ++ "`bbeaCR`. ⭐ A SINGLE `CodeReq.ofProg`, because this routine is a "
+        ++ "LEAF — no `jal ra` anywhere, `balBuilderEnsureAccount_relocs` "
+        ++ "carries only `la`s. That is exactly the property that makes it "
+        ++ "usable as a callee contract, and it is why it was taken before "
+        ++ "its three callers. ⭐ Unlike every other #11921 row this arm does "
+        ++ "NOT skip its loop: indices 42..48 are a genuine TWENTY-iteration "
+        ++ "bytewise key copy, discharged by `countdownLoop_spec` "
+        ++ "(`Rv64/SAsm/AbiFrameLoop.lean`) over `bbeaCopyInv` (\"the first "
+        ++ "20 − n key bytes are already in the row\"), which is "
+        ++ "`20 * (6 + 1) + 1 = 141` of the 179 steps. ⚠️ The cursor roles are "
+        ++ "the REVERSE of the sibling `hesrCopyBody`: here `t1` writes the "
+        ++ "row and `t2` reads the key — read off the Program, not the "
+        ++ "docstring. What the post says: the twenty key bytes are interned "
+        ++ "at row 0 (`copyIntoRegion rowBytes keyBytes 0 0 20`), the count "
+        ++ "cell goes 0 → 1, and `a0 = 0`, the stable table index the three "
+        ++ "appenders consume. Register discipline read from the PROGRAM "
+        ++ "(#13182 is why): indices 59..64 reload exactly the six "
+        ++ "`s`-registers indices 1..6 spilled; there is NO `ra` slot at all "
+        ++ "— this being a leaf, `ra` survives because nothing writes it, and "
+        ++ "the post says so. `t0`-`t2` are clobbered and the post states "
+        ++ "their values; `x28` is returned as `regOwn`. No Correspondence "
+        ++ "row: this arm ties to no spec-side VALUE. Lives in "
+        ++ "`Codegen/Proofs/BalBuilderEnsureAccountSpec.lean`"),
   -- ⭐ A STALE ALLOWLIST CLAIM of a NEW kind — not the shape claim that `mset_memcpy`
   -- and `u256_is_zero` refuted, but a CODE-IDENTITY claim. The entry graded the shape
   -- correctly ("tier A by SHAPE") and then said the blocker was that "there is NO
@@ -5880,10 +5948,10 @@ def routineCountTier (t : ProofTier) : Nat :=
     by neither `set_option`, and is what the chunk split (#13213) exists for.
 -/
 
-theorem routineCount_eq : routineCount = 245 := by decide +kernel
+theorem routineCount_eq : routineCount = 246 := by decide +kernel
 
 theorem routineProvenCount_eq : routineCountTier .proven = 180 := by decide +kernel
-theorem routineConditionalCount_eq : routineCountTier .conditional = 62 := by
+theorem routineConditionalCount_eq : routineCountTier .conditional = 63 := by
   decide +kernel
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
   decide +kernel
@@ -5907,7 +5975,7 @@ def routineSymbols : List String :=
 -- 11,191-character ones, and could not have been dodged by writing terser
 -- rows. `decide +kernel` sidesteps both budgets; see the note under
 -- `routineCount_eq`.
-theorem routineSymbols_eq : routineSymbols.length = 204 := by decide +kernel
+theorem routineSymbols_eq : routineSymbols.length = 205 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7731,6 +7799,17 @@ private noncomputable abbrev _storage_writes_block_upsert_routine_witness :=
   @EvmAsm.Codegen.Proofs.storageWritesBlockUpsertAppendFlat_spec
 private noncomputable abbrev _account_writes_latest_balance_routine_witness :=
   @EvmAsm.Codegen.Proofs.accountWritesLatestBalanceAbsentFlat_spec
+-- #11921: the keystone callee of three of `account_writes_emit_builder_tx`'s six
+-- `jal ra` targets, plus its three cover theorems (registered individually per
+-- #12857: a non-vacuity control that lives only in a row's prose is outside the gate).
+private noncomputable abbrev _bal_builder_ensure_account_routine_witness :=
+  @EvmAsm.Codegen.Proofs.balBuilderEnsureAccountAppendEmptyFlat_spec
+private noncomputable abbrev _bbea_numeric_instance_cover_witness :=
+  @EvmAsm.Codegen.Proofs.bbeaAppendEmpty_numeric_instance
+private noncomputable abbrev _bbea_gate_controls_cover_witness :=
+  @EvmAsm.Codegen.Proofs.bbeaAppendEmpty_gate_controls
+private noncomputable abbrev _bbea_pre_satisfiable_cover_witness :=
+  @EvmAsm.Codegen.Proofs.bbeaAppendEmpty_pre_satisfiable
 -- #12127: the frame-revert routine's nothing-to-undo arm, plus its THREE cover
 -- theorems. The covers are registered individually and deliberately (#12857):
 -- a non-vacuity control that lives only in a row's prose is outside the gate.

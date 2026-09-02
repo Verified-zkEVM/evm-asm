@@ -669,4 +669,111 @@ def guestFraming : GuestFraming where
   residue := regOwn .x5 ** (regOwn .x10 ** (regOwn .x17 ** guestResidue))
   scratch_sat := guestScratch_with_registers_sat
 
+/-! ### What pinning `.data` costs the POST (GH #13229)
+
+    `guestResidue` carries `regionScratchData`, so the halt post now ASSERTS
+    the two dispatch tables still hold the bytes the image ships.  On the
+    `guestScratch` side that swap was free — `guestDataScratch_weakens` is the
+    whole discharge, because strengthening a precondition cannot break a
+    consumer that only wanted ownership.  Here it is not free, and
+    `guestScratch_eq_window_residue` being an EQUALITY is exactly why: the two
+    sides move together, so the residue inherits the pin.
+
+    What that costs, in the vocabulary a `.64` prover has to work in (named,
+    not counted — GH #11186 is what a counted list does here):
+
+    * `guestResidue_mem_of_dataImage` — the walk from the residue down to the
+      pinned tile, once, so no other theorem repeats the tile's position;
+    * `guestResidue_pins_{gas,handler}_dword` — the post DETERMINES the table
+      cells, so "the guest did not clobber the tables" is a consequence of the
+      post rather than a side remark about it;
+    * `guestResidue_rejects_clobbered_tables` — the contrapositive, and the
+      obligation in its sharpest form: a halt heap that zeroed
+      `opcode_gas_costs[1]` provably does NOT satisfy the residue;
+    * `guestResidue_sat` — and yet the conjunct the pin strengthened is still
+      inhabited, so pinning did not empty it the way `residue := guestScratch`
+      emptied the #9785 post.  (Scope note on the theorem itself: that is a
+      claim about `guestResidue`, not about the full `.64` post.)
+
+    ⛔ **The residual gap.**  None of this discharges the obligation: the
+    run-level fact — that no store the guest executes lands in
+    `[opcode_gas_costs, .data_end)` — cannot be stated here, because
+    `TopComposition.runStatelessGuestSound_of_phases` still takes its six phase
+    Props as HYPOTHESES and there is no whole-program write map to quantify
+    over.  `scripts/check-data-table-residue.sh` is the offline evidence,
+    re-derived from the LINKED image; it bounds the risk and is not a proof.
+    `Proofs.GuestDataImage.dataTables_residue_gap` carries the same statement
+    one layer down. -/
+
+/-- Read a `guestDataImage`-determined dword off the residue.  The `.data`
+    tile is the fifth of eight, and `regionScratchData` splits into the
+    unpinned prefix and the pinned pair — so this walk is `**`-right four
+    times, left once, then right once, and it is the only place that
+    positional knowledge is used. -/
+theorem guestResidue_mem_of_dataImage {a v : Word}
+    (hv : ∀ h', Proofs.GuestDataImage.guestDataImage h' → h'.mem a = some v)
+    {h : PartialState} (hr : guestResidue h) : h.mem a = some v := by
+  unfold guestResidue regionScratchData
+    Proofs.GuestDataImage.guestDataScratch at hr
+  refine Proofs.GuestDataImage.mem_of_sepConj_right hr (fun _ h1 => ?_)
+  refine Proofs.GuestDataImage.mem_of_sepConj_right h1 (fun _ h2 => ?_)
+  refine Proofs.GuestDataImage.mem_of_sepConj_right h2 (fun _ h3 => ?_)
+  refine Proofs.GuestDataImage.mem_of_sepConj_right h3 (fun _ h4 => ?_)
+  refine Proofs.GuestDataImage.mem_of_sepConj_left h4 (fun _ h5 => ?_)
+  exact Proofs.GuestDataImage.mem_of_sepConj_right h5 hv
+
+/-- **The halt post determines the gas table.**  Any heap satisfying
+    `guestResidue` holds `opcode_gas_costs[i]` at `opcode_gas_costs + 8i`. -/
+theorem guestResidue_pins_gas_dword {i : Nat} (hi : i < 256)
+    {h : PartialState} (hr : guestResidue h) :
+    h.mem (Proofs.GuestDataImage.gasTableBase + BitVec.ofNat 64 (8 * i))
+      = some (Proofs.GuestDataImage.shippedGasCostTable[i]'(by
+          simp only [Proofs.OpcodeTables.length_opcodeGasCostEntries]
+          exact hi)) :=
+  guestResidue_mem_of_dataImage
+    (fun _ hd => Proofs.GuestDataImage.guestDataImage_mem_gas_dword hi hd) hr
+
+/-- **The halt post determines the handler table**, the half that decides
+    *which* handler an opcode reaches. -/
+theorem guestResidue_pins_handler_dword {i : Nat} (hi : i < 256)
+    {h : PartialState} (hr : guestResidue h) :
+    h.mem (Proofs.GuestDataImage.handlerTableBase + BitVec.ofNat 64 (8 * i))
+      = some (Proofs.GuestDataImage.shippedHandlerTable[i]'(by
+          simp only [Proofs.OpcodeTables.length_opcodeHandlerEntries]
+          exact hi)) :=
+  guestResidue_mem_of_dataImage
+    (fun _ hd => Proofs.GuestDataImage.guestDataImage_mem_handler_dword hi hd) hr
+
+/-- **Negative control, and the obligation in its sharpest form.**  A halt heap
+    that zeroed `opcode_gas_costs[1]` — ADD's static cost, `3` in the shipped
+    image — provably does NOT satisfy `guestResidue`.  So a guest that clobbers
+    the table cannot close `.64`, which is precisely the new burden #13229
+    created; before the pin this heap was admissible. -/
+theorem guestResidue_rejects_clobbered_tables {h : PartialState}
+    (hz : h.mem (Proofs.GuestDataImage.gasTableBase + BitVec.ofNat 64 (8 * 1))
+        = some 0) :
+    ¬ guestResidue h := by
+  intro hr
+  have hgood := guestResidue_pins_gas_dword (i := 1) (by decide) hr
+  rw [hz] at hgood
+  exact Proofs.GuestDataImage.gas_dword1_ne_zero (Option.some.inj hgood).symm
+
+/-- **The strengthened residue is still inhabited.**  Pinning the tables did
+    not empty the conjunct it strengthened — the failure mode the #9785 review
+    found when `residue := guestScratch` over-owned the observation window.
+    Read with `guestScratch_eq_window_residue`: the entry witness already
+    contains a residue witness.
+
+    ⚠️ Scope, precisely.  This is about `guestResidue`, NOT about the whole
+    `.64` post `guestOutputSound execute input ** fr.residue`: that also needs
+    the three register atoms and an output window satisfying `SpecAccepts`,
+    neither of which the pin touched and neither of which is claimed here.
+    What it rules out is the one thing pinning COULD have broken. -/
+theorem guestResidue_sat : ∃ h, guestResidue h := by
+  obtain ⟨h, hp⟩ := guestScratch_sat [] (by decide)
+  obtain ⟨-, hsc, -, -, -, hs⟩ := hp
+  rw [guestScratch_eq_window_residue] at hs
+  obtain ⟨-, hres, -, -, -, hr⟩ := hs
+  exact ⟨hres, hr⟩
+
 end EvmAsm.Codegen
