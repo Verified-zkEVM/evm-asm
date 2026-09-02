@@ -13,6 +13,7 @@
 
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
+import EvmAsm.Codegen.Programs.ValidateHeaderPostMergeCorrespondence
 import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
 import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
 import EvmAsm.Rv64.SAsm.AbiFrameCall
@@ -36,6 +37,9 @@ open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
 open EvmAsm.Codegen.ValidateHeaderCheckGasLimit
   (callerFrame checkGasLimitStatus4Post checkGasLimitFallPost
     validate_header_check_gas_limit_routes_spec_within)
+open EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence
+  (postMergeFrame postMergeSavedFrame postMergeFrameVals postMergeEntryRest
+    postMergeCalleePost validate_header_post_merge_call_spec_within)
 open EvmAsm.Codegen.CheckGasLimitSAsm (cglStatus)
 
 /-! ## Excess-blob dispatch composition (`H+56 → H+88`, first increment)
@@ -750,5 +754,153 @@ theorem tsNumDispatch_spec
     (fun _ hp => by dsimp [tsNumDispatchPre, frameRes, tsNumFrameRes] at hp ⊢; xperm_hyp hp)
     (fun _ hq => by dsimp [tsNumDispatchPost, frameRes, tsNumFrameRes] at hq ⊢; xperm_hyp hq)
     s1234567
+
+/-!
+## Post-merge dispatch (H + 184 → H + 196)
+
+The fifth item-three dispatch site toward the status-0 seam.  The core runs
+`MV x10, x8` / `MV x11, x9` (the K67 argument-setup arms at H+184/H+188),
+then JALs `header_validate_post_merge` at H+192 and lands at H+196 with the
+K67 status in `x10`.
+
+The K67 whole-routine triple `header_validate_post_merge_spec_within`
+(HeaderValidatePostMergeFinal.lean) concludes in the adapter shape with the
+five-way disjunctive post `k67PostRet`; the call-spec
+`validate_header_post_merge_call_spec_within` needs a single-status
+`postMergeCalleePost`, so (following the base-fee precedent) the callee is
+carried as an `hcallee` HYPOTHESIS at the single status and the increment
+composes over `pmFull calleeCode = callerCode ∪ calleeCode`.
+
+Registers on entry (from the tsNum/base-fee chain): `x8 ↦ header`,
+`x9 ↦ headerLen`, `x20 ↦ s4` (parent RLP ptr), `x21 ↦ s5` (parent RLP len),
+`x18`/`x19` the struct pointers, `x10`/`x11` clobbered by the MVs.  The K67
+entry assertion `postMergeEntryRest` carries `x10 ↦ header` / `x11 ↦ headerLen`
+plus the saved regsAt frame, frame ownership, regOwns and the two byte
+regions; the increment keeps the register-mapping atoms standalone through
+the two MVs (standalone-atom rule) and refolds at the call.
+
+Establishes (post): `x10 ↠ status` (the K67 status), the full
+`postMergeCalleePost` frame, `x8 ↦ header`, `x9 ↦ headerLen`.  Gate:
+`hstatus0 : status = 0` (hcallee pinned at status 0 for the seam). -/
+
+abbrev pmFull (calleeCode : CodeReq) : CodeReq := callerCode.union calleeCode
+
+theorem pmFull_caller_mono (calleeCode : CodeReq) :
+    ∀ a i, callerCode a = some i → pmFull calleeCode a = some i := by
+  intro a i hi
+  exact CodeReq.union_mono_left a i hi
+
+abbrev postMergeFrameRes (spC header : Word) (vals : Reg → Word)
+    (s4 s5 : Word) (bytes : List (BitVec 8)) : Assertion :=
+  (.x2 ↦ᵣ spC) **
+  frameSlotsOwn postMergeFrame (spC + signExtend12 (-48 : BitVec 12)) **
+  regsAt postMergeSavedFrame vals **
+  (.x20 ↦ᵣ s4) ** (.x21 ↦ᵣ s5) **
+  regOwns [.x12, .x13, .x14, .x5, .x6, .x7, .x28, .x29, .x30, .x31] **
+  (.x0 ↦ᵣ (0 : Word)) **
+  bytesRegion header bytes **
+  bytesRegion (GuestAddrs.empty_ommers_hash : Word)
+    ChainValidatePostMergeFullSpec.cvpmfEmptyOmmerHashBytes
+
+abbrev postMergeDispatchPre (spC header headerLen : Word) (vals : Reg → Word)
+    (o10 o11 s4 s5 : Word) (bytes : List (BitVec 8)) (oldRa : Word)
+    (F : Assertion) : Assertion :=
+  (.x8 ↦ᵣ header) ** (.x10 ↦ᵣ o10) **
+  (.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11) **
+  postMergeFrameRes spC header vals s4 s5 bytes **
+  (.x1 ↦ᵣ oldRa) ** F
+
+set_option maxRecDepth 8000 in
+theorem pmMergeDispatch_preCall
+    {calleeCode : CodeReq}
+    (spC header headerLen : Word) (vals : Reg → Word)
+    (o10 o11 s4 s5 : Word) (bytes : List (BitVec 8)) (oldRa : Word)
+    (F : Assertion) (hF : F.pcFree) :
+    cpsTripleWithin (1 + 1) (H + 184) (H + 192) (pmFull calleeCode)
+      (postMergeDispatchPre spC header headerLen vals o10 o11 s4 s5 bytes oldRa F)
+      (postMergeDispatchPre spC header headerLen vals
+        (o10 := header) (o11 := headerLen) (s4 := s4) (s5 := s5)
+        bytes oldRa F) := by
+  let pmRes : Assertion :=
+    (.x9 ↦ᵣ headerLen) ** (.x11 ↦ᵣ o11) **
+    postMergeFrameRes spC header vals s4 s5 bytes **
+    (.x1 ↦ᵣ oldRa) ** F
+  have h1 := mvPostMergeArgs header o10
+  have h1C := cpsTripleWithin_extend_code
+    (pmFull_caller_mono calleeCode) h1
+  have h1F := cpsTripleWithin_frameR pmRes
+    (by
+      dsimp [pmRes, postMergeFrameRes, postMergeFrame, postMergeSavedFrame]
+      pcf
+      exact hF) h1C
+  have h2 := mvPostMergeArgs2 headerLen o11
+  have h2C := cpsTripleWithin_extend_code
+    (pmFull_caller_mono calleeCode) h2
+  have h2F := cpsTripleWithin_frameR
+    ((.x8 ↦ᵣ header) ** (.x10 ↦ᵣ header) **
+      postMergeFrameRes spC header vals s4 s5 bytes **
+      (.x1 ↦ᵣ oldRa) ** F)
+    (by
+      dsimp [postMergeFrameRes, postMergeFrame, postMergeSavedFrame]
+      pcf
+      exact hF) h2C
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1F h2F
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp [postMergeDispatchPre, postMergeFrameRes, pmRes] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by dsimp [postMergeDispatchPre, postMergeFrameRes, pmRes] at hq ⊢; xperm_hyp hq)
+    s12
+
+set_option maxRecDepth 8000 in
+theorem postMergeDispatch_spec
+    {calleeCode : CodeReq} {n : Nat}
+    (spC header headerLen : Word) (vals : Reg → Word)
+    (o10 o11 s4 s5 status oldRa : Word) (bytes : List (BitVec 8))
+    (F : Assertion) (hF : F.pcFree)
+    (hdisj : (CodeReq.singleton (H + 192)
+      (.JAL .x1 (jalOff GuestAddrs.header_validate_post_merge
+        (GuestAddrs.validate_header + 192)))).Disjoint calleeCode)
+    (hcallerDisj : callerCode.Disjoint calleeCode)
+    (_hstatus0 : status = 0)
+    (hcallee : cpsTripleWithin n EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.K EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.Ret calleeCode
+      ((.x1 ↦ᵣ EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.Ret) ** postMergeEntryRest spC header headerLen s4 s5 vals bytes)
+      (postMergeCalleePost spC header s4 s5 EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.Ret status vals bytes)) :
+    cpsTripleWithin (1 + 1 + (1 + n)) (H + 184) (H + 196) (pmFull calleeCode)
+      (postMergeDispatchPre spC header headerLen vals o10 o11 s4 s5 bytes oldRa F)
+      (postMergeCalleePost spC header s4 s5 EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.Ret status vals bytes **
+        ((.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) ** F)) := by
+  let Fcall : Assertion := (.x8 ↦ᵣ header) ** (.x9 ↦ᵣ headerLen) ** F
+  have hFcall : Fcall.pcFree := by
+    dsimp [Fcall]
+    pcf
+    exact hF
+  have hpre := pmMergeDispatch_preCall (calleeCode := calleeCode)
+    spC header headerLen vals o10 o11 s4 s5 bytes oldRa F hF
+  have hcall := validate_header_post_merge_call_spec_within
+    (cr := pmFull calleeCode) (calleeCode := calleeCode) (n := n)
+    spC header headerLen s4 s5 oldRa vals bytes status Fcall
+    hFcall hdisj hcallerDisj (fun _ _ h => h) hcallee
+  have hcallS6 : cpsTripleWithin (1 + n) (H + 192) (H + 196) (pmFull calleeCode)
+      (postMergeDispatchPre spC header headerLen vals
+        (o10 := header) (o11 := headerLen) (s4 := s4) (s5 := s5)
+        bytes oldRa F)
+      (postMergeCalleePost spC header s4 s5 EvmAsm.Codegen.ValidateHeaderPostMergeCorrespondence.Ret status vals bytes **
+        Fcall) := by
+    exact cpsTripleWithin_weaken (fun h hp => by
+      dsimp [Fcall, postMergeDispatchPre, postMergeFrameRes] at hp ⊢
+      simp [postMergeEntryRest, postMergeSavedFrame, regsAt,
+        sepConj_emp_right'] at hp ⊢
+      xperm_hyp hp)
+      (fun _ hq => by
+        dsimp [Fcall] at hq ⊢
+        simp [postMergeCalleePost] at hq ⊢
+        xperm_hyp hq) hcall
+  have s7 := cpsTripleWithin_seq_perm_same_cr
+    (fun _ hp => by dsimp [Fcall, postMergeDispatchPre] at hp ⊢; xperm_hyp hp) hpre hcallS6
+  exact cpsTripleWithin_weaken
+    (fun _ hp => by dsimp [postMergeDispatchPre, Fcall] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by
+      dsimp [Fcall] at hq ⊢
+      simp [postMergeCalleePost] at hq ⊢
+      xperm_hyp hq) s7
 
 end EvmAsm.Codegen.ValidateHeaderInlineArms
