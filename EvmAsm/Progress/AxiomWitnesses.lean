@@ -320,6 +320,14 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DCodeLeafFlatEntries.modexpIszeroFlat_spec
 
+#print axioms EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_image
+
+#print axioms EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_instance
+
+#print axioms EvmAsm.Codegen.DispatchStepGas.dispatchStep_gasDebit_premises_refutable
+
+#print axioms EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
+
 #print axioms EvmAsm.Codegen.DispatcherCaptureExecStateGasSAsm.dispatcherCaptureExecStateGas_spec
 
 #print axioms EvmAsm.Codegen.DivisorAndPadGateCover.divisorGate_admits_eight

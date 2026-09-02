@@ -1122,6 +1122,37 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `asm_to_program.lean_camel`) — the identity on all ~1400 global symbols, so
   broken since forever and invisible until an entry symbol was a local label.
 
+- **What the #13173 anchor bought, and where the dispatch step still stops**
+  (`Codegen/Proofs/DispatchStepGas.lean`). With the body rowed, the M30 gas debit
+  is a real machine claim: `dispatchStep_gasDebit_within` is a `cpsBranchWithin 5`
+  over prog idx 6..10 at `.dispatch_loop_body + 24`, and
+  `dispatchStep_gasDebit_image` is the same statement inside `guestImageCodeReq`
+  via `dispatchLoopBody_block_sub`. Two exits: `+44` with `env+568` debited under
+  `¬ gas <ᵤ cost`, or the linked `.exit_outofgas` with the cell UNCHANGED.
+  ⚠️ idx 7/8 are ONE source line — the assembler relaxed an out-of-range `bltu`
+  into an inverted `BGEU`+`JAL`, so the BGEU-**taken** edge is the has-enough-gas
+  path, the opposite reading of the mnemonic; `dispatchLoopBody_relocs` is where
+  that is recorded, and reading the Program without it inverts the whole lemma.
+  ⛔ What is NOT proved: the opcode half (fetch, the two `.data` table loads, and
+  the indirect `jalr` whose target is a LOADED value, so the exit PC is not a
+  constant and a whole-body triple would have to be indexed by the opcode), and
+  one loop ITERATION, which also runs the 348-byte code-size stop guard.
+  ⭐ The guard is cheaper than its byte count suggests, and this is the measurement
+  worth keeping: its HOT path is three instructions (`sub x5, x10, x21`,
+  `ld x6, 496(x20)`, `bltu x5, x6, 1f`) and `1:` is the label
+  `.dispatch_loop_body` sits on, so the in-range branch falls straight into the
+  body. The other ~84 instructions are the EOF-halt route, and they are expensive
+  for a reason that is not transcription — the route calls `frame_return` and
+  jumps into the CREATE deposit-from-halt path, so it needs two callee contracts
+  before it can be a triple at all. A head-to-body triple under an in-range
+  premise is therefore a THREE-instruction obligation.
+  ⚠️ Two registry parsers matched `[A-Za-z0-9_]+` and so silently DROPPED a row
+  naming a dotted local label: `check-routine-liveness` reported OK by not seeing
+  it, and `check-registry-crosscheck`'s recount disagreed with the kernel-checked
+  `routineSymbols_eq`. Both widened. And `transcription_queue.py` scrapes
+  `jal ra, <sym>` out of any source line, PROSE INCLUDED — writing that
+  instruction inside a docstring scores a phantom call site and moves the queue.
+
 - **Verified-Program insertion offsets** (`scripts/program-insert-offsets.py`,
   GH #10619): inserting one instruction into a `Program` literal moves **four**
   separate things, and getting any wrong yields assembly that LINKS CLEANLY while
