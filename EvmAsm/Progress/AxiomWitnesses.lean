@@ -1320,11 +1320,11 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WithdrawalDecodeSpec.withdrawal_decode_spec_within
 
-#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildSpec.wcb_entryState_exists
+#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_entryState_exists
 
-#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildSpec.wcb_nonempty_section_gate_absurd
+#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_nonempty_section_gate_absurd
 
-#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildSpec.witness_codes_index_build_spec_within_empty_section
+#print axioms EvmAsm.Codegen.WitnessCodesIndexBuildTop.witness_codes_index_build_spec_within_empty_section
 
 #print axioms EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
 

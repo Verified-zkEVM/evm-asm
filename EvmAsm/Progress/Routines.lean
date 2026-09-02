@@ -362,7 +362,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- #13069: witness-code lookup's empty-section top is a linked whole-routine
 -- claim and is registered below as a conditional row.
 import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
-import EvmAsm.Codegen.Programs.WitnessCodesIndexBuildSpec
+import EvmAsm.Codegen.Programs.WitnessCodesIndexBuildTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
@@ -4842,7 +4842,10 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "atoms) plus `wcb_nonempty_section_gate_absurd` as the negative "
         ++ "control. The mechanically identical node-DB builder "
         ++ "`witness_index_build` has NO row yet (#13246). "
-        ++ "Lives in `Codegen/Programs/WitnessCodesIndexBuildSpec.lean`"),
+        ++ "Lives in `Codegen/Programs/WitnessCodesIndexBuildTop.lean`; the "
+        ++ "sample-pinned body spec it generalises is `wcb_builder_spec` in "
+        ++ "`WitnessCodesIndexBuildSpec.lean`, whose extra `section_len = 1` "
+        ++ "failure arm is NOT lifted"),
   routine "witness_lookup_by_hash_indexed" .conditional
       (some "witness_lookup_by_hash_indexed_spec_within_one_hit")
       (gate := "`widx_count = 1` with the target equal to the sole indexed "
@@ -7614,11 +7617,11 @@ private noncomputable abbrev _witness_codes_lookup_by_hash_routine_witness :=
 -- the two non-vacuity exhibits the row cites, so the axiom gate audits the
 -- satisfiability evidence and not only the triple.
 private noncomputable abbrev _witness_codes_index_build_routine_witness :=
-  @EvmAsm.Codegen.WitnessCodesIndexBuildSpec.witness_codes_index_build_spec_within_empty_section
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.witness_codes_index_build_spec_within_empty_section
 private noncomputable abbrev _witness_codes_index_build_entry_witness :=
-  @EvmAsm.Codegen.WitnessCodesIndexBuildSpec.wcb_entryState_exists
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_entryState_exists
 private noncomputable abbrev _witness_codes_index_build_control_witness :=
-  @EvmAsm.Codegen.WitnessCodesIndexBuildSpec.wcb_nonempty_section_gate_absurd
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_nonempty_section_gate_absurd
 -- #12206: `assemble_execution_requests` whole routine (imported above —
 -- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
 private noncomputable abbrev _assemble_execution_requests_routine_witness :=
