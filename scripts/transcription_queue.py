@@ -259,9 +259,12 @@ def residual_blocks(paths):
 _ROW_SPLIT = re.compile(r"(?m)^  routine \"")
 _ROW_HEAD = re.compile(r'([A-Za-z0-9_]+)"\s+\.(\w+)')
 GATED_TIERS = ("conditional", "execSpec")
-# The registry list's own delimiters.  A row's block runs to the NEXT row, so
+# The registry chunks' own delimiters. A row's block runs to the NEXT row, so
 # the LAST row's block ran to end of file without this bound — see below.
-_REGISTRY_START = re.compile(r"(?m)^def routineRegistry\b")
+_REGISTRY_START = re.compile(
+    r"(?m)^def routineRegistry(?:Part[A-Za-z0-9_]*)?\s*"
+    r":\s*List RoutineEntry\s*:=\s*\["
+)
 _REGISTRY_END = re.compile(r"(?m)^\]\s*$")
 
 
@@ -271,22 +274,29 @@ def registry_gate_blocks(src: str):
     claim stops where that routine starts"; converting the named routine is
     what lets the gate move.
 
-    ⚠️ The scan is BOUNDED at the registry list's closing `]`.  Splitting on
+    ⚠️ The scan is BOUNDED at each registry chunk's closing `]`. Splitting on
     the next `  routine "` gives every row a well-formed block except the last
     one, whose block used to run to end of file and swallow the count theorems
     and ~700 witness `abbrev`s — so every routine merely NAMED anywhere in that
-    tail was credited a gate it does not have.  Worse, the miscredit was
+    tail was credited a gate it does not have. Worse, the miscredit was
     conditional on the tier of whichever row happened to sit last: appending a
     `.proven` row dropped the tail from the scan and silently moved two
     symbols' scores and ranks (`rlp_walk_init`, `rlp_content_to_u64`), which is
-    how this surfaced (#12244).  The bound makes the parse independent of row
-    order.  If neither delimiter is found the whole string is scanned, which is
-    what the self-test's synthetic fragments rely on."""
-    start = _REGISTRY_START.search(src)
-    if start:
-        end = _REGISTRY_END.search(src, start.end())
-        if end:
-            src = src[start.end():end.start()]
+    how this surfaced (#12244). The bound makes the parse independent of row
+    order. If a chunk delimiter is missing, the whole string is scanned, which
+    is what the self-test's synthetic fragments rely on."""
+    starts = list(_REGISTRY_START.finditer(src))
+    if starts:
+        bodies = []
+        complete = True
+        for start in starts:
+            end = _REGISTRY_END.search(src, start.end())
+            if end is None:
+                complete = False
+                break
+            bodies.append(src[start.end():end.start()])
+        if complete:
+            src = "\n".join(bodies)
     out = []
     for block in _ROW_SPLIT.split(src)[1:]:
         m = _ROW_HEAD.match(block)
