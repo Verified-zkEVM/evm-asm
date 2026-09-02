@@ -268,6 +268,7 @@ import EvmAsm.Codegen.Programs.ValidateParentHashLinkWitnesses
 import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.HeaderExtractNumberBridge
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeSpecRefWitness
+import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeRouteWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus1Witness
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseRoute
 import EvmAsm.Codegen.Programs.HeaderValidateBaseFeeCompositionDecreaseWholeRoute
@@ -1052,18 +1053,32 @@ def routineRegistryPartA : List RoutineEntry := [
   -- genuine input-domain gate `0 < target`.
   routine "header_validate_base_fee" .conditional
       (some "header_validate_base_fee_spec_within_inhabited")
-      (gate := "the wrapper selects the K73 increasing arm: `target = "
-        ++ "gas_limit >>> 1`, `target < gas_used`, and `0 < target` (the "
-        ++ "latter is the genuine input-domain gate from #12951). All "
-        ++ "ABI/resource hypotheses are discharged by the closed witness.")
-      (notes := "closed wrapper-level witness at the real K74 seam: "
-        ++ "`header_validate_base_fee_spec_within` consumes the Route-B K73 "
-        ++ "adapter and the u256-equality callee under the union code request. "
-        ++ "The concrete inhabitant uses gas_limit = 10,000, gas_used = 7,500, "
-        ++ "zero parent/header bytes, real aligned 32-byte regions, and "
-        ++ "pairwise code-range disjointness. K73 remains conditional; this "
-        ++ "row records non-vacuity of the wrapper composition, not an "
-        ++ "unconstrained K74 claim."),
+      (gate := "every live K73 arm is claimed at the wrapper's seam (#13164): "
+        ++ "increase (`target < gas_used`), equal (`gas_used = target`), "
+        ++ "nonzero decrease (`0 < gas_used < target`) and the zero-gas "
+        ++ "decrease edge (`gas_used = 0`), where `target = gas_limit >>> 1`. "
+        ++ "The remaining static gates are the caller's ABI facts (aligned, "
+        ++ "valid, pairwise-disjoint 32-byte regions; code subsumption) and "
+        ++ "`0 < target` — the genuine input-domain gate from #12951, produced "
+        ++ "at the real `check_gas_limit` fall-through by #13162 rather than "
+        ++ "assumed.")
+      (notes := "four closed wrapper-level witnesses at the real K74 seam, one "
+        ++ "per K73 route, each discharging its entire static premise set by "
+        ++ "kernel computation: increase "
+        ++ "(`header_validate_base_fee_spec_within` at gas_limit = 10,000, "
+        ++ "gas_used = 7,500), equal "
+        ++ "(`header_validate_base_fee_equal_route_spec_within` at 100,000 / "
+        ++ "50,000), nonzero decrease "
+        ++ "(`header_validate_base_fee_decrease_route_spec_within` at 10,000 / "
+        ++ "2,500) and zero-gas decrease "
+        ++ "(`header_validate_base_fee_zero_decrease_route_spec_within` at "
+        ++ "10,000 / 0). The routes do not share a post ambient (equal and "
+        ++ "zero keep the flat frame; increase and decrease expose the caller-"
+        ++ "owned multiply frame and accumulator as Route-B junk), so the "
+        ++ "claim is route-indexed — see `K73RouteFamily` — not a single "
+        ++ "unconstrained K74 triple. Zero parent/header bytes, real aligned "
+        ++ "32-byte regions, and pairwise code-range disjointness in every "
+        ++ "witness."),
   -- #12849: the first closed arm of K70.  The status-0 under-target arm is
   -- fully discharged at a concrete, non-vacuous point; the price-dependent
   -- arms remain an explicit open dependency until the Amsterdam price callee
@@ -6881,6 +6896,15 @@ private noncomputable abbrev _k73_incr_route_adapter_witness :=
 -- monotonicity at real linked ranges.
 private noncomputable abbrev _header_validate_base_fee_routine_witness :=
   @EvmAsm.Codegen.HeaderValidateBaseFeeSpecRef.header_validate_base_fee_spec_within_inhabited
+-- #13164: closed K74 wrapper witnesses for the three remaining K73 routes
+-- (equal, nonzero decrease, zero-gas decrease), each instantiating its
+-- parametric route theorem at a concrete point under the union code request.
+private noncomputable abbrev _hvbf_equal_route_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_equal_route_spec_within_inhabited
+private noncomputable abbrev _hvbf_decrease_route_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_decrease_route_spec_within_inhabited
+private noncomputable abbrev _hvbf_zero_decrease_route_witness :=
+  @EvmAsm.Codegen.HeaderValidateBaseFeeRouteWitness.header_validate_base_fee_zero_decrease_route_spec_within_inhabited
 -- #12346: concrete satisfiability witness for the K67 core contract's status-1
 -- arm: the number < 1 header route discharges `validateHeaderCoreContract` at a
 -- concrete instance (number=0 header whose canonical RLP decodes and SpecRef
