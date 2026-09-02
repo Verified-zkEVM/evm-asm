@@ -268,12 +268,18 @@ STAGING-failure class 1 kept distinguishable from the EXECUTION-failure class \
 `system_call_mode = 0` on the failure path and `ra`/`s0` restored on every \
 path, all of it CALLEE-INDEPENDENT because `a2` is written only by that \
 routine's own `li` instructions. What survives is the DISCHARGE of its three \
-named residuals `ArdCallShape` / `SscpCallShape` / `RdcCallShape`. ⚠️ The last \
-of those is the strongest thing this lane assumes — it claims the whole EVM \
-interpreter leaves the two dedicated spill cells untouched, which is why the \
-staging routine is NOT re-entrant — and it has had NO open tracker since the \
-handler-lane design issue closed 2026-09-01; everything the other two shapes \
-pin was measured against the callee's emitted text",
+named residuals `ArdCallShape` / `SscpCallShape` / `RdcCallShape`. ⚠️ Since \
+#13216/#13217 (2026-09-02) all three are REFUTED at the wrapper level, not \
+merely assumed: `sscCode` is the 71-instruction wrapper ONLY and each of the \
+three `jal` targets (`account_read_record`, `stage_system_call_payload`, \
+`runtime_dispatcher_call`) is absent from that CodeReq, so the `cpsTripleWithin` \
+conjunct is vacuously-as-instantiated while `CallSiteOk` remains reachable. \
+The open tracker is #13216 and its repair direction \
+stands: a real callee CodeReq plus an extend-code composition plus the actual \
+callee triples (the earlier handler-lane design issue is closed and is NOT the \
+tracker). `RdcCallShape`'s \"the whole EVM interpreter leaves the two \
+spill cells untouched\" premise has therefore never been exhibited; everything \
+the other two shapes pin was measured against the callee's emitted text",
          .infra "`assemble_execution_requests` whole-routine triple LANDED \
 (`assemble_execution_requests_spec_within`) and `requests_hash_verify` \
 LANDED on top of it (`requests_hash_verify_spec_within`: the \
@@ -303,7 +309,7 @@ discharge is the \
 separate hash-half five-slot compose after `validation_accept` (the parent \
 `execution_requests_hash` composition remains open, and is the same owner the \
 item above names)."],
-      auditedAt := some "2026-09-02 @closed-blocker-sweep",
+      auditedAt := some "2026-09-02 @13246-rdc-tracker-fix",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. \
 ⭐ Closed-blocker sweep 2026-09-02: this row carried SIX dead issue numbers, \
 more than every other row combined. For provenance, since the `blockedBy` \
@@ -324,7 +330,13 @@ is the simulation relation, which that row was hiding. #11578 lands \
 `execution_requests_hash_validation_accept`; #12011 retargets consumer to \
 `requests_hash_verify` (block_state_root has no jal erh) and lands assemble \
 Program (String residual retired) + erh_hash_one under h_sha DEPENDENCY \
-(not input gate); does not close `stage_system_call`" },
+(not input gate); does not close `stage_system_call` ⭐ Re-audited \
+2026-09-02 @13246-rdc-tracker-fix: the stage_system_call cell's residual prose \
+now credits the #13216/#13217 wrapper-level vacuity (all three shapes refuted \
+against the 71-instruction wrapper-only `sscCode`) and repoints the tracker \
+from the closed #12204 to the open #13216; an earlier external briefing \
+attributed #11800 to this cell, but that closed issue is obligation-8's \
+provenance, not this one. Only this cell changed." },
   { id := 5, name := "Full opcode coverage with verified handlers",
     status := .blocked,
     blockedBy :=
