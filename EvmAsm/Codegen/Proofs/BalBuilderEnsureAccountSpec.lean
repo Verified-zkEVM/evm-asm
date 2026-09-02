@@ -560,4 +560,239 @@ theorem balBuilderEnsureAccount_copyLoop_spec
         h_src_over h_dst_over h_src_valid h_dst_valid)
   simpa using hloop
 
+/-! ## Segment D — commit the new row and answer with its index -/
+
+/-- `bal_builder_ensure_account` instructions 49..53 (`base + 196 ..
+    base + 236`): `addi t0, s2, 1` (the new count), store it back through
+    `s1`, `mv s3, s2` and `mv a0, s3` — the interned index, `0` here — then
+    `j` past the overflow arm to the epilogue.
+
+    ⭐ The count store is the routine's ONLY write outside the row itself, and
+    it is what makes the interning stable: the next call sees a nonzero count
+    and takes the comparison path. -/
+theorem balBuilderEnsureAccount_segD_body_spec
+    (base countPtr y5 y10 y19 : Word) :
+    cpsTripleWithin 5 (base + (196 : Word)) (base + (236 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ y5) ** (.x9 ↦ᵣ countPtr) **
+       (.x10 ↦ᵣ y10) ** (.x18 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ y19) **
+       (countPtr ↦ₘ (0 : Word)))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (1 : Word)) ** (.x9 ↦ᵣ countPtr) **
+       (.x10 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ (0 : Word)) **
+       (countPtr ↦ₘ (1 : Word))) := by
+  unfold balBuilderEnsureAccount_prog
+  simp only [CodeReq.ofProg_cons, CodeReq.ofProg_nil]
+  -- index 49: `addi t0, s2, 1`
+  have D0 := addi_spec_gen_within .x5 .x18 y5 (0 : Word) (1 : BitVec 12)
+    (base + (196 : Word)) (by nofun)
+  rw [show (0 : Word) + signExtend12 (1 : BitVec 12) = (1 : Word) from by decide] at D0
+  -- index 50: `sd t0, 0(s1)` — the count cell goes 0 → 1
+  have D1 := sd_spec_gen_within .x9 .x5 countPtr (1 : Word) (0 : Word) (0 : BitVec 12)
+    (base + (200 : Word))
+  rw [show countPtr + signExtend12 (0 : BitVec 12) = countPtr from by
+    rw [signExtend12_0]; exact BitVec.add_zero _] at D1
+  -- index 51: `mv s3, s2` — the interned index
+  have D2 := mv_spec_gen_within .x19 .x18 (0 : Word) y19 (base + (204 : Word)) (by nofun)
+  -- index 52: `mv a0, s3` — the result register
+  have D3 := mv_spec_gen_within .x10 .x19 (0 : Word) y10 (base + (208 : Word)) (by nofun)
+  -- index 53: `j` past the overflow arm
+  have D4 := jal0_spec_pcFree (24 : BitVec 21) (base + (212 : Word))
+    (P := (.x0 ↦ᵣ (0 : Word)) ** (.x5 ↦ᵣ (1 : Word)) ** (.x9 ↦ᵣ countPtr) **
+      (.x10 ↦ᵣ (0 : Word)) ** (.x18 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ (0 : Word)) **
+      (countPtr ↦ₘ (1 : Word))) (by pcFree)
+  rw [show signExtend21 (24 : BitVec 21) = (24 : Word) from by decide,
+      show base + (212 : Word) + (24 : Word) = base + (236 : Word) from by bv_omega] at D4
+  runBlock D0 D1 D2 D3 D4
+
+/-! ## Segment E — the epilogue -/
+
+/-- `bal_builder_ensure_account` instructions 59..66 (`base + 236 .. ret`):
+    reload the six `s`-registers from the frame, pop the 48-byte frame, and
+    `ret`.
+
+    ⚠️ Read from the Program, not a docstring (#13182 is why the distinction
+    matters): the epilogue reloads EXACTLY the six registers indices 1..6
+    spilled and nothing else.  There is **no `ra` slot** — this routine is a
+    leaf, so `ra` survives simply because nothing writes it. -/
+theorem balBuilderEnsureAccount_segE_body_spec
+    (base sp ra v8 v9 v18 v19 v20 v21 z8 z9 z18 z19 z20 z21 : Word) :
+    cpsTripleWithin 8 (base + (236 : Word)) (ra &&& ~~~(1 : Word))
+      (CodeReq.ofProg base balBuilderEnsureAccount_prog)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ (sp - (48 : Word))) **
+       (.x8 ↦ᵣ z8) ** (.x9 ↦ᵣ z9) ** (.x18 ↦ᵣ z18) ** (.x19 ↦ᵣ z19) **
+       (.x20 ↦ᵣ z20) ** (.x21 ↦ᵣ z21) **
+       ((sp - (48 : Word)) ↦ₘ v8) ** ((sp - (40 : Word)) ↦ₘ v9) **
+       ((sp - (32 : Word)) ↦ₘ v18) ** ((sp - (24 : Word)) ↦ₘ v19) **
+       ((sp - (16 : Word)) ↦ₘ v20) ** ((sp - (8 : Word)) ↦ₘ v21))
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) **
+       (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) **
+       (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+       ((sp - (48 : Word)) ↦ₘ v8) ** ((sp - (40 : Word)) ↦ₘ v9) **
+       ((sp - (32 : Word)) ↦ₘ v18) ** ((sp - (24 : Word)) ↦ₘ v19) **
+       ((sp - (16 : Word)) ↦ₘ v20) ** ((sp - (8 : Word)) ↦ₘ v21)) := by
+  unfold balBuilderEnsureAccount_prog
+  simp only [CodeReq.ofProg_cons, CodeReq.ofProg_nil]
+  have E0 := ld_spec_gen_within .x8 .x2 (sp - (48 : Word)) z8 v8 (0 : BitVec 12)
+    (base + (236 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (0 : BitVec 12) = sp - (48 : Word) from by
+    rw [signExtend12_0]; exact BitVec.add_zero _] at E0
+  have E1 := ld_spec_gen_within .x9 .x2 (sp - (48 : Word)) z9 v9 (8 : BitVec 12)
+    (base + (240 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (8 : BitVec 12) = sp - (40 : Word) from by
+    rw [show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide]; bv_omega] at E1
+  have E2 := ld_spec_gen_within .x18 .x2 (sp - (48 : Word)) z18 v18 (16 : BitVec 12)
+    (base + (244 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (16 : BitVec 12) = sp - (32 : Word) from by
+    rw [show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide]; bv_omega] at E2
+  have E3 := ld_spec_gen_within .x19 .x2 (sp - (48 : Word)) z19 v19 (24 : BitVec 12)
+    (base + (248 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (24 : BitVec 12) = sp - (24 : Word) from by
+    rw [show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide]; bv_omega] at E3
+  have E4 := ld_spec_gen_within .x20 .x2 (sp - (48 : Word)) z20 v20 (32 : BitVec 12)
+    (base + (252 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (32 : BitVec 12) = sp - (16 : Word) from by
+    rw [show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide]; bv_omega] at E4
+  have E5 := ld_spec_gen_within .x21 .x2 (sp - (48 : Word)) z21 v21 (40 : BitVec 12)
+    (base + (256 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (40 : BitVec 12) = sp - (8 : Word) from by
+    rw [show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide]; bv_omega] at E5
+  have E6 := addi_spec_gen_same_within .x2 (sp - (48 : Word)) (48 : BitVec 12)
+    (base + (260 : Word)) (by nofun)
+  rw [show (sp - (48 : Word)) + signExtend12 (48 : BitVec 12) = sp from by
+    rw [show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide]; bv_omega] at E6
+  have E7 := EvmAsm.Evm64.ret_spec_within' (base + (264 : Word)) ra
+  runBlock E0 E1 E2 E3 E4 E5 E6 E7
+
+/-! ## The deployed (anchored) whole-routine contract -/
+
+/-- The account table's base, on its linked `.bss` address. -/
+abbrev BBACC : Word := (GuestAddrs.bal_builder_accounts : Word)
+
+/-- The row-count cell, on its linked `.bss` address. -/
+abbrev BBCNT : Word := (GuestAddrs.bal_builder_account_count : Word)
+
+theorem bbeaProg_sub_bbeaCR :
+    ∀ a i, CodeReq.ofProg BBEA balBuilderEnsureAccount_prog a = some i → bbeaCR a = some i :=
+  fun _ _ h => h
+
+/-- ⭐ **`bal_builder_ensure_account`, whole routine, intern-into-an-empty-table
+    arm.**
+
+    Entry `GuestAddrs.bal_builder_ensure_account`, exit `ra &&& ~~~1` — the
+    caller's return address — over `bbeaCR`, which pairs the linked
+    `GuestAddrs` entry with `balBuilderEnsureAccount_prog` exactly as
+    `GuestImageEntries` does.
+
+    ⭐ **A single `CodeReq.ofProg`, because the routine is a LEAF.** #13176,
+    #13179 and #13186 each needed a two-program union; this one does not, and
+    that is the property that makes it usable as a callee contract by the
+    three `bal_builder_append_*` routines whose unconditional
+    `jal ra, bal_builder_ensure_account` currently blocks them.
+
+    One named gate selects the arm:
+
+    * `bal_builder_account_count ↦ₘ 0` — the table is empty, so the scan
+      guard `bgeu s3, s2` at index 14 is taken with ZERO iterations and the
+      140000-row capacity branch at index 34 falls through.
+
+    Under it the routine **interns the key at row 0**: the caller's twenty
+    address bytes are copied into `bal_builder_accounts`
+    (`copyIntoRegion rowBytes keyBytes 0 0 20`), the count cell goes `0 → 1`,
+    and `a0 = 0` — the stable table index the three appenders then use.  Both
+    facts are stated over honest regions rather than framed away.
+
+    ⚠️ **Register discipline read from the Program, not the docstring**
+    (#13182).  `s0`-`s5` and `sp` come back at their entry values because
+    indices 59..64 reload exactly the six slots indices 1..6 spilled.  `ra` is
+    NOT spilled — the frame has no `ra` slot, this being a leaf — and survives
+    only because nothing writes it; the post says so by returning `.x1 ↦ᵣ ra`.
+    `t0`-`t2` are clobbered and the post states their values (`t0 = 1`, the
+    two cursors one past the copied key); `x28` is left as `regOwn`.
+
+    ⚠️ NOT proven: the hit arm, the append-at-a-nonzero-index arm, and the
+    capacity/overflow arm at index 54.  The registry row is `.conditional`
+    with the empty-table gate named. -/
+theorem balBuilderEnsureAccountAppendEmptyFlat_spec
+    (sp ra addrPtr v5 v6 v7 v8 v9 v18 v19 v20 v21 v28 : Word)
+    (keyBytes rowBytes : List (BitVec 8))
+    (h_key_align : addrPtr.toNat % 8 = 0)
+    (h_key_len : keyBytes.length = 20)
+    (h_row_len : 20 ≤ rowBytes.length)
+    (h_key_over : addrPtr.toNat + keyBytes.length < 2 ^ 64)
+    (h_row_over : BBACC.toNat + rowBytes.length < 2 ^ 64)
+    (h_key_valid : ∀ k, k < keyBytes.length →
+      isValidByteAccess (addrPtr + BitVec.ofNat 64 k) = true)
+    (h_row_valid : ∀ k, k < rowBytes.length →
+      isValidByteAccess (BBACC + BitVec.ofNat 64 k) = true) :
+    cpsTripleWithin 179 BBEA (ra &&& ~~~(1 : Word)) bbeaCR
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) **
+       (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) **
+       (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ addrPtr) **
+       (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+       (.x28 ↦ᵣ v28) **
+       memOwn (sp - (48 : Word)) ** memOwn (sp - (40 : Word)) **
+       memOwn (sp - (32 : Word)) ** memOwn (sp - (24 : Word)) **
+       memOwn (sp - (16 : Word)) ** memOwn (sp - (8 : Word)) **
+       (BBCNT ↦ₘ (0 : Word)) **
+       bytesRegion addrPtr keyBytes ** bytesRegion BBACC rowBytes)
+      ((.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ ra) ** (.x2 ↦ᵣ sp) **
+       (.x5 ↦ᵣ (1 : Word)) ** (.x6 ↦ᵣ (BBACC + BitVec.ofNat 64 20)) **
+       (.x7 ↦ᵣ (addrPtr + BitVec.ofNat 64 20)) **
+       (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x10 ↦ᵣ (0 : Word)) **
+       (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19) ** (.x20 ↦ᵣ v20) ** (.x21 ↦ᵣ v21) **
+       regOwn .x28 **
+       ((sp - (48 : Word)) ↦ₘ v8) ** ((sp - (40 : Word)) ↦ₘ v9) **
+       ((sp - (32 : Word)) ↦ₘ v18) ** ((sp - (24 : Word)) ↦ₘ v19) **
+       ((sp - (16 : Word)) ↦ₘ v20) ** ((sp - (8 : Word)) ↦ₘ v21) **
+       (BBCNT ↦ₘ (1 : Word)) **
+       bytesRegion addrPtr keyBytes **
+       bytesRegion BBACC (copyIntoRegion rowBytes keyBytes 0 0 20)) := by
+  -- segment A: prologue, the two `la`s, the empty-table guard
+  have hA := cpsTripleWithin_extend_code bbeaProg_sub_bbeaCR
+    (balBuilderEnsureAccount_segA_body_spec BBEA sp addrPtr BBCNT BBACC
+      v8 v9 v18 v19 v20 v21 (by decide +kernel) (by decide +kernel) (by decide +kernel))
+  have hA := cpsTripleWithin_frameR
+    ((.x1 ↦ᵣ ra) ** (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x7 ↦ᵣ v7) ** (.x28 ↦ᵣ v28) **
+     bytesRegion addrPtr keyBytes ** bytesRegion BBACC rowBytes)
+    (by pcFree) hA
+  -- segment B: the capacity check and the row-0 cursor setup
+  have hB := cpsTripleWithin_extend_code bbeaProg_sub_bbeaCR
+    (balBuilderEnsureAccount_segB_body_spec BBEA addrPtr BBACC v5 v6 v7 v21
+      (by decide +kernel))
+  -- segment C: the twenty-iteration key copy
+  have hC0 := balBuilderEnsureAccount_copyLoop_spec BBEA addrPtr BBACC keyBytes rowBytes
+    h_key_align (by decide +kernel) h_key_len h_row_len h_key_over h_row_over
+    h_key_valid h_row_valid
+  simp only [bbeaCopyInv,
+    show BBACC + BitVec.ofNat 64 0 = BBACC from by bv_omega,
+    show addrPtr + BitVec.ofNat 64 0 = addrPtr from by bv_omega,
+    show copyIntoRegion rowBytes keyBytes 0 0 0 = rowBytes from rfl] at hC0
+  have hC := cpsTripleWithin_extend_code bbeaProg_sub_bbeaCR
+    (cpsTripleWithin_weaken
+      (P' := ((.x5 : Reg) ↦ᵣ (20 : Word)) ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+        ((.x6 : Reg) ↦ᵣ BBACC) ** ((.x7 : Reg) ↦ᵣ addrPtr) ** ((.x28 : Reg) ↦ᵣ v28) **
+        bytesRegion addrPtr keyBytes ** bytesRegion BBACC rowBytes)
+      (fun _ hp => by
+        have hp2 := sepConj_mono_right (sepConj_mono_right (sepConj_mono_right
+          (sepConj_mono_right (sepConj_mono_left (regIs_implies_regOwn .x28))))) _ hp
+        xperm_chunked hp2)
+      (fun _ hq => hq) hC0)
+  -- segment D: commit the row count and the interned index
+  have hD := cpsTripleWithin_extend_code bbeaProg_sub_bbeaCR
+    (balBuilderEnsureAccount_segD_body_spec BBEA BBCNT (0 : Word) addrPtr (0 : Word))
+  -- segment E: the epilogue
+  have hE := cpsTripleWithin_extend_code bbeaProg_sub_bbeaCR
+    (balBuilderEnsureAccount_segE_body_spec BBEA sp ra v8 v9 v18 v19 v20 v21
+      addrPtr BBCNT (0 : Word) (0 : Word) BBACC BBACC)
+  seqFrame hA hB
+  seqFrame hAhB hC
+  seqFrame hAhBhC hD
+  seqFrame hAhBhChD hE
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_chunked hp)
+    (fun _ hq => by xperm_chunked hq) hAhBhChDhE
+
+/-! ## Axiom audit — classical-only. -/
+
+#print axioms balBuilderEnsureAccountAppendEmptyFlat_spec
+
 end EvmAsm.Codegen.Proofs
