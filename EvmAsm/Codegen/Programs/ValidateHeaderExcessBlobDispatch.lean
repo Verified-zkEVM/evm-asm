@@ -13,6 +13,8 @@
 
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasSpec
 import EvmAsm.Codegen.Programs.HeaderValidateExcessBlobGasArms
+import EvmAsm.Codegen.Programs.ValidateHeaderCheckGasLimit
+import EvmAsm.Codegen.Programs.CheckGasLimitSAsm
 import EvmAsm.Rv64.SAsm.AbiFrameCall
 import EvmAsm.Evm64.CallingConvention
 import EvmAsm.Codegen.Programs.ValidateHeaderInlineArms
@@ -22,12 +24,17 @@ set_option maxRecDepth 8000
 namespace EvmAsm.Codegen.ValidateHeaderInlineArms
 
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
+open EvmAsm.Codegen
 open EvmAsm.Codegen.ValidateHeaderCorrespondence
 open EvmAsm.Codegen.ValidateHeaderGasCorrespondence
   (excessFrame excessSavedFrame excessEntryRest excessCalleePost excessFrameVals
     ExcessRet ExcessK k70Cr k70Target
     validate_header_excess_blob_gas_call_spec_within
     header_validate_excess_blob_gas_under_target_spec_within)
+open EvmAsm.Codegen.ValidateHeaderCheckGasLimit
+  (callerFrame checkGasLimitStatus4Post checkGasLimitFallPost
+    validate_header_check_gas_limit_routes_spec_within)
+open EvmAsm.Codegen.CheckGasLimitSAsm (cglStatus)
 
 /-! ## Excess-blob dispatch composition (`H+56 → H+88`, first increment)
 
@@ -266,5 +273,203 @@ theorem excessBlobDispatch_spec
       xperm_hyp hq) s9
 
 
+
+
+/-! ## Gas-check dispatch composition (`H+88 → H+116`, second increment)
+
+    `ldGasUsed` → `ldGasLimit` → `gasUsedExceeds_ntaken` (gate:
+    `¬ ult gasLimit gasUsed`) → `ldThisGasLimit` → `ldParentGasLimit`, then the
+    `check_gas_limit` JAL via the PROVEN routes spec
+    `validate_header_check_gas_limit_routes_spec_within` (a two-exit N-branch:
+    the status-4 taken tail to `raIn`, and the fall-through to `H+116`).
+    Unlike the K70 increment, `check_gas_limit` is `.proven`, so no `hcallee`
+    hypothesis is needed; item three is here exercised on a proven callee's
+    two-exit N-branch.  The caller frame keeps `x18`/`x19` and the header/parent
+    memory atoms as standalone atoms (the five argument arms require them), the
+    remaining caller state rides in `cglFrame` (the check-gas `callerFrame`
+    minus `x18`/`x19`). -/
+
+abbrev cglCode : CodeReq :=
+  CodeReq.ofProg (GuestAddrs.check_gas_limit : Word) checkGasLimit_prog
+
+abbrev cglFull : CodeReq := callerCode.union cglCode
+
+theorem cglFull_caller_mono :
+    ∀ a i, callerCode a = some i → cglFull a = some i := by
+  intro a i h
+  unfold cglFull
+  exact CodeReq.union_mono_left a i h
+
+theorem caller_disjoint_cgl :
+    callerCode.Disjoint cglCode := by
+  unfold callerCode cglCode
+  apply CodeReq.Disjoint.ofProg_ranges
+  · rw [validateHeader_length]; decide
+  · decide
+  · rw [validateHeader_length]; decide
+
+/-- The check-gas caller frame minus `x18`/`x19` (carried standalone by the
+    five argument arms).  Reassembly into the routes-spec pre's full
+    `callerFrame` happens in the final weaken. -/
+abbrev cglFrame
+    (spC raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 : Word)
+    (F : Assertion) : Assertion :=
+  (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ o8) ** (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) **
+  (spC ↦ₘ raSlot) ** ((spC + BitVec.ofNat 64 8) ↦ₘ cs0) **
+  ((spC + BitVec.ofNat 64 16) ↦ₘ cs1) **
+  ((spC + BitVec.ofNat 64 24) ↦ₘ cs2) **
+  ((spC + BitVec.ofNat 64 32) ↦ₘ cs3) **
+  ((spC + BitVec.ofNat 64 40) ↦ₘ cs4) **
+  ((spC + BitVec.ofNat 64 48) ↦ₘ cs5) ** F
+
+abbrev gasCheckPre
+    (spC headerBase parentStructPtr : Word)
+    (o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa : Word)
+    (raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 : Word)
+    (F : Assertion) : Assertion :=
+  ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ o5) ** ((headerBase + 88) ↦ₘ gasUsed) **
+    (.x0 ↦ᵣ (0 : Word)) ** (.x6 ↦ᵣ o6) ** ((headerBase + 80) ↦ₘ gasLimit) **
+    (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 80) ↦ₘ parentGasLimit) **
+    (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) **
+    (.x1 ↦ᵣ oldRa) ** regOwn .x7 **
+    cglFrame spC raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F)
+
+set_option maxRecDepth 8000 in
+theorem gasCheckDispatch_preCall
+    (spC headerBase parentStructPtr : Word)
+    (o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa : Word)
+    (raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (h_ok : ¬ BitVec.ult gasLimit gasUsed = true) :
+    cpsTripleWithin (1 + 1 + 1 + 1 + 1) (H + 88) (H + 108) cglFull
+      (gasCheckPre spC headerBase parentStructPtr
+        o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa
+        raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F)
+      (gasCheckPre spC headerBase parentStructPtr
+        (o5 := gasUsed) (o6 := gasLimit) (o10 := gasLimit) (o11 := parentGasLimit)
+        (gasUsed := gasUsed) (gasLimit := gasLimit) (parentGasLimit := parentGasLimit)
+        (oldRa := oldRa) raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F) := by
+  let frameRes : Assertion :=
+    (.x0 ↦ᵣ (0 : Word)) ** (.x1 ↦ᵣ oldRa) ** regOwn .x7 **
+    cglFrame spC raSlot o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F
+  have h1 := ldGasUsed headerBase o5 gasUsed
+  have h1C := cpsTripleWithin_extend_code cglFull_caller_mono h1
+  have h1F := cpsTripleWithin_frameR
+    ((.x6 ↦ᵣ o6) ** ((headerBase + 80) ↦ₘ gasLimit) **
+      (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 80) ↦ₘ parentGasLimit) **
+      (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** frameRes)
+    (by dsimp [frameRes]; pcf; exact hF) h1C
+  have h2 := ldGasLimit headerBase o6 gasLimit
+  have h2C := cpsTripleWithin_extend_code cglFull_caller_mono h2
+  have h2F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ gasUsed) ** ((headerBase + 88) ↦ₘ gasUsed) **
+      (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 80) ↦ₘ parentGasLimit) **
+      (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** frameRes)
+    (by dsimp [frameRes]; pcf; exact hF) h2C
+  have h3 := gasUsedExceeds_ntaken gasLimit gasUsed h_ok
+  have h3C := cpsTripleWithin_extend_code cglFull_caller_mono h3
+  have h3F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** ((headerBase + 88) ↦ₘ gasUsed) **
+      ((headerBase + 80) ↦ₘ gasLimit) **
+      (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 80) ↦ₘ parentGasLimit) **
+      (.x10 ↦ᵣ o10) ** (.x11 ↦ᵣ o11) ** frameRes)
+    (by dsimp [frameRes]; pcf; exact hF) h3C
+  have h4 := ldThisGasLimit headerBase o10 gasLimit
+  have h4C := cpsTripleWithin_extend_code cglFull_caller_mono h4
+  have h4F := cpsTripleWithin_frameR
+    ((.x5 ↦ᵣ gasUsed) ** (.x6 ↦ᵣ gasLimit) **
+      ((headerBase + 88) ↦ₘ gasUsed) **
+      (.x19 ↦ᵣ parentStructPtr) ** ((parentStructPtr + 80) ↦ₘ parentGasLimit) **
+      (.x11 ↦ᵣ o11) ** frameRes)
+    (by dsimp [frameRes]; pcf; exact hF) h4C
+  have h5 := ldParentGasLimit parentStructPtr o11 parentGasLimit
+  have h5C := cpsTripleWithin_extend_code cglFull_caller_mono h5
+  have h5F := cpsTripleWithin_frameR
+    ((.x18 ↦ᵣ headerBase) ** (.x5 ↦ᵣ gasUsed) ** (.x6 ↦ᵣ gasLimit) **
+      (.x10 ↦ᵣ gasLimit) ** ((headerBase + 88) ↦ₘ gasUsed) **
+      ((headerBase + 80) ↦ₘ gasLimit) ** frameRes)
+    (by dsimp [frameRes]; pcf; exact hF) h5C
+  have s12 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h1F h2F
+  have s123 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s12 h3F
+  have s1234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s123 h4F
+  have s12345 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) s1234 h5F
+  exact cpsTripleWithin_weaken (fun _ hp => by dsimp [gasCheckPre, frameRes] at hp ⊢; xperm_hyp hp)
+    (fun _ hq => by dsimp [gasCheckPre, frameRes] at hq ⊢; xperm_hyp hq) s12345
+
+
+set_option maxRecDepth 8000 in
+theorem gasCheckDispatch_spec
+    (sp0 spC headerBase parentStructPtr : Word)
+    (o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa : Word)
+    (raIn o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 : Word)
+    (F : Assertion) (hF : F.pcFree)
+    (hspC : spC = sp0 + signExtend12 (-56 : BitVec 12))
+    (hret : raIn &&& ~~~(1 : Word) = raIn)
+    (h_ok : ¬ BitVec.ult gasLimit gasUsed = true) :
+    cpsNBranchWithin (5 + 23) (H + 88) cglFull
+      (gasCheckPre spC headerBase parentStructPtr
+        o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa
+        raIn o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F)
+      [(raIn, checkGasLimitStatus4Post sp0 spC raIn cs0 cs1 cs2 cs3 cs4 cs5
+          parentGasLimit gasLimit
+          (((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+            ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F)),
+       (H + 116, checkGasLimitFallPost spC raIn o8 o9 headerBase parentStructPtr o20 o21
+          cs0 cs1 cs2 cs3 cs4 cs5 gasLimit parentGasLimit
+          (((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+            ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F))] := by
+  have hpre := gasCheckDispatch_preCall spC headerBase parentStructPtr
+    o5 o6 o10 o11 gasUsed gasLimit parentGasLimit oldRa
+    raIn o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F hF h_ok
+  have hcalleeCode : ∀ a i,
+      CodeReq.ofProg (GuestAddrs.check_gas_limit : Word) checkGasLimit_prog a = some i →
+      cglCode a = some i := by
+    intro a i hi
+    unfold cglCode
+    exact hi
+  have hFmem : (((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+      ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F).pcFree := by
+    pcf
+    exact hF
+  have hroutes := validate_header_check_gas_limit_routes_spec_within
+    (cr := cglFull) (calleeCode := cglCode)
+    sp0 spC raIn o8 o9 headerBase parentStructPtr o20 o21 cs0 cs1 cs2 cs3 cs4 cs5
+    gasLimit parentGasLimit oldRa
+    (((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+      ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F)
+    hFmem caller_disjoint_cgl hcalleeCode (fun _ _ h => h) hspC hret
+  have hperm : ∀ h,
+      (gasCheckPre spC headerBase parentStructPtr
+        (o5 := gasUsed) (o6 := gasLimit) (o10 := gasLimit) (o11 := parentGasLimit)
+        (gasUsed := gasUsed) (gasLimit := gasLimit) (parentGasLimit := parentGasLimit)
+        (oldRa := oldRa) raIn o8 o9 o20 o21 cs0 cs1 cs2 cs3 cs4 cs5 F) h →
+      ((.x10 ↦ᵣ gasLimit) ** (.x11 ↦ᵣ parentGasLimit) ** (.x1 ↦ᵣ oldRa) **
+        regOwns [.x5, .x6, .x7] ** (.x0 ↦ᵣ (0 : Word)) **
+        callerFrame spC raIn o8 o9 headerBase parentStructPtr o20 o21
+          cs0 cs1 cs2 cs3 cs4 cs5
+          (((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+            ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F)) h := by
+    intro h hp
+    have hx5 : ∀ h, (.x5 ↦ᵣ gasUsed) h → regOwn .x5 h :=
+      regIs_implies_regOwn (r := .x5)
+    have hx6 : ∀ h, (.x6 ↦ᵣ gasLimit) h → regOwn .x6 h :=
+      regIs_implies_regOwn (r := .x6)
+    unfold gasCheckPre cglFrame at hp
+    unfold callerFrame at ⊢
+    simp only [regOwns, sepConj_emp_right'] at hp ⊢
+    have hp56 : (((.x5 ↦ᵣ gasUsed) ** (.x6 ↦ᵣ gasLimit)) **
+        ((.x0 ↦ᵣ (0 : Word)) ** (.x19 ↦ᵣ parentStructPtr) **
+          (.x10 ↦ᵣ gasLimit) ** (.x11 ↦ᵣ parentGasLimit) ** (.x1 ↦ᵣ oldRa) **
+          regOwn .x7 ** (.x18 ↦ᵣ headerBase) ** (.x2 ↦ᵣ spC) ** (.x8 ↦ᵣ o8) **
+          (.x9 ↦ᵣ o9) ** (.x20 ↦ᵣ o20) ** (.x21 ↦ᵣ o21) ** (spC ↦ₘ raIn) **
+          ((spC + BitVec.ofNat 64 8) ↦ₘ cs0) ** ((spC + BitVec.ofNat 64 16) ↦ₘ cs1) **
+          ((spC + BitVec.ofNat 64 24) ↦ₘ cs2) ** ((spC + BitVec.ofNat 64 32) ↦ₘ cs3) **
+          ((spC + BitVec.ofNat 64 40) ↦ₘ cs4) ** ((spC + BitVec.ofNat 64 48) ↦ₘ cs5) **
+          ((headerBase + 88) ↦ₘ gasUsed) ** ((headerBase + 80) ↦ₘ gasLimit) **
+          ((parentStructPtr + 80) ↦ₘ parentGasLimit) ** F)) h := by
+      xperm_hyp hp
+    have hpB := sepConj_mono_left (sepConj_mono hx5 hx6) _ hp56
+    xperm_hyp hpB
+  exact cpsTripleWithin_seq_cpsNBranchWithin_perm_same_cr hperm hpre hroutes
 
 end EvmAsm.Codegen.ValidateHeaderInlineArms
