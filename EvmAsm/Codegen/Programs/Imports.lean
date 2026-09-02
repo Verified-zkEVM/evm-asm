@@ -687,6 +687,7 @@ import EvmAsm.Codegen.Programs.SszPackBytesSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU256BeCallSAsm
 import EvmAsm.Codegen.Programs.RlpContentToU64CallSAsm
 import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthSpec
+import EvmAsm.Codegen.Programs.HeaderValidateExtraDataLengthCallWitness
 import EvmAsm.Codegen.Programs.ChainValidateExtraDataLengthSpec
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasUnderMaxSpec
 import EvmAsm.Codegen.Programs.ChainValidateBlobGasMultipleSpec
