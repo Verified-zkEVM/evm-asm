@@ -137,6 +137,7 @@ import EvmAsm.Codegen.Programs.MptWalkLeafPostHp
 import EvmAsm.Codegen.Programs.MptWalkLeafCmp
 import EvmAsm.Codegen.Programs.MptWalkLeafHp
 import EvmAsm.Codegen.Programs.MptWalkLeafHpCall
+import EvmAsm.Codegen.Programs.MptWalkHpCallWitness
 import EvmAsm.Codegen.Programs.MptWalkSetupBody
 import EvmAsm.Codegen.Programs.MptWalkRootResolve
 import EvmAsm.Codegen.Programs.MptWalkResiduals
