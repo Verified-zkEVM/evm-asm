@@ -24,6 +24,35 @@ if [[ ! -s "$ASM" ]]; then
   exit 2
 fi
 
+# GH #13256: the scanned assembly must be traced to THIS checkout's emitted
+# image, or the gate reports bytes the guest does not actually contain.  The
+# default ${OUT_PREFIX}.s is produced fresh by codegen-stateless-link-check.sh
+# and is tied by construction.  An explicit MISALIGNED_ACCESS_ASM override is
+# the untied path: CI once fed a stale /tmp fixture here and the gate scanned
+# bytes that were not the emitted image.  When a reference emits exists,
+# require byte-identity; otherwise refuse loudly.  The escape hatch exists
+# for scanning a deliberately different image and must be named, not silently
+# plausible.
+if [[ -n "${MISALIGNED_ACCESS_ASM:-}" ]]; then
+  if [[ -s "${OUT_PREFIX}.s" ]]; then
+    if ! cmp -s "$ASM" "${OUT_PREFIX}.s"; then
+      if [[ "${MISALIGNED_ACCESS_ALLOW_STALE:-0}" != 1 ]]; then
+        echo "check-misaligned-access: MISALIGNED_ACCESS_ASM=$ASM differs from the emitted ${OUT_PREFIX}.s" >&2
+        echo "refusing to scan an untied assembly input; set MISALIGNED_ACCESS_ALLOW_STALE=1 only to" >&2
+        echo "scan a deliberately different image (fixture/alternate build)" >&2
+        exit 3
+      fi
+      echo "check-misaligned-access: WARNING scanning $ASM (differs from emitted ${OUT_PREFIX}.s)" >&2
+    fi
+  else
+    if [[ "${MISALIGNED_ACCESS_ALLOW_STALE:-0}" != 1 ]]; then
+      echo "check-misaligned-access: MISALIGNED_ACCESS_ASM=$ASM set but no emitted ${OUT_PREFIX}.s to tie against" >&2
+      echo "run scripts/codegen-stateless-link-check.sh first, or set MISALIGNED_ACCESS_ALLOW_STALE=1" >&2
+      exit 3
+    fi
+  fi
+fi
+
 python3 scripts/audit-misaligned-access.py --self-test
 echo 'REAL CONTROL (known pre-fix scanner miss): validate_parent_hash_link'
 python3 scripts/audit-misaligned-access.py --routine validate_parent_hash_link "$ASM"
