@@ -5625,7 +5625,13 @@ def routineRegistryPartB : List RoutineEntry := [
   --
   -- ⛔ There is NO whole-body triple for this symbol, and no one-ITERATION
   -- triple for the loop it sits in. This row covers indices 6..10 only.
-  routine "dispatch_loop_body" .proven (some "dispatchStep_gasDebit_image")
+  --
+  -- ⚠️ The symbol carries its leading dot: `.dispatch_loop_body` is a LOCAL
+  -- label inside `runtime_dispatcher`, and that is how it appears in the linked
+  -- census (`scripts/asm-fixtures/symbol-addresses.tsv`) and how
+  -- `emitDispatchLoopCodeSizeStopGuard` emits it. Spelling it undotted makes
+  -- `check-routine-liveness.sh` read the row as a dead symbol.
+  routine ".dispatch_loop_body" .proven (some "dispatchStep_gasDebit_image")
       (notes := "THE PER-OPCODE GAS DEBIT, `cpsBranchWithin 5` at "
         ++ "`GuestAddrs.dispatch_loop_body + 24` (prog idx 6..10 of the "
         ++ "sixteen-instruction `dispatchLoopBody_prog`): `ld x7,568(x20)`, the "
