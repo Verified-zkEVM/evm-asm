@@ -68,7 +68,7 @@ exactly what its specification told it to find. Everything in §2 stands on
 evidence that predates it.
 
 **A signal scoring zero is not a broken signal.** The residual scanner reads
-162 `Residual`-named declarations today and 1
+165 `Residual`-named declarations today and 1
 of them name an unconverted routine. When that second figure is 0 it is a
 result, not a bug: every named discharge owner in the tree
 (`witnessLookupResidualNote`, `zkvmSha256ResidualNote`, `hpDecodeResidualNote`,
@@ -86,8 +86,8 @@ work.
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
+| 1 | `runtime_dispatcher_call` | 193 | resid 3; gate 1; calls 29 | label-string | 708 |
+| 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
 | 4 | `h_SLOAD` | 130 | obl 5; gate 2 | handler-spec | 1408 |
 | 5 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
@@ -362,8 +362,8 @@ bytes.
 
 | # | symbol | demand | evidence | shape | cost (B) |
 |---:|---|---:|---|---|---:|
-| 1 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
-| 2 | `runtime_dispatcher_call` | 167 | resid 3; gate 1; calls 16 | label-string | 708 |
+| 1 | `runtime_dispatcher_call` | 193 | resid 3; gate 1; calls 29 | label-string | 708 |
+| 2 | `.dispatch_loop` | 170 | obl 4; #11801,#11802; calls 10 | label-string | interior |
 | 3 | `h_ADD` | 150 | obl 4; #11801,#11802 | handler-spec | 168 |
 | 4 | `h_SLOAD` | 130 | obl 5; gate 2 | handler-spec | 1408 |
 | 5 | `rlp_walk_init` | 100 | #11901; gate 1; calls 178 | register | 212 |
