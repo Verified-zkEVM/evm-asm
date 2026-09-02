@@ -5684,6 +5684,14 @@ theorem routineConditionalCount_eq : routineCountTier .conditional = 61 := by de
 set_option maxRecDepth 16000 in
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by decide
 
+-- ⚠️ This was the LAST unbudgeted `decide` over the whole registry, and once
+-- #13213 chunked the list it became the BINDING row ceiling: measured, the
+-- registry elaborates at 244 rows and it is THIS theorem — not the code
+-- generator — that fails at 248. Unlike the codegen limit that motivated the
+-- chunk split, this is an ELABORATOR limit, so `maxRecDepth` does reach it,
+-- which is why every sibling total above already carries one. Still
+-- KERNEL-CHECKED; see the note under `routineCount_eq`.
+set_option maxRecDepth 40000 in
 /-- Every row names a witness theorem. The `none` case is what
     `scripts/gen-axiom-witnesses.py`'s cross-check would report as an
     unwitnessed row; asserting it here makes the registry itself refuse one. -/

@@ -52,6 +52,27 @@ ROW_RE = re.compile(r'\n  routine "([^"]+)"\s+\.(\w+)')
 
 CORR_ROW_RE = re.compile(r'\n  \{ family :=')
 
+# -- registry chunk ceiling (#13210) -------------------------------------------
+# `routineRegistry` is split into `routineRegistryPart*` chunks because a single
+# flat list hits the CODE GENERATOR's recursion limit -- a limit `set_option
+# maxRecDepth` does NOT reach, so the error names neither the registry nor a size
+# and the obvious remedy does nothing. Measured on the pre-split monolith: 243
+# rows build, 244 rows fail even when the added row's prose is 425 characters,
+# i.e. shorter than the smallest row already present. There was zero headroom.
+#
+# #13213 recorded that threshold as a comment at the split site. A number that
+# only a comment defends is a number that rots, so this enforces it: the split
+# bought headroom, and the point of the gate is that the NEXT contributor is told
+# to rechunk in one second by a message that names the cause, instead of
+# rediscovering the codegen error the hard way.
+CHUNK_RE = re.compile(
+    r'^def (routineRegistryPart[A-Za-z0-9_]*)\s*:\s*List RoutineEntry\s*:=\s*\[',
+    re.M)
+# The measured wall.
+CHUNK_CEILING = 244
+# Act well before it: a chunk this size still builds, but it is time to split.
+CHUNK_LIMIT = 200
+
 
 def _fail(msgs: list[str], msg: str) -> None:
     msgs.append(msg)
@@ -71,12 +92,62 @@ def _assert_literal(text: str, pattern: str, label: str, actual: int,
         _fail(msgs, f"{label}: asserts {claimed}, rows give {actual}")
 
 
+def chunk_row_counts(text: str) -> list[tuple[str, int]]:
+    """Rows per `routineRegistryPart*` chunk, in file order.
+
+    A chunk runs from its `:= [` to the next chunk header, or -- for the last
+    one -- to the `def routineRegistry :` that concatenates them.
+    """
+    starts = [(m.group(1), m.end()) for m in CHUNK_RE.finditer(text)]
+    if not starts:
+        return []
+    try:
+        tail = text.index("\ndef routineRegistry :", starts[-1][1])
+    except ValueError:
+        tail = len(text)
+    bounds = [s for _, s in starts[1:]] + [tail]
+    return [(name, len(ROW_RE.findall(text[start:end])))
+            for (name, start), end in zip(starts, bounds)]
+
+
+def check_chunk_ceiling(text: str, rows: list, msgs: list[str]) -> None:
+    """Keep every registry chunk clear of the codegen recursion wall (#13210)."""
+    counts = chunk_row_counts(text)
+    if not counts:
+        _fail(msgs, "Routines.lean: found NO routineRegistryPart* chunks -- "
+                    "either the registry was un-chunked (it will hit the code "
+                    "generator's recursion limit again; see #13210) or CHUNK_RE "
+                    "has drifted and this ceiling check is silently vacuous")
+        return
+
+    # Non-blindness control, the point of which is that a gate whose parser has
+    # gone blind PASSES. If the per-chunk walk does not account for every row
+    # the file-wide regex found, the slicing is wrong and the sizes are fiction.
+    chunked = sum(n for _, n in counts)
+    if chunked != len(rows):
+        _fail(msgs, f"Routines.lean: chunk walk saw {chunked} rows but the "
+                    f"file has {len(rows)} -- the chunk slicing is wrong, so "
+                    f"the ceiling check below cannot be trusted; fix CHUNK_RE "
+                    f"or chunk_row_counts")
+        return
+
+    for name, n in counts:
+        if n >= CHUNK_LIMIT:
+            _fail(msgs, f"Routines.lean: {name} holds {n} rows, at or past the "
+                        f"{CHUNK_LIMIT}-row rechunk limit (the measured code "
+                        f"generator wall is {CHUNK_CEILING}; `set_option "
+                        f"maxRecDepth` does NOT reach it). Add a new "
+                        f"`routineRegistryPart*` chunk and extend "
+                        f"`routineRegistry`; see #13210")
+
+
 def check_routines(text: str, msgs: list[str]) -> None:
     rows = ROW_RE.findall(text)
     if not rows:
         _fail(msgs, "Routines.lean: parsed ZERO rows -- the row syntax changed "
                     "and this gate is silently vacuous; fix ROW_RE")
         return
+    check_chunk_ceiling(text, rows, msgs)
     tiers = Counter(tier for _, tier in rows)
     symbols = {sym for sym, _ in rows}
 
@@ -227,13 +298,96 @@ def self_test() -> int:
     expect("planted: unparseable rows", run("-- no rows here --", ct),
            want_fail=True, needle="ZERO rows")
 
+    # -- chunk ceiling (#13210) ------------------------------------------------
+    def synth(chunks: list[tuple[str, int]]) -> str:
+        """A minimal registry with the given chunk layout."""
+        out = []
+        for name, n in chunks:
+            out.append(f"def {name} : List RoutineEntry := [")
+            out += [f'  routine "s{i}" .proven (some "t"),' for i in range(n)]
+            out.append("]\n")
+        out.append("def routineRegistry : List RoutineEntry := "
+                   + " ++ ".join(n for n, _ in chunks))
+        return "\n" + "\n".join(out) + "\n"
+
+    def chunk_msgs(text: str) -> list[str]:
+        msgs: list[str] = []
+        check_chunk_ceiling(text, ROW_RE.findall(text), msgs)
+        return msgs
+
+    # 6. An oversized chunk must be refused -- the whole point of the gate.
+    expect("planted: chunk at the rechunk limit",
+           chunk_msgs(synth([("routineRegistryPartA", CHUNK_LIMIT),
+                             ("routineRegistryPartB", 10)])),
+           want_fail=True, needle="rechunk limit")
+
+    # 6a. The limit must stay BELOW the measured wall. Raising it past
+    #     CHUNK_CEILING would leave the gate green right up to the build
+    #     failure it exists to pre-empt -- a limit that only fits today.
+    if CHUNK_LIMIT >= CHUNK_CEILING:
+        failures.append(f"CHUNK_LIMIT ({CHUNK_LIMIT}) is not below the measured "
+                        f"codegen wall CHUNK_CEILING ({CHUNK_CEILING}); the "
+                        f"gate would pass up to the failure it exists to prevent")
+
+    # 6b. WIRING control. Everything above calls check_chunk_ceiling directly,
+    #     so the ceiling check could be dropped from check_routines and every
+    #     one of them would still pass. This routes an oversized chunk through
+    #     the real entry point, which is the only thing that proves the gate is
+    #     actually reachable in a live run.
+    expect("wiring: oversized chunk seen through run()",
+           run(synth([("routineRegistryPartA", CHUNK_LIMIT),
+                      ("routineRegistryPartB", 10)]), ct),
+           want_fail=True, needle="rechunk limit")
+
+    # 7. ...and the check must not be merely strict. One row below the limit is
+    #    the shipping condition, so it must PASS, or the gate would block every
+    #    registry that is doing exactly what it asks.
+    expect("control: chunk just under the limit",
+           chunk_msgs(synth([("routineRegistryPartA", CHUNK_LIMIT - 1),
+                             ("routineRegistryPartB", CHUNK_LIMIT - 1)])),
+           want_fail=False)
+
+    # 8. Un-chunking the registry reintroduces the codegen wall #13213 removed,
+    #    and must be refused rather than silently skipped.
+    expect("planted: registry un-chunked",
+           chunk_msgs(rt.replace("routineRegistryPartA", "routineRegistryFlat")
+                        .replace("routineRegistryPartB", "routineRegistryFlat2")),
+           want_fail=True, needle="NO routineRegistryPart* chunks")
+
+    # 9. Blindness control, the one that matters: a chunk walk that LOSES rows
+    #    reports small chunks and PASSES, so the ceiling check would go quiet
+    #    exactly when the registry is growing. Rows living outside every
+    #    `Part*` chunk -- a new chunk appended below the concatenation, say --
+    #    must be caught by row conservation rather than silently dropped.
+    #
+    #    (Losing a chunk HEADER is the opposite, safe error: its rows are
+    #    absorbed into the preceding slice, so sizes over-count and the limit
+    #    fires early. Only under-counting can hide growth, so that is what this
+    #    control plants.)
+    orphaned = (synth([("routineRegistryPartA", 5), ("routineRegistryPartB", 5)])
+                + "\ndef strayRegistryRows : List RoutineEntry := [\n"
+                + "".join(f'  routine "o{i}" .proven (some "t"),\n' for i in range(4))
+                + "]\n")
+    expect("planted: rows outside every chunk", chunk_msgs(orphaned),
+           want_fail=True, needle="chunk walk saw")
+
+    # 10. The shipped registry must actually be seen by the walk -- a real
+    #     count, not an exit status (a blinded gate passes).
+    live = chunk_row_counts(rt)
+    if sum(n for _, n in live) != len(ROW_RE.findall(rt)) or len(live) < 2:
+        failures.append(f"control: live chunk walk is not seeing the registry: "
+                        f"{live}")
+
     if failures:
         print("SELF-TEST: FAIL")
         for f in failures:
             print("  " + f)
         return 1
-    print("SELF-TEST: PASS (6 checks: 1 clean control, "
-          "4 planted mismatches, 1 vacuity control)")
+    print("SELF-TEST: PASS (13 checks: 1 clean control, 4 planted mismatches, "
+          "1 vacuity control, 6 chunk-ceiling checks -- oversize, under-limit "
+          "control, limit-below-wall, run() wiring, un-chunked, "
+          "walk-blindness -- and 1 live-registry chunk control) "
+          f"-- live chunks: {', '.join(f'{n}={c}' for n, c in live)}")
     return 0
 
 
