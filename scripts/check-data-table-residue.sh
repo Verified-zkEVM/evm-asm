@@ -51,7 +51,19 @@
 #      reach the tables without naming the symbol).  Stores whose base the
 #      analysis cannot resolve are REPORTED, not failed on: they are the honest
 #      residual gap, and a count-based ratchet on them would only turn `main`
-#      red as the guest grows.
+#      red as the guest grows.  A base that is a known anchor plus a runtime
+#      term counts as UNRESOLVED even when the anchor is outside `.data` — the
+#      runtime term is unbounded here, so the anchor certifies nothing.
+#
+# A note on the static side of the neighbour question, which needs no leg of
+# its own: symbols in a linker-laid-out section mark positions in one
+# contiguous byte stream, and `scripts/check-opcode-tables.sh` already compares
+# all 2048 bytes at each table base against the Lean image.  So no neighbouring
+# object's bytes can statically occupy the range.  (Measured on this image, the
+# object below — `bls12_g2_msm_discount_table` at 0xa0b03f10 — emits exactly
+# 128 `.quad`s, ending precisely at `opcode_gas_costs`.)  The only overhang
+# that remains possible is DYNAMIC, and that is what leg 5's anchor+runtime
+# failure covers.
 #
 # Each leg was checked against a negative control that makes it FAIL, with the
 # expected reason, before the gate was wired: a store resolving into the range;
@@ -289,7 +301,7 @@ else:
 # leg 5: store reachability
 env = {}
 resolved_data, sym_data = [], []
-unknown = resolved_elsewhere = total_stores = 0
+unresolved = exact_elsewhere = total_stores = 0
 for a, mn, ops, ann, lab in insns:
     if a is None or a in targets:
         env = {}
@@ -341,23 +353,28 @@ for a, mn, ops, ann, lab in insns:
         total_stores += 1
         m = re.match(r"[a-z0-9]+,(-?\d+)\(([a-z0-9]+)\)$", ops)
         if not m:
-            unknown += 1
+            unresolved += 1
             continue
         base, off = env.get(m.group(2)), int(m.group(1))
         if base is None:
-            unknown += 1
+            unresolved += 1
         elif base[0] == "C":
             tgt = (base[1] + off) & M
             if data_base <= tgt < hi:
                 resolved_data.append((a, ops, tgt))
             else:
-                resolved_elsewhere += 1
+                exact_elsewhere += 1
         else:
+            # base = a known anchor PLUS a runtime term.  An anchor outside
+            # `.data` does NOT certify the store: the runtime term is unbounded
+            # by this analysis, so these count as uncertified.  What IS a hard
+            # failure is an anchor inside `.data` — that is exactly the
+            # over-long-write-to-a-neighbour shape.
             anchor = (base[1] + off) & M
             if data_base <= anchor < hi or data_base <= base[1] < hi:
                 sym_data.append((a, ops, anchor))
             else:
-                resolved_elsewhere += 1
+                unresolved += 1
 
 reaching = [(a, ops, t) for a, ops, t in resolved_data if lo <= t < hi]
 for a, ops, t in reaching:
@@ -367,16 +384,18 @@ for a, ops, t in sym_data:
         "term — it could reach the tables without naming the symbol")
 if not reaching and not sym_data:
     top = max((t for _, _, t in resolved_data), default=data_base)
-    print(f"  OK   stores: of {total_stores} store sites, {len(resolved_data)} "
-          f"resolve into .data — all at or below {top:#x}, {lo - top} bytes "
-          f"clear of the gas table — and {resolved_elsewhere} resolve outside "
-          f"it; none has a .data base plus a runtime index")
-print(f"       gap: {unknown} of the {total_stores} store sites have a base "
-      "this analysis cannot resolve (sp, call-crossing pointers, values loaded "
-      "from memory). Those are NOT certified by this gate; discharging them "
-      "needs a whole-program write map, which is why the Lean side states the "
-      "obligation (GuestImage.guestResidue_rejects_clobbered_tables) instead "
-      "of proving it.")
+    certified = len(resolved_data) + exact_elsewhere
+    print(f"  OK   stores: of {total_stores} store sites, {certified} have a "
+          f"fully constant address; {len(resolved_data)} of those land in "
+          f".data, all at or below {top:#x} — {lo - top} bytes clear of the gas "
+          f"table — and none has a .data anchor plus a runtime index")
+print(f"       gap: {unresolved} of the {total_stores} store sites are NOT "
+      "certified by this gate — the base is unresolvable (sp, call-crossing "
+      "pointers, values loaded from memory) or is a known anchor plus an "
+      "unbounded runtime term. Closing them needs a whole-program write map, "
+      "which is why the Lean side STATES the obligation "
+      "(GuestImage.guestResidue_rejects_clobbered_tables) rather than proving "
+      "it.")
 
 sys.exit(1 if fail else 0)
 PY
