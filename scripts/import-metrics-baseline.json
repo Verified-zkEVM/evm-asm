@@ -24623,8 +24623,8 @@
    ]
   },
   "EvmAsm.Evm64.DivMod.Compose.Base": {
-   "cone": 814,
-   "cone_bytes": 367950632,
+   "cone": 817,
+   "cone_bytes": 369595864,
    "private_cone": 1,
    "private_cone_bytes": 21415736,
    "cone_modules": [
@@ -24650,8 +24650,10 @@
     "EvmAsm.Codegen.Programs.StatelessGuest",
     "EvmAsm.Codegen.Programs.StatelessGuestEpilogue",
     "EvmAsm.Codegen.Programs.StorageMultiContract",
+    "EvmAsm.Codegen.Proofs.GuestImage",
     "EvmAsm.Codegen.Proofs.OpcodeTables",
     "EvmAsm.Codegen.Proofs.RegistryInvariants",
+    "EvmAsm.Codegen.Proofs.TopComposition",
     "EvmAsm.Codegen.Tests.Cases",
     "EvmAsm.Evm64",
     "EvmAsm.Evm64.AddMod.CarryLdShared",
@@ -25439,6 +25441,7 @@
     "EvmAsm.Progress.AxiomWitnesses",
     "EvmAsm.Progress.Correspondence",
     "EvmAsm.Progress.CycleBounds",
+    "EvmAsm.Progress.GuestImageCoverage",
     "EvmAsm.Progress.Obligations",
     "EvmAsm.Progress.Routines",
     "EvmAsm.Tests.ArithDiffCheck"

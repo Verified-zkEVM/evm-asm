@@ -54,6 +54,7 @@ ELF = os.path.join(ROOT, "gen-out/regionmap/stateless_guest.elf")
 TSV = os.path.join(ROOT, "scripts/asm-fixtures/symbol-addresses.tsv")
 FIXTURES = os.path.dirname(TSV)
 GUEST_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestAddrs.lean")
+HANDLER_ADDRS = os.path.join(ROOT, "EvmAsm/Codegen/GuestHandlerAddrs.lean")
 ENTRIES = os.path.join(ROOT, "EvmAsm/Codegen/Proofs/GuestImageEntries.lean")
 COVERAGE_DOC = os.path.join(ROOT, "docs/4ch8f-guest-image-coverage.md")
 TRANSCRIPTION_QUEUE_DOC = os.path.join(ROOT, "docs/4ch8f-transcription-queue.md")
@@ -98,6 +99,23 @@ def check_guest_addrs():
         return [("EvmAsm/Codegen/GuestAddrs.lean",
                  "scripts/asm-fixtures/symbol-addresses.tsv",
                  "python3 scripts/asm_to_program.py guest-addrs")]
+    return []
+
+
+def check_handler_addrs():
+    """GuestHandlerAddrs.lean vs tsv (check mode).
+
+    A SECOND projection of the same linker-facts table as ``guest-addrs``
+    (GH #13229): the ``h_*`` ``.text`` family, emitted as name-citing rows so
+    the addresses themselves still live only in ``GuestAddrs.lean``.  It needs
+    its own edge because a handler label can enter or leave the family without
+    moving any address that ``check-guest-addrs`` compares.
+    """
+    r = run(["python3", "scripts/asm_to_program.py", "check-handler-addrs"])
+    if r.returncode != 0:
+        return [("EvmAsm/Codegen/GuestHandlerAddrs.lean",
+                 "scripts/asm-fixtures/symbol-addresses.tsv",
+                 "python3 scripts/asm_to_program.py handler-addrs")]
     return []
 
 
@@ -233,6 +251,14 @@ GENERATORS = [
         "check": check_guest_addrs,
     },
     {
+        "name": "handler-addrs",
+        "generator": "scripts/asm_to_program.py handler-addrs",
+        "artifact": "EvmAsm/Codegen/GuestHandlerAddrs.lean",
+        "input": "scripts/asm-fixtures/symbol-addresses.tsv",
+        "regen": "python3 scripts/asm_to_program.py handler-addrs",
+        "check": check_handler_addrs,
+    },
+    {
         "name": "entries",
         "generator": "scripts/guest_image_coverage.py --emit-lean",
         "artifact": "EvmAsm/Codegen/Proofs/GuestImageEntries.lean",
@@ -281,11 +307,12 @@ CHECKS = [(spec["name"], spec["check"]) for spec in GENERATORS]
 # remaining edge is internally consistent.  The required-name set makes the
 # same failure explicit for each currently-known edge.  A new edge must add its
 # name here and receive a self-test negative control below.
-GENERATOR_COUNT_FLOOR = 8
+GENERATOR_COUNT_FLOOR = 9
 REQUIRED_GENERATOR_NAMES = frozenset({
     "fixture",
     "tsv",
     "guest-addrs",
+    "handler-addrs",
     "entries",
     "coverage-doc",
     "pins",
@@ -411,6 +438,22 @@ def self_test():
     expect("guest-addrs", GUEST_ADDRS,
            lambda p: restore(p, re.sub(rb"0x[0-9a-f]+", b"0x0", snapshot(p), count=1)),
            "GuestAddrs.lean")
+    # GH #13229. The handler-addr rows carry NO hex — they cite
+    # ``GuestAddrs.<label>`` by name, which is the point of the file — so the
+    # ``0x`` injections used above would silently no-op here.  Drop a row
+    # instead: that is the drift this edge exists to catch (a handler label
+    # entering or leaving the family without any address moving), and it is the
+    # failure that would otherwise resolve to the resolver's ``0`` default.
+    def _drop_handler_row(p):
+        cur = snapshot(p)
+        m = re.search(rb"\n  , \(\"h_[A-Za-z0-9_]+\", GuestAddrs\.[A-Za-z0-9_]+\)",
+                      cur)
+        if not m:
+            print("injection failed: no handler row in GuestHandlerAddrs.lean")
+            sys.exit(2)
+        restore(p, cur[:m.start()] + cur[m.end():])
+    expect("handler-addrs", HANDLER_ADDRS, _drop_handler_row,
+           "GuestHandlerAddrs.lean")
 
     ffile, fname = manifest_rows()[0]
     fpath = os.path.join(FIXTURES, fname + ".s")
@@ -463,7 +506,7 @@ def self_test():
             print("  " + f)
         return 1
     dirty = run(["git", "status", "--porcelain", "--", TSV, ENTRIES, PINS,
-                 GUEST_ADDRS, FIXTURES, COVERAGE_DOC,
+                 GUEST_ADDRS, HANDLER_ADDRS, FIXTURES, COVERAGE_DOC,
                  TRANSCRIPTION_QUEUE_DOC]).stdout.strip()
     if dirty:
         print("SELF-TEST FAILURE: tree not clean after restore:\n" + dirty)
