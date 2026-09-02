@@ -206,6 +206,7 @@ _BUNDLE_SOURCE_CHECK_ONLY = {
     "check-routine-liveness.sh",
     "check-specref-citations.py",
     "check-unimported.sh",
+    "check-wrapper-jal-vacuity.py",
     "import-graph-metrics.py",
     "proof-frontier.py",
 }
