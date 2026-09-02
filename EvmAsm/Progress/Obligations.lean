@@ -245,7 +245,7 @@ by composing this triple through `callWithin` (the tops still use \
 `shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
 separate hash-half five-slot compose after `validation_accept` (the parent \
 `execution_requests_hash` composition remains open)."],
-      auditedAt := some "2026-09-01 @13173-pairing",
+      auditedAt := some "2026-09-02 @13173-gas-debit",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
