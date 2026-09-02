@@ -328,11 +328,15 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.DispatchStepGas.dispatch_loop_head_not_covered
 
-#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_image
-
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_refutable
 
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_premises_satisfiable
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_controls
+
+#print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_body_shipped_instance
 
 #print axioms EvmAsm.Codegen.DispatchStepOpcode.dispatchStep_fetch_within
 
