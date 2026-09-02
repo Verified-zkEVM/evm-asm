@@ -1,21 +1,36 @@
 /-
   EvmAsm.Codegen.Proofs.DispatchStepOpcode
 
-  **The opcode half of the dispatch step** (GH #13173, obligation 4): the
-  `opcode_handlers` table load and the indirect `jalr` whose target is a
-  LOADED value, as a machine triple at its linked address.
+  **The opcode half of the dispatch step, and with it the whole dispatch
+  step** (GH #13173, obligation 4): the opcode fetch, both `.data` table
+  loads, and the indirect `jalr` whose target is a LOADED value — as machine
+  triples at their linked addresses.
 
   ## What #13224 left
 
   `Proofs/DispatchStepGas.lean` proved indices 6..10 of
   `dispatchLoopBody_prog` — the M30 gas debit and its out-of-gas exit.  The
-  residue is the fetch, the two `.data` table loads and the dispatch:
+  residue was everything on either side of it:
 
+      idx  0  (+0)    lbu   x5, 0(x10)          -- x5 := code[pc], THE OPCODE
+      idx  1  (+4)    slli  x5, x5, 3
+      idx  2  (+8)    auipc x6, %pcrel_hi(opcode_gas_costs)
+      idx  3  (+12)   addi  x6, x6, %pcrel_lo(...)
+      idx  4  (+16)   add   x6, x6, x5
+      idx  5  (+20)   ld    x6, 0(x6)           -- x6 := gasCosts[op]
+      ... idx 6..10: the gas debit, #13224 ...
       idx 11  (+44)   auipc x6, %pcrel_hi(opcode_handlers)
       idx 12  (+48)   addi  x6, x6, %pcrel_lo(...)
-      idx 13  (+52)   add   x6, x6, x5          -- x5 = op * 8
+      idx 13  (+52)   add   x6, x6, x5          -- x5 = op * 8, still
       idx 14  (+56)   ld    x7, 0(x6)           -- x7 := handlers[op]
       idx 15  (+60)   jalr  x1, 0(x7)           -- EXIT PC IS A LOADED VALUE
+
+  Three theorems: `dispatchStep_fetch_within` (0..5),
+  `dispatchStep_opcode_within` (11..15), and `dispatchStep_body_within`, which
+  composes those two around #13224's branch into a **`cpsBranchWithin 16` over
+  the whole sixteen-instruction body**, indexed by the fetched opcode.  `op` is
+  `code[i]` — a projection of the code region, not a parameter — so the body
+  theorem is one statement covering all 256 opcodes.
 
   ## A computed exit PC needs no new rule
 
@@ -344,6 +359,333 @@ theorem opcode_table_contents_not_scratch_determined :
         bytesRegion HT bs h → anyBytes HT bs.length h) :=
   ⟨by decide, by decide, fun bs h hb => bytesRegion_anyBytes HT bs h hb⟩
 
+/-! ### The other half of the opcode work: fetch and the gas-cost table load
+
+    Indices 0..5, the mirror image of 11..15 with a byte fetch in front of it:
+
+        idx 0  (+0)   lbu   x5, 0(x10)              -- x5 := code[pc]
+        idx 1  (+4)   slli  x5, x5, 3               -- x5 := op * 8
+        idx 2  (+8)   auipc x6, %pcrel_hi(opcode_gas_costs)
+        idx 3  (+12)  addi  x6, x6, %pcrel_lo(...)
+        idx 4  (+16)  add   x6, x6, x5
+        idx 5  (+20)  ld    x6, 0(x6)               -- x6 := gasCosts[op]
+
+    Exit `+24` is exactly `dispatchStep_gasDebit_within`'s entry, and `x6` is
+    exactly the `cost` that lemma left free. -/
+
+private theorem hi_gascosts :
+    Codegen.laHi GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop_body + 8)
+      = Rv64.laHi (B + 8) GT := by decide
+
+private theorem lo_gascosts :
+    Codegen.laLo GuestAddrs.opcode_gas_costs (GuestAddrs.dispatch_loop_body + 8)
+      = Rv64.laLo (B + 8) GT := by decide
+
+private theorem range_gascosts : laInRange (B + 8) GT := by decide
+
+/-- A zero-extended byte is the `Word` of its numeral — the step that turns
+    `bytesRegion_lbu_within`'s `code[i].zeroExtend 64` into the `op`-indexed
+    form the rest of the block wants. -/
+private theorem byte_zeroExtend (b : BitVec 8) :
+    b.zeroExtend 64 = BitVec.ofNat 64 b.toNat := by
+  apply BitVec.eq_of_toNat_eq; simp
+
+/-- **Fetch plus the gas-cost table load** (#13173, obligation 4): indices 0..5
+    of the shipped dispatcher loop body.
+
+    The opcode is `code[i]`, read out of the EVM bytecode region the loop's
+    `x10` points into — so `op` is not a free parameter here, it is the byte
+    the machine actually fetched.  Everything downstream is indexed by it:
+    `x5` leaves holding `8 * op` (and survives the gas debit untouched, which
+    is what lets `dispatchStep_opcode_within` reuse it eleven instructions
+    later), and `x6` leaves holding `gasCosts[op]` — precisely the `cost` that
+    `dispatchStep_gasDebit_within` takes as a free register.
+
+    The exit `B + 24` is that lemma's entry, so these two compose with no
+    interface to invent. -/
+theorem dispatchStep_fetch_within (codeBase : Word) (code : List (BitVec 8))
+    (i : Nat) (gasCosts : List Word) (old5 old6 : Word)
+    (hi : i < code.length)
+    (hbase : codeBase.toNat % 8 = 0)
+    (hover : codeBase.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (codeBase + BitVec.ofNat 64 i) = true)
+    (hop : (code[i]'hi).toNat < gasCosts.length) :
+    cpsTripleWithin 6 B (B + 24) dlbCode
+      (((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i)) ** ((.x5 : Reg) ↦ᵣ old5)
+          ** ((.x6 : Reg) ↦ᵣ old6)) ** bytesRegion codeBase code)
+        ** bytesRegion GT (tableBytes gasCosts))
+      (((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (gasCosts[(code[i]'hi).toNat]'hop)))
+          ** bytesRegion codeBase code)
+        ** bytesRegion GT (tableBytes gasCosts)) := by
+  obtain ⟨front, rest, hf, hr, heq⟩ :=
+    tableRegion_dword_at GT gasCosts (code[i]'hi).toNat hop
+  -- idx 0 (+0): lbu x5, 0(x10) — the opcode byte, out of the code region.
+  have hlbu := bytesRegion_lbu_within .x5 .x10 codeBase old5 B code i
+    (by decide) hbase hi hover hvalid
+  rw [byte_zeroExtend] at hlbu
+  have hlbuC := liftCode (cr' := dlbCode)
+    (cpsTripleWithin_frameR
+      (((.x6 : Reg) ↦ᵣ old6) ** bytesRegion GT (tableBytes gasCosts))
+      (by repeat' first
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj) hlbu) (by code_mem)
+  -- idx 1 (+4): slli x5, x5, 3.
+  have hslli := slli_spec_gen_same_within .x5
+    (BitVec.ofNat 64 (code[i]'hi).toNat) (3 : BitVec 6) (B + 4) (by decide)
+  rw [show (3 : BitVec 6).toNat = 3 from by decide,
+      ofNat_shiftLeft_three (code[i]'hi).toNat,
+      show (code[i]'hi).toNat * 8 = 8 * (code[i]'hi).toNat from by omega,
+      show (B + 4 : Word) + 4 = B + 8 from by decide] at hslli
+  have hslliC := liftCode (cr' := dlbCode)
+    (cpsTripleWithin_frameR
+      ((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i)) ** ((.x6 : Reg) ↦ᵣ old6))
+        ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts))
+      (by repeat' first
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj) hslli) (by code_mem)
+  have h01 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hlbuC hslliC
+  rw [heq] at h01
+  -- idx 2,3 (+8,+12): la x6, opcode_gas_costs.
+  have hla := la_materialize_within (cr := dlbCode) .x6 old6 (B + 8) GT
+    (by decide) range_gascosts
+    (by rw [← hi_gascosts]; code_mem)
+    (by rw [← lo_gascosts]; code_mem)
+  rw [show (B + 8 : Word) + 8 = B + 16 from by decide] at hla
+  have hlaF := cpsTripleWithin_frameR
+    ((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+        ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat)))
+      ** bytesRegion codeBase code
+      ** front ** ((GT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ↦ₘ (gasCosts[(code[i]'hi).toNat]'hop)) ** rest)
+    (by repeat' first
+      | assumption
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hla
+  -- idx 4 (+16): add x6, x6, x5.
+  have hadd := add_spec_gen_rd_eq_rs1_within .x6 .x5 GT
+    (BitVec.ofNat 64 (8 * (code[i]'hi).toNat)) (B + 16) (by decide)
+  rw [show (B + 16 : Word) + 4 = B + 20 from by decide] at hadd
+  have haddF := liftCode (cr' := dlbCode)
+    (cpsTripleWithin_frameR
+      ((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i)))
+        ** bytesRegion codeBase code
+        ** front ** ((GT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+            ↦ₘ (gasCosts[(code[i]'hi).toNat]'hop)) ** rest)
+      (by repeat' first
+        | assumption
+        | exact pcFree_regIs
+        | exact pcFree_memIs
+        | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj) hadd) (by code_mem)
+  -- idx 5 (+20): ld x6, 0(x6) — the gas-cost table read.
+  have hld := ld_spec_gen_same_within .x6
+    (GT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+    (gasCosts[(code[i]'hi).toNat]'hop) (0 : BitVec 12) (B + 20) (by decide)
+  rw [show (GT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          + signExtend12 (0 : BitVec 12)
+        = GT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat) from by
+        show _ + (0 : Word) = _; bv_omega,
+      show (B + 20 : Word) + 4 = B + 24 from by decide] at hld
+  have hldF := liftCode (cr' := dlbCode)
+    (cpsTripleWithin_frameR
+      ((((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat)))
+        ** bytesRegion codeBase code ** front ** rest)
+      (by repeat' first
+        | assumption
+        | exact pcFree_regIs
+        | exact bytesRegion_pcFree _ _
+        | apply pcFree_sepConj) hld) (by code_mem)
+  have h234 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    hlaF haddF
+  have h2345 := cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp)
+    h234 hldF
+  rw [heq]
+  exact cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq)
+    (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) h01 h2345)
+
+/-! ### The whole sixteen-instruction body, indexed by the fetched opcode -/
+
+/-- Sequence a triple onto the **taken** exit of a branch, with a permutation
+    slot on the join.  The dependency has `_with_perm_` only for the
+    fall-through side; this is that lemma conjugated by `cpsBranchWithin_swap`,
+    exactly as `DispatchStepGas.seq_taken_same_cr` derives the perm-free
+    version. -/
+theorem seq_taken_perm_same_cr {n1 n2 : Nat} {entry mid target exit_f : Word}
+    {cr : CodeReq} {P Q_t1 Q_f1 R Q_t2 : Assertion}
+    (h1 : cpsBranchWithin n1 entry cr P mid Q_t1 exit_f Q_f1)
+    (hperm : ∀ h, Q_t1 h → R h)
+    (h2 : cpsTripleWithin n2 mid target cr R Q_t2) :
+    cpsBranchWithin (n1 + n2) entry cr P target Q_t2 exit_f Q_f1 :=
+  cpsBranchWithin_swap
+    (cpsBranchWithin_seq_cpsTripleWithin_with_perm_same_cr
+      (cpsBranchWithin_swap h1) hperm h2 (fun _ hp => hp))
+
+set_option maxRecDepth 20000 in
+/-- **One whole dispatch step of the shipped loop body, indexed by the opcode
+    it fetched** (#13173, obligation 4, complete).
+
+    All sixteen instructions of `dispatchLoopBody_prog`, from its linked entry
+    `.dispatch_loop_body` to one of two exits:
+
+    * **dispatch** — `handlers[op]`, a LOADED value, with `x1` holding
+      `.dispatch_resume` so the handler returns into the loop, and
+      `env+568` debited by `gasCosts[op]`;
+    * **out of gas** — the linked `GuestAddrs.exit_outofgas`, with the gas cell
+      UNCHANGED.
+
+    `op` is `code[i]`, the byte the machine fetched through `x10`; it is not a
+    parameter of the statement but a projection of the code region, so this is
+    one theorem covering **all 256 opcodes** — the handler each reaches, and
+    the gas each is charged, are read out of the two tables by index.
+
+    Composed from `dispatchStep_fetch_within` (0..5),
+    `DispatchStepGas.dispatchStep_gasDebit_within` (6..10, #13224) and
+    `dispatchStep_opcode_within` (11..15); the step bound 16 is `6 + 5 + 5`,
+    and no execution runs both halves of the relaxed `bltu` pair inside the
+    middle factor.
+
+    ⚠️ The two tables' CONTENTS are premises, not facts about the shipped
+    image — `opcode_table_contents_not_scratch_determined`.  What is proven
+    unconditionally is the *control flow and the indexing*: whatever the
+    tables hold, this loop body charges the `op`-th gas entry and jumps to the
+    `op`-th handler. -/
+theorem dispatchStep_body_within (codeBase : Word) (code : List (BitVec 8))
+    (i : Nat) (gasCosts handlers : List Word)
+    (gp gas old1 old5 old6 old7 : Word)
+    (hi : i < code.length)
+    (hbase : codeBase.toNat % 8 = 0)
+    (hover : codeBase.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (codeBase + BitVec.ofNat 64 i) = true)
+    (hgc : (code[i]'hi).toNat < gasCosts.length)
+    (hh : (code[i]'hi).toNat < handlers.length)
+    (halign : ((handlers[(code[i]'hi).toNat]'hh) &&& ~~~(1 : Word))
+      = handlers[(code[i]'hi).toNat]'hh) :
+    cpsBranchWithin 16 B dlbCode
+      (((.x1 : Reg) ↦ᵣ old1) ** ((.x5 : Reg) ↦ᵣ old5) ** ((.x6 : Reg) ↦ᵣ old6)
+        ** ((.x7 : Reg) ↦ᵣ old7)
+        ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+        ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+        ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+        ** bytesRegion HT (tableBytes handlers))
+      (handlers[(code[i]'hi).toNat]'hh)
+        (((.x1 : Reg) ↦ᵣ (B + 64))
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (HT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat)))
+          ** ((.x7 : Reg) ↦ᵣ (handlers[(code[i]'hi).toNat]'hh))
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp)
+          ** ((gp + 568) ↦ₘ (gas - (gasCosts[(code[i]'hi).toNat]'hgc)))
+          ** ⌜¬ BitVec.ult gas (gasCosts[(code[i]'hi).toNat]'hgc)⌝
+          ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+          ** bytesRegion HT (tableBytes handlers))
+      (BitVec.ofNat 64 GuestAddrs.exit_outofgas)
+        (((.x1 : Reg) ↦ᵣ old1)
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (gasCosts[(code[i]'hi).toNat]'hgc))
+          ** ((.x7 : Reg) ↦ᵣ gas)
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+          ** ⌜BitVec.ult gas (gasCosts[(code[i]'hi).toNat]'hgc)⌝
+          ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+          ** bytesRegion HT (tableBytes handlers)) := by
+  -- 0..5: fetch and the gas-cost table load.
+  have hfetch := dispatchStep_fetch_within codeBase code i gasCosts old5 old6
+    hi hbase hover hvalid hgc
+  have hfetchF := cpsTripleWithin_frameR
+    (((.x1 : Reg) ↦ᵣ old1) ** ((.x7 : Reg) ↦ᵣ old7) ** ((.x20 : Reg) ↦ᵣ gp)
+      ** ((gp + 568) ↦ₘ gas) ** bytesRegion HT (tableBytes handlers))
+    (by repeat' first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj) hfetch
+  -- 6..10: the gas debit (#13224).
+  have hgasF := cpsBranchWithin_frameR
+    (((.x1 : Reg) ↦ᵣ old1)
+      ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+      ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+      ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+      ** bytesRegion HT (tableBytes handlers))
+    (by repeat' first
+      | exact pcFree_regIs
+      | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj)
+    (dispatchStep_gasDebit_within gp (gasCosts[(code[i]'hi).toNat]'hgc) gas old7)
+  have h010 := cpsTripleWithin_seq_cpsBranchWithin_perm_same_cr
+    (fun _ hp => by xperm_hyp hp) hfetchF hgasF
+  -- 11..15: the handler-table load and the indirect jump.
+  have hopF := cpsTripleWithin_frameR
+    (((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+      ** bytesRegion codeBase code ** ((.x20 : Reg) ↦ᵣ gp)
+      ** ((gp + 568) ↦ₘ (gas - (gasCosts[(code[i]'hi).toNat]'hgc)))
+      ** ⌜¬ BitVec.ult gas (gasCosts[(code[i]'hi).toNat]'hgc)⌝
+      ** bytesRegion GT (tableBytes gasCosts))
+    (by repeat' first
+      | exact pcFree_regIs
+      | exact pcFree_memIs
+      | exact pcFree_pure
+      | exact bytesRegion_pcFree _ _
+      | apply pcFree_sepConj)
+    (dispatchStep_opcode_within (code[i]'hi).toNat handlers hh halign old1
+      (gasCosts[(code[i]'hi).toNat]'hgc)
+      (gas - (gasCosts[(code[i]'hi).toNat]'hgc)))
+  exact cpsBranchWithin_weaken (fun _ hp => by xperm_hyp hp)
+    (fun _ hq => by xperm_hyp hq) (fun _ hq => by xperm_hyp hq)
+    (seq_taken_perm_same_cr h010 (fun _ hp => by xperm_hyp hp) hopF)
+
+/-- **The whole dispatch step inside the image `CodeReq`.** -/
+theorem dispatchStep_body_image (codeBase : Word) (code : List (BitVec 8))
+    (i : Nat) (gasCosts handlers : List Word)
+    (gp gas old1 old5 old6 old7 : Word)
+    (hi : i < code.length)
+    (hbase : codeBase.toNat % 8 = 0)
+    (hover : codeBase.toNat + i < 2 ^ 64)
+    (hvalid : isValidByteAccess (codeBase + BitVec.ofNat 64 i) = true)
+    (hgc : (code[i]'hi).toNat < gasCosts.length)
+    (hh : (code[i]'hi).toNat < handlers.length)
+    (halign : ((handlers[(code[i]'hi).toNat]'hh) &&& ~~~(1 : Word))
+      = handlers[(code[i]'hi).toNat]'hh) :
+    cpsBranchWithin 16 B guestImageCodeReq
+      (((.x1 : Reg) ↦ᵣ old1) ** ((.x5 : Reg) ↦ᵣ old5) ** ((.x6 : Reg) ↦ᵣ old6)
+        ** ((.x7 : Reg) ↦ᵣ old7)
+        ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+        ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+        ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+        ** bytesRegion HT (tableBytes handlers))
+      (handlers[(code[i]'hi).toNat]'hh)
+        (((.x1 : Reg) ↦ᵣ (B + 64))
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (HT + BitVec.ofNat 64 (8 * (code[i]'hi).toNat)))
+          ** ((.x7 : Reg) ↦ᵣ (handlers[(code[i]'hi).toNat]'hh))
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp)
+          ** ((gp + 568) ↦ₘ (gas - (gasCosts[(code[i]'hi).toNat]'hgc)))
+          ** ⌜¬ BitVec.ult gas (gasCosts[(code[i]'hi).toNat]'hgc)⌝
+          ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+          ** bytesRegion HT (tableBytes handlers))
+      (BitVec.ofNat 64 GuestAddrs.exit_outofgas)
+        (((.x1 : Reg) ↦ᵣ old1)
+          ** ((.x5 : Reg) ↦ᵣ BitVec.ofNat 64 (8 * (code[i]'hi).toNat))
+          ** ((.x6 : Reg) ↦ᵣ (gasCosts[(code[i]'hi).toNat]'hgc))
+          ** ((.x7 : Reg) ↦ᵣ gas)
+          ** ((.x10 : Reg) ↦ᵣ (codeBase + BitVec.ofNat 64 i))
+          ** ((.x20 : Reg) ↦ᵣ gp) ** ((gp + 568) ↦ₘ gas)
+          ** ⌜BitVec.ult gas (gasCosts[(code[i]'hi).toNat]'hgc)⌝
+          ** bytesRegion codeBase code ** bytesRegion GT (tableBytes gasCosts)
+          ** bytesRegion HT (tableBytes handlers)) :=
+  cpsBranchWithin_extend_code dispatchLoopBody_block_sub
+    (dispatchStep_body_within codeBase code i gasCosts handlers gp gas
+      old1 old5 old6 old7 hi hbase hover hvalid hgc hh halign)
+
 /-! ### Non-vacuity -/
 
 /-- A concrete, non-degenerate handler-address resolver: distinct 4-aligned
@@ -382,6 +724,49 @@ theorem dispatchStep_opcode_instance :
       old1 old6 old7, by simp, by decide, ?_⟩ <;>
     · simp only [opcodeHandlerEntries, opcodeHandlerLabels]
       decide
+
+/-- A concrete EVM-code region for the whole-body witness: one byte, `0x01`
+    (ADD), at a dword-aligned address inside the model's RAM zone. -/
+def demoCodeBase : Word := BitVec.ofNat 64 0xa0c00000
+
+/-- The one-byte code region read by `dispatchStep_body_premises_satisfiable`. -/
+def demoCode : List (BitVec 8) := [(0x01 : BitVec 8)]
+
+/-- **The whole-body theorem's premise bundle is simultaneously satisfiable.**
+
+    All seven side conditions of `dispatchStep_body_within` hold at one
+    concrete point — an aligned, in-range, one-byte code region whose byte is
+    `0x01`, and the two 256-entry table mirrors.  So the hypothesis family is
+    not contradictory, and the whole-body triple is not vacuously true for want
+    of an instantiation.  (The conclusion is exhibited separately, at the
+    opcode half, by `dispatchStep_opcode_instance`: writing the sixteen-
+    instruction conclusion out again would restate it, not check it.) -/
+theorem dispatchStep_body_premises_satisfiable :
+    0 < demoCode.length
+    ∧ demoCodeBase.toNat % 8 = 0
+    ∧ demoCodeBase.toNat + 0 < 2 ^ 64
+    ∧ isValidByteAccess (demoCodeBase + BitVec.ofNat 64 0) = true
+    ∧ (demoCode[0]'(by decide)).toNat < opcodeGasCostEntries.length
+    ∧ (demoCode[0]'(by decide)).toNat
+        < (opcodeHandlerEntries demoResolver).length
+    ∧ ((((opcodeHandlerEntries demoResolver)[(demoCode[0]'(by decide)).toNat]'(by
+            simp [demoCode])) &&& ~~~(1 : Word))
+        = ((opcodeHandlerEntries demoResolver)[(demoCode[0]'(by decide)).toNat]'(by
+            simp [demoCode]))) := by
+  refine ⟨by decide, by decide, by decide, by decide, ?_, ?_, ?_⟩
+  · rw [length_opcodeGasCostEntries]; decide
+  · rw [length_opcodeHandlerEntries]; decide
+  · simp only [demoCode, opcodeHandlerEntries, opcodeHandlerLabels]
+    decide
+
+/-- **Negative control for the whole-body premises.**  Two of the region
+    side-conditions above, each provably FALSE at a concrete point: a
+    misaligned code base, and a code pointer in the gap between the model's
+    legacy zone and its RAM zone.  Neither is decoration —
+    `bytesRegion_lbu_within` is unusable without both. -/
+theorem dispatchStep_body_premises_refutable :
+    ¬ ((demoCodeBase + 1).toNat % 8 = 0)
+    ∧ isValidByteAccess (BitVec.ofNat 64 0x90000000) = false := by decide
 
 set_option maxRecDepth 40000 in
 /-- **Negative control.**  Three hypotheses of the family above, each provably

@@ -200,10 +200,21 @@ the dispatch step is now PROVED and must not be re-derived: the M30 gas debit \
 (prog idx 6..10 — the compare, the out-of-gas exit branch, the `sub`/`sd`) is a \
 `cpsBranchWithin 5` at the body's linked entry, lifted into `guestImageCodeReq` \
 and rowed in `Progress/Routines.lean` \
-(`Codegen/Proofs/DispatchStepGas.lean`, #13173). What remains is the OPCODE half \
-— the fetch, the two `.data` table loads and the indirect `jalr` into a handler \
-whose address is a loaded value, so the exit PC is not a constant — plus the \
-handler-side seam. And one iteration of the shipped loop ALSO runs the \
+(`Codegen/Proofs/DispatchStepGas.lean`, #13173). ⚠️ The OPCODE half is now ALSO \
+PROVED and must not be re-derived: `Codegen/Proofs/DispatchStepOpcode.lean` \
+carries the fetch and gas-table load (prog idx 0..5), the handler-table load \
+and the indirect `jalr` (prog idx 11..15), and `dispatchStep_body_within` — a \
+`cpsBranchWithin 16` over the WHOLE body, indexed by the byte the machine \
+fetched, whose dispatch exit PC is the LOADED handler address. A computed exit \
+needed no new CPS rule (`cpsTripleWithin`'s exit is a term), and the ready-made \
+`execBlock` → CPS bridges could not be reused because their `exposedRegs` \
+currency omits x1 and x20 (`regs_not_exposed_here`). What remains on the \
+machine side is (a) the two dispatch tables' CONTENTS, which no Lean statement \
+ties to the shipped image — the writable-`.data` tile is owned as havoc'd \
+`anyBytes`, so a `.data` counterpart of `guestImageCodeReq` is the missing \
+piece (`opcode_table_contents_not_scratch_determined` states that gap as a \
+theorem) — and (b) the handler-side seam. And one iteration of the shipped \
+loop ALSO runs the \
 code-size stop guard, which sits between the head label and the body and is \
 still an unconverted 348-byte span; measured, its HOT path is three \
 instructions and the rest is a halt route needing two callee contracts rather \
@@ -245,7 +256,7 @@ by composing this triple through `callWithin` (the tops still use \
 `shaCallWithinShape`). This retirement unblocks, but does not discharge, the \
 separate hash-half five-slot compose after `validation_accept` (the parent \
 `execution_requests_hash` composition remains open)."],
-      auditedAt := some "2026-09-02 @13173-gas-debit",
+      auditedAt := some "2026-09-02 @13173-opcode-half",
       note := "`InterpreterLoop.lean` + handler-table simulation ✅. Re-audited \
 2026-08-10 (#11803): the previous blocker (\"codegen M5 (tiny EVM interpreter) \
 not shipped\") cited SHIPPED work — PLAN.md:23 has listed M0–M10 done, including \
