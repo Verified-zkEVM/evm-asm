@@ -1074,4 +1074,123 @@ theorem legacyBodyEntryThroughExit_spec
     sourceSpec hsourcePrefix hsourceSuffix N hNok hNfail
   exact cpsTripleWithin_seq_same_cr hentry hjoin
 
+/-! ## Whole routine: the keccak path
+
+    `abiFrame_spec_own` wants the eight frame registers as `regsOwnAt` in the
+    post, so both outcome arms have to give their `regIs` values back as
+    ownership.  These two openers do that; they are generic in the registers
+    so the ok arm (all eight `regIs`) and the fail arm (`x22` already owned)
+    can share them. -/
+
+private theorem legacy_open7 (r1 r2 r3 r4 r5 r6 r7 : Reg)
+    (w1 w2 w3 w4 w5 w6 w7 : Word) (P : Assertion) (h : PartialState)
+    (hq : ((r1 ↦ᵣ w1) ** (r2 ↦ᵣ w2) ** (r3 ↦ᵣ w3) ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P) h) :
+    (regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 ** regOwn r5 **
+      regOwn r6 ** regOwn r7 ** P) h := by
+  have s1 : ((r1 ↦ᵣ w1) ** ((r2 ↦ᵣ w2) ** (r3 ↦ᵣ w3) ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp hq
+  have o1 := sepConj_mono_left (regIs_to_regOwn r1 w1) h s1
+  have s2 : ((r2 ↦ᵣ w2) ** (regOwn r1 ** (r3 ↦ᵣ w3) ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp o1
+  have o2 := sepConj_mono_left (regIs_to_regOwn r2 w2) h s2
+  have s3 : ((r3 ↦ᵣ w3) ** (regOwn r1 ** regOwn r2 ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp o2
+  have o3 := sepConj_mono_left (regIs_to_regOwn r3 w3) h s3
+  have s4 : ((r4 ↦ᵣ w4) ** (regOwn r1 ** regOwn r2 ** regOwn r3 **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp o3
+  have o4 := sepConj_mono_left (regIs_to_regOwn r4 w4) h s4
+  have s5 : ((r5 ↦ᵣ w5) ** (regOwn r1 ** regOwn r2 ** regOwn r3 **
+      regOwn r4 ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp o4
+  have o5 := sepConj_mono_left (regIs_to_regOwn r5 w5) h s5
+  have s6 : ((r6 ↦ᵣ w6) ** (regOwn r1 ** regOwn r2 ** regOwn r3 **
+      regOwn r4 ** regOwn r5 ** (r7 ↦ᵣ w7) ** P)) h := by xperm_hyp o5
+  have o6 := sepConj_mono_left (regIs_to_regOwn r6 w6) h s6
+  have s7 : ((r7 ↦ᵣ w7) ** (regOwn r1 ** regOwn r2 ** regOwn r3 **
+      regOwn r4 ** regOwn r5 ** regOwn r6 ** P)) h := by xperm_hyp o6
+  have o7 := sepConj_mono_left (regIs_to_regOwn r7 w7) h s7
+  xperm_hyp o7
+
+private theorem legacy_open8 (r1 r2 r3 r4 r5 r6 r7 r8 : Reg)
+    (w1 w2 w3 w4 w5 w6 w7 w8 : Word) (P : Assertion) (h : PartialState)
+    (hq : ((r1 ↦ᵣ w1) ** (r2 ↦ᵣ w2) ** (r3 ↦ᵣ w3) ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** (r8 ↦ᵣ w8) ** P) h) :
+    (regOwn r1 ** regOwn r2 ** regOwn r3 ** regOwn r4 ** regOwn r5 **
+      regOwn r6 ** regOwn r7 ** regOwn r8 ** P) h := by
+  have s8 : ((r8 ↦ᵣ w8) ** ((r1 ↦ᵣ w1) ** (r2 ↦ᵣ w2) ** (r3 ↦ᵣ w3) **
+      (r4 ↦ᵣ w4) ** (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** P)) h := by
+    xperm_hyp hq
+  have o8 := sepConj_mono_left (regIs_to_regOwn r8 w8) h s8
+  have hrest : ((r1 ↦ᵣ w1) ** (r2 ↦ᵣ w2) ** (r3 ↦ᵣ w3) ** (r4 ↦ᵣ w4) **
+      (r5 ↦ᵣ w5) ** (r6 ↦ᵣ w6) ** (r7 ↦ᵣ w7) ** (regOwn r8 ** P)) h := by
+    xperm_hyp o8
+  have h7 := legacy_open7 r1 r2 r3 r4 r5 r6 r7 w1 w2 w3 w4 w5 w6 w7
+    (regOwn r8 ** P) h hrest
+  xperm_hyp h7
+
+/-- Body-level caller footprint at H+36, i.e. the whole-routine precondition
+    minus the ABI frame's own registers and slots. -/
+def legacyWholeCallerPre (a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31 : Word)
+    (sp0 oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A F : Assertion) : Assertion :=
+  ((.x10 : Reg) ↦ᵣ a0) ** ((.x11 : Reg) ↦ᵣ a1) ** ((.x12 : Reg) ↦ᵣ a2) **
+    ((.x13 : Reg) ↦ᵣ a3) ** ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) **
+    ((.x7 : Reg) ↦ᵣ v7) ** ((.x14 : Reg) ↦ᵣ v14) **
+    ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+    ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion a0 input ** stackFree sp0 8 **
+    (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+    legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** F
+
+theorem legacyWholeCallerPre_pcFree
+    (a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31 : Word)
+    (sp0 oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A F : Assertion)
+    (hA : A.pcFree) (hF : F.pcFree) :
+    (legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+      sp0 oldOff oldLen cellOld old0 old1 old2 old3 old4 old5
+      input os A F).pcFree := by
+  unfold legacyWholeCallerPre
+  repeat first
+    | exact legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA
+    | exact hF
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_stackFree _ _
+    | apply pcFree_sepConj
+    | exact (by pcf)
+
+/-- Keccak-success outcome, with the ABI frame's registers/slots factored
+    out. -/
+def legacyWholeOkPost
+    (chainId payloadBase inPtr hdrLen outputBase sp0 v9 offVal lenVal : Word)
+    (payloadBytes : List (BitVec 8)) (A F : Assertion)
+    (source : KssSource := kssDefaultSource) : Assertion :=
+  frameSlotsSaved kssFrame (sp0 + signExtend12 ((-64 : BitVec 12)))
+      (kssEntryVals (legacyKssJalPC + 4) inPtr v9 chainId outputBase hdrLen
+        payloadBase (legacyKssBodyPayloadEnd chainId payloadBase)) **
+    kssCallerPost_multi legacyKssSegsBase outputBase
+      (legacyKssBodySegs chainId payloadBase inPtr hdrLen payloadBytes)
+      A source **
+    (legacyPrefixCellPtr ↦ₘ legacyKssBodyPrefixLen chainId payloadBase) **
+    legacyKssBodyProducedResidual chainId payloadBase offVal lenVal ** F
+
+/-- Status-1 reject outcome, with the ABI frame's registers/slots factored
+    out.  The two output cells still hold their entry values. -/
+def legacyWholeFailPost (v11 v12 sp0 a0 a2 a3 oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A F : Assertion) : Assertion :=
+  stackFree sp0 8 ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+    ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+    regOwn .x13 ** regOwn .x14 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+    bytesRegion a0 input **
+    (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+    legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** F **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+
 end EvmAsm.Codegen.TxSigningHashLegacyTop
