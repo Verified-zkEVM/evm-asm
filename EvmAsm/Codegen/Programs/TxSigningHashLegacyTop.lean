@@ -514,6 +514,30 @@ theorem legacyPayloadOf_take_self (input : List (BitVec 8))
       legacyPayloadOf input hdrLen offset len := by
   simp [legacyPayloadOf]
 
+theorem legacyPayloadOf_length_le (input : List (BitVec 8))
+    (hdrLen offset len : Word)
+    (hfit : hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length) :
+    (legacyPayloadOf input hdrLen offset len).length + hdrLen.toNat ≤
+      input.length := by
+  rw [legacyPayloadOf_length input hdrLen offset len hfit]
+  omega
+
+theorem legacyPayloadOf_bytes (input : List (BitVec 8))
+    (hdrLen offset len : Word)
+    (hlen : (legacyPayloadOf input hdrLen offset len).length + hdrLen.toNat ≤
+      input.length) :
+    ∀ i (hi : i < (legacyPayloadOf input hdrLen offset len).length),
+      input[hdrLen.toNat + i]'(by omega) =
+        (legacyPayloadOf input hdrLen offset len)[i]'hi := by
+  intro i hi
+  have hpayload := legacyPayloadOf_take_self input hdrLen offset len
+  have hi_take : i < ((input.drop hdrLen.toNat).take
+      (legacyPayloadOf input hdrLen offset len).length).length := by
+    rw [hpayload]; exact hi
+  have h1 := List.getElem_of_eq hpayload (i := i) hi_take
+  rw [List.getElem_take, List.getElem_drop] at h1
+  exact h1
+
 /-- The concrete KSS input-source view for the K146 payload slice.  Its
     `source` field is `kssInputSource` by construction, which is what the two
     static-view layout bridges are stated about. -/
@@ -524,10 +548,11 @@ noncomputable def legacyPayloadSourceSpec
     (hfit : hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length) :
     KssInputSourceSpec base hdrLen input
       (legacyPayloadOf input hdrLen offset len) :=
-  kssInputSourceSpec_of_payload base hdrLen input
+  kssInputSourceSpec base hdrLen input
     (legacyPayloadOf input hdrLen offset len) halign
-    (by rw [legacyPayloadOf_length input hdrLen offset len hfit]; omega)
-    hover (legacyPayloadOf_take_self input hdrLen offset len)
+    (legacyPayloadOf_length_le input hdrLen offset len hfit) hover
+    (legacyPayloadOf_bytes input hdrLen offset len
+      (legacyPayloadOf_length_le input hdrLen offset len hfit))
 
 theorem legacyPayloadSourceSpec_len
     (input : List (BitVec 8)) (base hdrLen offset len : Word)
@@ -1552,5 +1577,92 @@ theorem tx_signing_hash_legacy_eip155_spec_within
       hvalidBytes halign hover hvalid hbound h_out_valid hos hpayW hcount
       hsegs sourceSpec hsourcePrefix hsourceSuffix N hNok hNfail)
   exact h
+
+/-! ## Non-vacuity of the domain gate
+
+    The gate is `a1 ≠ 0` together with `hge`, i.e. `input[0]` is an
+    outer-RLP LIST header.  Both header widths satisfy it, and a string
+    header provably does not. -/
+
+/-- Short outer list header (`0xc4`): the gate holds and the parsed header
+    length is 1. -/
+theorem legacy_hdrGate_short_nonvacuous :
+    ∃ (input : List (BitVec 8)) (h0 : 0 < input.length),
+      ¬BitVec.ult (legacyHdrByte input h0) (192 : Word) ∧
+        legacyHdrLen input h0 = (1 : Word) :=
+  ⟨[0xc4, 0x83, 1, 2, 3], by decide, by decide, by decide⟩
+
+/-- Long outer list header (`0xf8`, one length byte): the gate holds and the
+    parsed header length is 2 — so the long arm is reachable too, and the
+    threaded `legacyHdrLen` is not silently pinned at 1. -/
+theorem legacy_hdrGate_long_nonvacuous :
+    ∃ (input : List (BitVec 8)) (h0 : 0 < input.length),
+      ¬BitVec.ult (legacyHdrByte input h0) (192 : Word) ∧
+        legacyHdrLen input h0 = (2 : Word) :=
+  ⟨[0xf8, 0x42, 0x83, 1, 2, 3], by decide, by decide, by decide⟩
+
+/-- Negative control: a string header (`0x80`) makes `hge` FALSE, so the
+    gate is a real domain restriction and not a hypothesis that holds
+    everywhere.  On those inputs the guest exits through its own status-1
+    reject at H+436 instead of through this triple. -/
+theorem legacy_hdrGate_false_on_string_header :
+    BitVec.ult (legacyHdrByte [0x80, 0x00] (by decide)) (192 : Word) = true := by
+  decide
+
+/-- Second negative control: `0xbf` is the last non-list first byte. -/
+theorem legacy_hdrGate_false_on_bf :
+    BitVec.ult (legacyHdrByte [0xbf, 0x00] (by decide)) (192 : Word) = true := by
+  decide
+
+/-! ## The payload/source hypotheses are jointly satisfiable
+
+    `hpayW`, `hsourcePrefix` and `hsourceSuffix` are the three hypotheses of
+    the whole-routine triple that mention the KSS source view.  They are not
+    independent: all three hold for the canonical payload slice, under the
+    caller-owned input-zone bound the production caller supplies.  Proving
+    them together rules out a source view that satisfies one and quietly
+    fails another. -/
+
+theorem legacyPayloadSupply
+    (input : List (BitVec 8)) (a0 offVal lenVal : Word)
+    (h0 : 0 < input.length)
+    (halign : a0.toNat % 8 = 0)
+    (hover : a0.toNat + input.length < 2 ^ 64)
+    (hinput_hi : a0.toNat + input.length ≤ EvmAsm.Codegen.INPUT_MEM_END)
+    (hfit : (legacyHdrLen input h0).toNat +
+      ((offVal + lenVal) - legacyHdrLen input h0).toNat ≤ input.length) :
+    BitVec.ofNat 64
+        (legacyPayloadOf input (legacyHdrLen input h0) offVal lenVal).length =
+      (offVal + lenVal) - legacyHdrLen input h0 ∧
+    (∀ bs : List (BitVec 8),
+      (legacyPayloadSourceSpec input a0 (legacyHdrLen input h0) offVal lenVal
+        halign hover hfit).source.region legacyPrefixOutPtr bs =
+        bytesRegion legacyPrefixOutPtr bs) ∧
+    (∀ bs : List (BitVec 8),
+      (legacyPayloadSourceSpec input a0 (legacyHdrLen input h0) offVal lenVal
+        halign hover hfit).source.region legacySuffixOutPtr bs =
+        bytesRegion legacySuffixOutPtr bs) := by
+  refine ⟨legacyPayloadSourceSpec_len input a0 (legacyHdrLen input h0) offVal
+    lenVal halign hover hfit, ?_, ?_⟩
+  · intro bs
+    show (kssInputSource a0 (legacyHdrLen input h0) input
+      (legacyPayloadOf input (legacyHdrLen input h0) offVal lenVal) halign
+      (legacyPayloadOf_length_le input (legacyHdrLen input h0) offVal lenVal
+        hfit)
+      hover
+      (legacyPayloadOf_bytes input (legacyHdrLen input h0) offVal lenVal
+        (legacyPayloadOf_length_le input (legacyHdrLen input h0) offVal lenVal
+          hfit))).region legacyPrefixOutPtr bs = _
+    exact legacyKssInputSource_prefix_region_of_input_layout _ _ _ _ hinput_hi bs
+  · intro bs
+    show (kssInputSource a0 (legacyHdrLen input h0) input
+      (legacyPayloadOf input (legacyHdrLen input h0) offVal lenVal) halign
+      (legacyPayloadOf_length_le input (legacyHdrLen input h0) offVal lenVal
+        hfit)
+      hover
+      (legacyPayloadOf_bytes input (legacyHdrLen input h0) offVal lenVal
+        (legacyPayloadOf_length_le input (legacyHdrLen input h0) offVal lenVal
+          hfit))).region legacySuffixOutPtr bs = _
+    exact legacyKssInputSource_suffix_region_of_input_layout _ _ _ _ hinput_hi bs
 
 end EvmAsm.Codegen.TxSigningHashLegacyTop
