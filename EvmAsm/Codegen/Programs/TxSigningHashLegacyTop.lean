@@ -860,4 +860,121 @@ theorem legacyNthFailThroughBodyExitFramed_spec
     unfold legacyNthFailState
     xperm_hyp hq
 
+/-- `Result` is a two-constructor inductive over its status/offset/length
+    indices; this flattens it so the join can `rcases` without relying on how
+    `cases` re-binds unified indices. -/
+private theorem legacyResult_split
+    {bytes : List (BitVec 8)} {base : Word} {listLen index : Nat}
+    {oldOffset oldLen status offset len : Word}
+    (h : EvmAsm.Codegen.RlpListNthItemSAsm.Result bytes base listLen index
+      oldOffset oldLen status offset len) :
+    (status = 0 ∧
+        EvmAsm.Codegen.RlpListNthItemSAsm.Success bytes base listLen index
+          offset len) ∨
+      (status = 1 ∧ offset = oldOffset ∧ len = oldLen) := by
+  cases h
+  · exact Or.inl ⟨rfl, by assumption⟩
+  · exact Or.inr ⟨rfl, rfl, rfl⟩
+
+/-! ## Joining the two arms at H+124 -/
+
+/-- Disjunctive body post: the keccak-success outcome, or the status-1
+    reject with the output cells unchanged. -/
+def legacyNthOutcomePost (Qok Qfail : Assertion) : Assertion :=
+  fun h => Qok h ∨ Qfail h
+
+/-- Both arms of the post-`rlp_list_nth_item` branch, from H+124 through the
+    routine's body exit. -/
+theorem legacyNthThroughBodyExit_spec
+    (X v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8)) (listLen : Nat)
+    (A R : Assertion) (hA : A.pcFree) (hR : R.pcFree)
+    (halign : legacyLinkedChainPtr.toNat % 8 = 0)
+    (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < 8 →
+      isValidByteAccess (legacyLinkedChainPtr + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * loopProg.length < 2 ^ 64)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (legacyPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hos : os.length = 200)
+    (hpayW : ∀ offVal lenVal,
+      EvmAsm.Codegen.RlpListNthItemSAsm.Success input a0 listLen 5 offVal lenVal →
+        BitVec.ofNat 64 payloadBs.length = ((offVal + lenVal) - hdrLen))
+    (hcount : ∀ offVal lenVal,
+      (legacyKssBodySegs a2 ((offVal + lenVal) - hdrLen)
+        a0 hdrLen payloadBs).length < 2 ^ 64)
+    (hsegs : ∀ offVal lenVal,
+      ∀ s ∈ legacyKssBodySegs a2 ((offVal + lenVal) - hdrLen)
+        a0 hdrLen payloadBs,
+        s.2.length < 2 ^ 64 ∧
+          (∀ i, i < s.2.length →
+            s.1.toNat + i < 2 ^ 64 ∧
+            isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (sourceSpec : KssInputSourceSpec a0 hdrLen input payloadBs)
+    (hsourcePrefix : ∀ offVal lenVal,
+      sourceSpec.source.region legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2 ((offVal + lenVal) - hdrLen)) =
+        bytesRegion legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2 ((offVal + lenVal) - hdrLen)))
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
+        (legacyKssBodySuffixBytes a2) =
+      bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes a2))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      1 + legacyBodyFuel a2 ((offVal + lenVal) - hdrLen) a0 hdrLen payloadBs ≤ N)
+    (hNfail : 2 ≤ N) :
+    cpsTripleWithin N (legacyH + 124) legacyBodyExit legacyFullCode
+      ((((.x1 : Reg) ↦ᵣ X) **
+        EvmAsm.Codegen.RlpListNthItemSAsm.callReturnResult sp0 a0 (5 : Word)
+          legacyNthOffPtr legacyNthLenPtr oldOff oldLen
+          { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2,
+            s3 := a3, s4 := hdrLen, s5 := v21 }
+          input listLen 5) **
+        (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R))
+      (legacyNthOutcomePost
+        (fun h => ∃ offVal lenVal,
+          legacyKssBodyFinal a2 ((offVal + lenVal) - hdrLen) a0 hdrLen a3 sp0 a1
+            offVal lenVal payloadBs A R sourceSpec.source h)
+        (fun h => ∃ v11 v12,
+          legacyNthFailState X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 oldOff oldLen
+            cellOld old0 old1 old2 old3 old4 old5 input os A R h)) := by
+  refine legacy_cpsTripleWithin_callReturn_pre sp0 a0 (5 : Word)
+    legacyNthOffPtr legacyNthLenPtr oldOff oldLen
+    { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2,
+      s3 := a3, s4 := hdrLen, s5 := v21 } input listLen 5 ?_
+  intro status offset len v11 v12 hres
+  rcases legacyResult_split hres with ⟨hst, hsucc⟩ | ⟨hst, hoffE, hlenE⟩
+  · subst hst
+    have hok := legacyNthOkThroughBodyExit_spec X v11 v12 v21 hdrLen sp0
+      a0 a1 a2 a3 offset len cellOld old0 old1 old2 old3 old4 old5
+      input payloadBs os A R hA hR halign hover hvalid hbound h_out_valid
+      (hpayW offset len hsucc) hos (hcount offset len)
+      (hsegs offset len) sourceSpec (hsourcePrefix offset len)
+      hsourceSuffix
+    refine cpsTripleWithin_mono_nSteps (hNok offset len)
+      (cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hok)
+    · unfold legacyNthOkBase legacyBodyBss
+      unfold legacyBodyBss
+        EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail at hp
+      unfold EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+      xperm_hyp hp
+    · exact Or.inl ⟨offset, len, hq⟩
+  · subst hst
+    subst hoffE
+    subst hlenE
+    have hfl := legacyNthFailThroughBodyExitFramed_spec X v11 v12 v21 hdrLen
+      sp0 a0 a1 a2 a3 offset len cellOld old0 old1 old2 old3 old4 old5
+      input os A R hA hR
+    refine cpsTripleWithin_mono_nSteps hNfail
+      (cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hfl)
+    · unfold legacyNthFailState
+      unfold legacyBodyBss
+        EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail at hp
+      unfold legacyBodyBss
+        EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+      xperm_hyp hp
+    · exact Or.inr ⟨v11, v12, hq⟩
+
 end EvmAsm.Codegen.TxSigningHashLegacyTop
