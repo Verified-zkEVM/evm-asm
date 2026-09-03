@@ -33,6 +33,13 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxSigningHashLegacySpec
 open EvmAsm.Codegen.TxSigningHashLegacyCompose
+open EvmAsm.Codegen.TxSigningHashLegacyChainCompose
+open EvmAsm.Codegen.TxSigningHashLegacyUintCompose
+open EvmAsm.Codegen.TxSigningHashLegacyPrefixCompose
+open EvmAsm.Codegen.TxSigningHashLegacyTailCompose
+open EvmAsm.Codegen.Proofs
+open EvmAsm.Codegen.RlpEncodeUintBeSAsm
+open EvmAsm.EL.RLP
 
 /-! ## Frame scaffolding for `abiFrame_spec_own` -/
 
@@ -426,5 +433,106 @@ theorem legacyEntryThroughNthCall_spec
       (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) ** F)
     h (by xperm_hyp hq)
   xperm_hyp hopened
+
+/-! ## The payload slice, concretely
+
+    `legacyNthSuccess_payloadSlice` hides both the payload list and the
+    `KssInputSourceSpec` behind existentials.  The two static-view bridges
+    (`legacyKssInputSource_{prefix,suffix}_region_of_input_layout`) are stated
+    about `kssInputSource` itself, so a whole-routine composition needs the
+    slice CONCRETELY.  Same arithmetic, opened up. -/
+
+/-- The canonical K146 payload slice: the outer list's content window, as
+    reported by `rlp_list_nth_item`'s selected offset/length. -/
+def legacyPayloadOf (input : List (BitVec 8)) (hdrLen offset len : Word) :
+    List (BitVec 8) :=
+  (input.drop hdrLen.toNat).take ((offset + len - hdrLen).toNat)
+
+theorem legacyPayloadOf_length (input : List (BitVec 8))
+    (hdrLen offset len : Word)
+    (hfit : hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length) :
+    (legacyPayloadOf input hdrLen offset len).length =
+      ((offset + len) - hdrLen).toNat := by
+  unfold legacyPayloadOf
+  simp only [List.length_take, List.length_drop]
+  omega
+
+/-- The size facts the KSS source constructor needs, derived from the Nth
+    success predicate. -/
+theorem legacyNthSuccess_payload_fit
+    {input : List (BitVec 8)} {base hdrLen : Word}
+    {listLen : Nat} {offset len : Word}
+    (h0 : 0 < input.length)
+    (hheader : hdrLen = legacyHdrLen input h0)
+    (hslack : listLen + 9 ≤ input.length)
+    (hover : base.toNat + input.length < 2 ^ 64)
+    (hsucc : EvmAsm.Codegen.RlpListNthItemSAsm.Success input base listLen 5
+      offset len) :
+    hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length := by
+  obtain ⟨cursorOff, endPtr, next, hlist, hnth, hoff⟩ := hsucc
+  have hend := hlist.end_eq
+  subst endPtr
+  have hcur := hlist.cursor_le
+  have hover9 : base.toNat + listLen + 9 < 2 ^ 64 := by omega
+  have hupper := legacyStrictNthItem_content_le hnth hcur hover9
+  have hlower := legacyStrictNthItem_content_ge hnth hcur hover9
+  have hcursor := legacyStrictListPayload_cursor_eq_hdrLen h0 hlist
+  have hcursorHdr : cursorOff = hdrLen.toNat := by
+    simpa [hheader] using hcursor
+  have hlower' : hdrLen.toNat ≤ offset.toNat := by
+    calc
+      hdrLen.toNat = cursorOff := hcursorHdr.symm
+      _ ≤ (next - len - base).toNat := hlower
+      _ = offset.toNat := by rw [hoff]
+  have hupper' : offset.toNat + len.toNat ≤ listLen := by
+    simpa [hoff] using hupper
+  have hsum : offset.toNat + len.toNat < 2 ^ 64 := by omega
+  have hsum_word : (offset + len).toNat = offset.toNat + len.toNat := by
+    rw [BitVec.toNat_add]
+    exact Nat.mod_eq_of_lt hsum
+  have hsub : ((offset + len) - hdrLen).toNat =
+      offset.toNat + len.toNat - hdrLen.toNat := by
+    rw [BitVec.toNat_sub, hsum_word]
+    rw [show 2 ^ 64 - hdrLen.toNat + (offset.toNat + len.toNat) =
+        2 ^ 64 + (offset.toNat + len.toNat - hdrLen.toNat) by omega]
+    rw [Nat.mod_eq_sub_mod (by omega)]
+    have hsub_lt : offset.toNat + len.toNat - hdrLen.toNat < 2 ^ 64 := by omega
+    have hcancel : 2 ^ 64 + (offset.toNat + len.toNat - hdrLen.toNat) - 2 ^ 64 =
+        offset.toNat + len.toNat - hdrLen.toNat := by omega
+    rw [hcancel, Nat.mod_eq_of_lt hsub_lt]
+  rw [hsub]
+  omega
+
+theorem legacyPayloadOf_take_self (input : List (BitVec 8))
+    (hdrLen offset len : Word) :
+    (input.drop hdrLen.toNat).take
+        (legacyPayloadOf input hdrLen offset len).length =
+      legacyPayloadOf input hdrLen offset len := by
+  simp [legacyPayloadOf]
+
+/-- The concrete KSS input-source view for the K146 payload slice.  Its
+    `source` field is `kssInputSource` by construction, which is what the two
+    static-view layout bridges are stated about. -/
+noncomputable def legacyPayloadSourceSpec
+    (input : List (BitVec 8)) (base hdrLen offset len : Word)
+    (halign : base.toNat % 8 = 0)
+    (hover : base.toNat + input.length < 2 ^ 64)
+    (hfit : hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length) :
+    KssInputSourceSpec base hdrLen input
+      (legacyPayloadOf input hdrLen offset len) :=
+  kssInputSourceSpec_of_payload base hdrLen input
+    (legacyPayloadOf input hdrLen offset len) halign
+    (by rw [legacyPayloadOf_length input hdrLen offset len hfit]; omega)
+    hover (legacyPayloadOf_take_self input hdrLen offset len)
+
+theorem legacyPayloadSourceSpec_len
+    (input : List (BitVec 8)) (base hdrLen offset len : Word)
+    (halign : base.toNat % 8 = 0)
+    (hover : base.toNat + input.length < 2 ^ 64)
+    (hfit : hdrLen.toNat + ((offset + len) - hdrLen).toNat ≤ input.length) :
+    BitVec.ofNat 64 (legacyPayloadOf input hdrLen offset len).length =
+      (offset + len) - hdrLen := by
+  rw [legacyPayloadOf_length input hdrLen offset len hfit]
+  rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
 
 end EvmAsm.Codegen.TxSigningHashLegacyTop
