@@ -1781,9 +1781,22 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   `InitCodeCostSAsm.lean` verifies `init_code_cost` byte-identically with a
   writable dword post (`a0 = 0`, output `= gasPerWord * ((len + 31) >> 5)`
   under exact RV64 wrapping semantics).
-  **SCOPE (GH #10524): these five dynamic-gas leaves are reachable ONLY from
-  `zisk_*` probe `BuildUnit`s — the opcode dispatcher does not call them.** It
-  uses six separate inline asm helpers in `Programs/EvmMemoryGas.lean` /
+  **SCOPE (GH #10524, mechanism corrected #13258): these five dynamic-gas
+  leaves are NOT LINKED into `stateless_guest` at all — the opcode dispatcher
+  does not call them.** This entry used to say they were "reachable ONLY from
+  `zisk_*` probe `BuildUnit`s"; that is no longer the mechanism, because those
+  probe `BuildUnit`s no longer exist in the registry. Today the only
+  emitter-side consumers are the orphaned `ziskDynamicOpcodeGasPrologue`
+  (`DynamicOpcodeGas.lean:149`), `ziskCallExtraGasPrologue`
+  (`EvmMessageCallGas.lean:175`) and `ziskNibblesCommonPrefixLenPrologue`
+  (`MptEncode.lean:1029`) strings, which nothing references — so
+  `check_routine_liveness.py` scores these leaves "absent referenced" purely
+  because a dead prologue string contains a `jal ra, <sym>`. None of the five
+  appears in `GuestAddrs.lean` or `scripts/asm-fixtures/symbol-addresses.tsv`,
+  so no flat-triple lift can turn their `Fn_spec`s into a claim about the
+  shipped image (#13258 tracks the retire-or-wire decision; #12386 is the
+  precedent). **The scoping ruling below is unaffected and still binding.** The
+  dispatcher uses six separate inline asm helpers in `Programs/EvmMemoryGas.lean` /
   `EvmMcopyGas.lean` (`updateActiveMemorySizeAsm`, `copyWordGasAsm`,
   `keccakWordGasAsm`, `logDynamicGasAsm`, `expDynamicGasAsm`,
   `mcopyDynamicGasAsm`) which compute *different* functions — base costs folded
