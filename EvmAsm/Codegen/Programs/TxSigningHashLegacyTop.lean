@@ -615,7 +615,6 @@ def legacyBodyBss (chainId cellOld outputBase : Word)
       (List.replicate
         (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length
         (0 : BitVec 8)) **
-    regOwn .x22 **
     legacyTailExtension
       (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length **
     (legacyKssSegsBase ↦ₘ old0) ** ((legacyKssSegsBase + 8) ↦ₘ old1) **
@@ -669,6 +668,7 @@ def legacyNthOkBase (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
     ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
     (legacyNthOffPtr ↦ₘ offVal) ** (legacyNthLenPtr ↦ₘ lenVal) **
+    regOwn .x22 **
     legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R
 
 /-- The Nth-success arm: fall through the `bne a0, x0` at H+124 and run the
@@ -791,6 +791,7 @@ def legacyNthFailState (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
     ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
     ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
     (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+    regOwn .x22 **
     legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R **
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
@@ -834,6 +835,7 @@ theorem legacyNthFailThroughBodyExitFramed_spec
       ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
       regOwn .x13 ** regOwn .x14 ** bytesRegion a0 input **
       (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+      regOwn .x22 **
       legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R **
       regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
       regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
@@ -932,7 +934,9 @@ theorem legacyNthThroughBodyExit_spec
           { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2,
             s3 := a3, s4 := hdrLen, s5 := v21 }
           input listLen 5) **
-        (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R))
+        (regOwn .x22 **
+          (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A **
+            R)))
       (legacyNthOutcomePost
         (fun h => ∃ offVal lenVal,
           legacyKssBodyFinal a2 ((offVal + lenVal) - hdrLen) a0 hdrLen a3 sp0 a1
@@ -1041,7 +1045,9 @@ theorem legacyBodyEntryThroughExit_spec
         (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
         (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19)) **
         legacyEntryAmbient v7 v14 v21 v28 v29 v30 v31 vOld sp0 oldOff oldLen
-          (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R))
+          (regOwn .x22 **
+            (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A **
+              R)))
       (legacyNthOutcomePost
         (fun h => ∃ offVal lenVal,
           legacyKssBodyFinal a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
@@ -1051,12 +1057,15 @@ theorem legacyBodyEntryThroughExit_spec
           legacyNthFailState (legacyNthJalPC + 4) v11 v12 v21
             (legacyHdrLen input h0) sp0 a0 a1 a2 a3 oldOff oldLen
             cellOld old0 old1 old2 old3 old4 old5 input os A R h)) := by
-  have hbss : (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A
-      ** R).pcFree := by
-    exact pcFree_sepConj (legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA) hR
+  have hbss : (regOwn .x22 **
+      (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A
+        ** R)).pcFree :=
+    pcFree_sepConj pcFree_regOwn
+      (pcFree_sepConj (legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA) hR)
   have hentry := legacyEntryThroughNthCall_spec a0 a1 a2 a3 v5 v6 v7 v8 v9 v14
     v18 v19 v20 v21 v28 v29 v30 v31 vOld sp0 oldOff oldLen input listLen
-    (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R)
+    (regOwn .x22 **
+      (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R))
     hbss hlen h0 halignIn hge hlistLenW hslack hoverIn hvalidBytes
   have hjoin := legacyNthThroughBodyExit_spec (legacyNthJalPC + 4) v21
     (legacyHdrLen input h0) sp0 a0 a1 a2 a3 oldOff oldLen cellOld
