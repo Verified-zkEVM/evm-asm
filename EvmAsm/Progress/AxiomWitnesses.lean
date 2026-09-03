@@ -1160,6 +1160,10 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
 
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_emptyLen_gate_false_on_one
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within_empty_len
+
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_longArm_gate_false_on_short_header

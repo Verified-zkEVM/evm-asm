@@ -322,6 +322,9 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpec
 -- production caller; these two named lemmas are still axiom-gate witnessed
 -- because they carry the static-source separation argument.
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailLayout
+-- #12038: K146's ABI-frame capstone.  Lifts a K146 body triple to a
+-- whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash_legacy_eip155`.
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyTop
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -7644,6 +7647,14 @@ private noncomputable abbrev _tx_signing_hash_legacy_prefix_layout_witness :=
   @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
 private noncomputable abbrev _tx_signing_hash_legacy_suffix_layout_witness :=
   @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
+-- #12038: K146's ABI-frame capstone.  The empty-input-length reject slice is a
+-- genuine whole-routine `cpsTripleWithin` at the `GuestAddrs` anchor, but on a
+-- reject domain only -- mirroring K145's `tx_signing_hash_spec_within_empty_len`,
+-- which is likewise witnessed here without carrying its own registry row.
+private noncomputable abbrev _tx_signing_hash_legacy_empty_len_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within_empty_len
+private noncomputable abbrev _tx_signing_hash_legacy_empty_len_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_emptyLen_gate_false_on_one
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
