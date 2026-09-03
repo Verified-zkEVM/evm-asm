@@ -977,4 +977,92 @@ theorem legacyNthThroughBodyExit_spec
       xperm_hyp hp
     · exact Or.inr ⟨v11, v12, hq⟩
 
+/-! ## The whole body: H+36 through H+440 -/
+
+theorem legacyBodyEntryThroughExit_spec
+    (a0 a1 a2 a3 v5 v6 v7 v8 v9 v14 v18 v19 v20 v21 v28 v29 v30 v31 : Word)
+    (vOld sp0 oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8)) (listLen : Nat)
+    (A R : Assertion) (hA : A.pcFree) (hR : R.pcFree)
+    (hlen : a1 ≠ 0)
+    (h0 : 0 < input.length)
+    (halignIn : a0.toNat % 8 = 0)
+    (hge : ¬BitVec.ult (legacyHdrByte input h0) (192 : Word))
+    (hlistLenW : a1 = BitVec.ofNat 64 listLen)
+    (hslack : listLen + 9 ≤ input.length)
+    (hoverIn : a0.toNat + input.length < 2 ^ 64)
+    (hvalidBytes : ∀ k, k < input.length →
+      isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
+    (halign : legacyLinkedChainPtr.toNat % 8 = 0)
+    (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < 8 →
+      isValidByteAccess (legacyLinkedChainPtr + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * loopProg.length < 2 ^ 64)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (legacyPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hos : os.length = 200)
+    (hpayW : ∀ offVal lenVal,
+      EvmAsm.Codegen.RlpListNthItemSAsm.Success input a0 listLen 5 offVal lenVal →
+        BitVec.ofNat 64 payloadBs.length =
+          ((offVal + lenVal) - legacyHdrLen input h0))
+    (hcount : ∀ offVal lenVal,
+      (legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs).length < 2 ^ 64)
+    (hsegs : ∀ offVal lenVal,
+      ∀ s ∈ legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs,
+        s.2.length < 2 ^ 64 ∧
+          (∀ i, i < s.2.length →
+            s.1.toNat + i < 2 ^ 64 ∧
+            isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (sourceSpec :
+      KssInputSourceSpec a0 (legacyHdrLen input h0) input payloadBs)
+    (hsourcePrefix : ∀ offVal lenVal,
+      sourceSpec.source.region legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)) =
+        bytesRegion legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)))
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
+        (legacyKssBodySuffixBytes a2) =
+      bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes a2))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      1 + legacyBodyFuel a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
+        (legacyHdrLen input h0) payloadBs ≤ N)
+    (hNfail : 2 ≤ N) :
+    cpsTripleWithin
+      (((4 + 1 + 8) + (7 + (1 + ((12 + ((85 + 93 * (5 + 2)) + 6)) + 9)))) + N)
+      (legacyH + 36) legacyBodyExit legacyFullCode
+      (((.x10 ↦ᵣ a0) ** (.x11 ↦ᵣ a1) ** (.x12 ↦ᵣ a2) ** (.x13 ↦ᵣ a3) **
+        (.x5 ↦ᵣ v5) ** (.x6 ↦ᵣ v6) ** (.x20 ↦ᵣ v20) **
+        (.x0 ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+        (.x8 ↦ᵣ v8) ** (.x9 ↦ᵣ v9) ** (.x18 ↦ᵣ v18) ** (.x19 ↦ᵣ v19)) **
+        legacyEntryAmbient v7 v14 v21 v28 v29 v30 v31 vOld sp0 oldOff oldLen
+          (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R))
+      (legacyNthOutcomePost
+        (fun h => ∃ offVal lenVal,
+          legacyKssBodyFinal a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
+            (legacyHdrLen input h0) a3 sp0 a1 offVal lenVal payloadBs A R
+            sourceSpec.source h)
+        (fun h => ∃ v11 v12,
+          legacyNthFailState (legacyNthJalPC + 4) v11 v12 v21
+            (legacyHdrLen input h0) sp0 a0 a1 a2 a3 oldOff oldLen
+            cellOld old0 old1 old2 old3 old4 old5 input os A R h)) := by
+  have hbss : (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A
+      ** R).pcFree := by
+    exact pcFree_sepConj (legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA) hR
+  have hentry := legacyEntryThroughNthCall_spec a0 a1 a2 a3 v5 v6 v7 v8 v9 v14
+    v18 v19 v20 v21 v28 v29 v30 v31 vOld sp0 oldOff oldLen input listLen
+    (legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R)
+    hbss hlen h0 halignIn hge hlistLenW hslack hoverIn hvalidBytes
+  have hjoin := legacyNthThroughBodyExit_spec (legacyNthJalPC + 4) v21
+    (legacyHdrLen input h0) sp0 a0 a1 a2 a3 oldOff oldLen cellOld
+    old0 old1 old2 old3 old4 old5 input payloadBs os listLen A R hA hR
+    halign hover hvalid hbound h_out_valid hos hpayW hcount hsegs
+    sourceSpec hsourcePrefix hsourceSuffix N hNok hNfail
+  exact cpsTripleWithin_seq_same_cr hentry hjoin
+
 end EvmAsm.Codegen.TxSigningHashLegacyTop
