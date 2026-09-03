@@ -774,4 +774,90 @@ theorem legacyNthOkThroughBodyExit_spec
     sourceSpec hsourcePrefix hsourceSuffix
   exact cpsTripleWithin_seq_same_cr hbrW hbody
 
+/-! ## The Nth-failure arm
+
+    Status 1 goes straight to the shared `li a0, 1` tail at H+436; `a0` is
+    already 1, the output cells are unchanged, and nothing else is touched. -/
+
+def legacyNthFailState (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A R : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ X) ** ((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 8 **
+    EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+      { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2, s3 := a3,
+        s4 := hdrLen, s5 := v21 } **
+    ((.x10 : Reg) ↦ᵣ (1 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+    ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+    (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+    legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R **
+    regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+    regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+
+theorem legacyNthFailState_pcFree
+    (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A R : Assertion)
+    (hA : A.pcFree) (hR : R.pcFree) :
+    (legacyNthFailState X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 oldOff oldLen
+      cellOld old0 old1 old2 old3 old4 old5 input os A R).pcFree := by
+  unfold legacyNthFailState EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+  repeat first
+    | exact legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA
+    | exact hR
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_regOwn
+    | exact pcFree_memIs
+    | exact pcFree_stackFree _ _
+    | apply pcFree_sepConj
+    | exact (by pcf)
+
+theorem legacyNthFailThroughBodyExitFramed_spec
+    (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A R : Assertion)
+    (hA : A.pcFree) (hR : R.pcFree) :
+    cpsTripleWithin 2 (legacyH + 124) legacyBodyExit legacyFullCode
+      (legacyNthFailState X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 oldOff oldLen
+        cellOld old0 old1 old2 old3 old4 old5 input os A R)
+      (legacyNthFailState X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 oldOff oldLen
+        cellOld old0 old1 old2 old3 old4 old5 input os A R) := by
+  let Ffail : Assertion :=
+    ((.x1 : Reg) ↦ᵣ X) ** ((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 8 **
+      EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+        { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2, s3 := a3,
+          s4 := hdrLen, s5 := v21 } **
+      ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+      regOwn .x13 ** regOwn .x14 ** bytesRegion a0 input **
+      (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+      legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R **
+      regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+      regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
+  have hFfail : Ffail.pcFree := by
+    unfold Ffail EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+    repeat first
+      | exact legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA
+      | exact hR
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_stackFree _ _
+      | apply pcFree_sepConj
+      | exact (by pcf)
+  have hcore := legacyNthFailThroughBodyExit_spec (1 : Word) Ffail hFfail
+    (by decide)
+  refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hcore
+  · unfold legacyNthFailState at hp
+    show (_ ** Ffail) _
+    unfold Ffail
+    xperm_hyp hp
+  · unfold Ffail at hq
+    unfold legacyNthFailState
+    xperm_hyp hq
+
 end EvmAsm.Codegen.TxSigningHashLegacyTop
