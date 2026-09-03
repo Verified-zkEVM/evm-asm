@@ -322,6 +322,9 @@ import EvmAsm.Codegen.Programs.TxSigningHashSpec
 -- production caller; these two named lemmas are still axiom-gate witnessed
 -- because they carry the static-source separation argument.
 import EvmAsm.Codegen.Programs.TxSigningHashLegacyTailLayout
+-- #12038: K146's ABI-frame capstone.  Lifts a K146 body triple to a
+-- whole-routine `cpsTripleWithin` at `GuestAddrs.tx_signing_hash_legacy_eip155`.
+import EvmAsm.Codegen.Programs.TxSigningHashLegacyTop
 -- #12038 opening move on the signing-hash lane: the K147 EIP-7702
 -- authorization-signing-hash wrapper, whole-routine, under a named
 -- unproven-callee residual for K145 `tx_signing_hash`.
@@ -4635,8 +4638,73 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "— the selector's `.legacy` arm is PROVABLY unreachable under this "
         ++ "routine's own `hnzType` (`tsh_specRef_pre155_arm_unreachable`) — "
         ++ "and NOT `signing_hash_155`, which is K146 "
-        ++ "`tx_signing_hash_legacy_eip155`, still without a whole-routine "
-        ++ "triple (#12038)"),
+        ++ "`tx_signing_hash_legacy_eip155` — that routine now has its own "
+        ++ "whole-routine row below, but its post is likewise the operational "
+        ++ "KSS digest, NOT a `SpecRef.signing_hash_155` claim (#12038)"),
+
+  -- #12038: K146 `tx_signing_hash_legacy_eip155` whole-routine triple.
+  -- Capstone in TxSigningHashLegacyTop over the twelve-module body
+  -- decomposition; `abiFrame_spec_own` at the GuestAddrs anchor.
+  routine "tx_signing_hash_legacy_eip155" .conditional
+      (some "tx_signing_hash_legacy_eip155_spec_within")
+      (gate := "TWO input-domain conditions. (1) `a1 ≠ 0`: a zero input "
+        ++ "length takes the `beq a1, x0` at H+52 to the shared `li a0, 1` "
+        ++ "tail, a slice covered SEPARATELY by "
+        ++ "`tx_signing_hash_legacy_eip155_spec_within_empty_len` (also in "
+        ++ "TxSigningHashLegacyTop, also whole-routine at the anchor, and "
+        ++ "deliberately NOT a second registry row — same convention as "
+        ++ "K145's `_empty_len`). (2) `hge`: `input[0]` must be an outer-RLP "
+        ++ "LIST header, 0xc0 ≤ input[0] ≤ 0xff. Short (0xc0–0xf7) AND long "
+        ++ "(0xf8–0xff, lenlen 1..8) are BOTH covered by the one theorem — "
+        ++ "the parsed header length is threaded as `legacyHdrLen` rather "
+        ++ "than case-split. REMAINING CUT: non-list first bytes 0x00–0xbf, "
+        ++ "where the guest takes its status-1 reject exit at H+436 instead "
+        ++ "of returning through this triple. NON-VACUITY: "
+        ++ "`legacy_hdrGate_short_nonvacuous` (0xc4, hdrLen = 1) and "
+        ++ "`legacy_hdrGate_long_nonvacuous` (0xf8 0x42, hdrLen = 2, so the "
+        ++ "long arm is reachable and `legacyHdrLen` is not silently pinned "
+        ++ "at 1); negative controls `legacy_hdrGate_false_on_string_header` "
+        ++ "(hge FALSE at 0x80) and `legacy_hdrGate_false_on_bf` (FALSE at "
+        ++ "0xbf, the last non-list byte). Everything else in the statement "
+        ++ "is ABI/resource framing, not a domain restriction — see notes")
+      (notes := "whole-routine `cpsTripleWithin` at "
+        ++ "`GuestAddrs.tx_signing_hash_legacy_eip155` (`legacyH`) via "
+        ++ "`abiFrame_spec_own`; `legacy_prog_eq_abiFrame` (`decide`) is the "
+        ++ "structural drift guard pinning the emitted 120-instruction image "
+        ++ "to abiFrameProg(-64, 64, legacyFrame, legacyBody), and "
+        ++ "`legacy_ofProg_sub_fullCode` anchors the CodeReq. The body "
+        ++ "decomposition it composes was already deployed across "
+        ++ "TxSigningHashLegacy{SpecCore,LoopSpec,CopySpec,Compose,"
+        ++ "BodyCompose,ChainCompose,UintCompose,PrefixCompose,"
+        ++ "PrefixCopyCompose,TailCore,TailCompose,TailLayout}; the capstone "
+        ++ "adds the three seams those modules did not join — H+36→H+124 "
+        ++ "(setup, header parse, `rlp_list_nth_item` call), the H+124 branch "
+        ++ "peel, and the ABI frame. POST is the guest's actual outcome "
+        ++ "DISJUNCTION (`legacyNthOutcomePost`): the keccak-success arm, "
+        ++ "whose output region holds "
+        ++ "`keccak256 (kssMsg (legacyKssBodySegs …))` — the digest of the "
+        ++ "three-segment EIP-155 preimage (rlp list prefix ++ the input's "
+        ++ "first-six-field span ++ chainId-encoding ++ 0x80 0x80) — or the "
+        ++ "status-1 reject arm, on which the two output cells still hold "
+        ++ "their entry values. ⚠️ The CITED theorem does NOT claim SpecRef "
+        ++ "`signing_hash_155`: its post is the operational KSS digest, "
+        ++ "exactly as K145's row is. The SpecRef bridge for the `_155` "
+        ++ "selector arm is still open (#12038) and this row must not be read "
+        ++ "as closing it; there is deliberately NO Correspondence row. "
+        ++ "Callee legs: `rlp_list_nth_item`, `rlp_encode_uint_be`, "
+        ++ "`rlp_encode_list_prefix` and `zkvm_keccak256_segments` are all "
+        ++ "COMPOSED through their own rowed contracts — no callee residual "
+        ++ "is assumed. The non-domain hypotheses are framing obligations in "
+        ++ "the same shape K145 uses: buffer alignment/validity, a "
+        ++ "caller-chosen payload slice (`payloadBs` with `hpayW`), "
+        ++ "`hos : os.length = 200` for the sponge arena, keccak segment "
+        ++ "geometry (`hcount`/`hsegs`), the two static-source views "
+        ++ "(`hsourcePrefix`/`hsourceSuffix`), and a caller-chosen step bound "
+        ++ "`N` covering both arms (`hNok`/`hNfail`). Those three "
+        ++ "source-view hypotheses are shown JOINTLY satisfiable by "
+        ++ "`legacyPayloadSupply` over the canonical slice `legacyPayloadOf` "
+        ++ "under the production caller's input-zone bound, so no source view "
+        ++ "can satisfy one and quietly fail another"),
 
   -- #12038: K147 EIP-7702 authorization-signing-hash wrapper. Owns n=3,
   -- MAGIC=0x05, a2→a4 output forward; delegates the rest to K145 by one
@@ -5937,10 +6005,10 @@ def routineCountTier (t : ProofTier) : Nat :=
     by neither `set_option`, and is what the chunk split (#13213) exists for.
 -/
 
-theorem routineCount_eq : routineCount = 246 := by decide +kernel
+theorem routineCount_eq : routineCount = 247 := by decide +kernel
 
 theorem routineProvenCount_eq : routineCountTier .proven = 181 := by decide +kernel
-theorem routineConditionalCount_eq : routineCountTier .conditional = 62 := by
+theorem routineConditionalCount_eq : routineCountTier .conditional = 63 := by
   decide +kernel
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
   decide +kernel
@@ -5964,7 +6032,7 @@ def routineSymbols : List String :=
 -- 11,191-character ones, and could not have been dodged by writing terser
 -- rows. `decide +kernel` sidesteps both budgets; see the note under
 -- `routineCount_eq`.
-theorem routineSymbols_eq : routineSymbols.length = 205 := by decide +kernel
+theorem routineSymbols_eq : routineSymbols.length = 206 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7644,6 +7712,32 @@ private noncomputable abbrev _tx_signing_hash_legacy_prefix_layout_witness :=
   @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
 private noncomputable abbrev _tx_signing_hash_legacy_suffix_layout_witness :=
   @EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
+-- #12038: K146's ABI-frame capstone.  The empty-input-length reject slice is a
+-- genuine whole-routine `cpsTripleWithin` at the `GuestAddrs` anchor, but on a
+-- reject domain only -- mirroring K145's `tx_signing_hash_spec_within_empty_len`,
+-- which is likewise witnessed here without carrying its own registry row.
+private noncomputable abbrev _tx_signing_hash_legacy_empty_len_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within_empty_len
+private noncomputable abbrev _tx_signing_hash_legacy_empty_len_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_emptyLen_gate_false_on_one
+-- #12038: K146's whole-routine keccak-path triple, its structural drift
+-- guard, its domain non-vacuity (both header widths) and the two negative
+-- controls, plus the joint satisfiability of the three source-view
+-- hypotheses.
+private noncomputable abbrev _tx_signing_hash_legacy_routine_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within
+private noncomputable abbrev _tx_signing_hash_legacy_frame_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacySpec.legacy_prog_eq_abiFrame
+private noncomputable abbrev _tx_signing_hash_legacy_short_hdr_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_short_nonvacuous
+private noncomputable abbrev _tx_signing_hash_legacy_long_hdr_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_long_nonvacuous
+private noncomputable abbrev _tx_signing_hash_legacy_hdr_control_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_false_on_string_header
+private noncomputable abbrev _tx_signing_hash_legacy_hdr_control_bf_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_false_on_bf
+private noncomputable abbrev _tx_signing_hash_legacy_payload_supply_witness :=
+  @EvmAsm.Codegen.TxSigningHashLegacyTop.legacyPayloadSupply
 -- #12038: K147 EIP-7702 authorization signing hash, whole routine, under the
 -- named unproven-callee residual for K145 `tx_signing_hash`.
 private noncomputable abbrev _eip7702_authorization_signing_hash_routine_witness :=
