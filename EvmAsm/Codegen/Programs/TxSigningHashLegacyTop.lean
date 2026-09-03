@@ -604,7 +604,7 @@ theorem legacyStackFree8_eq_kssFrameSlotsOwn (sp : Word) :
     back: the four linked BSS buffers, the KSS descriptor table's six dwords,
     the sponge arena, the zeroed output buffer, and the three KSS-owned
     caller-save temps. -/
-def legacyBodyBss (chainId cellOld outputBase v15 v16 v17 v22 : Word)
+def legacyBodyBss (chainId cellOld outputBase : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
     (os : List (BitVec 8)) (A : Assertion) : Assertion :=
   bytesRegion legacyLinkedChainPtr (List.replicate 8 (0 : BitVec 8)) **
@@ -615,22 +615,21 @@ def legacyBodyBss (chainId cellOld outputBase v15 v16 v17 v22 : Word)
       (List.replicate
         (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length
         (0 : BitVec 8)) **
-    ((.x22 : Reg) ↦ᵣ v22) **
+    regOwn .x22 **
     legacyTailExtension
       (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length **
     (legacyKssSegsBase ↦ₘ old0) ** ((legacyKssSegsBase + 8) ↦ₘ old1) **
     ((legacyKssSegsBase + 16) ↦ₘ old2) ** ((legacyKssSegsBase + 24) ↦ₘ old3) **
     ((legacyKssSegsBase + 32) ↦ₘ old4) ** ((legacyKssSegsBase + 40) ↦ₘ old5) **
-    ((.x15 : Reg) ↦ᵣ v15) ** ((.x16 : Reg) ↦ᵣ v16) **
-    ((.x17 : Reg) ↦ᵣ v17) **
+    regOwn .x15 ** regOwn .x16 ** regOwn .x17 **
     bytesRegion KssZk3 os **
     bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) ** A
 
 theorem legacyBodyBss_pcFree
-    (chainId cellOld outputBase v15 v16 v17 v22 : Word)
+    (chainId cellOld outputBase : Word)
     (old0 old1 old2 old3 old4 old5 : Word)
     (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree) :
-    (legacyBodyBss chainId cellOld outputBase v15 v16 v17 v22
+    (legacyBodyBss chainId cellOld outputBase
       old0 old1 old2 old3 old4 old5 os A).pcFree := by
   unfold legacyBodyBss
   repeat first
@@ -638,6 +637,7 @@ theorem legacyBodyBss_pcFree
     | exact hA
     | exact bytesRegion_pcFree _ _
     | exact pcFree_regIs
+    | exact pcFree_regOwn
     | exact pcFree_memIs
     | apply pcFree_sepConj
     | exact (by pcf)
@@ -654,5 +654,124 @@ def legacyBodyFuel (chainId payloadBase inPtr hdrLen : Word)
   (8 + (68 + 8 + uintFuel + prefixFuel)) +
     (21 + ((1 + (19 + kssBodyFuelMulti
       (legacyKssBodySegs chainId payloadBase inPtr hdrLen payloadBytes))) + 2))
+
+/-- The state at H+124 on the Nth-success arm, minus the seven caller-save
+    temps the Nth callee returns as `regOwn`. -/
+def legacyNthOkBase (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (offVal lenVal cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input os : List (BitVec 8)) (A R : Assertion) : Assertion :=
+  ((.x1 : Reg) ↦ᵣ X) ** ((.x2 : Reg) ↦ᵣ sp0) ** stackFree sp0 8 **
+    EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail
+      { ra := legacyNthJalPC + 4, s0 := a0, s1 := a1, s2 := a2, s3 := a3,
+        s4 := hdrLen, s5 := v21 } **
+    ((.x10 : Reg) ↦ᵣ (0 : Word)) ** ((.x11 : Reg) ↦ᵣ v11) **
+    ((.x12 : Reg) ↦ᵣ v12) ** regOwn .x13 ** regOwn .x14 **
+    ((.x0 : Reg) ↦ᵣ (0 : Word)) ** bytesRegion a0 input **
+    (legacyNthOffPtr ↦ₘ offVal) ** (legacyNthLenPtr ↦ₘ lenVal) **
+    legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A ** R
+
+/-- The Nth-success arm: fall through the `bne a0, x0` at H+124 and run the
+    whole payload/chain/prefix/keccak body to the routine's body exit. -/
+theorem legacyNthOkThroughBodyExit_spec
+    (X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 : Word)
+    (offVal lenVal cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBytes os : List (BitVec 8)) (A R : Assertion)
+    (hA : A.pcFree) (hR : R.pcFree)
+    (halign : legacyLinkedChainPtr.toNat % 8 = 0)
+    (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < 8 →
+      isValidByteAccess (legacyLinkedChainPtr + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * loopProg.length < 2 ^ 64)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (legacyPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hpayloadLen : BitVec.ofNat 64 payloadBytes.length =
+      ((offVal + lenVal) - hdrLen))
+    (hos : os.length = 200)
+    (hcount :
+      (legacyKssBodySegs a2 ((offVal + lenVal) - hdrLen)
+        a0 hdrLen payloadBytes).length < 2 ^ 64)
+    (hsegs :
+      ∀ s ∈ legacyKssBodySegs a2 ((offVal + lenVal) - hdrLen)
+        a0 hdrLen payloadBytes,
+        s.2.length < 2 ^ 64 ∧
+          (∀ i, i < s.2.length →
+            s.1.toNat + i < 2 ^ 64 ∧
+            isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (sourceSpec : KssInputSourceSpec a0 hdrLen input payloadBytes)
+    (hsourcePrefix : sourceSpec.source.region legacyPrefixOutPtr
+        (legacyKssBodyPrefixBytes a2 ((offVal + lenVal) - hdrLen)) =
+      bytesRegion legacyPrefixOutPtr
+        (legacyKssBodyPrefixBytes a2 ((offVal + lenVal) - hdrLen)))
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
+        (legacyKssBodySuffixBytes a2) =
+      bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes a2)) :
+    cpsTripleWithin
+      (1 + legacyBodyFuel a2 ((offVal + lenVal) - hdrLen) a0 hdrLen payloadBytes)
+      (legacyH + 124) legacyBodyExit legacyFullCode
+      (legacyNthOkBase X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 offVal lenVal
+          cellOld old0 old1 old2 old3 old4 old5 input os A R **
+        regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+        regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+      (legacyKssBodyFinal a2 ((offVal + lenVal) - hdrLen) a0 hdrLen a3 sp0 a1
+        offVal lenVal payloadBytes A R sourceSpec.source) := by
+  apply EvmAsm.Codegen.RlpListNthItemSAsm.cpsTripleWithin_of_forall_regIs_to_regOwn7
+  intro v5 v6 v7 v28 v29 v30 v31
+  set n := (RlpEncodeUintBeSAsm.reubOut (chainBytes a2)).length with hn
+  let Fmid : Assertion :=
+    ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+      ((.x20 : Reg) ↦ᵣ hdrLen) ** ((.x21 : Reg) ↦ᵣ v21) **
+      (legacyLinkedNthOffPtr ↦ₘ offVal) ** (legacyLinkedNthLenPtr ↦ₘ lenVal) **
+      ((.x1 : Reg) ↦ᵣ X) ** ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+      ((.x18 : Reg) ↦ᵣ a2) ** ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+      ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31) **
+      bytesRegion legacyLinkedChainPtr (List.replicate 8 (0 : BitVec 8)) **
+      bytesRegion legacyLinkedChainEncPtr legacyChainEncOld **
+      bytesRegion legacyPrefixOutPtr (List.replicate 16 (0 : BitVec 8)) **
+      (legacyPrefixCellPtr ↦ₘ cellOld) **
+      bytesRegion legacySuffixOutPtr (List.replicate n (0 : BitVec 8)) **
+      regOwn .x22 ** legacyTailExtension n **
+      legacyKssBodyExtra a0 a3 sp0 a1 old0 old1 old2 old3 old4 old5 input os A R
+  have hFmid : Fmid.pcFree := by
+    unfold Fmid legacyKssBodyExtra
+    repeat first
+      | exact legacyTailExtension_pcFree _
+      | exact hA
+      | exact hR
+      | exact bytesRegion_pcFree _ _
+      | exact pcFree_regIs
+      | exact pcFree_regOwn
+      | exact pcFree_memIs
+      | exact pcFree_frameSlotsOwn _ _
+      | apply pcFree_sepConj
+      | exact (by pcf)
+  have hbr := legacyNthFail_ntaken (0 : Word) rfl
+  have hbrF := cpsTripleWithin_frameR Fmid hFmid hbr
+  have hbrW : cpsTripleWithin 1 (legacyH + 124) (legacyH + 128) legacyFullCode
+      (legacyNthOkBase X v11 v12 v21 hdrLen sp0 a0 a1 a2 a3 offVal lenVal
+          cellOld old0 old1 old2 old3 old4 old5 input os A R **
+        ((.x5 : Reg) ↦ᵣ v5) ** ((.x6 : Reg) ↦ᵣ v6) ** ((.x7 : Reg) ↦ᵣ v7) **
+        ((.x28 : Reg) ↦ᵣ v28) ** ((.x29 : Reg) ↦ᵣ v29) **
+        ((.x30 : Reg) ↦ᵣ v30) ** ((.x31 : Reg) ↦ᵣ v31))
+      (legacyKssBodyInitial X v5 v6 v7 (0 : Word) v11 v12 a2 v28 v29 v30 v31 v21
+        offVal lenVal hdrLen cellOld a0 a3 sp0 a1
+        old0 old1 old2 old3 old4 old5 input os A R) := by
+    refine cpsTripleWithin_weaken (fun _ hp => ?_) (fun _ hq => ?_) hbrF
+    · simp only [legacyNthOkBase, legacyBodyBss,
+        EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail,
+        legacyStackFree8_eq_kssFrameSlotsOwn] at hp
+      show (_ ** Fmid) _
+      unfold Fmid legacyKssBodyExtra
+      xperm_hyp hp
+    · unfold Fmid at hq
+      unfold legacyKssBodyInitial
+      xperm_hyp hq
+  have hbody := legacyBodyThenKssSuccess_spec X v5 v6 v7 (0 : Word) v11 v12 a2
+    v28 v29 v30 v31 v21 offVal lenVal hdrLen cellOld a0 a3 sp0 a1
+    old0 old1 old2 old3 old4 old5 input payloadBytes os A R hA hR
+    halign hover hvalid hbound h_out_valid hpayloadLen hos hcount hsegs
+    sourceSpec hsourcePrefix hsourceSuffix
+  exact cpsTripleWithin_seq_same_cr hbrW hbody
 
 end EvmAsm.Codegen.TxSigningHashLegacyTop
