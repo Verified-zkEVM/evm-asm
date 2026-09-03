@@ -1193,4 +1193,364 @@ def legacyWholeFailPost (v11 v12 sp0 a0 a2 a3 oldOff oldLen cellOld : Word)
     regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
     regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31
 
+/-- The K146 body in `abiFrame_spec_own` shape. -/
+theorem legacyKeccakBody_own
+    (newSp : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8)) (listLen : Nat)
+    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (hlen : a1 ≠ 0)
+    (h0 : 0 < input.length)
+    (halignIn : a0.toNat % 8 = 0)
+    (hge : ¬BitVec.ult (legacyHdrByte input h0) (192 : Word))
+    (hlistLenW : a1 = BitVec.ofNat 64 listLen)
+    (hslack : listLen + 9 ≤ input.length)
+    (hoverIn : a0.toNat + input.length < 2 ^ 64)
+    (hvalidBytes : ∀ k, k < input.length →
+      isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
+    (halign : legacyLinkedChainPtr.toNat % 8 = 0)
+    (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < 8 →
+      isValidByteAccess (legacyLinkedChainPtr + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * loopProg.length < 2 ^ 64)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (legacyPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hos : os.length = 200)
+    (hpayW : ∀ offVal lenVal,
+      EvmAsm.Codegen.RlpListNthItemSAsm.Success input a0 listLen 5 offVal lenVal →
+        BitVec.ofNat 64 payloadBs.length =
+          ((offVal + lenVal) - legacyHdrLen input h0))
+    (hcount : ∀ offVal lenVal,
+      (legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs).length < 2 ^ 64)
+    (hsegs : ∀ offVal lenVal,
+      ∀ s ∈ legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs,
+        s.2.length < 2 ^ 64 ∧
+          (∀ i, i < s.2.length →
+            s.1.toNat + i < 2 ^ 64 ∧
+            isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (sourceSpec :
+      KssInputSourceSpec a0 (legacyHdrLen input h0) input payloadBs)
+    (hsourcePrefix : ∀ offVal lenVal,
+      sourceSpec.source.region legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)) =
+        bytesRegion legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)))
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
+        (legacyKssBodySuffixBytes a2) =
+      bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes a2))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      1 + legacyBodyFuel a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
+        (legacyHdrLen input h0) payloadBs ≤ N)
+    (hNfail : 2 ≤ N) :
+    cpsTripleWithin
+      (((4 + 1 + 8) + (7 + (1 + ((12 + ((85 + 93 * (5 + 2)) + 6)) + 9)))) + N)
+      (legacyH + BitVec.ofNat 64 (4 * (1 + legacyFrame.length)))
+      (legacyH + BitVec.ofNat 64
+        (4 * (1 + legacyFrame.length + legacyBody.length)))
+      legacyFullCode
+      ((.x2 ↦ᵣ newSp) ** regsAt legacyFrame vals **
+        frameSlotsSaved legacyFrame newSp vals **
+        legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+          newSp oldOff oldLen cellOld old0 old1 old2 old3 old4 old5
+          input os A F)
+      ((.x2 ↦ᵣ newSp) ** regsOwnAt legacyFrame **
+        frameSlotsSaved legacyFrame newSp vals **
+        legacyNthOutcomePost
+          (fun h => ∃ offVal lenVal,
+            legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0)
+              a0 (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs
+              A F sourceSpec.source h)
+          (fun h => ∃ v11 v12,
+            legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+              old0 old1 old2 old3 old4 old5 input os A F h)) := by
+  rw [legacyFrame_length, legacyBody_length]
+  simp only [show 4 * (1 + 8) = 36 from rfl,
+    show 4 * (1 + 8 + 101) = 440 from rfl]
+  have hRF : (frameSlotsSaved legacyFrame newSp vals ** F).pcFree :=
+    pcFree_sepConj (pcFree_frameSlotsSaved _ _ _) hF
+  have hbody := legacyBodyEntryThroughExit_spec a0 a1 a2 a3 v5 v6 v7
+    (vals .x8) (vals .x9) v14 (vals .x18) (vals .x19) (vals .x20) (vals .x21)
+    v28 v29 v30 v31 (vals .x1) newSp oldOff oldLen cellOld
+    old0 old1 old2 old3 old4 old5 input payloadBs os listLen A
+    (frameSlotsSaved legacyFrame newSp vals ** F) hA hRF
+    hlen h0 halignIn hge hlistLenW hslack hoverIn hvalidBytes
+    halign hover hvalid hbound h_out_valid hos hpayW hcount hsegs
+    sourceSpec hsourcePrefix hsourceSuffix N hNok hNfail
+  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hbody
+  · rw [legacy_regsAt_frame] at hp
+    have hp22 : (regOwn .x22 **
+        (((.x2 : Reg) ↦ᵣ newSp) ** ((.x1 : Reg) ↦ᵣ vals .x1) **
+          ((.x8 : Reg) ↦ᵣ vals .x8) ** ((.x9 : Reg) ↦ᵣ vals .x9) **
+          ((.x18 : Reg) ↦ᵣ vals .x18) ** ((.x19 : Reg) ↦ᵣ vals .x19) **
+          ((.x20 : Reg) ↦ᵣ vals .x20) ** ((.x21 : Reg) ↦ᵣ vals .x21) **
+          frameSlotsSaved legacyFrame newSp vals **
+          legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+            newSp oldOff oldLen cellOld old0 old1 old2 old3 old4 old5
+            input os A F)) h :=
+      sepConj_mono_left (regIs_to_regOwn .x22 (vals .x22)) h (by xperm_hyp hp)
+    unfold legacyWholeCallerPre at hp22
+    unfold legacyEntryAmbient
+    xperm_hyp hp22
+  · rcases hq with hok | hfail
+    · obtain ⟨offVal, lenVal, hok⟩ := hok
+      unfold legacyKssBodyFinal legacyKssCallPost legacyKssSregs at hok
+      have h8 := legacy_open8 .x1 .x8 .x9 .x18 .x19 .x20 .x21 .x22
+        (legacyKssJalPC + 4) a0 a1 a2 a3 (legacyHdrLen input h0)
+        ((offVal + lenVal) - legacyHdrLen input h0)
+        (legacyKssBodyPayloadEnd a2
+          ((offVal + lenVal) - legacyHdrLen input h0))
+        (((.x2 : Reg) ↦ᵣ newSp) **
+          frameSlotsSaved kssFrame (newSp + signExtend12 ((-64 : BitVec 12)))
+            (kssEntryVals (legacyKssJalPC + 4) a0 a1 a2 a3
+              (legacyHdrLen input h0)
+              ((offVal + lenVal) - legacyHdrLen input h0)
+              (legacyKssBodyPayloadEnd a2
+                ((offVal + lenVal) - legacyHdrLen input h0))) **
+          kssCallerPost_multi legacyKssSegsBase a3
+            (legacyKssBodySegs a2
+              ((offVal + lenVal) - legacyHdrLen input h0) a0
+              (legacyHdrLen input h0) payloadBs) A sourceSpec.source **
+          (legacyPrefixCellPtr ↦ₘ legacyKssBodyPrefixLen a2
+            ((offVal + lenVal) - legacyHdrLen input h0)) **
+          legacyKssBodyProducedResidual a2
+            ((offVal + lenVal) - legacyHdrLen input h0) offVal lenVal **
+          frameSlotsSaved legacyFrame newSp vals ** F)
+        h (by xperm_hyp hok)
+      have hstep : (((.x2 : Reg) ↦ᵣ newSp) **
+          (regOwn .x1 ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+            regOwn .x19 ** regOwn .x20 ** regOwn .x21 ** regOwn .x22) **
+          frameSlotsSaved legacyFrame newSp vals **
+          legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0)
+            a0 (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs
+            A F sourceSpec.source) h := by
+        unfold legacyWholeOkPost
+        xperm_hyp h8
+      rw [legacy_regsOwnAt_frame]
+      exact sepConj_mono (fun _ hx => hx)
+        (sepConj_mono (fun _ hx => hx)
+          (sepConj_mono (fun _ hx => hx)
+            (fun _ hx => Or.inl ⟨offVal, lenVal, hx⟩))) h hstep
+    · obtain ⟨v11, v12, hfail⟩ := hfail
+      unfold legacyNthFailState
+        EvmAsm.Codegen.RlpListNthItemSAsm.savedRegTail at hfail
+      have h7 := legacy_open7 .x1 .x8 .x9 .x18 .x19 .x20 .x21
+        (legacyNthJalPC + 4) a0 a1 a2 a3 (legacyHdrLen input h0) (vals .x21)
+        (((.x2 : Reg) ↦ᵣ newSp) ** regOwn .x22 **
+          frameSlotsSaved legacyFrame newSp vals **
+          stackFree newSp 8 ** ((.x10 : Reg) ↦ᵣ (1 : Word)) **
+          ((.x11 : Reg) ↦ᵣ v11) ** ((.x12 : Reg) ↦ᵣ v12) **
+          regOwn .x13 ** regOwn .x14 ** ((.x0 : Reg) ↦ᵣ (0 : Word)) **
+          bytesRegion a0 input **
+          (legacyNthOffPtr ↦ₘ oldOff) ** (legacyNthLenPtr ↦ₘ oldLen) **
+          legacyBodyBss a2 cellOld a3 old0 old1 old2 old3 old4 old5 os A **
+          F ** regOwn .x5 ** regOwn .x6 ** regOwn .x7 **
+          regOwn .x28 ** regOwn .x29 ** regOwn .x30 ** regOwn .x31)
+        h (by xperm_hyp hfail)
+      have hstep : (((.x2 : Reg) ↦ᵣ newSp) **
+          (regOwn .x1 ** regOwn .x8 ** regOwn .x9 ** regOwn .x18 **
+            regOwn .x19 ** regOwn .x20 ** regOwn .x21 ** regOwn .x22) **
+          frameSlotsSaved legacyFrame newSp vals **
+          legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+            old0 old1 old2 old3 old4 old5 input os A F) h := by
+        unfold legacyWholeFailPost
+        xperm_hyp h7
+      rw [legacy_regsOwnAt_frame]
+      exact sepConj_mono (fun _ hx => hx)
+        (sepConj_mono (fun _ hx => hx)
+          (sepConj_mono (fun _ hx => hx)
+            (fun _ hx => Or.inr ⟨v11, v12, hx⟩))) h hstep
+
+/-! ## Whole routine at the `GuestAddrs` anchor -/
+
+/-- **K146 `tx_signing_hash_legacy_eip155`, whole routine.**
+
+    A `cpsTripleWithin` anchored at
+    `GuestAddrs.tx_signing_hash_legacy_eip155` (`legacyH`), through the ABI
+    frame, on the non-empty-length list-header domain.  The post is the
+    disjunction of the two outcomes the guest actually has: the keccak
+    success arm — whose output region holds
+    `keccak256 (kssMsg (legacyKssBodySegs …))`, the digest of the re-encoded
+    EIP-155 preimage — and the status-1 reject arm, on which the two output
+    cells still hold their entry values.
+
+    ## DOMAIN GATE
+
+    `a1 ≠ 0` and `hge`: `input[0]` must be an outer-RLP LIST header
+    (`0xc0 ≤ input[0] ≤ 0xff`).  Both header widths are covered — short
+    (`0xc0`–`0xf7`) and long (`0xf8`–`0xff`, lenlen 1..8) — because the
+    parsed header length is threaded as `legacyHdrLen` rather than
+    case-split.  The remaining cut is non-list first bytes `0x00`–`0xbf`,
+    where the guest exits through its status-1 reject at H+436 instead of
+    through this triple, and `a1 = 0`, which is
+    `tx_signing_hash_legacy_eip155_spec_within_empty_len`.
+
+    Everything else is ABI/resource framing, in exactly the shape K145's
+    `tx_signing_hash_spec_within` uses: buffer alignment/validity, the
+    caller-chosen payload slice (`payloadBs` with `hpayW`), the sponge arena
+    length, the keccak segment geometry (`hcount`/`hsegs`), the two
+    static-source views (`hsourcePrefix`/`hsourceSuffix`), and a step bound
+    `N` covering both arms. -/
+theorem tx_signing_hash_legacy_eip155_spec_within
+    (sp0 ret : Word) (vals : Reg → Word)
+    (a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31 : Word)
+    (oldOff oldLen cellOld : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (input payloadBs os : List (BitVec 8)) (listLen : Nat)
+    (A F : Assertion) (hA : A.pcFree) (hF : F.pcFree)
+    (hret : vals .x1 = ret)
+    (halignRet : (ret &&& ~~~(1 : Word)) = ret)
+    (hlen : a1 ≠ 0)
+    (h0 : 0 < input.length)
+    (halignIn : a0.toNat % 8 = 0)
+    (hge : ¬BitVec.ult (legacyHdrByte input h0) (192 : Word))
+    (hlistLenW : a1 = BitVec.ofNat 64 listLen)
+    (hslack : listLen + 9 ≤ input.length)
+    (hoverIn : a0.toNat + input.length < 2 ^ 64)
+    (hvalidBytes : ∀ k, k < input.length →
+      isValidByteAccess (a0 + BitVec.ofNat 64 k) = true)
+    (halign : legacyLinkedChainPtr.toNat % 8 = 0)
+    (hover : legacyLinkedChainPtr.toNat + 8 ≤ 2 ^ 64)
+    (hvalid : ∀ k, k < 8 →
+      isValidByteAccess (legacyLinkedChainPtr + BitVec.ofNat 64 k) = true)
+    (hbound : 4 * loopProg.length < 2 ^ 64)
+    (h_out_valid : ∀ k, k < 16 →
+      isValidByteAccess (legacyPrefixOutPtr + BitVec.ofNat 64 k) = true)
+    (hos : os.length = 200)
+    (hpayW : ∀ offVal lenVal,
+      EvmAsm.Codegen.RlpListNthItemSAsm.Success input a0 listLen 5 offVal lenVal →
+        BitVec.ofNat 64 payloadBs.length =
+          ((offVal + lenVal) - legacyHdrLen input h0))
+    (hcount : ∀ offVal lenVal,
+      (legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs).length < 2 ^ 64)
+    (hsegs : ∀ offVal lenVal,
+      ∀ s ∈ legacyKssBodySegs a2 ((offVal + lenVal) - legacyHdrLen input h0)
+        a0 (legacyHdrLen input h0) payloadBs,
+        s.2.length < 2 ^ 64 ∧
+          (∀ i, i < s.2.length →
+            s.1.toNat + i < 2 ^ 64 ∧
+            isValidByteAccess (s.1 + BitVec.ofNat 64 i) = true))
+    (sourceSpec :
+      KssInputSourceSpec a0 (legacyHdrLen input h0) input payloadBs)
+    (hsourcePrefix : ∀ offVal lenVal,
+      sourceSpec.source.region legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)) =
+        bytesRegion legacyPrefixOutPtr
+          (legacyKssBodyPrefixBytes a2
+            ((offVal + lenVal) - legacyHdrLen input h0)))
+    (hsourceSuffix : sourceSpec.source.region legacySuffixOutPtr
+        (legacyKssBodySuffixBytes a2) =
+      bytesRegion legacySuffixOutPtr (legacyKssBodySuffixBytes a2))
+    (N : Nat)
+    (hNok : ∀ offVal lenVal,
+      1 + legacyBodyFuel a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
+        (legacyHdrLen input h0) payloadBs ≤ N)
+    (hNfail : 2 ≤ N) :
+    let newSp := sp0 + signExtend12 (-64 : BitVec 12)
+    let bodySteps :=
+      ((4 + 1 + 8) + (7 + (1 + ((12 + ((85 + 93 * (5 + 2)) + 6)) + 9)))) + N
+    cpsTripleWithin
+      (1 + legacyFrame.length + bodySteps + legacyFrame.length + 1 + 1)
+      legacyH ret legacyFullCode
+      ((.x2 ↦ᵣ sp0) ** regsAt legacyFrame vals **
+        frameSlotsOwn legacyFrame newSp **
+        legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+          newSp oldOff oldLen cellOld old0 old1 old2 old3 old4 old5
+          input os A F)
+      ((.x2 ↦ᵣ sp0) ** regsAt legacyFrame vals **
+        frameSlotsSaved legacyFrame newSp vals **
+        legacyNthOutcomePost
+          (fun h => ∃ offVal lenVal,
+            legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0)
+              a0 (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs
+              A F sourceSpec.source h)
+          (fun h => ∃ v11 v12,
+            legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+              old0 old1 old2 old3 old4 old5 input os A F h)) := by
+  intro newSp bodySteps
+  have hcpPre :
+      (legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+        newSp oldOff oldLen cellOld old0 old1 old2 old3 old4 old5
+        input os A F).pcFree :=
+    legacyWholeCallerPre_pcFree _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+      _ _ _ _ _ _ _ _ _ _ hA hF
+  have hcpPost :
+      (legacyNthOutcomePost
+        (fun h => ∃ offVal lenVal,
+          legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0)
+            a0 (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs
+            A F sourceSpec.source h)
+        (fun h => ∃ v11 v12,
+          legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+            old0 old1 old2 old3 old4 old5 input os A F h)).pcFree := by
+    have hokF : ∀ offVal lenVal : Word,
+        (legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0) a0
+          (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs A F
+          sourceSpec.source).pcFree := by
+      intro offVal lenVal
+      unfold legacyWholeOkPost legacyKssBodyProducedResidual
+      repeat first
+        | exact kssCallerPost_multi_pcFree _ _ _ _ hA sourceSpec.source
+        | exact legacyPrefixBssTail_pcFree _
+        | exact hF
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_frameSlotsSaved _ _ _
+        | apply pcFree_sepConj
+        | exact (by pcf)
+    have hfailF : ∀ v11 v12 : Word,
+        (legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+          old0 old1 old2 old3 old4 old5 input os A F).pcFree := by
+      intro v11 v12
+      unfold legacyWholeFailPost
+      repeat first
+        | exact legacyBodyBss_pcFree _ _ _ _ _ _ _ _ _ _ _ hA
+        | exact hF
+        | exact bytesRegion_pcFree _ _
+        | exact pcFree_regIs
+        | exact pcFree_regOwn
+        | exact pcFree_memIs
+        | exact pcFree_stackFree _ _
+        | apply pcFree_sepConj
+        | exact (by pcf)
+    intro h hh
+    rcases hh with hok | hfail
+    · obtain ⟨offVal, lenVal, hok⟩ := hok
+      exact hokF offVal lenVal h hok
+    · obtain ⟨v11, v12, hfail⟩ := hfail
+      exact hfailF v11 v12 h hfail
+  have h := abiFrame_spec_own legacyH sp0 ret (-64 : BitVec 12) (64 : BitVec 12)
+    legacyFrame (0 : BitVec 12) legacySregs vals legacyBody bodySteps
+    (legacyWholeCallerPre a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+      newSp oldOff oldLen cellOld old0 old1 old2 old3 old4 old5 input os A F)
+    (legacyNthOutcomePost
+      (fun h => ∃ offVal lenVal,
+        legacyWholeOkPost a2 ((offVal + lenVal) - legacyHdrLen input h0)
+          a0 (legacyHdrLen input h0) a3 newSp a1 offVal lenVal payloadBs
+          A F sourceSpec.source h)
+      (fun h => ∃ v11 v12,
+        legacyWholeFailPost v11 v12 newSp a0 a2 a3 oldOff oldLen cellOld
+          old0 old1 old2 old3 old4 old5 input os A F h))
+    legacyFullCode legacyFrame_cons legacyFrame_ne_zero
+    (by rw [legacyFrame_length]; decide)
+    (by rw [legacy_prog_eq_abiFrame, legacy_prog_length]; decide)
+    hret halignRet (legacyFrame_restore sp0) hcpPre hcpPost
+    legacy_ofProg_sub_fullCode
+    (legacyKeccakBody_own newSp vals a0 a1 a2 a3 v5 v6 v7 v14 v28 v29 v30 v31
+      oldOff oldLen cellOld old0 old1 old2 old3 old4 old5 input payloadBs os
+      listLen A F hA hF hlen h0 halignIn hge hlistLenW hslack hoverIn
+      hvalidBytes halign hover hvalid hbound h_out_valid hos hpayW hcount
+      hsegs sourceSpec hsourcePrefix hsourceSuffix N hNok hNfail)
+  exact h
+
 end EvmAsm.Codegen.TxSigningHashLegacyTop
