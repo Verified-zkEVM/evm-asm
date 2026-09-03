@@ -33,7 +33,11 @@ open EvmAsm.Rv64 EvmAsm.Rv64.SAsm
 open EvmAsm.Codegen
 open EvmAsm.Codegen.TxSigningHashLegacySpec
 open EvmAsm.Codegen.TxSigningHashLegacyCompose
+open EvmAsm.Codegen.TxSigningHashLegacyLoopSpec
+open EvmAsm.Codegen.TxSigningHashLegacyCopySpec
 open EvmAsm.Codegen.TxSigningHashLegacyChainCompose
+open EvmAsm.Codegen.TxSigningHashLegacyPrefixCopyCompose
+open EvmAsm.Codegen.TxSigningHashSpec
 open EvmAsm.Codegen.TxSigningHashLegacyUintCompose
 open EvmAsm.Codegen.TxSigningHashLegacyPrefixCompose
 open EvmAsm.Codegen.TxSigningHashLegacyTailCompose
@@ -534,5 +538,121 @@ theorem legacyPayloadSourceSpec_len
       (offset + len) - hdrLen := by
   rw [legacyPayloadOf_length input hdrLen offset len hfit]
   rw [BitVec.ofNat_toNat, BitVec.setWidth_eq]
+
+/-! ## Body arms after the `rlp_list_nth_item` return
+
+    `stackFree sp 8` and the KSS callee's frame slots are the same eight
+    dwords below `sp`; the nth call hands the cells back untouched, and the
+    keccak-segments call takes them as its frame. -/
+
+theorem legacyStackFree8_eq_kssFrameSlotsOwn (sp : Word) :
+    stackFree sp 8 =
+      frameSlotsOwn kssFrame (sp + signExtend12 (-64 : BitVec 12)) := by
+  show (memOwn (sp - BitVec.ofNat 64 (8 * 8)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 7)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 6)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 5)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 4)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 3)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 2)) **
+      memOwn (sp - BitVec.ofNat 64 (8 * 1)) **
+      empAssertion) = _
+  show _ = (memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (0 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (8 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (16 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (24 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (32 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (40 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (48 : BitVec 12)) **
+      memOwn ((sp + signExtend12 (-64 : BitVec 12)) +
+        signExtend12 (56 : BitVec 12)) **
+      empAssertion)
+  rw [show signExtend12 (-64 : BitVec 12) = (-64 : Word) from by decide,
+    show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
+    show signExtend12 (8 : BitVec 12) = (8 : Word) from by decide,
+    show signExtend12 (16 : BitVec 12) = (16 : Word) from by decide,
+    show signExtend12 (24 : BitVec 12) = (24 : Word) from by decide,
+    show signExtend12 (32 : BitVec 12) = (32 : Word) from by decide,
+    show signExtend12 (40 : BitVec 12) = (40 : Word) from by decide,
+    show signExtend12 (48 : BitVec 12) = (48 : Word) from by decide,
+    show signExtend12 (56 : BitVec 12) = (56 : Word) from by decide,
+    show sp - BitVec.ofNat 64 (8 * 8) = sp + (-64 : Word) + (0 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 7) = sp + (-64 : Word) + (8 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 6) = sp + (-64 : Word) + (16 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 5) = sp + (-64 : Word) + (24 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 4) = sp + (-64 : Word) + (32 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 3) = sp + (-64 : Word) + (40 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 2) = sp + (-64 : Word) + (48 : Word) from
+      by bv_omega,
+    show sp - BitVec.ofNat 64 (8 * 1) = sp + (-64 : Word) + (56 : Word) from
+      by bv_omega]
+
+/-- The K146 caller footprint the body needs beyond what the Nth call hands
+    back: the four linked BSS buffers, the KSS descriptor table's six dwords,
+    the sponge arena, the zeroed output buffer, and the three KSS-owned
+    caller-save temps. -/
+def legacyBodyBss (chainId cellOld outputBase v15 v16 v17 v22 : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (os : List (BitVec 8)) (A : Assertion) : Assertion :=
+  bytesRegion legacyLinkedChainPtr (List.replicate 8 (0 : BitVec 8)) **
+    bytesRegion legacyLinkedChainEncPtr legacyChainEncOld **
+    bytesRegion legacyPrefixOutPtr (List.replicate 16 (0 : BitVec 8)) **
+    (legacyPrefixCellPtr ↦ₘ cellOld) **
+    bytesRegion legacySuffixOutPtr
+      (List.replicate
+        (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length
+        (0 : BitVec 8)) **
+    ((.x22 : Reg) ↦ᵣ v22) **
+    legacyTailExtension
+      (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length **
+    (legacyKssSegsBase ↦ₘ old0) ** ((legacyKssSegsBase + 8) ↦ₘ old1) **
+    ((legacyKssSegsBase + 16) ↦ₘ old2) ** ((legacyKssSegsBase + 24) ↦ₘ old3) **
+    ((legacyKssSegsBase + 32) ↦ₘ old4) ** ((legacyKssSegsBase + 40) ↦ₘ old5) **
+    ((.x15 : Reg) ↦ᵣ v15) ** ((.x16 : Reg) ↦ᵣ v16) **
+    ((.x17 : Reg) ↦ᵣ v17) **
+    bytesRegion KssZk3 os **
+    bytesRegion outputBase (List.replicate 32 (0 : BitVec 8)) ** A
+
+theorem legacyBodyBss_pcFree
+    (chainId cellOld outputBase v15 v16 v17 v22 : Word)
+    (old0 old1 old2 old3 old4 old5 : Word)
+    (os : List (BitVec 8)) (A : Assertion) (hA : A.pcFree) :
+    (legacyBodyBss chainId cellOld outputBase v15 v16 v17 v22
+      old0 old1 old2 old3 old4 old5 os A).pcFree := by
+  unfold legacyBodyBss
+  repeat first
+    | exact legacyTailExtension_pcFree _
+    | exact hA
+    | exact bytesRegion_pcFree _ _
+    | exact pcFree_regIs
+    | exact pcFree_memIs
+    | apply pcFree_sepConj
+    | exact (by pcf)
+
+/-- Step budget of the K146 body from H+128 through the routine's body exit,
+    as `legacyBodyThenKssSuccess_spec` reports it. -/
+def legacyBodyFuel (chainId payloadBase inPtr hdrLen : Word)
+    (payloadBytes : List (BitVec 8)) : Nat :=
+  let n := (RlpEncodeUintBeSAsm.reubOut (chainBytes chainId)).length
+  let uintFuel :=
+    1 + (8 * 6 + 7 *
+      (8 - RlpEncodeUintBeSAsm.reubZeros (chainBytes chainId) 0 8) + 17)
+  let prefixFuel := 8 + (1 + tshPrefixFuel) + 8 + (n * (6 + 1) + 1) + 4
+  (8 + (68 + 8 + uintFuel + prefixFuel)) +
+    (21 + ((1 + (19 + kssBodyFuelMulti
+      (legacyKssBodySegs chainId payloadBase inPtr hdrLen payloadBytes))) + 2))
 
 end EvmAsm.Codegen.TxSigningHashLegacyTop
