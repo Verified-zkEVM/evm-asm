@@ -1,5 +1,9 @@
 # evm.asm: A Verified Macro Assembler for building zkEVM in Lean 4 (early experiment)
 
+## Project direction is under reconsideration
+
+The formally verified [Pancake compiler](https://github.com/pirapira/stateless-pancaketh/tree/e86464f606c7afced09c67be058fc28147a27aa8) looks promising. In light of that work, we are reconsidering the overall approach of this project. The current code and future contributions to **evm.asm** may not ultimately be used in the final implementation, so please treat ongoing work here as exploratory until the direction is settled.
+
 A prototype implementation of a verified macro assembler targeting the zkEVM,
 built on a RISC-V RV64IM backend, inspired by:
 
