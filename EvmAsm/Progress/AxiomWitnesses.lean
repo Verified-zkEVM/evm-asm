@@ -1156,9 +1156,27 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.TxGasResultIncrementsSAsm.tx_gas_result_increments_spec
 
+#print axioms EvmAsm.Codegen.TxSigningHashLegacySpec.legacy_prog_eq_abiFrame
+
 #print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_prefix_region_of_input_layout
 
 #print axioms EvmAsm.Codegen.TxSigningHashLegacyTailCompose.legacyKssInputSource_suffix_region_of_input_layout
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacyPayloadSupply
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_emptyLen_gate_false_on_one
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_false_on_bf
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_false_on_string_header
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_long_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.legacy_hdrGate_short_nonvacuous
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within
+
+#print axioms EvmAsm.Codegen.TxSigningHashLegacyTop.tx_signing_hash_legacy_eip155_spec_within_empty_len
 
 #print axioms EvmAsm.Codegen.TxSigningHashSpec.tsh_hdrGate_false_on_string_header
 
