@@ -363,6 +363,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- claim and is registered below as a conditional row.
 import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
 import EvmAsm.Codegen.Programs.WitnessCodesIndexBuildTop
+import EvmAsm.Codegen.Programs.WitnessIndexBuildTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
@@ -4841,11 +4842,35 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "state at the routine's own entry (`wcb_entryState_exists`, 45 "
         ++ "atoms) plus `wcb_nonempty_section_gate_absurd` as the negative "
         ++ "control. The mechanically identical node-DB builder "
-        ++ "`witness_index_build` has NO row yet (#13246). "
+        ++ "`witness_index_build` is rowed just below, off the same idioms. "
         ++ "Lives in `Codegen/Programs/WitnessCodesIndexBuildTop.lean`; the "
         ++ "sample-pinned body spec it generalises is `wcb_builder_spec` in "
         ++ "`WitnessCodesIndexBuildSpec.lean`, whose extra `section_len = 1` "
         ++ "failure arm is NOT lifted"),
+  -- #13246 item 1, node-DB half. `witnessIndexBuild_prog` is
+  -- `witnessCodesIndexBuild_prog` instruction-for-instruction with `widx_*`
+  -- for `wcidx_*`, so this row mirrors the one above over the shared,
+  -- `CodeReq`-generic idioms in `Codegen/Programs/CellStoreIdioms.lean`.
+  -- Same INPUT-DOMAIN grading, same reason: the five cross-`jal` callees all
+  -- sit inside the keccak loop or the two heapsort loops, both jumped over.
+  -- Note `widx_sift_down` has NO triple of its own -- this row does not need
+  -- one because it never reaches that call.
+  routine "witness_index_build" .conditional
+      (some "witness_index_build_spec_within_empty_section")
+      (gate := "`section_len = 0` (empty state section): the SSZ offset-table "
+        ++ "guards, the per-entry keccak loop and both heapsort loops are "
+        ++ "jumped over, and the failure tail is not reached. Non-empty "
+        ++ "sections are not claimed")
+      (notes := "whole-routine `cpsTripleWithin 88` at "
+        ++ "`GuestAddrs.witness_index_build`, over the emitted "
+        ++ "158-instruction program. Publishes the EMPTY node index: "
+        ++ "`widx_enabled = 1`, `widx_count = 0`, `widx_section_ptr = a0`, "
+        ++ "`widx_section_len = 0`, `widx_build_status = 0`, all ten "
+        ++ "`wlh_*` counters zeroed, `a0 = 0`; the machine counterpart of "
+        ++ "`SpecRef.build_node_db [] = []`. Non-vacuity is a concrete entry "
+        ++ "state at the routine's own entry (`wib_entryState_exists`, 45 "
+        ++ "atoms) plus `wib_nonempty_section_gate_absurd` as the negative "
+        ++ "control. Lives in `Codegen/Programs/WitnessIndexBuildTop.lean`"),
   routine "witness_lookup_by_hash_indexed" .conditional
       (some "witness_lookup_by_hash_indexed_spec_within_one_hit")
       (gate := "`widx_count = 1` with the target equal to the sole indexed "
@@ -5967,10 +5992,10 @@ def routineCountTier (t : ProofTier) : Nat :=
     by neither `set_option`, and is what the chunk split (#13213) exists for.
 -/
 
-theorem routineCount_eq : routineCount = 247 := by decide +kernel
+theorem routineCount_eq : routineCount = 248 := by decide +kernel
 
 theorem routineProvenCount_eq : routineCountTier .proven = 181 := by decide +kernel
-theorem routineConditionalCount_eq : routineCountTier .conditional = 63 := by
+theorem routineConditionalCount_eq : routineCountTier .conditional = 64 := by
   decide +kernel
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
   decide +kernel
@@ -5994,7 +6019,7 @@ def routineSymbols : List String :=
 -- 11,191-character ones, and could not have been dodged by writing terser
 -- rows. `decide +kernel` sidesteps both budgets; see the note under
 -- `routineCount_eq`.
-theorem routineSymbols_eq : routineSymbols.length = 206 := by decide +kernel
+theorem routineSymbols_eq : routineSymbols.length = 207 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7622,6 +7647,14 @@ private noncomputable abbrev _witness_codes_index_build_entry_witness :=
   @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_entryState_exists
 private noncomputable abbrev _witness_codes_index_build_control_witness :=
   @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_nonempty_section_gate_absurd
+-- #13246 item 1, node-DB half: the mirror top plus its two non-vacuity
+-- exhibits.
+private noncomputable abbrev _witness_index_build_routine_witness :=
+  @EvmAsm.Codegen.WitnessIndexBuildTop.witness_index_build_spec_within_empty_section
+private noncomputable abbrev _witness_index_build_entry_witness :=
+  @EvmAsm.Codegen.WitnessIndexBuildTop.wib_entryState_exists
+private noncomputable abbrev _witness_index_build_control_witness :=
+  @EvmAsm.Codegen.WitnessIndexBuildTop.wib_nonempty_section_gate_absurd
 -- #12206: `assemble_execution_requests` whole routine (imported above —
 -- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
 private noncomputable abbrev _assemble_execution_requests_routine_witness :=
