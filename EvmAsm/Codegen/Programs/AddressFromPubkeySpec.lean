@@ -72,6 +72,7 @@ import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+import Batteries.Tactic.OpenPrivate
 
 -- ⚠️ `autoImplicit` off DELIBERATELY: while proving the keccak call leg, a bare
 -- `Zk3` (private to `HashBridgeKeccakTop`, so not nameable here) was silently

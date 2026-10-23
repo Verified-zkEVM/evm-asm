@@ -58,6 +58,20 @@ instance (dp lenW : Word) (b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (
   unfold eddAccept
   infer_instance
 
+private theorem edd_if_pos {α : Sort _} {dp lenW : Word}
+    {b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8)}
+    {t e : α}
+    (h : eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512) :
+    (if eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 then t else e) = t :=
+  ite_eq_left h
+
+private theorem edd_if_neg {α : Sort _} {dp lenW : Word}
+    {b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 : List (BitVec 8)}
+    {t e : α}
+    (h : ¬ eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512) :
+    (if eddAccept dp lenW b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 then t else e) = e :=
+  ite_eq_right h
+
 /-- The accept-arm post: `a0 = 0`, the five raw fields copied to the
     output arena, registers and frame restored. -/
 def eddOkPost (dp op sp0 ret v8 v9 : Word)
@@ -248,7 +262,7 @@ theorem extractDepositData_spec
     refine cps_fuel_mono (by norm_num)
       (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
         (fun h hq => ?_) hfF)
-    rw [if_neg (fun hacc => hlen hacc.1)]
+    rw [edd_if_neg (fun hacc => hlen hacc.1)]
     dsimp only [eddRejPost]
     have hq1 : (((((.x5 : Reg) ↦ᵣ (576 : Word)) **
         ((.x11 : Reg) ↦ᵣ lenW) ** ((.x12 : Reg) ↦ᵣ op)) **
@@ -319,7 +333,7 @@ theorem extractDepositData_spec
       refine cps_fuel_mono (by norm_num)
         (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
           (fun h hq => ?_) hrF)
-      rw [if_neg (fun hacc => h0 hacc.2.1)]
+      rw [edd_if_neg (fun hacc => h0 hacc.2.1)]
       dsimp only [eddRejPost]
       xperm_hyp hq
     case pos =>
@@ -350,7 +364,7 @@ theorem extractDepositData_spec
         refine cps_fuel_mono (by norm_num)
           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
             (fun h hq => ?_) hrF)
-        rw [if_neg (fun hacc => h32 hacc.2.2.1)]
+        rw [edd_if_neg (fun hacc => h32 hacc.2.2.1)]
         dsimp only [eddRejPost]
         xperm_hyp hq
       case pos =>
@@ -380,7 +394,7 @@ theorem extractDepositData_spec
           refine cps_fuel_mono (by norm_num)
             (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
               (fun h hq => ?_) hrF)
-          rw [if_neg (fun hacc => h64 hacc.2.2.2.1)]
+          rw [edd_if_neg (fun hacc => h64 hacc.2.2.2.1)]
           dsimp only [eddRejPost]
           xperm_hyp hq
         case pos =>
@@ -409,7 +423,7 @@ theorem extractDepositData_spec
             refine cps_fuel_mono (by norm_num)
               (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                 (fun h hq => ?_) hrF)
-            rw [if_neg (fun hacc => h96 hacc.2.2.2.2.1)]
+            rw [edd_if_neg (fun hacc => h96 hacc.2.2.2.2.1)]
             dsimp only [eddRejPost]
             xperm_hyp hq
           case pos =>
@@ -437,7 +451,7 @@ theorem extractDepositData_spec
               refine cps_fuel_mono (by norm_num)
                 (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                   (fun h hq => ?_) hrF)
-              rw [if_neg (fun hacc => h128 hacc.2.2.2.2.2.1)]
+              rw [edd_if_neg (fun hacc => h128 hacc.2.2.2.2.2.1)]
               dsimp only [eddRejPost]
               xperm_hyp hq
             case pos =>
@@ -464,7 +478,7 @@ theorem extractDepositData_spec
                 refine cps_fuel_mono (by norm_num)
                   (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                     (fun h hq => ?_) hrF)
-                rw [if_neg (fun hacc => h160 hacc.2.2.2.2.2.2.1)]
+                rw [edd_if_neg (fun hacc => h160 hacc.2.2.2.2.2.2.1)]
                 dsimp only [eddRejPost]
                 xperm_hyp hq
               case pos =>
@@ -490,7 +504,7 @@ theorem extractDepositData_spec
                   refine cps_fuel_mono (by norm_num)
                     (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                       (fun h hq => ?_) hrF)
-                  rw [if_neg (fun hacc => h256 hacc.2.2.2.2.2.2.2.1)]
+                  rw [edd_if_neg (fun hacc => h256 hacc.2.2.2.2.2.2.2.1)]
                   dsimp only [eddRejPost]
                   xperm_hyp hq
                 case pos =>
@@ -515,7 +529,7 @@ theorem extractDepositData_spec
                     refine cps_fuel_mono (by norm_num)
                       (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                         (fun h hq => ?_) hrF)
-                    rw [if_neg (fun hacc => h320 hacc.2.2.2.2.2.2.2.2.1)]
+                    rw [edd_if_neg (fun hacc => h320 hacc.2.2.2.2.2.2.2.2.1)]
                     dsimp only [eddRejPost]
                     xperm_hyp hq
                   case pos =>
@@ -539,7 +553,7 @@ theorem extractDepositData_spec
                       refine cps_fuel_mono (by norm_num)
                         (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                           (fun h hq => ?_) hrF)
-                      rw [if_neg (fun hacc => h384 hacc.2.2.2.2.2.2.2.2.2.1)]
+                      rw [edd_if_neg (fun hacc => h384 hacc.2.2.2.2.2.2.2.2.2.1)]
                       dsimp only [eddRejPost]
                       xperm_hyp hq
                     case pos =>
@@ -562,7 +576,7 @@ theorem extractDepositData_spec
                         refine cps_fuel_mono (by norm_num)
                           (cpsTripleWithin_weaken (fun h hp => by xperm_hyp hp)
                             (fun h hq => ?_) hrF)
-                        rw [if_neg (fun hacc => h512 hacc.2.2.2.2.2.2.2.2.2.2)]
+                        rw [edd_if_neg (fun hacc => h512 hacc.2.2.2.2.2.2.2.2.2.2)]
                         dsimp only [eddRejPost]
                         xperm_hyp hq
                       case pos =>
@@ -574,7 +588,7 @@ theorem extractDepositData_spec
                           h0 h32 h64 h96 h128 h160 h256 h320 h384 h512 halign
                         refine cps_fuel_mono (by norm_num)
                           (cpsTripleWithin_weaken (fun _ hp => hp) (fun h hq => ?_) ho)
-                        rw [if_pos (show eddAccept dp (576 : Word) b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 from
+                        rw [edd_if_pos (show eddAccept dp (576 : Word) b0 b32 b64 b96 b128 b160 b256 b320 b384 b512 from
                           ⟨rfl, h0, h32, h64, h96, h128, h160, h256, h320, h384, h512⟩)]
                         dsimp only [eddOkPost]
                         xperm_hyp hq

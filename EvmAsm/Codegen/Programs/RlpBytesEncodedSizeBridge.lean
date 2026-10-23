@@ -156,7 +156,6 @@ theorem rbesSize_eq_encodeBytes_length (xs : List Byte) (len : Word)
     · -- otherwise a 0x81 prefix
       have hb' : ¬ b.toNat < 0x80 := by omega
       norm_num [rbesSize, encodeBytes, hb, hb']
-      decide
   | a :: b :: t =>
     -- Two or more bytes: the singleton special case is out, so both sides are
     -- driven purely by the length.

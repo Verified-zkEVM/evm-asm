@@ -56,6 +56,7 @@
 import EvmAsm.Codegen.Proofs.HashBridgeKeccakTop
 import EvmAsm.Rv64.MemSat
 import EvmAsm.Rv64.SAsm.BytesRegionWindow
+import Batteries.Tactic.OpenPrivate
 
 -- ⚠️ Deliberately off (same reason as `NodeDbAppendSpec`): keccak's scratch
 -- base `Zk3` is `private` in `HashBridgeKeccakTop`, and a bare occurrence would
@@ -400,9 +401,8 @@ theorem zkvm_keccak256_spec_within_arena_slice
           (keccakAbsorbStep * N + rem)
         = ((ws.drop off).take (keccakAbsorbStep * N + rem)).take
             (keccakAbsorbStep * N + rem) := by
-    simp only [List.take_take]
-    congr 1
-    omega
+    rw [List.take_take, List.take_take, Nat.min_self,
+      Nat.min_eq_left (by omega)]
   have hprepad :
       keccakBodyPrePad
           ((ws.drop off).take (8 * ((keccakAbsorbStep * N + rem + 7) / 8))) N rem

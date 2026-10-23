@@ -1079,7 +1079,7 @@ theorem taylorExp384_some_witness_10D :
       simpa [taylorInitial] using h_aux
     rw [h_aux']
     norm_num [taylorTraceFinal, taylorTrace10D, taylorDenominator,
-      taylorResultBound]; decide
+      taylorResultBound]
   have h_num : 10 * taylorDenominator < taylorWord64Bound := by decide
   exact taylorExp384_some_of_lt (10 * taylorDenominator) h_num h_result
 
@@ -1111,7 +1111,7 @@ theorem taylorExp384_none_witness_measured :
       simpa [taylorInitial] using h_aux
     rw [h_aux']
     norm_num [taylorTraceFinal, taylorTraceMeasured, taylorDenominator,
-      taylorResultBound]; decide
+      taylorResultBound]
   exact ⟨h_result, taylorExp384_none_of_ge 2073394371 h_result⟩
 
 theorem taylorExpNat_ge_result_bound_of_ge

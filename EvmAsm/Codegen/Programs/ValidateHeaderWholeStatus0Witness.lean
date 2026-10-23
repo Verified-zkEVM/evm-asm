@@ -671,12 +671,10 @@ theorem validateHeaderCorePre_nonempty_G :
       List.map (fun i => BitVec.ofNat 8 (1 >>> (8 * i))) (List.range 8) =
         [1, 0, 0, 0, 0, 0, 0, 0] := by
     norm_num [List.map, List.range, List.range.loop]
-    decide
   have hmap30000000 :
       List.map (fun i => BitVec.ofNat 8 (30000000 >>> (8 * i))) (List.range 8) =
         [128, 195, 201, 1, 0, 0, 0, 0] := by
     norm_num [List.map, List.range, List.range.loop]
-    decide
   have hrel1 :
       EvmAsm.Stateless.SpecRef._decode_header hcoreWitnessHeaderRlp =
         .ok hcoreWitnessHeaderSpec := by

@@ -760,7 +760,7 @@ private theorem currentlyEnabled_Ext_C_result (s : SailState) (misa_val : BitVec
     currentlyEnabled extension.Ext_C s =
       EStateM.Result.ok ((_get_Misa_C misa_val) == 1#1) s := by
   rw [currentlyEnabled.eq_def]
-  simp [hartSupports, _get_Misa_C, RiscvZkvm.Sail.Functions.not, RiscvZkvm.Sail.Functions.xlen,
+  simp [andM, toBool, hartSupports, _get_Misa_C, RiscvZkvm.Sail.Functions.not, RiscvZkvm.Sail.Functions.xlen,
     PreSail.readReg, h_misa,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get]
@@ -770,7 +770,7 @@ theorem currentlyEnabled_Ext_Zca_result (s : SailState) (misa_val : BitVec 64)
     currentlyEnabled extension.Ext_Zca s =
       EStateM.Result.ok ((_get_Misa_C misa_val) == 1#1) s := by
   rw [currentlyEnabled.eq_def]
-  simp [hartSupports, RiscvZkvm.Sail.Functions.not, RiscvZkvm.Sail.Functions.xlen,
+  simp [andM, toBool, hartSupports, RiscvZkvm.Sail.Functions.not, RiscvZkvm.Sail.Functions.xlen,
     currentlyEnabled_Ext_C_result s misa_val h_misa,
     pure, EStateM.pure, bind, EStateM.bind]
 
@@ -796,14 +796,15 @@ theorem runSail_jump_to {target : BitVec 64} {s : SailState}
   -- target[0] and target[1] are definitionally target.getLsbD 0/1
   have hb0' : target[0] = false := hb0
   have hb1' : target[1] = false := hb1
-  have h_zca := currentlyEnabled_Ext_Zca_result s misa_val h_misa
+  -- Keep the public MISA-readability contract; aligned short-circuiting skips this read.
+  have _h_zca := currentlyEnabled_Ext_Zca_result s misa_val h_misa
   unfold jump_to runSail
-  simp [SailME.run, PreSail.PreSailME.run,
+  simp [andM, toBool, SailME.run, PreSail.PreSailME.run,
     ext_control_check_pc,
-    assert, PreSail.assert,
+    sail_assert, PreSail.sail_assert,
     hb0', hb1', BitVec.ofBool,
     bit_to_bool, bool_bit_backwards,
-    h_zca, RiscvZkvm.Sail.Functions.not,
+    RiscvZkvm.Sail.Functions.not,
     set_next_pc, redirect_callback,
     PreSail.writeReg, EStateM.modifyGet,
     modify, MonadState.modifyGet, modifyGet, MonadStateOf.modifyGet,

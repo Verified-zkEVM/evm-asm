@@ -416,7 +416,7 @@ private theorem edd_unpack_be32 (ptr K : Word) (bsC : List (BitVec 8))
     show rf .x10 = (1 : Word) from by
       rw [show rf .x10 = rf.get .x10 from by
         rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
-      rw [h10, EddBe32EqSAsm.eddOut, if_pos hok]] at hh
+      rw [h10, EddBe32EqSAsm.eddOut_pos hok]] at hh
   exact sepConj_mono_right (regAtomsOf_to_regOwns _ _) h' hh
 
 /-- The explicit callee-entry register file for a copy call. -/
@@ -2677,7 +2677,7 @@ private theorem edd_unpack_be32_ne (ptr K : Word) (bsC : List (BitVec 8))
     show rf .x10 = (0 : Word) from by
       rw [show rf .x10 = rf.get .x10 from by
         rw [RegFile.get, if_neg (by decide : (Reg.x10 : Reg) ≠ .x0)]]
-      rw [h10, EddBe32EqSAsm.eddOut, if_neg hnok]] at hh
+      rw [h10, EddBe32EqSAsm.eddOut_neg hnok]] at hh
   exact sepConj_mono_right (regAtomsOf_to_regOwns _ _) h' hh
 
 set_option maxRecDepth 8000 in

@@ -18,7 +18,7 @@ name = "mathlib"
 scope = "leanprover-community"
 # Pin the tag matching lean-toolchain: mathlib master tracks the next rc, so an
 # unpinned `lake update` would overshoot the toolchain. Bump both together.
-rev = "v4.33.0"
+rev = "v4.35.0"
 
 # Release-pinned scoped RV64IM Sail extraction. Its release archive contains
 # platform-independent oleans, so ordinary EvmAsm builds do not recompile the
@@ -26,8 +26,7 @@ rev = "v4.33.0"
 # riscv-zkvm.
 [[require]]
 name = "riscv-zkvm"
-git = "https://github.com/Verified-zkEVM/riscv-zkvm"
-rev = "v0.3.0"
+path = "../riscv-zkvm"
 
 [[lean_lib]]
 name = "EvmAsm"

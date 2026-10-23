@@ -58,7 +58,7 @@ export RiscvZkvm.Rv64 (StepResult.trap.noConfusion StepResult.trap.sizeOf_spec T
 export RiscvZkvm.Rv64 (TrapKind.ctorElim TrapKind.ctorElimType TrapKind.ctorIdx TrapKind.misalignedAccess)
 export RiscvZkvm.Rv64 (TrapKind.misalignedAccess.elim TrapKind.misalignedAccess.sizeOf_spec TrapKind.noConfusion TrapKind.noConfusionType)
 export RiscvZkvm.Rv64 (TrapKind.ofNat TrapKind.ofNat_ctorIdx TrapKind.other TrapKind.other.elim)
-export RiscvZkvm.Rv64 (TrapKind.other.sizeOf_spec TrapKind.rec TrapKind.recOn TrapKind.toCtorIdx)
+export RiscvZkvm.Rv64 (TrapKind.other.sizeOf_spec TrapKind.rec TrapKind.recOn)
 export RiscvZkvm.Rv64 (code_execInstrBr code_step code_stepN committed_execInstrBr)
 export RiscvZkvm.Rv64 (execInstr.eq_1 execInstr.eq_10 execInstr.eq_11 execInstr.eq_12)
 export RiscvZkvm.Rv64 (execInstr.eq_13 execInstr.eq_14 execInstr.eq_15 execInstr.eq_16)

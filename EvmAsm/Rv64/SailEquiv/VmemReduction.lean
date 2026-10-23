@@ -287,7 +287,7 @@ theorem pmaCheck_load_ok (paddr : physaddr) (width : Nat) (s : SailState)
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
     MonadLift.monadLift, monadLift, liftM, Functor.map, EStateM.map,
-    Sail.assert, PreSail.assert]
+    Sail.sail_assert, PreSail.sail_assert]
 
 /-- **`check_pma_with_pmp_priority` permits an aligned readable Load.** The PMA check
     succeeds first, so the (fault-attribution) PMP fallback is never consulted — the
@@ -388,11 +388,11 @@ theorem within_mmio_readable_ram (addr : physaddr) (width : Nat) (s : SailState)
     (within_mmio_readable addr width) s = .ok false s := by
   unfold within_mmio_readable
   -- Rewrite `get_config_rvfi ()` everywhere at once (Decidable instance included) so the
-  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`if_false`.
+  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`ite_false`.
   rw [show get_config_rvfi () = false from rfl]
-  simp only [Bool.false_eq_true, if_false,
+  simp only [orM, toBool, Bool.false_eq_true, ite_false,
     bind, EStateM.bind, hclint, hsig, hhtif,
-    pure, EStateM.pure, Bool.false_or, Bool.false_and]
+    pure, EStateM.pure, Bool.false_and]
 
 /-- **Lemma #2b — `effectivePrivilege` is the identity in Machine mode with `MPRV = 0`.**
     A data access (not an `InstructionFetch`) only switches privilege when `MPRV = 1`; with
@@ -408,15 +408,22 @@ theorem effectivePrivilege_machine (s : SailState) (access : MemoryAccessType me
 /-- **Lemma #2c — `get_pmlen` is `0` in Machine mode with pointer masking disabled.**
     A `Load Data` access is PMM-applicable, so `get_pmlen` consults `get_pmm Machine`,
     which reads `mseccfg`; with its PMM field (`bits 33:32`) zero, the mode is
-    `PMM_Disabled` and the masking length is `0`. Reads `mstatus` (forced by the
-    short-circuited applicability test) and `mseccfg`, leaving the state untouched. -/
+    `PMM_Disabled` and the masking length is `0`. The corrected short-circuiting
+    skips `mstatus` in Machine mode and reads `mseccfg`, leaving the state untouched. -/
 theorem get_pmlen_machine_zero (s : SailState) (mst msec : BitVec 64)
     (h_mst : s.regs.get? Register.mstatus = some mst)
     (h_sec : s.regs.get? Register.mseccfg = some msec)
     (h_pmm : _get_Seccfg_PMM msec = 0#2) :
     (get_pmlen (MemoryAccessType.Load mem_payload.Data) Privilege.Machine) s = .ok 0 s := by
+  have _h_mst := h_mst
   unfold get_pmlen is_pmm_applicable get_pmm
-  simp +decide [PreSail.readReg, h_mst, h_sec, h_pmm, pmm_mode_backwards,
+  simp +decide [andM, orM, toBool,
+    show (MemoryAccessType.Load mem_payload.Data == MemoryAccessType.InstructionFetch ()) = false by decide,
+    show (MemoryAccessType.Load mem_payload.Data == MemoryAccessType.Load mem_payload.PageTableEntry) = false by decide,
+    show (MemoryAccessType.Load mem_payload.Data == MemoryAccessType.Store mem_payload.PageTableEntry) = false by decide,
+    show (Privilege.Machine == Privilege.Machine) = true by decide,
+    RiscvZkvm.Sail.Functions.xlen,
+    PreSail.readReg, h_sec, h_pmm, pmm_mode_backwards,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get, bne]
 
@@ -634,7 +641,7 @@ theorem checked_mem_read_load_w (w : Nat) (addr : BitVec 64) (s : SailState) (v 
   simp +decide only [SailME.run, PreSail.PreSailME.run,
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
-    Sail.assert, PreSail.assert, if_true,
+    Sail.sail_assert, PreSail.sail_assert, if_true,
     BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
     ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
@@ -1099,7 +1106,7 @@ theorem ld_sail_equiv (sRv : MachineState) (sSail : SailState)
       ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_LOAD
-    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
+    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.sail_assert, if_true]
     rw [show runSail (vmem_read (regToRegidx rs1) (signExtend12 offset) 8
           (MemoryAccessType.Load mem_payload.Data) false false false) sSail
         = some (Result.Ok (reconstructDword sSail.mem

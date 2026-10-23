@@ -67,8 +67,15 @@ theorem get_pmlen_machine_zero_store (s : SailState) (mst msec : BitVec 64)
     (h_sec : s.regs.get? Register.mseccfg = some msec)
     (h_pmm : _get_Seccfg_PMM msec = 0#2) :
     (get_pmlen (MemoryAccessType.Store mem_payload.Data) Privilege.Machine) s = .ok 0 s := by
+  have _h_mst := h_mst
   unfold get_pmlen is_pmm_applicable get_pmm
-  simp +decide [PreSail.readReg, h_mst, h_sec, h_pmm, pmm_mode_backwards,
+  simp +decide [andM, orM, toBool,
+    show (MemoryAccessType.Store mem_payload.Data == MemoryAccessType.InstructionFetch ()) = false by decide,
+    show (MemoryAccessType.Store mem_payload.Data == MemoryAccessType.Load mem_payload.PageTableEntry) = false by decide,
+    show (MemoryAccessType.Store mem_payload.Data == MemoryAccessType.Store mem_payload.PageTableEntry) = false by decide,
+    show (Privilege.Machine == Privilege.Machine) = true by decide,
+    RiscvZkvm.Sail.Functions.xlen,
+    PreSail.readReg, h_sec, h_pmm, pmm_mode_backwards,
     pure, EStateM.pure, bind, EStateM.bind, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get, bne]
 
@@ -147,7 +154,7 @@ theorem pmaCheck_store_ok (paddr : physaddr) (width : Nat) (s : SailState)
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.pure, ExceptT.bind, ExceptT.bindCont, ExceptT.lift,
     MonadLift.monadLift, monadLift, liftM, Functor.map, EStateM.map,
-    Sail.assert, PreSail.assert]
+    Sail.sail_assert, PreSail.sail_assert]
 
 /-- **`check_pma_with_pmp_priority` permits an aligned writable store.** The PMA check
     succeeds first, so the PMP fallback is never consulted (any privilege). Twin of
@@ -178,11 +185,11 @@ theorem within_mmio_writable_ram (addr : physaddr) (width : Nat) (s : SailState)
     (within_mmio_writable addr width) s = .ok false s := by
   unfold within_mmio_writable
   -- Rewrite `get_config_rvfi ()` everywhere at once (Decidable instance included) so the
-  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`if_false`.
+  -- RVFI guard stays well-typed and reduces via `Bool.false_eq_true`/`ite_false`.
   rw [show get_config_rvfi () = false from rfl]
-  simp only [Bool.false_eq_true, if_false,
+  simp only [orM, toBool, Bool.false_eq_true, ite_false,
     bind, EStateM.bind, hclint, hsig, hhtif,
-    pure, EStateM.pure, Bool.false_or, Bool.false_and]
+    pure, EStateM.pure, Bool.false_and]
 
 /-- **`phys_access_check` permits a bare-mode aligned writable store.** Composes the
     store-side `pmpCheck` `none` result with the `pmaCheck` `Ok alignedAccessInfo`. -/
@@ -338,7 +345,7 @@ theorem mem_write_ea_plain (addr : BitVec 64) (width : Nat) (s : SailState) (mst
     effectivePrivilege_machine s _ mst _ h_mprv,
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
-    Sail.assert, PreSail.assert, if_true,
+    Sail.sail_assert, PreSail.sail_assert, if_true,
     BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
     ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
@@ -386,7 +393,7 @@ theorem checked_mem_write_store_N (w : Nat) (addr : BitVec 64) (s s' : SailState
   simp +decide only [SailME.run, PreSail.PreSailME.run,
     hcheck, alignedAccessInfo, hsplit, misaligned_order_one,
     Int.toNat_one, Int.toNat_zero, untilFuelM_one,
-    Sail.assert, PreSail.assert, if_true,
+    Sail.sail_assert, PreSail.sail_assert, if_true,
     BitVec.addInt, Int.natCast_zero, Int.zero_mul, Int.zero_add,
     ofInt_zero_bv, add_zero_physaddrbits,
     Int.toNat_natCast, bits_of_physaddr_mk,
@@ -494,7 +501,7 @@ theorem vmem_write_addr_store_core (w : Nat) (vaddr : virtaddr) (s s' : SailStat
     Bool.false_and, Bool.true_and, ite_self,
     Int.toNat_natCast,
     htrans, zero_extend64_id,
-    Sail.assert, PreSail.assert, if_true,
+    Sail.sail_assert, PreSail.sail_assert, if_true,
     EStateM.map, bind, EStateM.bind, pure, EStateM.pure, EStateM.get,
     get, MonadState.get, getThe, MonadStateOf.get,
     ExceptT.run, ExceptT.mk, ExceptT.bind, ExceptT.bindCont, ExceptT.lift, ExceptT.pure,

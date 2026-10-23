@@ -153,7 +153,7 @@ export RiscvZkvm.Rv64 (MachineState.writeWords MachineState.writeWords.eq_1 Mach
 export RiscvZkvm.Rv64 (MachineState.writeWords_cons MachineState.writeWords_nil Reg Reg.casesOn)
 export RiscvZkvm.Rv64 (Reg.ctorElim Reg.ctorElimType Reg.ctorIdx Reg.instToString)
 export RiscvZkvm.Rv64 (Reg.noConfusion Reg.noConfusionType Reg.ofNat Reg.ofNat_ctorIdx)
-export RiscvZkvm.Rv64 (Reg.rec Reg.recOn Reg.toCtorIdx Reg.toNat)
+export RiscvZkvm.Rv64 (Reg.rec Reg.recOn Reg.toNat)
 export RiscvZkvm.Rv64 (Reg.x0 Reg.x0.elim Reg.x0.sizeOf_spec Reg.x1)
 export RiscvZkvm.Rv64 (Reg.x1.elim Reg.x1.sizeOf_spec Reg.x10 Reg.x10.elim)
 export RiscvZkvm.Rv64 (Reg.x10.sizeOf_spec Reg.x11 Reg.x11.elim Reg.x11.sizeOf_spec)

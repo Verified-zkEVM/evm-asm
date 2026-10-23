@@ -524,7 +524,6 @@ private theorem keccakAbsorb_brOff (L : GuestLayout) :
   unfold brOff
   rw [Nat.cast_add, Nat.cast_add]
   norm_num
-  decide
 
 private theorem keccakAbsorb_jalOff (L : GuestLayout) :
     jalOff (L.zkvm_keccak256 + 64) (L.zkvm_keccak256 + 132) =

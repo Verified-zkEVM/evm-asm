@@ -67,11 +67,10 @@ opaque opaqueProgram : Program := by
   exact (show List Instr from [ Instr.LI .x5 (0 : Word) ])
 
 /--
-error: don't know how to synthesize placeholder
-context:
-base v : Word
-h : cpsTripleWithin 1 base (base + 4) (CodeReq.singleton base (Instr.LI Reg.x5 0)) (Reg.x5 ↦ᵣ v) (Reg.x5 ↦ᵣ 0)
-⊢ cpsTripleWithin 1 base (base + 4) (CodeReq.ofProg base opaqueProgram) (Reg.x5 ↦ᵣ v) (Reg.x5 ↦ᵣ 0)
+error: runBlock: the composed proof's code requirement does not match the goal's, and nothing on this path can bridge them:
+  goal:     CodeReq.ofIndexed (progIndexed base opaqueProgram)
+  composed: CodeReq.singleton base (Instr.LI Reg.x5 0)
+Usually the goal's `CodeReq.ofProg <base> <prog>` could not be reduced to the instruction chain the specs are stated over — an `opaque` program cannot be, and needs an explicit bridge theorem.
 -/
 #guard_msgs in
 example (base v : Word) :

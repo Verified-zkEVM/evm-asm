@@ -233,13 +233,11 @@ private theorem u256DivU64Be_prog_of_layout_independent (L : GuestLayout) :
     unfold brOff
     rw [Nat.cast_add, Nat.cast_add]
     norm_num
-    decide
   have h₂ : brOff (L.u256_div_u64_be + 100) (L.u256_div_u64_be + 32) =
       (68 : BitVec 13) := by
     unfold brOff
     rw [Nat.cast_add, Nat.cast_add]
     norm_num
-    decide
   have h₃ : jalOff (L.u256_div_u64_be + 32) (L.u256_div_u64_be + 96) =
       (-64 : BitVec 21) := by
     unfold jalOff

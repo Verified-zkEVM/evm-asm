@@ -211,7 +211,7 @@ theorem sd_sail_equiv (sRv : MachineState) (sSail : SailState)
   refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_STORE
-    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
+    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.sail_assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (v, sSail) from by
       simp only [runSail, h_rs2]]
     simp +decide only []
@@ -407,7 +407,7 @@ theorem sw_sail_equiv (sRv : MachineState) (sSail : SailState)
   refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · -- SAIL execution succeeds with RETIRE_SUCCESS
     unfold execute_STORE
-    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
+    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.sail_assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (sRv.getReg rs2, sSail) from by
       simp only [runSail, h_rs2]]
     simp +decide only []
@@ -660,7 +660,7 @@ theorem sh_sail_equiv (sRv : MachineState) (sSail : SailState)
     have := byteOffset_lt_8 (addr := addr); omega
   refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · unfold execute_STORE
-    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
+    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.sail_assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (sRv.getReg rs2, sSail) from by
       simp only [runSail, h_rs2]]
     simp +decide only []
@@ -760,7 +760,7 @@ theorem sb_sail_equiv (sRv : MachineState) (sSail : SailState)
   have hposlt : byteOffset addr < 8 := byteOffset_lt_8
   refine ⟨sSail', ?_, ?_, ?_, ?_⟩
   · unfold execute_STORE
-    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.assert, if_true]
+    simp +decide only [soff, runSail_bind, runSail_pure, PreSail.sail_assert, if_true]
     rw [show runSail (rX_bits (regToRegidx rs2)) sSail = some (sRv.getReg rs2, sSail) from by
       simp only [runSail, h_rs2]]
     simp +decide only []

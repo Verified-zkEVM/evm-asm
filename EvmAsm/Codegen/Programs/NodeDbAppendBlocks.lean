@@ -34,6 +34,7 @@ import EvmAsm.Rv64.SAsm.MultiRw
 import EvmAsm.Rv64.SAsm.RaSpill
 import EvmAsm.Rv64.SAsm.TwoExitLoop
 import EvmAsm.Rv64.Tactics.XCancelStruct
+import Batteries.Tactic.OpenPrivate
 
 -- ⚠️ Deliberately off, for the reason recorded in `AddressFromPubkeySpec.lean`:
 -- keccak's scratch base `Zk3` is `private` in `HashBridgeKeccakTop`, and a bare

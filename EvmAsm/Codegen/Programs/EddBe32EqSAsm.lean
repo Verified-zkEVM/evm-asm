@@ -51,6 +51,14 @@ instance (ptr : Word) (bs : List (BitVec 8)) (K : Word) :
 def eddOut (ptr : Word) (bs : List (BitVec 8)) (K : Word) : Word :=
   if eddOk ptr bs K then 1 else 0
 
+theorem eddOut_pos {ptr : Word} {bs : List (BitVec 8)} {K : Word}
+    (h : eddOk ptr bs K) : eddOut ptr bs K = 1 :=
+  ite_eq_left h
+
+theorem eddOut_neg {ptr : Word} {bs : List (BitVec 8)} {K : Word}
+    (h : ¬ eddOk ptr bs K) : eddOut ptr bs K = 0 :=
+  ite_eq_right h
+
 /-- Facts the routine never disturbs. -/
 def eddStatic (ptr : Word) (bs : List (BitVec 8)) (K : Word)
     (rf : RegFile) : Prop :=
@@ -419,7 +427,7 @@ def eddDeriv (ptr : Word) (bs : List (BitVec 8)) (K : Word) :
             rintro rf ws A _ ⟨hok, hA⟩
             simp only [execBlock_cons, execBlock_nil, execInstrRF_li']
             refine ⟨?_, hA⟩
-            rw [RegFile.get_set_self _ _ _ (by decide), eddOut, if_pos hok]))
+            rw [RegFile.get_set_self _ _ _ (by decide), eddOut_pos hok]))
         (DCode.retJalr "eqr"))
       -- shared bad tail
       (DCode.seq
@@ -430,12 +438,12 @@ def eddDeriv (ptr : Word) (bs : List (BitVec 8)) (K : Word) :
                 _hstat, hA⟩, hbr⟩)
             · simp only [execBlock_cons, execBlock_nil, execInstrRF_li']
               refine ⟨?_, hA⟩
-              rw [RegFile.get_set_self _ _ _ (by decide), eddOut, if_neg hnok]
+              rw [RegFile.get_set_self _ _ _ (by decide), eddOut_neg hnok]
             · simp only [Cond.holds, RegFile.get_x0, ne_eq] at hbr
               simp only [execBlock_cons, execBlock_nil, execInstrRF_li']
               refine ⟨?_, hA⟩
-              rw [RegFile.get_set_self _ _ _ (by decide), eddOut,
-                if_neg (fun hok => hbr (h28.trans (hok.1 i hin)))]))
+              rw [RegFile.get_set_self _ _ _ (by decide),
+                eddOut_neg (fun hok => hbr (h28.trans (hok.1 i hin)))]))
         (DCode.retJalr "ner")))
 
 /-! ## The generated code and spec -/

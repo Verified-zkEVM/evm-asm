@@ -16,6 +16,7 @@ import EvmAsm.Codegen.Programs.HeaderValidateParentHashUnifiedCover
 import EvmAsm.Codegen.Programs.ValidateHeaderParentHashUnifiedRoute
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeWitness
 import EvmAsm.Codegen.Programs.ValidateHeaderWholeStatus0Witness
+import Batteries.Tactic.OpenPrivate
 
 namespace EvmAsm.Codegen.ValidateHeaderStep2ParentHashAmbient
 
