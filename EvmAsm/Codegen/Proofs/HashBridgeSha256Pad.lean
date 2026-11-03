@@ -6,9 +6,13 @@
   8× compose + remainder/0x80/bitlen/final CSRS/BE squeeze remain.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

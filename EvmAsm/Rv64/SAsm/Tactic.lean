@@ -18,8 +18,14 @@
   unprovable `…​.call_unsupported_until_M4 : False` goal.
 -/
 
-import Lean
-import EvmAsm.Rv64.SAsm.Fn
+module
+
+public import Lean
+public import EvmAsm.Rv64.SAsm.Fn
+meta import Lean
+meta import EvmAsm.Rv64.SAsm.Fn
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -28,7 +34,7 @@ open Lean Elab Tactic Meta
 
 /-- Evaluate a VC label expression: labels are built exclusively from string
     literals and `++`, so a tiny structural evaluator suffices. -/
-private partial def evalLabel (e : Expr) : MetaM String := do
+private meta partial def evalLabel (e : Expr) : MetaM String := do
   -- Reduce, but stop at `String.append` (full whnf would unfold it into its
   -- ByteArray implementation).
   let e ← do
@@ -48,12 +54,12 @@ private partial def evalLabel (e : Expr) : MetaM String := do
       throwError "vcgen: cannot evaluate VC label{indentExpr e}"
 
 /-- Turn a dotted label into a hierarchical case name. -/
-private def labelToName (label : String) : Name :=
+private meta def labelToName (label : String) : Name :=
   (label.splitOn ".").foldl (fun n s => Name.str n s) Name.anonymous
 
 /-- Split a `VCs.Hold …` goal along the cons/append spine of the VC list,
     naming each leaf goal by its label. -/
-private partial def vcCases (g : MVarId) : MetaM (List MVarId) := do
+private meta partial def vcCases (g : MVarId) : MetaM (List MVarId) := do
   g.withContext do
     let t ← g.getType
     unless t.isAppOfArity ``VCs.Hold 1 do

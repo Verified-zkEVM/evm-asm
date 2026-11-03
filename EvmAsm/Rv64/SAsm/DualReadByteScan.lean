@@ -48,8 +48,12 @@
   real byte-equality post (superseding the `firstDiff`-shaped `Fn` post).
 -/
 
-import EvmAsm.Rv64.SAsm.TwoBreakWritable
-import EvmAsm.Rv64.SAsm.RetForwardJoin
+module
+
+public import EvmAsm.Rv64.SAsm.TwoBreakWritable
+public import EvmAsm.Rv64.SAsm.RetForwardJoin
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

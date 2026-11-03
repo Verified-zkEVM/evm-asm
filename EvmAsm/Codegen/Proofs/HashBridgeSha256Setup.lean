@@ -7,13 +7,17 @@
   generated wrapper.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Rv64.LaResolve
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Rv64.LaResolve
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 
@@ -23,12 +27,43 @@ open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
 
-private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
-private abbrev ShaState : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
-private abbrev ShaInput : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
-private abbrev ShaIv : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
-private abbrev sha256ProgL : List Instr := zkvmSha256_prog
-private abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
+namespace Sha256SetupGeometry
+
+abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
+
+end Sha256SetupGeometry
+
+open Sha256SetupGeometry
+
+namespace Sha256SetupGeometry
+
+abbrev ShaState : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
+
+end Sha256SetupGeometry
+
+namespace Sha256SetupGeometry
+
+abbrev ShaInput : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
+
+end Sha256SetupGeometry
+
+namespace Sha256SetupGeometry
+
+abbrev ShaIv : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
+
+end Sha256SetupGeometry
+
+namespace Sha256SetupGeometry
+
+abbrev sha256ProgL : List Instr := zkvmSha256_prog
+
+end Sha256SetupGeometry
+
+namespace Sha256SetupGeometry
+
+abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
+
+end Sha256SetupGeometry
 
 private theorem sha256ProgL_len : sha256ProgL.length = 121 := by
   simp only [sha256ProgL, zkvmSha256_prog, zkvmSha256_prog_of]

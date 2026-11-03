@@ -16,12 +16,16 @@
   bridge, not required to close the countdown shell.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.RwSubwindow
-import EvmAsm.Rv64.SAsm.PhaseSplit
-import EvmAsm.Rv64.ZiskAccel
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.RwSubwindow
+public import EvmAsm.Rv64.SAsm.PhaseSplit
+public import EvmAsm.Rv64.ZiskAccel
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

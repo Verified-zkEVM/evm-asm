@@ -28,8 +28,12 @@
   `.post` VC recovers slot preservation from the window shape alone.
 -/
 
-import EvmAsm.Rv64.SAsm.RaSpill
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Rv64.SAsm.RaSpill
+public import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm
@@ -471,26 +475,26 @@ theorem wCallerRVFn_spec (v : Word) :
         List.take_append_of_le_length (by rw [length_dwordBytes]),
         List.take_of_length_le (by rw [length_dwordBytes])]
 
-private theorem wCallerR_hcode : ∀ a i,
+theorem wCallerR_hcode : ∀ a i,
     CodeReq.ofProg 0x1000 (wCallerRFn.programRetR .x13 (-8) 0x1000) a = some i →
     wCallerRCr a = some i := by
   intro a i h
   simp only [wCallerRCr, CodeReq.union, h]
 
-private theorem wCallerR_haddr : ∀ rf ws A, wCallerRFn.pre rf ws A →
+theorem wCallerR_haddr : ∀ rf ws A, wCallerRFn.pre rf ws A →
     rf.get .x13 + signExtend12 (-8) = wCallerRFn.rw.base + BitVec.ofNat 64 0 := by
   intro rf ws A h
   rw [show rf.get .x13 = 0x10008 from h]
   decide
 
-private theorem wCallerR_haddrPost : ∀ (v : Word) rf ws A,
+theorem wCallerR_haddrPost : ∀ (v : Word) rf ws A,
     (wCallerRVFn v).post rf ws A →
     rf.get .x13 + signExtend12 (-8) = wCallerRFn.rw.base + BitVec.ofNat 64 0 := by
   intro v rf ws A h
   rw [show rf.get .x13 = 0x10008 from h.2.1]
   decide
 
-private theorem wCallerR_hspre : ∀ (v : Word) rf ws A, wCallerRFn.pre rf ws A →
+theorem wCallerR_hspre : ∀ (v : Word) rf ws A, wCallerRFn.pre rf ws A →
     ws.length = wCallerRFn.rw.len →
     (wCallerRVFn v).pre rf (setBytes ws 0 (dwordBytes v)) A := by
   intro v rf ws A h hlen
@@ -501,11 +505,11 @@ private theorem wCallerR_hspre : ∀ (v : Word) rf ws A, wCallerRFn.pre rf ws A 
   rw [List.drop_zero, length_dwordBytes] at hs
   exact hs
 
-private theorem wCallerR_hspost : ∀ (v : Word) rf ws A,
+theorem wCallerR_hspost : ∀ (v : Word) rf ws A,
     (wCallerRVFn v).post rf ws A → wCallerRFn.post rf ws A :=
   fun _ _ _ _ h => ⟨h.1, h.2.1⟩
 
-private theorem wCallerR_hslot : ∀ (v : Word) rf ws A,
+theorem wCallerR_hslot : ∀ (v : Word) rf ws A,
     (wCallerRVFn v).post rf ws A → ws.length = wCallerRFn.rw.len →
     (ws.drop 0).take 8 = dwordBytes v := by
   intro v rf ws A h hlen

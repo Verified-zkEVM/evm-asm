@@ -7,14 +7,18 @@
   BEQ, not this loop.
 -/
 
-import EvmAsm.Rv64.MemRegionWriteWide
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Stateless.SpecRef.Crypto
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Rv64.MemRegionWriteWide
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

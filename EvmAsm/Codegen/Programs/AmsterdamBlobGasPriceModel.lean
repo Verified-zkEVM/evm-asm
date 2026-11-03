@@ -21,10 +21,18 @@
     of the model.
 -/
 
-import EvmAsm.Evm64.EvmWordArith.MultiLimb
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Stateless.SpecRef.TaylorExponential
-import Mathlib.Data.List.GetD
+module
+
+public import EvmAsm.Evm64.EvmWordArith.MultiLimb
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Stateless.SpecRef.TaylorExponential
+public import Mathlib.Data.List.GetD
+meta import EvmAsm.Evm64.EvmWordArith.MultiLimb
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Stateless.SpecRef.TaylorExponential
+meta import Mathlib.Data.List.GetD
+
+@[expose] public section
 
 set_option exponentiation.threshold 384
 set_option maxRecDepth 8000

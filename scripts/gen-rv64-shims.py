@@ -47,6 +47,10 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Share the consumer's block-comment-aware modern Lean import parser.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+import lean_imports as li  # noqa: E402
+
 ROOT = Path(__file__).resolve().parent.parent
 
 # The revision an original (pre-shim) module's prelude is read from, used ONLY
@@ -97,29 +101,104 @@ SKIP_MODULES = {"RiscvZkvm.Rv64.Logic.Support", "RiscvZkvm.Rv64.CoreTactics"}
 SCRATCH = re.compile(r"\.(match_[\d_]+|_[A-Za-z0-9_]+)(\.|$)")
 
 
-def dependency_modules() -> list[str]:
-    """The dependency modules that need an evm-asm shim.
+def check_comment_only_header_lines(text: str, mod: str) -> None:
+    """Fail closed where the shared line parser would ignore trailing code.
 
-    Driven off the dependency's own source tree rather than off which modules
-    happen to declare something: three `*Attr` modules declare only attribute
-    parsers (outside the `RiscvZkvm.Rv64` namespace) and `Tactics/PerfTrace`
-    declares nothing at all, but all four still need a shim so that evm-asm's
-    import edges to them survive.
+    The established parser accepts comment-only lines, but not code after a
+    block-comment close on the same line. Do not silently lose a valid import
+    in that shape. This checks only the header and leaves the shared parser and
+    all body syntax alone; it deliberately refuses rather than upgrading syntax.
     """
-    src = ROOT / ".lake" / "packages" / "riscv-zkvm" / "RiscvZkvm" / "Rv64"
+    depth = 0
+    for raw in text.splitlines():
+        stripped = raw.strip()
+        if depth == 0 and not stripped.startswith("/-"):
+            if not stripped or stripped.startswith("--"):
+                continue
+            if li.MODULE_HEADER_RE.match(raw) or li.IMPORT_RE.match(raw):
+                continue
+            break
+        i = 0
+        while i < len(raw):
+            pair = raw[i:i + 2]
+            if pair == "/-":
+                depth += 1
+                i += 2
+            elif depth and pair == "-/":
+                depth -= 1
+                i += 2
+            elif depth:
+                i += 1
+            elif raw[i].isspace():
+                i += 1
+            elif pair == "--":
+                break
+            else:
+                raise SystemExit(f"gen-rv64-shims: mixed block-comment/code header in {mod}")
+    if depth:
+        raise SystemExit(f"gen-rv64-shims: unterminated block-comment header in {mod}")
+
+
+def ordinary_logic_closure(src: Path) -> set[str]:
+    """Source import closure of the ORDINARY dependency Logic root.
+
+    Follow all dependency-local imports, including public/meta/import-all forms.
+    Nested comments and body text are handled by the existing lean_imports parser.
+    Walking through non-Logic modules matters: the result must describe the real
+    source closure, not just direct root imports. Missing local files fail closed.
+    """
+    package = src.parent.parent
+    todo = ["RiscvZkvm.Rv64.Logic"]
+    seen: set[str] = set()
+    while todo:
+        mod = todo.pop()
+        if mod in seen:
+            continue
+        path = package / (mod.replace(".", "/") + ".lean")
+        if not path.is_file():
+            raise SystemExit(f"gen-rv64-shims: ordinary Logic source missing: {mod}")
+        text = path.read_text(encoding="utf-8")
+        check_comment_only_header_lines(text, mod)
+        edges, _ = li.parse_text(text)
+        stop = li.scan_stop_reason(text)
+        # Do not quietly treat an import syntax outside the shared parser's
+        # supported grammar as the start of declarations and truncate the graph.
+        unsupported = (re.match(r"(?:(?:public|private|meta)\s+)*import\b", stop)
+                       or re.match(r"module\b", stop)
+                       or re.match(r"(?:public|private|meta)(?:\s+(?:public|private|meta))*\s*(?:/-|--|$)", stop))
+        if unsupported:
+            raise SystemExit(f"gen-rv64-shims: unsupported module/import header in {mod}: {stop}")
+        seen.add(mod)
+        todo.extend(e.target for e in edges
+                    if (e.target == "RiscvZkvm" or e.target.startswith("RiscvZkvm."))
+                    and e.target not in seen)
+    return seen
+
+
+def selected_logic_modules(src: Path) -> list[str]:
+    """Directory-enumerated Logic modules reachable from the ordinary root.
+
+    Source-only modules (attribute parsers/empty files included) still receive
+    shims, while optional roots outside that closure do not become consumer API
+    merely because their source files were added to the dependency package.
+    """
     logic = src / "Logic"
     if not logic.is_dir():
-        raise SystemExit(
-            f"gen-rv64-shims: dependency sources not found at {logic}\n"
-            "  run `lake update riscv-zkvm` first"
-        )
+        raise SystemExit(f"gen-rv64-shims: dependency Logic sources missing at {logic}")
+    used = ordinary_logic_closure(src)
     mods = []
     for p in sorted(logic.rglob("*.lean")):
-        name = str(p.relative_to(logic))[: -len(".lean")].replace("/", ".")
+        name = str(p.relative_to(logic))[:-len(".lean")].replace("/", ".")
         mod = f"RiscvZkvm.Rv64.Logic.{name}"
-        if mod not in SKIP_MODULES:
+        if mod in used and mod not in SKIP_MODULES:
             mods.append(mod)
-    return mods + [f"RiscvZkvm.Rv64.{c}" for c in CORE]
+    return mods
+
+
+def dependency_modules() -> list[str]:
+    """The ordinary Logic source closure plus the unchanged six core shims."""
+    src = ROOT / ".lake" / "packages" / "riscv-zkvm" / "RiscvZkvm" / "Rv64"
+    return selected_logic_modules(src) + [f"RiscvZkvm.Rv64.{c}" for c in CORE]
 
 DUMP_LEAN = """\
 import RiscvZkvm.Rv64.Logic
@@ -357,16 +436,22 @@ def main() -> int:
     ap.add_argument("--check", action="store_true", help="verify, do not rewrite")
     args = ap.parse_args()
 
+    # Establish the source-selected boundary before invoking Lean enumeration.
+    selected = set(dependency_modules())
     by_module = dump_declarations()
 
-    # Every dependency module gets a shim, even if it exports nothing.
+    # Every selected module gets a shim, even if it exports nothing.
     shims: dict[str, list[str]] = {}
-    for module in dependency_modules():
+    for module in sorted(selected):
         rel = target_path(module)
         if rel is not None:
             shims.setdefault(rel, [])
 
     for module, names in by_module.items():
+        # Use the same boundary for enumeration results; retain the existing
+        # explicit Bytes -> ByteOps fold-in rather than inventing a new shim.
+        if module not in selected and module not in FOLD_INTO:
+            continue
         rel = target_path(module)
         if rel is not None:
             shims.setdefault(rel, []).extend(names)

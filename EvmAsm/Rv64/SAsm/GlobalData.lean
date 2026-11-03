@@ -41,8 +41,14 @@
   `Evm64/Terminating/ReturnHaltResolved.lean` retires RETURN's `hla*`.
 -/
 
-import EvmAsm.Rv64.SAsm.BlockSound
-import EvmAsm.Rv64.LaResolve
+module
+
+public import EvmAsm.Rv64.SAsm.BlockSound
+public import EvmAsm.Rv64.LaResolve
+meta import EvmAsm.Rv64.SAsm.BlockSound
+meta import EvmAsm.Rv64.LaResolve
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

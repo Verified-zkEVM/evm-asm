@@ -11,14 +11,26 @@ Geometry:
 - Full step fuel 9: BEQ + 6 body + JAL + LI
 - Exit BEQ taken → B+448
 -/
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.DualReadByteScan
-import EvmAsm.Rv64.GenericSpecs
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.MemRegion
-import Mathlib.Data.Nat.Bitwise
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.DualReadByteScan
+public import EvmAsm.Rv64.GenericSpecs
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.MemRegion
+public import Mathlib.Data.Nat.Bitwise
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Rv64.SAsm.FramePort
+meta import EvmAsm.Rv64.SAsm.DualReadByteScan
+meta import EvmAsm.Rv64.GenericSpecs
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.MemRegion
+meta import Mathlib.Data.Nat.Bitwise
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

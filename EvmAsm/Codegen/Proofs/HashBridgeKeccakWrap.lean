@@ -9,9 +9,13 @@
     li0     = base+248 (idx 62) = padHdr+68
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

@@ -225,9 +225,9 @@ theorem header_to_loop_long (newSp listBase endPtr indexW outStart outSize
   have hult_cur0 : BitVec.ult
       (listBase + BitVec.ofNat 64 (listCursor items 0)) endPtr := by
     have hsum_c := listBase_add_toNat listBase (listCursor items 0) bs.length
-      hcur_le0 (by rwa [hbs_len] at h_over ⊢)
+      hcur_le0 h_over
     have hsum_e := listBase_add_toNat listBase bs.length bs.length
-      (Nat.le_refl _) (by rwa [hbs_len] at h_over ⊢)
+      (Nat.le_refl _) h_over
     rw [h_end, BitVec.ult, decide_eq_true_eq, hsum_c, hsum_e]
     have hlt : listCursor items 0 < (encode (.list items)).length := hcur_lt0
     omega

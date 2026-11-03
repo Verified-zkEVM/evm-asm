@@ -10,13 +10,24 @@
   consumer of `Stmt.whileHeader`.
 -/
 
-import EvmAsm.Codegen.GuestLayout
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.Programs.U256
-import EvmAsm.Codegen.Programs.U256Prog
-import EvmAsm.Rv64.SAsm.FnFlat
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Codegen.GuestLayout
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.Programs.U256
+public import EvmAsm.Codegen.Programs.U256Prog
+public import EvmAsm.Rv64.SAsm.FnFlat
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Codegen.GuestLayout
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.Programs.U256
+meta import EvmAsm.Codegen.Programs.U256Prog
+meta import EvmAsm.Rv64.SAsm.FnFlat
+meta import EvmAsm.Rv64.SAsm.FramePort
+meta import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 set_option maxRecDepth 8000
 

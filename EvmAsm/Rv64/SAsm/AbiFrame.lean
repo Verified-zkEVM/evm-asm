@@ -51,11 +51,20 @@
   hand-written program (`AbiFrameDemo.lean`).
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
-import EvmAsm.Rv64.SAsm.Fn
-import EvmAsm.Rv64.Program
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+public import EvmAsm.Rv64.SAsm.Fn
+public import EvmAsm.Rv64.Program
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.Tactics.RunBlock
+meta import EvmAsm.Rv64.Tactics.XSimp
+meta import EvmAsm.Rv64.SAsm.Fn
+meta import EvmAsm.Rv64.Program
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

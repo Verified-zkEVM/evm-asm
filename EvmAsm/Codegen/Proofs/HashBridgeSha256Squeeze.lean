@@ -14,15 +14,28 @@ Geometry @ B = GuestAddrs.zkvm_sha256:
 Machine squeeze body loop: `HashBridgeSha256SqueezeLoop.lean`
 (`sha256Squeeze_loop`, composed as `sha256SqueezeToExit_spec` B+396→B+452).
 -/
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.DualReadByteScan
-import EvmAsm.Rv64.GenericSpecs
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.MemRegion
-import Mathlib.Data.Nat.Bitwise
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.DualReadByteScan
+public import EvmAsm.Rv64.GenericSpecs
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.MemRegion
+public import Mathlib.Data.Nat.Bitwise
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Rv64.SAsm.FramePort
+meta import EvmAsm.Rv64.SAsm.DualReadByteScan
+meta import EvmAsm.Rv64.GenericSpecs
+meta import EvmAsm.Rv64.SyscallSpecs
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.MemRegion
+meta import Mathlib.Data.Nat.Bitwise
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

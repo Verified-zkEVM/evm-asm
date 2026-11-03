@@ -6,10 +6,14 @@
   Callee-saved ambient stays outside the pack.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
-import EvmAsm.Rv64.SAsm.FnFlat
-import EvmAsm.Rv64.SAsm.AssertionSpec
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
+public import EvmAsm.Rv64.SAsm.FnFlat
+public import EvmAsm.Rv64.SAsm.AssertionSpec
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

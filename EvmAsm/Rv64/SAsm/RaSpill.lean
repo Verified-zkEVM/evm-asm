@@ -20,7 +20,11 @@
   `.x1 ↦ᵣ _` atom rather than the `regFileIs` atom.
 -/
 
-import EvmAsm.Rv64.SAsm.Fn
+module
+
+public import EvmAsm.Rv64.SAsm.Fn
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

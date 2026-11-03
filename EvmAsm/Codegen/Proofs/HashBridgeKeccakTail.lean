@@ -14,14 +14,18 @@
     li0     = base+248 (idx 62 LI a0,0)
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakRem
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.SAsm.MultiRw
-import EvmAsm.Rv64.SAsm.DualReadByteScan
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakRem
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.SAsm.MultiRw
+public import EvmAsm.Rv64.SAsm.DualReadByteScan
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

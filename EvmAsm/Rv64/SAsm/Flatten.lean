@@ -20,8 +20,12 @@
   that `decide` closes.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Rv64.SAsm.Ast
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Rv64.SAsm.Ast
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

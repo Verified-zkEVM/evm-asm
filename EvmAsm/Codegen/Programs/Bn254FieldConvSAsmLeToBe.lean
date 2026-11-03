@@ -9,11 +9,20 @@
   this file imports.  See that file's header for the full design notes.
 -/
 
-import Mathlib.Tactic.Ring
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Codegen.Programs.Bn254Field
-import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
+module
+
+public import Mathlib.Tactic.Ring
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Codegen.Programs.Bn254Field
+public import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
+meta import Mathlib.Tactic.Ring
+meta import EvmAsm.Rv64.SAsm.AccelStep
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Codegen.Programs.Bn254Field
+meta import EvmAsm.Codegen.Programs.Bn254FieldConvSAsm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

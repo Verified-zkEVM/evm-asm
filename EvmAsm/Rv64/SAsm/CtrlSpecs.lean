@@ -8,8 +8,12 @@
   offsets (`brOfs`/`jFwd`/`jBack`) to address displacements.
 -/
 
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.SAsm.Vc
+module
+
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.SAsm.Vc
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

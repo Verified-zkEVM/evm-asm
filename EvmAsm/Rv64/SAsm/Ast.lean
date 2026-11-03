@@ -14,9 +14,13 @@
   - Labels name the verification conditions generated from each node.
 -/
 
-import EvmAsm.Rv64.Instructions
-import EvmAsm.Rv64.SAsm.RegFile
-import EvmAsm.Rv64.SAsm.Handle
+module
+
+public import EvmAsm.Rv64.Instructions
+public import EvmAsm.Rv64.SAsm.RegFile
+public import EvmAsm.Rv64.SAsm.Handle
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

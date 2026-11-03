@@ -6,9 +6,13 @@
   SpecRef `keccak256` without touching the emitted Program.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.MultiRw
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.MultiRw
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

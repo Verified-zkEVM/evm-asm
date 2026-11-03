@@ -13,8 +13,12 @@
   by proving the same shape directly.
 -/
 
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.SAsm.RegionSound
+module
+
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Rv64.SAsm.RegionSound
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

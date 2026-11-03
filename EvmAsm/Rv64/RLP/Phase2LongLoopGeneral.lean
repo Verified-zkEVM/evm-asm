@@ -15,10 +15,14 @@
   length-of-length.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopOne
-import EvmAsm.Rv64.RLP.Phase2LongLengthBridge
-import Mathlib.Data.Nat.ModEq
-import Mathlib.Tactic.Ring
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopOne
+public import EvmAsm.Rv64.RLP.Phase2LongLengthBridge
+public import Mathlib.Data.Nat.ModEq
+public import Mathlib.Tactic.Ring
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

@@ -6,9 +6,13 @@
   plumbing separate makes the dynamic body independent of the large wrapper.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 namespace EvmAsm.Codegen.Proofs
 
 open EvmAsm.Rv64
@@ -17,9 +21,26 @@ open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
 
-private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
-private abbrev sha256ProgL : List Instr := zkvmSha256_prog
-private abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
+namespace Sha256BlockGeometry
+
+abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
+
+end Sha256BlockGeometry
+
+open Sha256BlockGeometry
+
+namespace Sha256BlockGeometry
+
+abbrev sha256ProgL : List Instr := zkvmSha256_prog
+
+end Sha256BlockGeometry
+
+namespace Sha256BlockGeometry
+
+abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
+
+end Sha256BlockGeometry
+
 private abbrev sha256CopyProg : List Instr :=
   dwordCopyProgFrom .x9 .x21 .x5 0 8
 private abbrev sha256CopyPrefix : List Instr := sha256ProgL.take 27
@@ -77,7 +98,11 @@ private theorem sha256_mem_at (k : Nat) (ins : Instr) (A : Word)
   fun a i h => CodeReq.ofProg_mem_at B A sha256ProgL k ins hA hk hins
     sha256ProgL_bound a i h
 
-private abbrev ShaParams : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+namespace Sha256BlockGeometry
+
+abbrev ShaParams : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+
+end Sha256BlockGeometry
 
 private theorem la_params_hi :
     Codegen.laHi GuestAddrs.sha256_w_params (GuestAddrs.zkvm_sha256 + 172) =

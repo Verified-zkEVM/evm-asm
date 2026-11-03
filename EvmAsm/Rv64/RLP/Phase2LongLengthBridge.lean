@@ -20,8 +20,12 @@
   downstream rewrites fire.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopEight
-import EvmAsm.EL.RLP.Properties
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopEight
+public import EvmAsm.EL.RLP.Properties
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

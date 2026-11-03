@@ -22,12 +22,22 @@
   Byte-identity kernel-pinned: `<body>.flatten 0 ++ [ret] = blsgLeToBe_prog`.
 -/
 
-import Mathlib.Tactic.Ring
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Codegen.Programs.Bls12G1
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Rv64.SAsm.FnFlat
+module
+
+public import Mathlib.Tactic.Ring
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Codegen.Programs.Bls12G1
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Rv64.SAsm.FnFlat
+meta import Mathlib.Tactic.Ring
+meta import EvmAsm.Rv64.SAsm.AccelStep
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Codegen.Programs.Bls12G1
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.SAsm.FnFlat
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

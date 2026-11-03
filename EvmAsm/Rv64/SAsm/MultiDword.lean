@@ -16,7 +16,11 @@
   The worked example is `revCellFn` in ExamplesVc.lean.
 -/
 
-import EvmAsm.Rv64.SAsm.RaSpill
+module
+
+public import EvmAsm.Rv64.SAsm.RaSpill
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

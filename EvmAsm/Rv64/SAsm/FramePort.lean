@@ -77,11 +77,20 @@
   the worked examples.
 -/
 
-import EvmAsm.Rv64.SAsm.AbiFrame
-import EvmAsm.Rv64.SAsm.AbiFrameLoop
-import EvmAsm.Rv64.SAsm.AbiFrameCall
-import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
-import EvmAsm.Rv64.MemRegion
+module
+
+public import EvmAsm.Rv64.SAsm.AbiFrame
+public import EvmAsm.Rv64.SAsm.AbiFrameLoop
+public import EvmAsm.Rv64.SAsm.AbiFrameCall
+public import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+public import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.SAsm.AbiFrame
+meta import EvmAsm.Rv64.SAsm.AbiFrameLoop
+meta import EvmAsm.Rv64.SAsm.AbiFrameCall
+meta import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+meta import EvmAsm.Rv64.MemRegion
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

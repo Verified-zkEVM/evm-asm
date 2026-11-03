@@ -14,10 +14,14 @@
   Design: docs/sasm-design.md §3.4 (Milestone M2).
 -/
 
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.SAsm.Sym
-import EvmAsm.Rv64.SAsm.RegFileSep
-import EvmAsm.Rv64.SAsm.RegionSound
+module
+
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Rv64.SAsm.Sym
+public import EvmAsm.Rv64.SAsm.RegFileSep
+public import EvmAsm.Rv64.SAsm.RegionSound
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

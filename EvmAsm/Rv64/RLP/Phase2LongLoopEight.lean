@@ -16,8 +16,12 @@
   whenever `byteOffset ptr = 0` (i.e., `ptr` is doubleword-aligned).
 -/
 
-import EvmAsm.Rv64.RLP.Phase2ByteWindow
-import EvmAsm.Rv64.RLP.Phase2LongLoopSeven
+module
+
+public import EvmAsm.Rv64.RLP.Phase2ByteWindow
+public import EvmAsm.Rv64.RLP.Phase2LongLoopSeven
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

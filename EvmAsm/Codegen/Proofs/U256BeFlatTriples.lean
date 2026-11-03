@@ -46,14 +46,26 @@
   routine that scribbled on its operands could not satisfy these contracts.
 -/
 
-import EvmAsm.Rv64.SAsm.FnFlat
-import EvmAsm.Codegen.Programs.U256AddBeSAsm
-import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
-import EvmAsm.Codegen.Programs.U256SubBeSAsm
-import EvmAsm.Crypto.PowLadder
-import EvmAsm.Crypto.BeBytesArith
-import EvmAsm.Codegen.Programs.U256
-import Mathlib.Tactic.Ring
+module
+
+public import EvmAsm.Rv64.SAsm.FnFlat
+public import EvmAsm.Codegen.Programs.U256AddBeSAsm
+public import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
+public import EvmAsm.Codegen.Programs.U256SubBeSAsm
+public import EvmAsm.Crypto.PowLadder
+public import EvmAsm.Crypto.BeBytesArith
+public import EvmAsm.Codegen.Programs.U256
+public import Mathlib.Tactic.Ring
+meta import EvmAsm.Rv64.SAsm.FnFlat
+meta import EvmAsm.Codegen.Programs.U256AddBeSAsm
+meta import EvmAsm.Codegen.Programs.U256FromU64BeSAsm
+meta import EvmAsm.Codegen.Programs.U256SubBeSAsm
+meta import EvmAsm.Crypto.PowLadder
+meta import EvmAsm.Crypto.BeBytesArith
+meta import EvmAsm.Codegen.Programs.U256
+meta import Mathlib.Tactic.Ring
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.U256BeFlat
 

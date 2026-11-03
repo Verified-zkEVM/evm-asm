@@ -39,9 +39,13 @@
   Everything additive, `cpsTripleWithin` level.
 -/
 
-import EvmAsm.Rv64.SAsm.TwoBreakWritable
-import EvmAsm.Rv64.SAsm.DualReadScan
-import EvmAsm.Rv64.SAsm.SelectedRead
+module
+
+public import EvmAsm.Rv64.SAsm.TwoBreakWritable
+public import EvmAsm.Rv64.SAsm.DualReadScan
+public import EvmAsm.Rv64.SAsm.SelectedRead
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

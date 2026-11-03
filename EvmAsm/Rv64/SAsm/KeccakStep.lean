@@ -7,7 +7,11 @@
   program remains emitted exactly as-is.
 -/
 
-import EvmAsm.Rv64.SAsm.AccelStep
+module
+
+public import EvmAsm.Rv64.SAsm.AccelStep
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

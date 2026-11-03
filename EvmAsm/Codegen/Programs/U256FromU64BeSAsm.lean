@@ -12,10 +12,18 @@
   `u256FromU64BeBody.flatten 0 ++ [ret] = u256FromU64Be_prog`.
 -/
 
-import EvmAsm.Codegen.GuestLayout
-import EvmAsm.Codegen.Programs.U256Prog
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Codegen.GuestLayout
+public import EvmAsm.Codegen.Programs.U256Prog
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Codegen.GuestLayout
+meta import EvmAsm.Codegen.Programs.U256Prog
+meta import EvmAsm.Rv64.SAsm.MultiDword
+meta import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

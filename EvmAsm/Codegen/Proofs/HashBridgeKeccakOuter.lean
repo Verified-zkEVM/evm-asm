@@ -15,10 +15,14 @@
   `regOwn lim` post on the body.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
-import EvmAsm.Rv64.SAsm.RwSubwindow
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakAbsorb
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
+public import EvmAsm.Rv64.SAsm.RwSubwindow
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

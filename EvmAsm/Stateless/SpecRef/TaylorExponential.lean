@@ -52,28 +52,28 @@ namespace EvmAsm.Stateless.SpecRef
 
 /-! ## The exact Nat recurrence -/
 
-def taylorDenominator : Nat := 11684671
+@[expose] def taylorDenominator : Nat := 11684671
 
 /-! Keep the concrete denominator available to downstream bridges without
     requiring them to unfold this module's definition across the boundary. -/
 theorem taylorDenominator_eq : taylorDenominator = 11684671 := by
   rfl
 
-def taylorResultBound : Nat := 2 ^ 256
+@[expose] def taylorResultBound : Nat := 2 ^ 256
 
 theorem taylorResultBound_eq : taylorResultBound = 2 ^ 256 := by
   rfl
 
-def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
+@[expose] def taylorOutputBound : Nat := taylorResultBound * taylorDenominator
 
-def taylorWord384Bound : Nat := 2 ^ 384
+@[expose] def taylorWord384Bound : Nat := 2 ^ 384
 
-def taylorWord64Bound : Nat := 2 ^ 64
+@[expose] def taylorWord64Bound : Nat := 2 ^ 64
 
 theorem taylorWord64Bound_eq : taylorWord64Bound = 2 ^ 64 := by
   rfl
 
-def taylorNatAux (num denominator : Nat) : Nat → Nat → Nat → Nat
+@[expose] def taylorNatAux (num denominator : Nat) : Nat → Nat → Nat → Nat
   | i, acc, output =>
       if acc = 0 then output
       else
@@ -236,7 +236,7 @@ theorem taylorNatAux_product_lt_word384
 
 /-! ## The 384-bit bounded recurrence -/
 
-def taylor384Aux (num denominator : Nat) : Nat → Nat → Nat → Option Nat
+@[expose] def taylor384Aux (num denominator : Nat) : Nat → Nat → Nat → Option Nat
   | i, acc, output =>
       if acc = 0 then
         if output < taylorOutputBound then some (output / denominator) else none

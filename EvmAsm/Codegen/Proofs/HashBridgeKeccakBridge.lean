@@ -16,20 +16,24 @@
   (KECCAK256 opcode, CREATE2, trie keys) also benefit.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.KeccakStep
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.MultiRw
-import EvmAsm.Rv64.SAsm.RaSpill
-import EvmAsm.Stateless.SpecRef.Crypto
-import Mathlib.Tactic.Ring
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakBody
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakDword
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakSpec
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.KeccakStep
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.MultiRw
+public import EvmAsm.Rv64.SAsm.RaSpill
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import Mathlib.Tactic.Ring
+
+@[expose] public section
 
 set_option linter.unusedVariables false
 set_option linter.unusedSimpArgs false

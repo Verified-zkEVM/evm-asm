@@ -9,19 +9,36 @@
   SpecRef equality is the named bridge `sha256BodyDigest_eq_specref` in Top.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
-import EvmAsm.Codegen.Proofs.HashBridgeSha256SqueezeLoop
-import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Stateless.SpecRef.Crypto
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Rv64.SAsm.PhaseSplit
-import EvmAsm.Rv64.ZiskAccel
-import EvmAsm.Rv64.SAsm.HandleWiden
-import EvmAsm.Rv64.SAsm.AccelStep
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256SqueezeLoop
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Rv64.SAsm.PhaseSplit
+public import EvmAsm.Rv64.ZiskAccel
+public import EvmAsm.Rv64.SAsm.HandleWiden
+public import EvmAsm.Rv64.SAsm.AccelStep
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256SqueezeLoop
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Setup
+meta import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Stateless.SpecRef.Crypto
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Rv64.SAsm.PhaseSplit
+meta import EvmAsm.Rv64.ZiskAccel
+meta import EvmAsm.Rv64.SAsm.HandleWiden
+meta import EvmAsm.Rv64.SAsm.AccelStep
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 
@@ -33,14 +50,55 @@ open EvmAsm.Stateless.SpecRef
 
 set_option maxRecDepth 8000
 
-private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
-private abbrev ShaState : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
-private abbrev ShaInput : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
-private abbrev ShaIv : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
-private abbrev ShaParams : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
-private abbrev sha256ProgL : List Instr := zkvmSha256_prog
-private abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
-private abbrev sha256BlockStep : Nat := 64
+namespace Sha256BodyGeometry
+
+abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_sha256
+
+end Sha256BodyGeometry
+
+open Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev ShaState : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_state
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev ShaInput : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_input
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev ShaIv : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_iv
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev ShaParams : Word := BitVec.ofNat 64 GuestAddrs.sha256_w_params
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev sha256ProgL : List Instr := zkvmSha256_prog
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev sha256Cr : CodeReq := CodeReq.ofProg B sha256ProgL
+
+end Sha256BodyGeometry
+
+namespace Sha256BodyGeometry
+
+abbrev sha256BlockStep : Nat := 64
+
+end Sha256BodyGeometry
 
 local macro "pcf" : tactic =>
   `(tactic| repeat' first

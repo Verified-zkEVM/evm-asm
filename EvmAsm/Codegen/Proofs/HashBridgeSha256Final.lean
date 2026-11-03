@@ -12,14 +12,26 @@ Geometry @ B = GuestAddrs.zkvm_sha256:
 
 Bit-length source: x20 = input_len << 3 (setup).
 -/
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.DualReadByteScan
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.MemRegionStore
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.DualReadByteScan
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.MemRegionStore
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Rv64.SAsm.FramePort
+meta import EvmAsm.Rv64.SAsm.DualReadByteScan
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.MemRegionStore
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

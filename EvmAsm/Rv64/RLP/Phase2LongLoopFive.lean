@@ -13,7 +13,11 @@
   whenever `byteOffset ptr ≤ 3`.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopFour
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopFour
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

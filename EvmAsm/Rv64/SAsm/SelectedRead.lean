@@ -39,10 +39,14 @@
   (`Codegen/Programs/U256MinSAsm.lean`).
 -/
 
-import EvmAsm.Rv64.MemRegionStore
-import EvmAsm.Rv64.MemRegionWriteWide
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.SAsm.MultiRw
+module
+
+public import EvmAsm.Rv64.MemRegionStore
+public import EvmAsm.Rv64.MemRegionWriteWide
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.SAsm.MultiRw
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

@@ -41,9 +41,13 @@
   `bnf_mul_mod_p` (`Codegen/Programs/Bn254FieldMulModPSAsm.lean`).
 -/
 
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.HandleWiden
-import EvmAsm.Rv64.SAsm.FramePort
+module
+
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.HandleWiden
+public import EvmAsm.Rv64.SAsm.FramePort
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

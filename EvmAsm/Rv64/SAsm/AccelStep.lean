@@ -61,10 +61,14 @@
     (bead 4ch8f.18).
 -/
 
-import EvmAsm.Rv64.ZiskAccel
-import EvmAsm.Rv64.SAsm.Fn
-import EvmAsm.Rv64.SAsm.RaSpill
-import EvmAsm.Crypto.PowLadder
+module
+
+public import EvmAsm.Rv64.ZiskAccel
+public import EvmAsm.Rv64.SAsm.Fn
+public import EvmAsm.Rv64.SAsm.RaSpill
+public import EvmAsm.Crypto.PowLadder
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

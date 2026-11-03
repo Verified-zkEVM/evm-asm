@@ -7,8 +7,12 @@
   later outer-inv concern.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakCsrs
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

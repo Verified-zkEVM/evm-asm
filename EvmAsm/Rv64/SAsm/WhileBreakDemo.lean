@@ -18,8 +18,14 @@
   byte-for-byte against the hand-written break-past-`JAL` instruction stream.
 -/
 
-import EvmAsm.Rv64.SAsm.LoopFuel
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Rv64.SAsm.LoopFuel
+public import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.LoopFuel
+meta import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

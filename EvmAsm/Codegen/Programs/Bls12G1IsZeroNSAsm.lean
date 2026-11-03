@@ -4,10 +4,18 @@
   Verified SAsm drop-in for `blsg_is_zero_n`: dynamic-length byte-zero scan used by BLS callers.
 -/
 
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Rv64.SAsm.WhileBreakDemo
-import EvmAsm.Rv64.SAsm.FnFlat
+module
+
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Rv64.SAsm.WhileBreakDemo
+public import EvmAsm.Rv64.SAsm.FnFlat
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Rv64.SAsm.WhileBreakDemo
+meta import EvmAsm.Rv64.SAsm.FnFlat
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

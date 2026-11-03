@@ -40,8 +40,12 @@
   `blockOk` changes.
 -/
 
-import EvmAsm.Rv64.SAsm.AbiFrame
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.SAsm.AbiFrame
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

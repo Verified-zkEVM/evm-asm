@@ -10,9 +10,16 @@
   writable window, so this theorem covers the non-overlapping ownership shape.
 -/
 
-import EvmAsm.Codegen.GuestLayout
-import EvmAsm.Codegen.Programs.U256Prog
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Codegen.GuestLayout
+public import EvmAsm.Codegen.Programs.U256Prog
+public import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Codegen.GuestLayout
+meta import EvmAsm.Codegen.Programs.U256Prog
+meta import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

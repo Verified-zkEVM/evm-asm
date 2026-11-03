@@ -22,7 +22,11 @@
   Further closures — arbitrary `n` via induction — are future work.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopOne
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopOne
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

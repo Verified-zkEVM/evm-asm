@@ -7,12 +7,16 @@
   Unlike `abiFrame_spec`, ra is NOT saved (body must preserve x1=ret).
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Rv64.SAsm.AbiFrame
-import EvmAsm.Rv64.SAsm.AbiFrameOwn
-import EvmAsm.Rv64.ControlFlow
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Rv64.SAsm.AbiFrame
+public import EvmAsm.Rv64.SAsm.AbiFrameOwn
+public import EvmAsm.Rv64.ControlFlow
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

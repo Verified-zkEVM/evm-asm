@@ -199,3 +199,6 @@ import EvmAsm.Tests.Correspondence.Rlp
 import EvmAsm.Tests.SpecRefEestCheck
 import EvmAsm.Tests.GuestImageShapeDump
 import EvmAsm.Tests.RunBlockLayoutBridge
+
+import EvmAsm.Rv64.Tactics.RunBlockTests
+import EvmAsm.Rv64.Tactics.XPermTests

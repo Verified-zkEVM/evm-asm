@@ -16,12 +16,16 @@
   (docs/sasm-design.md §3.5).
 -/
 
-import EvmAsm.Rv64.WP.Loop
-import EvmAsm.Rv64.SAsm.Ast
-import EvmAsm.Rv64.SAsm.GlobalData
-import EvmAsm.Rv64.SAsm.Flatten
-import EvmAsm.Rv64.SAsm.Sym
-import EvmAsm.Rv64.SAsm.RegFileSep
+module
+
+public import EvmAsm.Rv64.WP.Loop
+public import EvmAsm.Rv64.SAsm.Ast
+public import EvmAsm.Rv64.SAsm.GlobalData
+public import EvmAsm.Rv64.SAsm.Flatten
+public import EvmAsm.Rv64.SAsm.Sym
+public import EvmAsm.Rv64.SAsm.RegFileSep
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

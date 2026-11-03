@@ -18,8 +18,12 @@
   use `Stmt.soundR` (StmtSoundCall.lean).
 -/
 
-import EvmAsm.Rv64.SAsm.BlockSound
-import EvmAsm.Rv64.SAsm.CtrlSpecs
+module
+
+public import EvmAsm.Rv64.SAsm.BlockSound
+public import EvmAsm.Rv64.SAsm.CtrlSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

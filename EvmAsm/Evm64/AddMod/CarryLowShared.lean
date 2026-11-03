@@ -2,12 +2,16 @@
   Shared declaration home for the ADDMOD carry pipeline, branch helpers, and La/Lb stages.
 -/
 
-import EvmAsm.Evm64.AddMod.Compose.CallAdapter
-import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
-import EvmAsm.Evm64.AddMod.Compose.TotalBase
-import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
-import EvmAsm.Evm64.EvmWordArith.Arithmetic
-import Mathlib.Data.Fin.VecNotation
+module
+
+public import EvmAsm.Evm64.AddMod.Compose.CallAdapter
+public import EvmAsm.Evm64.AddMod.Compose.CarryBlockSpecs
+public import EvmAsm.Evm64.AddMod.Compose.TotalBase
+public import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
+public import EvmAsm.Evm64.EvmWordArith.Arithmetic
+public import Mathlib.Data.Fin.VecNotation
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

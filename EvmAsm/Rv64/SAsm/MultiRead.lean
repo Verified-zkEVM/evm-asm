@@ -38,9 +38,16 @@
   input bytes.
 -/
 
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Rv64.SAsm.Fn
+module
+
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Rv64.SAsm.Fn
+meta import EvmAsm.Rv64.SAsm.MultiDword
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.Fn
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

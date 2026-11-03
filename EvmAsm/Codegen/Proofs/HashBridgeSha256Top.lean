@@ -15,31 +15,62 @@
 -/
 
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Stateless.SpecRef.Crypto
-import EvmAsm.Rv64.SAsm.AbiFrame
-import EvmAsm.Rv64.SAsm.AbiFrameOwn
-import EvmAsm.Rv64.SAsm.FnFlat
-import EvmAsm.Rv64.SAsm.HandleWiden
-import EvmAsm.Rv64.CPSSpec
-import EvmAsm.Rv64.SepLogic
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
-import EvmAsm.Rv64.ByteOps
-import EvmAsm.Rv64.SAsm.AccelStep
-import EvmAsm.Rv64.SAsm.RwSubwindow
-import EvmAsm.Rv64.SAsm.MultiRw
-import EvmAsm.Evm64.EvmWord
-import Mathlib.Tactic.Ring
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Stateless.SpecRef.Crypto
+public import EvmAsm.Rv64.SAsm.AbiFrame
+public import EvmAsm.Rv64.SAsm.AbiFrameOwn
+public import EvmAsm.Rv64.SAsm.FnFlat
+public import EvmAsm.Rv64.SAsm.HandleWiden
+public import EvmAsm.Rv64.CPSSpec
+public import EvmAsm.Rv64.SepLogic
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
+public import EvmAsm.Rv64.ByteOps
+public import EvmAsm.Rv64.SAsm.AccelStep
+public import EvmAsm.Rv64.SAsm.RwSubwindow
+public import EvmAsm.Rv64.SAsm.MultiRw
+public import EvmAsm.Evm64.EvmWord
+public import Mathlib.Tactic.Ring
+public import Mathlib.Data.List.GetD
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Body
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Frame
+meta import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Stateless.SpecRef.Crypto
+meta import EvmAsm.Rv64.SAsm.AbiFrame
+meta import EvmAsm.Rv64.SAsm.AbiFrameOwn
+meta import EvmAsm.Rv64.SAsm.FnFlat
+meta import EvmAsm.Rv64.SAsm.HandleWiden
+meta import EvmAsm.Rv64.CPSSpec
+meta import EvmAsm.Rv64.SepLogic
+meta import EvmAsm.Rv64.MemRegion
+meta import EvmAsm.Rv64.Tactics.XPermChunked
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256OuterBody
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Rem
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Final
+meta import EvmAsm.Codegen.Proofs.HashBridgeSha256Squeeze
+meta import EvmAsm.Codegen.Proofs.HashBridgeKeccakBridge
+meta import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
+meta import EvmAsm.Rv64.ByteOps
+meta import EvmAsm.Rv64.SAsm.AccelStep
+meta import EvmAsm.Rv64.SAsm.RwSubwindow
+meta import EvmAsm.Rv64.SAsm.MultiRw
+meta import EvmAsm.Evm64.EvmWord
+meta import Mathlib.Tactic.Ring
+meta import Mathlib.Data.List.GetD
+
+@[expose] public section
 
 set_option maxRecDepth 8000
 set_option linter.unusedVariables false

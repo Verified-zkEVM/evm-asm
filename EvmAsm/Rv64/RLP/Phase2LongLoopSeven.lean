@@ -13,8 +13,12 @@
   whenever `byteOffset ptr ≤ 1`.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2ByteWindow
-import EvmAsm.Rv64.RLP.Phase2LongLoopSix
+module
+
+public import EvmAsm.Rv64.RLP.Phase2ByteWindow
+public import EvmAsm.Rv64.RLP.Phase2LongLoopSix
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

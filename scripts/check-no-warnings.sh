@@ -17,6 +17,7 @@
 #   scripts/check-no-warnings.sh             # build fresh, then check
 #   scripts/check-no-warnings.sh <log-file>  # check an existing build log
 #   scripts/check-no-warnings.sh --report    # print all warnings, exit 0
+#   scripts/check-no-warnings.sh --self-test # exercise real warning formats
 #
 # When invoked with no arguments, this runs `lake build` and captures
 # its output. CI generally prefers passing a pre-captured log so the
@@ -28,6 +29,37 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+
+if [[ "${1:-}" == "--self-test" ]]; then
+  fixture="$(mktemp -t evm-asm-warning-control.XXXXXX.log)"
+  trap 'rm -f "$fixture"' EXIT
+  # Lean 4.35 also emits module-import warnings without line/column positions.
+  for warning in \
+    'warning: EvmAsm/Example.lean: imports `Mathlib.Data.List.GetD` from package `mathlib`, which is designed for use with the module system; consider adding `module` to the start of this file' \
+    'warning: ./EvmAsm/Example.lean: module-import warning' \
+    'warning: EvmAsm/Example.lean:12:4: unused tactic' \
+    'warning: ./EvmAsm/Example.lean:12:4: unused tactic' \
+    'EvmAsm/Example.lean:12:4: warning: unused tactic' \
+    './EvmAsm/Example.lean:12:4: warning: unused tactic'; do
+    printf '%s\n' "$warning" > "$fixture"
+    if "$0" "$fixture" >/dev/null 2>&1; then
+      echo "check-no-warnings.sh: self-test accepted warning: $warning" >&2
+      exit 1
+    fi
+  done
+  for ignored in \
+    'warning: .lake/packages/mathlib/EvmAsm/Example.lean:12:4: dependency warning' \
+    '.lake/packages/mathlib/EvmAsm/Example.lean:12:4: warning: dependency warning' \
+    'warning: Sail/Example.lean: dependency warning' \
+    'info: EvmAsm/Example.lean:12:4: warning: quoted text'; do
+    printf '%s\n' "$ignored" > "$fixture"
+    "$0" "$fixture" >/dev/null
+  done
+  printf '%s\n' 'warning: EvmAsm/Example.lean: module-import warning' > "$fixture"
+  "$0" --report "$fixture" | grep -q '1 warning(s) under EvmAsm/'
+  echo 'check-no-warnings.sh: self-test passed (6 warning, 4 exclusion, 1 report controls).'
+  exit 0
+fi
 
 mode="enforce"
 log_file=""
@@ -78,6 +110,7 @@ fi
 
 # Lean warning lines look like:
 #   warning: ./EvmAsm/.../Foo.lean:123:4: <message>
+#   warning: EvmAsm/.../Foo.lean: <module-import message>
 #   ./EvmAsm/.../Foo.lean:123:4: warning: <message>
 # We accept both shapes. Filter to lines that mention an EvmAsm/ path
 # (anchored to the start of the path component, so "EvmAsm/" appearing
@@ -87,9 +120,8 @@ warnings=$(
     # Path-prefixed form: "EvmAsm/...:line:col: warning:" or
     # "./EvmAsm/...:line:col: warning:".
     /^(\.\/)?EvmAsm\/[^:]+\.lean:[0-9]+:[0-9]+: warning:/ { print; next }
-    # Lean prefix form: "warning: EvmAsm/...:line:col:" or
-    # "warning: ./EvmAsm/...:line:col:".
-    /^warning: (\.\/)?EvmAsm\/[^:]+\.lean:[0-9]+:[0-9]+:/ { print; next }
+    # Lean prefix form, including module-import warnings without positions.
+    /^warning: (\.\/)?EvmAsm\/[^:]+\.lean:/ { print; next }
   ' "$log_file" || true
 )
 

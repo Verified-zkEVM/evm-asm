@@ -47,10 +47,14 @@
   Strictly additive: `cpsTripleWithin` level only.
 -/
 
-import EvmAsm.Rv64.SAsm.Fn
-import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
-import EvmAsm.Rv64.SAsm.RaSpill
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.SAsm.Fn
+public import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+public import EvmAsm.Rv64.SAsm.RaSpill
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

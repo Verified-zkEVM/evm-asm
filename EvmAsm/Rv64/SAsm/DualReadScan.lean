@@ -32,8 +32,14 @@
   reuse pieces 1–2 (its single-exit XOR/OR loop is not this scan).
 -/
 
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Rv64.SAsm.HandleWiden
+module
+
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Rv64.SAsm.HandleWiden
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.HandleWiden
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

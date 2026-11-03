@@ -17,15 +17,19 @@
   `signedCountdownLoop_spec` does not apply (JAL→LI ≠ BLT).
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuterBody
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Rv64.LaResolve
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuterBody
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakTail
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakWrap
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Rv64.LaResolve
+
+@[expose] public section
 
 set_option maxRecDepth 8000
 
@@ -37,10 +41,31 @@ open EvmAsm.Codegen
 
 set_option maxRecDepth 8000
 
-private abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_keccak256
-private abbrev Zk3 : Word := BitVec.ofNat 64 GuestAddrs.zk3_state
-private abbrev keccakProgL : List Instr := zkvmKeccak256_prog
-private abbrev keccakCr : CodeReq := CodeReq.ofProg B keccakProgL
+namespace KeccakBodyGeometry
+
+abbrev B : Word := BitVec.ofNat 64 GuestAddrs.zkvm_keccak256
+
+end KeccakBodyGeometry
+
+open KeccakBodyGeometry
+
+namespace KeccakBodyGeometry
+
+abbrev Zk3 : Word := BitVec.ofNat 64 GuestAddrs.zk3_state
+
+end KeccakBodyGeometry
+
+namespace KeccakBodyGeometry
+
+abbrev keccakProgL : List Instr := zkvmKeccak256_prog
+
+end KeccakBodyGeometry
+
+namespace KeccakBodyGeometry
+
+abbrev keccakCr : CodeReq := CodeReq.ofProg B keccakProgL
+
+end KeccakBodyGeometry
 
 private theorem keccakProgL_len : keccakProgL.length = 69 := by
   simp only [keccakProgL, zkvmKeccak256_prog, zkvmKeccak256_prog_of]

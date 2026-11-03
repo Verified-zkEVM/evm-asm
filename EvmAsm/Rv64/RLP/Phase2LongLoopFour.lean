@@ -14,7 +14,11 @@
   the 8-byte block containing `ptr`.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopThree
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopThree
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

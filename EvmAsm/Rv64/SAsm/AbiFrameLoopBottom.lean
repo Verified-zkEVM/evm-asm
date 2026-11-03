@@ -28,9 +28,13 @@
   Strictly additive: `cpsTripleWithin` only.
 -/
 
-import EvmAsm.Rv64.SyscallSpecs
-import EvmAsm.Rv64.Tactics.RunBlock
-import EvmAsm.Rv64.Tactics.XSimp
+module
+
+public import EvmAsm.Rv64.SyscallSpecs
+public import EvmAsm.Rv64.Tactics.RunBlock
+public import EvmAsm.Rv64.Tactics.XSimp
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

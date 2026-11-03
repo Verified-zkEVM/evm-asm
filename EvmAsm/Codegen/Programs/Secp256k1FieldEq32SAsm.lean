@@ -5,11 +5,20 @@
   replacement for the two-exit emitted byte comparison.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Emit
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Rv64.SAsm.WhileBreakDemo
-import EvmAsm.Rv64.SAsm.MultiRead
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Rv64.SAsm.WhileBreakDemo
+public import EvmAsm.Rv64.SAsm.MultiRead
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.WhileBreakDemo
+meta import EvmAsm.Rv64.SAsm.MultiRead
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

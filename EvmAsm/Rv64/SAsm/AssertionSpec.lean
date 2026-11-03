@@ -16,7 +16,11 @@
     (`cpsTripleWithin_frameR` for hand proofs).
 -/
 
-import EvmAsm.Rv64.SAsm.Fn
+module
+
+public import EvmAsm.Rv64.SAsm.Fn
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

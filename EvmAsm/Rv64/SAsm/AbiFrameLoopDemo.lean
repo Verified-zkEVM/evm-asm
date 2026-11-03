@@ -43,11 +43,20 @@
   spelled-out 16-instruction program.
 -/
 
-import EvmAsm.Rv64.SAsm.AbiFrame
-import EvmAsm.Rv64.SAsm.AbiFrameLoop
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Rv64.Tactics.XSimp
-import Mathlib.Data.BitVec
+module
+
+public import EvmAsm.Rv64.SAsm.AbiFrame
+public import EvmAsm.Rv64.SAsm.AbiFrameLoop
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Rv64.Tactics.XSimp
+public import Mathlib.Data.BitVec
+meta import EvmAsm.Rv64.SAsm.AbiFrame
+meta import EvmAsm.Rv64.SAsm.AbiFrameLoop
+meta import EvmAsm.Rv64.SAsm.FramePort
+meta import EvmAsm.Rv64.Tactics.XSimp
+meta import Mathlib.Data.BitVec
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

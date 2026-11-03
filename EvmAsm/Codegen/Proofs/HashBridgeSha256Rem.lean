@@ -13,12 +13,16 @@
   Pattern: ExecutionRequestsHashHashOneCopy / MptWalkLeafValue.leaf_copy_step.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
-import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
-import EvmAsm.Rv64.SAsm.DualReadByteScan
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.Tactics.XPermChunked
-import EvmAsm.Rv64.LaResolve
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Pad
+public import EvmAsm.Codegen.Proofs.HashBridgeSha256Block
+public import EvmAsm.Rv64.SAsm.DualReadByteScan
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.Tactics.XPermChunked
+public import EvmAsm.Rv64.LaResolve
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

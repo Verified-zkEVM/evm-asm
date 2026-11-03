@@ -463,9 +463,9 @@ theorem exit_precall
   have hult_cur : BitVec.ult
       (listBase + BitVec.ofNat 64 (listCursor items i)) endPtr := by
     have hsum_c := listBase_add_toNat listBase (listCursor items i) bs.length
-      hcur_le (by rwa [hbs_len] at h_over ⊢)
+      hcur_le h_over
     have hsum_e := listBase_add_toNat listBase bs.length bs.length
-      (Nat.le_refl _) (by rwa [hbs_len] at h_over ⊢)
+      (Nat.le_refl _) h_over
     rw [h_end, BitVec.ult, decide_eq_true_eq, hsum_c, hsum_e, hbs_len]
     have : listCursor items i < (encode (.list items)).length := hcur_lt
     omega

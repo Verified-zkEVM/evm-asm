@@ -19,8 +19,12 @@
   #9522-style CPS scripts easy to adapt.
 -/
 
-import EvmAsm.Rv64.WP.Call
-import RiscvZkvm.Rv64.Logic.CPSCall
+module
+
+public import EvmAsm.Rv64.WP.Call
+public import RiscvZkvm.Rv64.Logic.CPSCall
+
+@[expose] public section
 -- END shim prelude
 
 namespace EvmAsm.Rv64

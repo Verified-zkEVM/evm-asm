@@ -15,9 +15,13 @@
     `WP.cpsCallWithin` + the trailing frame-pointer restore.
 -/
 
-import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
-import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
-import EvmAsm.Rv64.CPSCall
+module
+
+public import EvmAsm.Evm64.AddMod.Compose.CondSubSpec
+public import EvmAsm.Evm64.DivMod.Compose.ModCallableV5Assembly
+public import EvmAsm.Rv64.CPSCall
+
+@[expose] public section
 
 namespace EvmAsm.Evm64.AddMod.Compose
 

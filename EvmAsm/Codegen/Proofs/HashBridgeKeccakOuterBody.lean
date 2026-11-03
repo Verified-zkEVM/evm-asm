@@ -5,9 +5,13 @@
   `keccakAbsorbBody_with_backedge` + window focus over the full input.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
-import EvmAsm.Rv64.SAsm.MeasureLoop
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakOuter
+public import EvmAsm.Rv64.SAsm.MeasureLoop
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

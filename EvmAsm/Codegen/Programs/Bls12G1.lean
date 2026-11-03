@@ -30,14 +30,26 @@
   cells come from `Bls12Field.lean`'s data fragment.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
-import EvmAsm.Codegen.Programs.Bls12Field
-import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
+public import EvmAsm.Codegen.Programs.Bls12Field
+public import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.Programs.Bls12G1Eq48SAsm
+meta import EvmAsm.Codegen.Programs.Bls12Field
+meta import EvmAsm.Codegen.Programs.Bls12G1IsZeroNSAsm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

@@ -22,10 +22,17 @@
   trivially — this is the exploitability input the maintainer asked for.
 -/
 
-import Mathlib.Data.List.GetD
-import Mathlib.Tactic
+module
 
-import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+public import Mathlib.Data.List.GetD
+public import Mathlib.Tactic
+
+public import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+meta import Mathlib.Data.List.GetD
+meta import Mathlib.Tactic
+meta import EvmAsm.Codegen.Programs.U256DivU64BeSAsm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.U256DivU64Be
 

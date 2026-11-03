@@ -11,11 +11,15 @@
   `extractByte`/`packBytes` algebra (EvmAsm.Rv64.MemRegion / ByteOps).
 -/
 
-import EvmAsm.Rv64.MemRegion
-import EvmAsm.Rv64.HalfwordOps
-import EvmAsm.Rv64.WordOps
-import EvmAsm.Rv64.SAsm.Sym
-import EvmAsm.Rv64.SAsm.RegFileSep
+module
+
+public import EvmAsm.Rv64.MemRegion
+public import EvmAsm.Rv64.HalfwordOps
+public import EvmAsm.Rv64.WordOps
+public import EvmAsm.Rv64.SAsm.Sym
+public import EvmAsm.Rv64.SAsm.RegFileSep
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

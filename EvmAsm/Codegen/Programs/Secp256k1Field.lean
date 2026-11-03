@@ -12,14 +12,26 @@
   `secf_be_to_le` / `secf_le_to_be`.
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Codegen.Programs.U256
-import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
-import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Codegen.Programs.U256
+public import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
+public import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Codegen.Programs.U256
+meta import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
+meta import EvmAsm.Codegen.Programs.Secp256k1FieldIsZeroSAsm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

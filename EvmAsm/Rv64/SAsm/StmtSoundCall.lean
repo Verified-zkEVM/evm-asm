@@ -16,9 +16,13 @@
   Design: docs/sasm-design.md §3.6 (Milestone M4).
 -/
 
-import EvmAsm.Rv64.SAsm.StmtSound
-import EvmAsm.Rv64.WP.Call
-import EvmAsm.Rv64.InstructionSpecs
+module
+
+public import EvmAsm.Rv64.SAsm.StmtSound
+public import EvmAsm.Rv64.WP.Call
+public import EvmAsm.Rv64.InstructionSpecs
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 namespace SAsm

@@ -19,7 +19,11 @@
   `dwordAddr`. Cross-doubleword reads are a future refinement.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongLoopTwo
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongLoopTwo
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

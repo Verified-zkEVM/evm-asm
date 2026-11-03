@@ -6,11 +6,15 @@
   BNE x29,x0,-12.  Pattern mirrors `ZeroPadLoop` (byte SB) with dword SD.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
-import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.SelectedRead
-import EvmAsm.Rv64.MemRegionWriteWide
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakPure
+public import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.SelectedRead
+public import EvmAsm.Rv64.MemRegionWriteWide
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

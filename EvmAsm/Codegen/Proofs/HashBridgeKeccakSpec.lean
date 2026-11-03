@@ -15,12 +15,22 @@
   bound is derived from the input length.
 -/
 
-import EvmAsm.Codegen.Programs.HashBridge
-import EvmAsm.Rv64.SAsm.KeccakStep
-import EvmAsm.Rv64.SAsm.AbiFrameLoop
-import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
-import EvmAsm.Rv64.SAsm.Flatten
-import EvmAsm.Stateless.SpecRef.Crypto
+module
+
+public import EvmAsm.Codegen.Programs.HashBridge
+public import EvmAsm.Rv64.SAsm.KeccakStep
+public import EvmAsm.Rv64.SAsm.AbiFrameLoop
+public import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+public import EvmAsm.Rv64.SAsm.Flatten
+public import EvmAsm.Stateless.SpecRef.Crypto
+meta import EvmAsm.Codegen.Programs.HashBridge
+meta import EvmAsm.Rv64.SAsm.KeccakStep
+meta import EvmAsm.Rv64.SAsm.AbiFrameLoop
+meta import EvmAsm.Rv64.SAsm.AbiFrameLoopBottom
+meta import EvmAsm.Rv64.SAsm.Flatten
+meta import EvmAsm.Stateless.SpecRef.Crypto
+
+@[expose] public section
 
 set_option maxRecDepth 8000
 

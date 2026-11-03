@@ -19,9 +19,13 @@
   counter — are future work.
 -/
 
-import EvmAsm.Rv64.RLP.Phase2LongIter
-import EvmAsm.Rv64.Tactics.ExtractPure
-import EvmAsm.Rv64.Tactics.XPermPure
+module
+
+public import EvmAsm.Rv64.RLP.Phase2LongIter
+public import EvmAsm.Rv64.Tactics.ExtractPure
+public import EvmAsm.Rv64.Tactics.XPermPure
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.RLP
 

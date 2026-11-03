@@ -54,8 +54,14 @@
   length/count dword" routine.
 -/
 
-import EvmAsm.Rv64.SAsm.MultiDword
-import EvmAsm.Rv64.SAsm.Tactic
+module
+
+public import EvmAsm.Rv64.SAsm.MultiDword
+public import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.MultiDword
+meta import EvmAsm.Rv64.SAsm.Tactic
+
+@[expose] public section
 
 namespace EvmAsm.Rv64
 

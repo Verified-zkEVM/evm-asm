@@ -39,8 +39,12 @@
   (`Codegen/Programs/CreateDeployedCodeValidSAsm.lean`).
 -/
 
-import EvmAsm.Rv64.SAsm.FramePort
-import EvmAsm.Evm64.CallingConvention
+module
+
+public import EvmAsm.Rv64.SAsm.FramePort
+public import EvmAsm.Evm64.CallingConvention
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

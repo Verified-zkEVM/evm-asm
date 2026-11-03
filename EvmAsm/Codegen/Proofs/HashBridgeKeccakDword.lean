@@ -5,10 +5,14 @@
   LD input; LD state; XOR; SD state; advance both cursors; ADDI ctr -1; BNE.
 -/
 
-import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
-import EvmAsm.Rv64.SAsm.AccumLoop
-import EvmAsm.Rv64.SAsm.KeccakStep
-import EvmAsm.Rv64.Tactics.XPermChunked
+module
+
+public import EvmAsm.Codegen.Proofs.HashBridgeKeccakZero
+public import EvmAsm.Rv64.SAsm.AccumLoop
+public import EvmAsm.Rv64.SAsm.KeccakStep
+public import EvmAsm.Rv64.Tactics.XPermChunked
+
+@[expose] public section
 
 namespace EvmAsm.Codegen.Proofs
 

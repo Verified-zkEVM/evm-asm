@@ -26,13 +26,24 @@
   fully self-contained (no `u256_*` dependencies).
 -/
 
-import EvmAsm.Rv64.Program
-import EvmAsm.Codegen.Layout
-import EvmAsm.Codegen.Emit
-import EvmAsm.Codegen.GuestAddrs
-import EvmAsm.Codegen.AsmReloc
-import EvmAsm.Rv64.SAsm.Tactic
-import EvmAsm.Rv64.SAsm.WhileBreakDemo
+module
+
+public import EvmAsm.Rv64.Program
+public import EvmAsm.Codegen.Layout
+public import EvmAsm.Codegen.Emit
+public import EvmAsm.Codegen.GuestAddrs
+public import EvmAsm.Codegen.AsmReloc
+public import EvmAsm.Rv64.SAsm.Tactic
+public import EvmAsm.Rv64.SAsm.WhileBreakDemo
+meta import EvmAsm.Rv64.Program
+meta import EvmAsm.Codegen.Layout
+meta import EvmAsm.Codegen.Emit
+meta import EvmAsm.Codegen.GuestAddrs
+meta import EvmAsm.Codegen.AsmReloc
+meta import EvmAsm.Rv64.SAsm.Tactic
+meta import EvmAsm.Rv64.SAsm.WhileBreakDemo
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 

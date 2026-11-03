@@ -18,7 +18,11 @@
   replays the six-segment composition with the own-level segment 4.
 -/
 
-import EvmAsm.Rv64.SAsm.AbiFrame
+module
+
+public import EvmAsm.Rv64.SAsm.AbiFrame
+
+@[expose] public section
 
 namespace EvmAsm.Rv64.SAsm
 

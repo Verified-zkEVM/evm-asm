@@ -5,7 +5,12 @@
   body from `secf_eq32`, with the P-256 label/program wrapper.
 -/
 
-import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
+module
+
+public import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
+meta import EvmAsm.Codegen.Programs.Secp256k1FieldEq32SAsm
+
+@[expose] public section
 
 namespace EvmAsm.Codegen
 
