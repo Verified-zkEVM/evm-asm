@@ -362,6 +362,7 @@ import EvmAsm.Codegen.Programs.ExecutionRequestsHashHashOneNonemptyTop
 -- #13069: witness-code lookup's empty-section top is a linked whole-routine
 -- claim and is registered below as a conditional row.
 import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
+import EvmAsm.Codegen.Programs.WitnessCodesIndexBuildTop
 -- #12206: `assemble_execution_requests` whole-routine triple.
 import EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop
 import EvmAsm.Codegen.Programs.RequestsHashVerifyTop
@@ -4816,6 +4817,35 @@ def routineRegistryPartB : List RoutineEntry := [
         ++ "post and telemetry updates with no unproven callee reached; this "
         ++ "is a conditional coverage row, not a claim about the scan/hash "
         ++ "arms. Lives in `Codegen/Programs/WitnessCodesLookupSpec.lean`"),
+  -- #13246 item 1, code-DB half. The transcription issue (#11800) closed once
+  -- `witnessCodesIndexBuild_prog` existed, which made a `cpsTripleWithin`
+  -- STATABLE; this row is the attachment half it did not cover. Graded
+  -- `.conditional` on an INPUT-DOMAIN gate, not on a callee: all five
+  -- cross-`jal` callees (`zkvm_keccak256`, `wcidx_record_ptr`,
+  -- `wcidx_swap_records`, `wcidx_sift_down`) sit inside the keccak loop and
+  -- the two heapsort loops, and BOTH are jumped over on this domain, so the
+  -- row carries no unproven-callee dependency.
+  routine "witness_codes_index_build" .conditional
+      (some "witness_codes_index_build_spec_within_empty_section")
+      (gate := "`section_len = 0` (empty code section): the SSZ offset-table "
+        ++ "guards, the per-entry keccak loop and both heapsort loops are "
+        ++ "jumped over, and the failure tail is not reached. Non-empty "
+        ++ "sections are not claimed")
+      (notes := "whole-routine `cpsTripleWithin 88` at "
+        ++ "`GuestAddrs.witness_codes_index_build`, over the emitted "
+        ++ "158-instruction program. Publishes the EMPTY code index: "
+        ++ "`wcidx_enabled = 1`, `wcidx_count = 0`, `wcidx_section_ptr = a0`, "
+        ++ "`wcidx_section_len = 0`, `wcidx_build_status = 0`, all ten "
+        ++ "`wclh_*` counters zeroed, `a0 = 0`; the machine counterpart of "
+        ++ "`SpecRef.build_code_db [] = []`. Non-vacuity is a concrete entry "
+        ++ "state at the routine's own entry (`wcb_entryState_exists`, 45 "
+        ++ "atoms) plus `wcb_nonempty_section_gate_absurd` as the negative "
+        ++ "control. The mechanically identical node-DB builder "
+        ++ "`witness_index_build` has NO row yet (#13246). "
+        ++ "Lives in `Codegen/Programs/WitnessCodesIndexBuildTop.lean`; the "
+        ++ "sample-pinned body spec it generalises is `wcb_builder_spec` in "
+        ++ "`WitnessCodesIndexBuildSpec.lean`, whose extra `section_len = 1` "
+        ++ "failure arm is NOT lifted"),
   routine "witness_lookup_by_hash_indexed" .conditional
       (some "witness_lookup_by_hash_indexed_spec_within_one_hit")
       (gate := "`widx_count = 1` with the target equal to the sole indexed "
@@ -5937,10 +5967,10 @@ def routineCountTier (t : ProofTier) : Nat :=
     by neither `set_option`, and is what the chunk split (#13213) exists for.
 -/
 
-theorem routineCount_eq : routineCount = 246 := by decide +kernel
+theorem routineCount_eq : routineCount = 247 := by decide +kernel
 
 theorem routineProvenCount_eq : routineCountTier .proven = 181 := by decide +kernel
-theorem routineConditionalCount_eq : routineCountTier .conditional = 62 := by
+theorem routineConditionalCount_eq : routineCountTier .conditional = 63 := by
   decide +kernel
 theorem routinePartlyCount_eq      : routineCountTier .partly      = 3 := by
   decide +kernel
@@ -5964,7 +5994,7 @@ def routineSymbols : List String :=
 -- 11,191-character ones, and could not have been dodged by writing terser
 -- rows. `decide +kernel` sidesteps both budgets; see the note under
 -- `routineCount_eq`.
-theorem routineSymbols_eq : routineSymbols.length = 205 := by decide +kernel
+theorem routineSymbols_eq : routineSymbols.length = 206 := by decide +kernel
 
 /-! ## Cross-registry consistency (#11294)
 
@@ -7583,6 +7613,15 @@ private noncomputable abbrev _erh_hash_one_nonempty_witness :=
 -- #13069: witness-code lookup's empty-section machine top, now rowed below.
 private noncomputable abbrev _witness_codes_lookup_by_hash_routine_witness :=
   @EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
+-- #13246 item 1: `witness_codes_index_build`'s empty-section machine top, plus
+-- the two non-vacuity exhibits the row cites, so the axiom gate audits the
+-- satisfiability evidence and not only the triple.
+private noncomputable abbrev _witness_codes_index_build_routine_witness :=
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.witness_codes_index_build_spec_within_empty_section
+private noncomputable abbrev _witness_codes_index_build_entry_witness :=
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_entryState_exists
+private noncomputable abbrev _witness_codes_index_build_control_witness :=
+  @EvmAsm.Codegen.WitnessCodesIndexBuildTop.wcb_nonempty_section_gate_absurd
 -- #12206: `assemble_execution_requests` whole routine (imported above —
 -- `EvmAsm.Codegen.Programs.AssembleExecutionRequestsTop`).
 private noncomputable abbrev _assemble_execution_requests_routine_witness :=
