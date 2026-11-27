@@ -1328,6 +1328,12 @@ import EvmAsm.Progress.Correspondence
 
 #print axioms EvmAsm.Codegen.WitnessCodesLookupSpec.witness_codes_lookup_by_hash_spec_within_empty_section
 
+#print axioms EvmAsm.Codegen.WitnessIndexBuildTop.wib_entryState_exists
+
+#print axioms EvmAsm.Codegen.WitnessIndexBuildTop.wib_nonempty_section_gate_absurd
+
+#print axioms EvmAsm.Codegen.WitnessIndexBuildTop.witness_index_build_spec_within_empty_section
+
 #print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedEmpty.witness_lookup_by_hash_indexed_spec_within_empty
 
 #print axioms EvmAsm.Codegen.WitnessLookupByHashIndexedOneHit.witness_lookup_by_hash_indexed_spec_within_one_hit

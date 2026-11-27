@@ -17,13 +17,9 @@
     routine IS a standard 11-slot ABI frame around a 133-instruction body, so
     `abiFrame_spec_own` applies and the prologue/epilogue (`ra`, `s0`…`s9`
     save/restore, `sp` round-trip) are DERIVED, not assumed.
-  * `chainK` and `laStoreOwn`/`laStoreAt` — the two composition idioms, generic
-    in the `CodeReq`.  `chainK` sequences two segments that share a carried
-    context by pure reassociation, so the thirteen-cell initialisation block
-    costs a linear chain rather than thirteen permutation searches.  Both are
-    written to be reusable by the mechanically identical node-DB builder
-    `witness_index_build`, which is the other half of #13246 item 1 and is NOT
-    proved here.
+  * The composition idioms `chainK` and `laStoreOwn`/`laStoreAt` live in
+    `CellStoreIdioms.lean`, generic in the `CodeReq`, because the mechanically
+    identical node-DB builder `witness_index_build` reuses them verbatim.
   * `witness_codes_index_build_spec_within_empty_section` — the **whole-routine
     triple**, entry `GuestAddrs.witness_codes_index_build` to the caller's
     return address, over `CodeReq.ofProg` of the real program, in at most 88
@@ -72,13 +68,12 @@
   ## §D  Relation to the node-DB builder
 
   `witnessIndexBuild_prog` (`MptWitnessIndex.lean`) is the same 158
-  instructions with `widx_*` in place of `wcidx_*`.  Its leaf callees
-  (`widx_record_ptr`, `widx_cmp32`, `widx_swap_records`) have triples in
-  `Codegen/Proofs/MptWitnessIndexSpec.lean`, but the routine itself has no
-  whole-routine triple and no registry row; §1's `chainK`/`laStoreOwn` are
-  stated generically in the `CodeReq` precisely so that mirror can reuse them.
+  instructions with `widx_*` in place of `wcidx_*`.  Its mirror of this module
+  is `WitnessIndexBuildTop.lean`, built over the same `CodeReq`-generic idioms
+  in `CellStoreIdioms.lean`.
 -/
 
+import EvmAsm.Codegen.Programs.CellStoreIdioms
 import EvmAsm.Codegen.Programs.WitnessCodesLookupSpec
 import EvmAsm.Rv64.SAsm.AbiFrameOwn
 import EvmAsm.Rv64.SAsm.FramePort
@@ -90,89 +85,9 @@ namespace EvmAsm.Codegen.WitnessCodesIndexBuildTop
 open EvmAsm.Rv64 EvmAsm.Rv64.SAsm EvmAsm.Evm64
 open EvmAsm.Codegen
 open EvmAsm.Codegen.WitnessCodesLookupSpec
+open EvmAsm.Codegen.CellStoreIdioms
 
 set_option maxRecDepth 8000
-
-/-! ## §1  Two composition idioms, generic in the code requirement -/
-
-/-- **Chaining two segments that share a carried context `K`.**  `K` is the
-    part of the ambient both segments read or overwrite; `P₁/Q₁` and `P₂/Q₂`
-    are the disjoint resources each segment owns.  Pure reassociation — no
-    permutation search, so the cost does not grow with the chain length. -/
-theorem chainK {cr : CodeReq} {n1 n2 : Nat} {A E F : Word}
-    {K P1 Q1 P2 Q2 : Assertion}
-    (hQ1 : Q1.pcFree) (hP2 : P2.pcFree)
-    (h1 : cpsTripleWithin n1 A E cr (K ** P1) (K ** Q1))
-    (h2 : cpsTripleWithin n2 E F cr (K ** P2) (K ** Q2)) :
-    cpsTripleWithin (n1 + n2) A F cr (K ** P1 ** P2) (K ** Q1 ** Q2) := by
-  have h1f := cpsTripleWithin_frameR P2 hP2 h1
-  have h2f := cpsTripleWithin_frameR Q1 hQ1 h2
-  have hmid : ∀ h, ((K ** Q1) ** P2) h → ((K ** P2) ** Q1) h := by
-    intro h hp
-    rw [sepConj_assoc', sepConj_comm' Q1 P2, ← sepConj_assoc'] at hp
-    exact hp
-  have hseq := cpsTripleWithin_seq_perm_same_cr hmid h1f h2f
-  refine cpsTripleWithin_weaken (fun h hp => ?_) (fun h hq => ?_) hseq
-  · rw [← sepConj_assoc'] at hp; exact hp
-  · rw [sepConj_assoc', sepConj_comm' Q2 Q1] at hq; exact hq
-
-/-- **The `la`/`sd` store idiom**: `auipc t0,hi ; addi t0,t0,lo ; sd rs,0(t0)`
-    writes `rs` into the `.data` cell `C`.  With `rs = x0` (and `x0 ↦ᵣ 0` in
-    the ambient) this is the zeroing form; with any other `rs` it publishes
-    that register's value.  Code membership is hypothesis-shaped so each call
-    site discharges it by evaluation against its own routine's `CodeReq`. -/
-theorem laStoreOwn {cr : CodeReq} (rs : Reg) (A C v : Word)
-    (hrange : laInRange A C)
-    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
-      cr a = some i)
-    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
-      cr a = some i)
-    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 rs (0 : BitVec 12)) a = some i →
-      cr a = some i) :
-    cpsTripleWithin 3 A (A + 12) cr
-      (((rs ↦ᵣ v) ** memOwn C) ** regOwn .x5)
-      (((.x5 : Reg) ↦ᵣ C) ** (rs ↦ᵣ v) ** (C ↦ₘ v)) := by
-  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun vOld => ?_)
-  have hla := la_materialize_within .x5 vOld A C (by decide) hrange hau had
-  have hstore := liftCode (cr' := cr)
-    (sd_spec_gen_own_within .x5 rs C v (0 : BitVec 12) (A + 8)) hsd
-  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show C + (0 : Word) = C from by bv_omega,
-    show (A + 8 : Word) + 4 = A + 12 from by bv_omega] at hstore
-  have hf := cpsTripleWithin_frameR ((rs ↦ᵣ v) ** memOwn C) (by pcf) hla
-  exact cpsTripleWithin_mono_nSteps (show 2 + 1 ≤ 3 by omega)
-    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => by xperm_hyp hq)
-      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hf hstore))
-
-
-/-- **The `la`/`sd` store idiom at a KNOWN old cell value.**  Same three
-    instructions as `laStoreOwn`; the pre pins the cell's prior contents
-    instead of merely owning them, which is what a second write to a cell the
-    same routine already initialised needs. -/
-theorem laStoreAt {cr : CodeReq} (rs : Reg) (A C vOld v : Word)
-    (hrange : laInRange A C)
-    (hau : ∀ a i, CodeReq.singleton A (.AUIPC .x5 (Rv64.laHi A C)) a = some i →
-      cr a = some i)
-    (had : ∀ a i, CodeReq.singleton (A + 4) (.ADDI .x5 .x5 (Rv64.laLo A C)) a = some i →
-      cr a = some i)
-    (hsd : ∀ a i, CodeReq.singleton (A + 8) (.SD .x5 rs (0 : BitVec 12)) a = some i →
-      cr a = some i) :
-    cpsTripleWithin 3 A (A + 12) cr
-      (((rs ↦ᵣ v) ** (C ↦ₘ vOld)) ** regOwn .x5)
-      (((.x5 : Reg) ↦ᵣ C) ** (rs ↦ᵣ v) ** (C ↦ₘ v)) := by
-  refine cpsTripleWithin_of_forall_regIs_to_regOwn (fun vR => ?_)
-  have hla := la_materialize_within .x5 vR A C (by decide) hrange hau had
-  have hstore := liftCode (cr' := cr)
-    (sd_spec_gen_within .x5 rs C v vOld (0 : BitVec 12) (A + 8)) hsd
-  rw [show signExtend12 (0 : BitVec 12) = (0 : Word) from by decide,
-    show C + (0 : Word) = C from by bv_omega,
-    show (A + 8 : Word) + 4 = A + 12 from by bv_omega] at hstore
-  have hf := cpsTripleWithin_frameR ((rs ↦ᵣ v) ** (C ↦ₘ vOld)) (by pcf) hla
-  exact cpsTripleWithin_mono_nSteps (show 2 + 1 ≤ 3 by omega)
-    (cpsTripleWithin_weaken (fun _ hp => by xperm_hyp hp)
-      (fun _ hq => by xperm_hyp hq)
-      (cpsTripleWithin_seq_perm_same_cr (fun _ hp => by xperm_hyp hp) hf hstore))
 
 /-! ## §2  `witness_codes_index_build` — the carried context and the segments
 

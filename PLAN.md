@@ -1403,8 +1403,16 @@ All deleted spec files have been recreated. See **Pending: Recreate Deleted Spec
   (`indexOfSection_hashes_eq_build_code_db`) *and* values
   (`witnessLookupSpec_slice_eq_build_code_db`, and against `SpecRef.get_code`
   itself in `witnessLookupSpec_slice_eq_get_code`), plus the
-  `witnessIndexIs_snoc`/`codeDbIs_snoc` step lemmas (#11573; the heapsort
-  permutation fact and the routine triples stay open). The concrete↔abstract refinement
+  `witnessIndexIs_snoc`/`codeDbIs_snoc` step lemmas (#11573). Both
+  witness-ingest *builder* routines now carry whole-routine machine triples on
+  the empty-section domain — `witness_codes_index_build_spec_within_empty_section`
+  and `witness_index_build_spec_within_empty_section` (#13246,
+  `Codegen/Programs/WitnessCodesIndexBuildTop.lean` and
+  `WitnessIndexBuildTop.lean`, over the shared `CellStoreIdioms.lean`), each
+  publishing the empty index that answers `SpecRef.build_code_db []` /
+  `build_node_db []`. The heapsort permutation fact and the non-empty arms
+  stay open, and the non-empty arms first need contracts for
+  `wcidx_sift_down`/`widx_sift_down`. The concrete↔abstract refinement
   tie (`Evm64/WitnessAssertions.lean`).
   - **Spec-shaped write maps** (2026-08-10, #11571):
     `accountWritesMapIs` / `txAccountWritesMapIs` / `storageWritesMapIs` in
